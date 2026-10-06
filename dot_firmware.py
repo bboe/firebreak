@@ -5,8 +5,9 @@ on another target, and keeps going until the Dot is on the target: it waits
 while the Dot reboots, and while you take a step it asks for. Stopped, it picks
 up where it left off on the next run. It uses the one Dot on USB; set
 ANDROID_SERIAL when several are. It needs Python 3.9 or later, and adb and
-fastboot from Android platform-tools. docs/rooting.md says why each step is
-there.
+fastboot from Android platform-tools.
+https://github.com/bboe/firebreak/blob/main/docs/rooting.md says why each
+step is there.
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ import zlib
 from typing import IO, TYPE_CHECKING, BinaryIO, NamedTuple, NoReturn, TextIO
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Generator, Iterator
 
 ARGS = argparse.Namespace(build="", target="v1-bboe", verbose=False)
 AS_ROOT = (
@@ -756,9 +757,9 @@ def bootrom(  # ruff: ignore[complex-structure, too-many-branches, too-many-stat
     log_path = CACHE / "bootrom.log"
     env = dict(os.environ, PYTHONPATH=str(wheel), PYTHONUNBUFFERED="1")
     if SESSION.short:
-        env["OVERDUB_ERASED"] = str(ERASED)
+        env["FIREBREAK_ERASED"] = str(ERASED)
     if not erase and not SESSION.short:
-        env["OVERDUB_RESUME"] = "1"
+        env["FIREBREAK_RESUME"] = "1"
         with contextlib.suppress(subprocess.TimeoutExpired):
             subprocess.run(
                 child("reset"),
@@ -946,7 +947,7 @@ def cache_dir() -> pathlib.Path:
         base = os.environ.get("LOCALAPPDATA") or pathlib.Path.home()
     else:
         base = os.environ.get("XDG_CACHE_HOME") or pathlib.Path.home() / ".cache"
-    return pathlib.Path(base) / "overdub-firmware"
+    return pathlib.Path(base) / "firebreak"
 
 
 CACHE = cache_dir()
@@ -1115,8 +1116,8 @@ def child_bootrom() -> int:  # ruff: ignore[complex-structure, too-many-statemen
     from logger import log  # ruff: ignore[import-outside-top-level]
     from serial.tools import list_ports  # ruff: ignore[import-outside-top-level]
 
-    marker = os.environ.get("OVERDUB_ERASED")
-    resume = os.environ.get("OVERDUB_RESUME")
+    marker = os.environ.get("FIREBREAK_ERASED")
+    resume = os.environ.get("FIREBREAK_RESUME")
     start_payload = amonet.load_payload
 
     def emmc_read(self: common.Device, idx: int) -> bytes:
@@ -1761,7 +1762,7 @@ def hide_updater() -> None:
 
 
 @contextlib.contextmanager
-def hold(lock: threading.Lock) -> Iterator[None]:
+def hold(lock: threading.Lock) -> Generator[None, None, None]:
     while not lock.acquire(timeout=0.5):
         pass
     try:
@@ -2001,9 +2002,8 @@ def main() -> None:
         help="v1-bboe (the default): rooted Fire OS 5.5.5.4 on amonet v1.1.0, with"
         f" TWRP {TWRP_VERSION}. v1: the same, with v1.1.0's own TWRP 3.2.3. v2:"
         f" amonet v2.0.0's own procedure, Fire OS 6 {V2_BUILD} with boot-root.zip's"
-        " root adb, which overdub cannot run on. stock: Amazon's Fire OS 6 BUILD,"
-        " which erases the whole Dot. Run again with another target to move the"
-        " Dot to it",
+        " root adb. stock: Amazon's Fire OS 6 BUILD, which erases the whole Dot."
+        " Run again with another target to move the Dot to it",
         nargs="?",
     )
     parser.add_argument(
@@ -2047,7 +2047,7 @@ def md5_mismatch(*, command: str, want: str) -> str:
 
 
 def move_old_caches() -> None:
-    for old in ("overdub-root", "overdub-stock"):
+    for old in ("overdub-firmware", "overdub-root", "overdub-stock"):
         source = CACHE.parent / old
         if not source.is_dir():
             continue
@@ -2700,10 +2700,6 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         if ARGS.target == "v2" and current == State.V2_BOOTED:
             version = adb_shell(command="getprop ro.build.version.name")
             warn(f"The Dot is rooted: {version}, with root adb.")
-            warn(
-                "overdub cannot run on Fire OS 6. dot_firmware.py with no target"
-                " roots it on Fire OS 5.5.5.4, which overdub runs on."
-            )
             cache_note()
             return
         if ARGS.target == "stock" and current in {
@@ -2715,7 +2711,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 warn(
                     "If you will root it again, do not set it up in the Alexa app"
                     " first: on Wi-Fi it can take an update to a build"
-                    " dot_firmware.py has not met."
+                    " dot_firmware.py does not support."
                 )
             else:
                 say(
@@ -2731,7 +2727,6 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             version = adb_shell(command="getprop ro.build.version.name")
             selinux = adb_shell(command="getenforce")
             warn(f"The Dot is rooted: {version}, SELinux {selinux}, {UPDATER} hidden.")
-            warn("Install overdub with deploy/install.py <name>.")
             cache_note()
             return
         if (

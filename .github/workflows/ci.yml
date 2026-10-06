@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  minimum-python:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - run: /usr/bin/python3 tests/python_floor.py
+      - run: /usr/bin/python3 dot_firmware.py --help
+      - run: test -x dot_firmware.py
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - run: pipx run pre-commit==4.6.2 run --all-files --show-diff-on-failure

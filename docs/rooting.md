@@ -1,6 +1,6 @@
 # Rooting
 
-`deploy/dot_firmware.py` takes a Dot from stock Fire OS 6 to rooted Fire OS
+`dot_firmware.py` takes a Dot from stock Fire OS 6 to rooted Fire OS
 5.5.5.4. It polls the Dot every 2 seconds, does the stage for the state it
 finds, and stops when the Dot is in the state its optional target names. The
 table gives the stages for the default, `v1-bboe`; [Targets](#targets) has the
@@ -190,9 +190,10 @@ target.
 - A finished line is at most 79 columns, so it does not wrap on an 80-column
   terminal. That caps a stage label at 36 characters.
 - Steps are numbered from 1 in each run, against the total that
-  [Targets](#targets) says how the run counts. The restore is 16 of them. A
-  restore write whose target already reads back the right md5 ends `skip`,
-  in place of its seconds.
+  [Targets](#targets) says how the run counts. The restore stage is 16 of
+  them, and 17 from a rooted Dot, with the reboot into recovery. A restore
+  write whose target already reads back the right md5 ends `skip`, in place
+  of its seconds.
 - Each stage's estimate is an upper bound: the slowest time measured for it,
   rounded up to the next 5 seconds, over roots on macOS and Windows 11. One
   case is left out: a first run on a computer that finds the Dot already in
@@ -209,14 +210,14 @@ The ring during `dot_firmware.py stock 6302`, from a rooted Dot not set up:
 | off, about 12 s | `adb reboot recovery` |
 | deep blue, about 10 s, a brighter segment turning in its last 3 | v1.1.0's TWRP starting, before adb answers |
 | a blink off, then a cyan arc turning, about 3 s | TWRP up: `adb wait-for-recovery` returns |
-| cyan, whole ring, steady | through all 15 steps |
+| cyan, whole ring, steady | through the restore's steps |
 | off, about 8 s | the reboot into stock |
 | deep blue, about 50 s | stock Fire OS 6 booting |
 | cyan and blue, turning | Fire OS 6 starting Alexa |
 | orange | setup mode, about 90 s after the reboot |
 
-The ring during `dot_firmware.py root` from stock 8138, in daylight, 14 min
-49 s in all:
+The ring during a root from stock 8138, in daylight, 14 min 49 s in all.
+That root went through the bootrom; a root from stock now does not:
 
 | ring | when |
 |---|---|
@@ -254,7 +255,8 @@ ring read white.
 ## The host
 
 - Python 3.9 or later, because stock macOS's `/usr/bin/python3` is 3.9.6. CI
-  byte-compiles the script under 3.9's parser and runs its `--help`.
+  runs its `--help` on that interpreter, and `tests/python_floor.py` checks
+  that the script uses no module, attribute or import 3.9.6 lacks.
 - The standard library only, so the script runs on stock macOS, Linux and
   Windows. adb and fastboot are the only external tools.
 - On a terminal, `ERROR:` lines are red and warnings yellow. `NO_COLOR`,
@@ -268,11 +270,11 @@ ring read white.
   `fastboot --help` for `-S`, the stock target included, because a route to
   stock can pass through fastboot. Old releases, run with no device, set
   these floors.
-- Downloads go to `$XDG_CACHE_HOME/overdub-firmware` (default
-  `~/.cache/overdub-firmware`), or `%LOCALAPPDATA%\overdub-firmware` on
-  Windows. The script moves what the old `overdub-root` and `overdub-stock`
-  hold into it before it reads the cache, so an interrupted downgrade's
-  marker survives. A name already in the new folder stays in the old. Each
+- Downloads go to `$XDG_CACHE_HOME/firebreak` (default `~/.cache/firebreak`),
+  or `%LOCALAPPDATA%\firebreak` on Windows. The script moves what the old
+  `overdub-firmware`, `overdub-root` and `overdub-stock` folders hold into
+  it before it reads the cache, so an interrupted downgrade's marker
+  survives. A name already in the new folder stays in the old. Each
   is checked against a pinned SHA-256 before use and on every run. The amonet
   trees unpacked from the two zips are not, and neither is the system image
   built from Fire OS's.
@@ -411,8 +413,6 @@ ring read white.
   `recovery` back through `adb exec-out` and `su`, and hash it on the host.
   On a Dot, 13,953,024 bytes took 2.2 s. One read, at the larger image's
   length, answers for both TWRPs.
-- overdub cannot run on `v2`: Fire OS 6 on the Dot has no `app_process`,
-  AudioFlinger or OpenSL ES.
 
 ### v2
 
@@ -488,7 +488,8 @@ ring read white.
 | rooted-bboe | v2 | 5 min 22 s: recovery 30 s, the zip 19 s and its reboot 19 s, the wipes 3 s, the installs 96 s and 117 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
 | v2-booted | v1 | 8 min 28 s through the bootrom, which this starting state no longer uses, kept to compare against: recovery 19 s, the downgrade 43 s, TWRP 27 s, the install 86 s, Fire OS 5's first boot 321 s, TWRP 3.2.3 7 s |
 | v2-booted | v1-bboe | 7 min 42 s, with no bootrom: recovery 19 s, the table 1 s, recovery 19 s, boot0 under 1 s, the chain 6 s, `misc` under 1 s, userdata 4 s, `/system` 79 s, the boot image 3 s, Magisk 1 s, the preloader under 1 s, Fire OS 5's first boot 321 s |
-| stock-booted | stock 8146 | 3 min 11 s: recovery 30 s, `system_a` 81 s, the rest under 7 s each, stock's first boot 32 s |
+| stock-fastboot | v1-bboe | 8 min 3 s, with no bootrom: the fastbrick, then the same route as from v2-booted |
+| rooted-bboe | stock 8146 | 3 min 11 s: recovery 30 s, `system_a` 81 s, the rest under 7 s each, stock's first boot 32 s |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.
@@ -574,8 +575,9 @@ ring read white.
 - The bootrom is `0e8d:0003`. On macOS it is `/dev/cu.usbmodem*`. On Linux it
   is `/dev/ttyACM*`, owned by `dialout` unless the udev `tty` line gives it to
   `plugdev`, and ModemManager can grab it first. On Windows it is a COM port
-  that needs MediaTek's VCOM driver (`cdc-acm.inf`, class Ports), installed by
-  hand; without it `0e8d:0003` is an unknown device.
+  that needs MediaTek's VCOM driver (`cdc-acm.inf`, class Ports, 3.0.1504.0,
+  "MediaTek USB Port" in the Microsoft Update Catalog), installed by hand
+  with `pnputil /add-driver`; without it `0e8d:0003` is an unknown device.
 - No other mode needs a hand-installed driver. On a Windows machine that rooted
   a Dot, the driver store held only MediaTek's and Amazon's
   `FireDevicesUsbDeviceClass`, which serves amonet fastboot (`0bb4:0c01`) and
@@ -682,8 +684,8 @@ ring read white.
 - The host builds it from the zip's `boot.img` and Magisk 17.3's zip, in
   about 2 s. Nothing runs magiskboot or Magisk's installer.
 - 17.3 is the last 17.x. Up to v25.2 support Android 5.1, but from v18 the
-  boot patch and `service.d` path change, and overdub needs only `su` and
-  `service.d`.
+  boot patch and `service.d` path change, and the host's boot image build
+  follows 17.3's.
 - The ramdisk loses `verify` from every fstab, and `default.prop` gets
   `ro.secure=0`, `ro.debuggable=1` and `persist.sys.usb.config=mtp,adb`.
 - The cmdline is the 512-byte header field at offset 64. Stock is
@@ -753,7 +755,7 @@ ring read white.
 
 ## Back to stock: the stock target
 
-`deploy/dot_firmware.py stock <build>` returns a Dot on amonet v1.1.0 or v2.0.0
+`dot_firmware.py stock <build>` returns a Dot on amonet v1.1.0 or v2.0.0
 to stock Fire OS 6, to test a root from a clean start. `stock` is a target like
 the others, so every state has a route to it: a rooted Dot goes to recovery,
 v1's fastboot gets v1's TWRP, v1's locked fastboot gets the fastbrick, and in
@@ -906,4 +908,4 @@ any TWRP the restore runs.
   would take.
 - A restored Dot has no Wi-Fi until it is set up in the Alexa app. To root it
   again, skip that setup: on Wi-Fi it can update to a build
-  `dot_firmware.py` has not met, or away from the build under test.
+  `dot_firmware.py` does not support, or away from the build under test.
