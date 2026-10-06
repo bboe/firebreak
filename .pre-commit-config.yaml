@@ -8,3 +8,8 @@ repos:
       - id: ruff-format
     repo: https://github.com/astral-sh/ruff-pre-commit
     rev: f12be1ebaa5351c1fc76472de98db2c3446c8253  # frozen: v0.16.10
+  - hooks:
+      - id: markdownlint-cli2
+        language_version: 22.20.0
+    repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: 916ad0aaa108c64d294101002066f530ea170b10  # frozen: v0.23.3

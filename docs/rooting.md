@@ -8,7 +8,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock`
 target.
 
 | state | how it is recognised | what the run does |
-|---|---|---|
+| --- | --- | --- |
 | stock-booted | `adb get-state` says `unauthorized`, or Fire OS 6 without root | prints the fastboot gesture, and the + gesture for a Dot already on amonet v2.0.0 |
 | stock-fastboot | `unlock_status` is `false` | amonet v2.0.0 fastbrick |
 | locked-v1-fastboot | `unlock_status` is `false`, and `lk_build_desc` is v1's: v1's own fastboot, which is locked | the same |
@@ -205,7 +205,7 @@ target.
 The ring during `dot_firmware.py stock 6302`, from a rooted Dot not set up:
 
 | ring | when |
-|---|---|
+| --- | --- |
 | purple | rooted Fire OS 5, setup timed out (`anim_OOBE_start_error`) |
 | off, about 12 s | `adb reboot recovery` |
 | deep blue, about 10 s, a brighter segment turning in its last 3 | v1.1.0's TWRP starting, before adb answers |
@@ -220,7 +220,7 @@ The ring during a root from stock 8138, in daylight, 14 min 49 s in all.
 That root went through the bootrom; a root from stock now does not:
 
 | ring | when |
-|---|---|
+| --- | --- |
 | green | stock fastboot, from the button held at power-on |
 | off 1 s, then yellow, shrinking to an arc over about 10 s | the fastbrick flashed |
 | red-orange, about 7 s, then green, about 5 s, then off, about 5 s | the exploit, before TWRP |
@@ -336,7 +336,7 @@ ring read white.
   These rules, in `/etc/udev/rules.d/51-echo-dot.rules`, cover every state,
   the serial port included:
 
-  ```
+  ```text
   SUBSYSTEM=="usb", ATTR{idVendor}=="1949", MODE="0660", GROUP="plugdev", TAG+="uaccess"
   SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="4ee2", MODE="0660", GROUP="plugdev", TAG+="uaccess"
   SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="d001", MODE="0660", GROUP="plugdev", TAG+="uaccess"
@@ -388,7 +388,7 @@ ring read white.
 ## Targets
 
 | target | ends in | stops at |
-|---|---|---|
+| --- | --- | --- |
 | `v1-bboe`, the default | amonet v1.1.0, TWRP 3.7.0_9-bboe2, rooted Fire OS 5.5.5.4 | rooted-bboe |
 | `v1` | the same, with v1.1.0's own TWRP 3.2.3 | rooted-v1 |
 | `v2` | amonet v2.0.0's TWRP, Fire OS 6 8146 in both slots, `boot-root.zip` | v2-booted |
@@ -482,7 +482,7 @@ ring read white.
 - Measured on a Dot, 2026-10-04, each with no one touching the Dot:
 
 | from | to | took |
-|---|---|---|
+| --- | --- | --- |
 | rooted-bboe | v1 | 9 s |
 | rooted-v1 | v1-bboe | 9 s |
 | rooted-bboe | v2 | 5 min 22 s: recovery 30 s, the zip 19 s and its reboot 19 s, the wipes 3 s, the installs 96 s and 117 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
@@ -689,8 +689,8 @@ ring read white.
 - The ramdisk loses `verify` from every fstab, and `default.prop` gets
   `ro.secure=0`, `ro.debuggable=1` and `persist.sys.usb.config=mtp,adb`.
 - The cmdline is the 512-byte header field at offset 64. Stock is
-  `bootopt=64S3,32N2,64N2`; the script appends
-  ` androidboot.selinux=permissive`.
+  `bootopt=64S3,32N2,64N2`; the script appends a space and
+  `androidboot.selinux=permissive`.
 - Then Magisk's patch, as its `boot_patch.sh` does it with `KEEPVERITY` and
   `KEEPFORCEENCRYPT` false. `init` becomes `magiskinit` and `verity_key`
   goes; both originals go into `.backup`, with `.magisk`. In the kernel,
@@ -707,8 +707,8 @@ ring read white.
 - Compared with the image that `twrp install` of Magisk wrote on a Dot, every
   header field, the kernel, the dtb and every ramdisk file are the same, except
   in 3 places. There is no `.backup/.sha1`. 3 symlinks keep their stock modes,
-  where busybox's `cpio` had made them 0777. The MTK header keeps the stock 0xff padding, where
-  magiskboot wrote zeros.
+  where busybox's `cpio` had made them 0777. The MTK header keeps the stock
+  0xff padding, where magiskboot wrote zeros.
 - The image is padded to a 4096-byte multiple and written with `dd`.
   After `sync` the page cache is dropped, and the partition is read back by
   md5 over the image's length.
