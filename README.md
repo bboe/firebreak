@@ -6,10 +6,10 @@ to move the Dot. A stopped run picks up where it left off.
 
 | target | the Dot ends with | time |
 | --- | --- | --- |
-| `v1-bboe` (default) | rooted Fire OS 5.5.5.4 on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
-| `v1` | the same, with amonet v1.1.0's TWRP 3.2.3 | about 10 s from `v1-bboe` |
-| `v2` | rooted Fire OS 6 8146 on amonet v2.0.0; needs `boot-root.zip` from [the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/) in `~/Downloads` | about 5 min from `v1-bboe` |
-| `stock BUILD` | stock Fire OS 6 at that build, with the Dot erased | about 3 min from `v1-bboe` |
+| `amonet-biscuit-v1.1.0-bboe` (default) | rooted Fire OS 5.5.5.4 on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
+| `amonet-biscuit-v1.1.0` | the same, with amonet v1.1.0's TWRP 3.2.3 | about 10 s from `amonet-biscuit-v1.1.0-bboe` |
+| `amonet-biscuit-v2.0.0` | rooted Fire OS 6 8146 on amonet v2.0.0; needs `boot-root.zip` from [the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/) in `~/Downloads` | about 5 min from `amonet-biscuit-v1.1.0-bboe` |
+| `stock BUILD` | stock Fire OS 6 at that build, with the Dot erased | about 3 min from `amonet-biscuit-v1.1.0-bboe` |
 
 ## Run it
 
@@ -24,7 +24,7 @@ These commands use [Homebrew](https://brew.sh). Without it, download Google's
 ```sh
 brew install --cask android-platform-tools
 curl -LO https://raw.githubusercontent.com/bboe/firebreak/main/dot_firmware.py
-python3 dot_firmware.py              # v1-bboe
+python3 dot_firmware.py              # amonet-biscuit-v1.1.0-bboe
 python3 dot_firmware.py stock 8146   # or 4315, 4405, 5041, 6302, 8138, 8142
 ```
 
@@ -50,8 +50,8 @@ py -3 dot_firmware.py
 ```
 
 The bootrom step also needs MediaTek's VCOM driver. It runs for `--short`, for a
-Dot on amonet v2 left in fastboot, and to resume a run stopped while it rewrote
-the bootloader; the script says when. The driver is "MediaTek USB Port"
+Dot on amonet v2.0.0 left in fastboot, and to resume a run stopped while it
+rewrote the bootloader; the script says when. The driver is "MediaTek USB Port"
 3.0.1504.0 from the Microsoft Update Catalog. Install it from an administrator
 PowerShell:
 
@@ -75,8 +75,9 @@ It has x86 and x64 builds only, so Windows on ARM cannot run the bootrom step.
 
 Use `--short` when the Dot shows no light and gives no fastboot. The run reaches
 the Dot's bootrom by shorting its eMMC bus as it powers up, writes amonet
-v1.1.0, and then goes on to the target. It takes any target; `--short` to `v2`
-has not been run on a Dot. On Windows it needs the [VCOM driver](#windows).
+v1.1.0, and then goes on to the target. It takes any target; `--short` to
+`amonet-biscuit-v2.0.0` has not been run on a Dot. On Windows it needs the [VCOM
+driver](#windows).
 
 1. Open the Dot with a Torx T8 screwdriver. Lift the shield's lid off the eMMC
    by its corners; its metal frame stays on the board.
