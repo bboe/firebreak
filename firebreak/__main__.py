@@ -106,10 +106,12 @@ AMONET_V1_1_0_PAYLOAD_SEEK = 223207
 AMONET_V2_0_0_FIREOS_BUILD = "8146"
 BOOTLOADER_CONTROL_BLOCK = b"\0ABB\x01\x8f\0"
 BOOTLOADER_CONTROL_BLOCK_OFFSET = 0x360
-BOOT_ROOT_SHA256 = "de49cc88b27a8e77cf97cf0156bee50e4ddc0e116c41aaede06b494e38397be0"
-BOOT_ROOT_URL = (
-    "https://xdaforums.com/attachments/boot-root-zip.6388001/"
-    "?hash=51efcb2ca8973118855bf9ccae40446b"
+BOOT_ROOT = Download(
+    browser=True,
+    name="boot-root.zip",
+    sha256="de49cc88b27a8e77cf97cf0156bee50e4ddc0e116c41aaede06b494e38397be0",
+    size=473633,
+    url="https://xdaforums.com/attachments/boot-root-zip.6388001/",
 )
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
 CHAIN_PARTS = (
@@ -581,34 +583,6 @@ def amonet_v1_1_0_recovery() -> None:
 def amonet_v2_0_0_payload() -> pathlib.Path:
     amonet = unpack(download=AMONET_BISCUIT_V2_0_0_ZIP)
     return amonet / "brom-payload" / "build" / "payload.bin"
-
-
-def boot_root() -> pathlib.Path:
-    CACHE.mkdir(exist_ok=True, parents=True)
-    path = CACHE / "boot-root.zip"
-    downloaded = pathlib.Path.home() / "Downloads" / path.name
-    asked = False
-    while not path.is_file() or digest(kind="sha256", path=path) != BOOT_ROOT_SHA256:
-        if (
-            downloaded.is_file()
-            and digest(kind="sha256", path=downloaded) == BOOT_ROOT_SHA256
-        ):
-            shutil.copyfile(dst=path, src=downloaded)
-            continue
-        if not asked:
-            asked = True
-            say(
-                code=ANSIColor.YELLOW,
-                text=f"{AMONET_BISCUIT_V2_0_0} needs boot-root.zip, and XDA serves it"
-                " only to a browser. Download it in a browser from the address"
-                f" below. This waits until it is in {downloaded.parent} or {CACHE},"
-                f" with the sha256 {BOOT_ROOT_SHA256}. Ctrl-C stops the script.",
-            )
-            show(text=BOOT_ROOT_URL)
-        time.sleep(2)
-    if asked:
-        passed(message=f"{path.name} verified")
-    return path
 
 
 def bootrom(  # ruff: ignore[complex-structure, too-many-branches, too-many-statements]
@@ -1307,7 +1281,7 @@ def install_fireos(*, reboot: bool = True, slot: str = "") -> None:
 def install_fireos6() -> None:
     amonet_chain()
     update_file = download(build=AMONET_V2_0_0_FIREOS_BUILD)
-    zip_path = boot_root()
+    zip_path = fetch(download=BOOT_ROOT)
     if "boot_a_x" in partition_table():
         _die(
             message="v2.0.0's TWRP runs on amonet v1.1.0's partition table. " + again()
@@ -1885,7 +1859,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             SESSION.short = False
         if current == State.NONE and (ERASED.exists() or SESSION.short) and not resumed:
             if ARGUMENTS.target == AMONET_BISCUIT_V2_0_0:
-                boot_root()
+                fetch(download=BOOT_ROOT)
             prefetch()
             resumed = True
             done.difference_update(TWRPS)
@@ -2045,7 +2019,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             continue
         if not done:
             if ARGUMENTS.target == AMONET_BISCUIT_V2_0_0:
-                boot_root()
+                fetch(download=BOOT_ROOT)
             if (
                 ARGUMENTS.target in {"stock", AMONET_BISCUIT_V2_0_0}
                 or current not in ROOTED

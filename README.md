@@ -8,7 +8,7 @@ Dot. A stopped run picks up where it left off.
 | --- | --- | --- |
 | `amonet-biscuit-v1.1.0-bboe` (default) | rooted Fire OS 5.5.5.4 on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
 | `amonet-biscuit-v1.1.0` | the same, with amonet v1.1.0's TWRP 3.2.3 | about 10 s from `amonet-biscuit-v1.1.0-bboe` |
-| `amonet-biscuit-v2.0.0` | rooted Fire OS 6 8146 on amonet v2.0.0; needs `boot-root.zip` from [the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/) in `~/Downloads` | about 5 min from `amonet-biscuit-v1.1.0-bboe` |
+| `amonet-biscuit-v2.0.0` | rooted Fire OS 6 8146 on amonet v2.0.0; opens your browser to download `boot-root.zip` from [the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/) | about 5 min from `amonet-biscuit-v1.1.0-bboe` |
 | `stock BUILD` | stock Fire OS 6 at that build, with the Dot erased | about 3 min from `amonet-biscuit-v1.1.0-bboe` |
 
 ## Run it

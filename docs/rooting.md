@@ -440,10 +440,17 @@ ring read white.
   install write the same slot again. The run reads `bcbtool get_active`
   before and after each install, and stops unless it changed.
 - `boot-root.zip` patches both slots. It is an XDA attachment, and XDA sends
-  a script a JavaScript challenge in place of the file. So the run waits for
-  the user to download it in a browser, before it touches the Dot. It takes
-  the file from `~/Downloads` or the cache, and only with sha256
-  `de49cc88...`, which other projects pin too.
+  a script a JavaScript challenge in place of the file. So before it touches
+  the Dot, the run opens it in the user's browser and waits up to 2 minutes
+  for it in `~/Downloads`, matched by size and sha256 `de49cc88...`. With no
+  graphical browser, the run stops and says where to get the file.
+- Once the cache holds the file, the run deletes its copies from
+  `~/Downloads`. A new file with other bytes is deleted only when the browser
+  recorded the attachment as its source.
+- Safari unpacks a zip into `~/Downloads` and moves the zip to the Trash. So on
+  macOS the run also looks in `~/.Trash`. When it opened the browser and took
+  the file from there, it also deletes a new directory that holds exactly the
+  zip's files.
 - Fire OS 6 without root for a minute after the install means
   `boot-root.zip` did not take, and the run stops. A single such read during
   the first boot does not stop it.

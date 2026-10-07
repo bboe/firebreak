@@ -10,6 +10,7 @@ DOWNLOADED = {"common", "logger", "main", "serial"}
 FILTERED = {"extract", "extractall", "unpack_archive"}
 FLOOR = (3, 9, 6)
 FUNCTIONS = (ast.AsyncFunctionDef, ast.FunctionDef, ast.Lambda)
+LINUX_ONLY = {"os.getxattr"}
 MISSING = object()
 PACKAGE = pathlib.Path(__file__).resolve().parent.parent / "firebreak"
 
@@ -30,6 +31,7 @@ def attributes(
         if (
             names
             and names[0] in modules
+            and ".".join(names) not in LINUX_ONLY
             and not shadowed(name=names[0], node=node, parents=parents)
         ):
             target = modules[names[0]]
