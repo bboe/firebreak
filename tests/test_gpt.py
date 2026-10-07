@@ -13,14 +13,17 @@ OTHERS = [f"part{index}" for index in range(13)]
 
 
 def check(*, names: list[str]) -> dict[str, gpt.Partition]:
-    primary, backup, backup_at, parts = gpt.stock_gpt(raw=raw(names=names))
+    table = gpt.stock_gpt(raw=raw(names=names))
+    primary, backup, parts = table.primary, table.backup, table.partitions
     assert primary[:512] == b"M" * 512
     assert gpt.gpt_intact(entries=primary[1024:], header=primary[512:1024])
     assert gpt.gpt_intact(entries=backup[:16384], header=backup[16384:])
     assert struct.unpack("<QQ", primary[536:552]) == (1, DISK - 1)
     assert struct.unpack("<QQ", backup[16384 + 24 : 16384 + 40]) == (DISK - 1, 1)
-    assert struct.unpack("<Q", backup[16384 + 72 : 16384 + 80])[0] == backup_at
-    assert backup_at == DISK - 33
+    assert (
+        struct.unpack("<Q", backup[16384 + 72 : 16384 + 80])[0] == table.backup_sector
+    )
+    assert table.backup_sector == DISK - 33
     assert parts["userdata"].first + parts["userdata"].sectors - 1 == LAST_USABLE
     assert [part.number for part in parts.values()] == list(range(1, 17))
     return parts

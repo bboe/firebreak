@@ -28,6 +28,7 @@ class Connection:
     def __init__(self, *, port: str = "p", reads: list[bytes] | None = None) -> None:
         self.port = port
         self.reads = reads or []
+        self.sizes: list[int] = []
         self.writes: list[bytes] = []
         self.closed = False
 
@@ -38,6 +39,7 @@ class Connection:
         pass
 
     def read(self, *, size: int) -> bytes:
+        self.sizes.append(size)
         return self.reads.pop(0) if self.reads else bytes(size)
 
     def write(self, *, data: bytes) -> None:
@@ -191,6 +193,7 @@ def test_emmc_read(*, fakes: Fakes) -> None:
         struct.pack(">III", 0xF00DD00D, 0x1000, 7),
         struct.pack(">IIII", 0xF00DD00D, 0x5000, 0x201000, 4),
     ]
+    assert device.dev.sizes == [512 + 4]
     device.dev.reads = [b"short"]
     with pytest.raises(expected_exception=RuntimeError, match="read fail"):
         device.emmc_read(index=7)
@@ -206,6 +209,10 @@ def test_emmc_write_blocks(*, fakes: Fakes) -> None:
     ]
     with pytest.raises(expected_exception=RuntimeError, match="device failure"):
         device.emmc_write_blocks(data=bytes(512), index=9)
+    device.dev.reads = [b"\xd0\xd0\xd0\xd0"]
+    device.dev.writes.clear()
+    device.emmc_write_blocks(data=bytes(768), index=9)
+    assert device.dev.writes[0] == struct.pack(">IIII", 0xF00DD00D, 0x1003, 9, 1)
 
 
 def test_find_device_resumes_on_a_waiting_bootrom(
@@ -355,8 +362,33 @@ def test_load_payload_needs_the_emmc(*, fails: bool, fakes: Fakes) -> None:
     assert "The eMMC did not answer" in fakes.logged
 
 
+def test_mediatek_ports() -> None:
+    ports = [
+        bootrom_port(device="p1"),
+        bootrom_port(device="p2", product_id=bootrom.PRELOADER_PRODUCT_ID),
+        bootrom_port(device="p3", product_id=None),
+        Port(device="usb0", pid=1, vid=0x1234),
+    ]
+    assert bootrom.mediatek_ports(ports=ports) == {
+        "p1": bootrom.BOOTROM_PRODUCT_ID,
+        "p2": bootrom.PRELOADER_PRODUCT_ID,
+        "p3": None,
+    }
+    assert bootrom.mediatek_ports(ports=[]) == {}
+
+
 def test_rpmb_read(*, fakes: Fakes) -> None:
     device = run_child(fakes=fakes)()
     device.dev.reads = [b"r" * 0x104]
     assert device.rpmb_read() == b"r" * 0x100
     assert device.dev.writes[0] == struct.pack(">II", 0xF00DD00D, 0x2000)
+    assert device.dev.writes[1] == struct.pack(">IIII", 0xF00DD00D, 0x5000, 0x201000, 4)
+    assert device.dev.sizes == [0x100 + 4]
+
+
+def test_still_present() -> None:
+    known = {"gone": 1.5, "here": 0.0}
+    assert bootrom.still_present(known=known, ports={"here": 3, "new": None}) == {
+        "here": 0.0
+    }
+    assert bootrom.still_present(known=known, ports={}) == {}

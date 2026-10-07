@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import dataclasses
 import enum
 import gzip
 import hashlib
@@ -30,7 +31,7 @@ import threading
 import time
 import urllib.request
 import zipfile
-from typing import IO, TYPE_CHECKING, NamedTuple, NoReturn
+from typing import IO, TYPE_CHECKING, NoReturn
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -172,7 +173,8 @@ UPDATE_HOSTS = (
 WAIT = 600
 
 
-class Build(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class Build:
     date: str
     ftvdb_version: str
     md5: str
@@ -321,7 +323,8 @@ sync; umount $m
     )
 
 
-class Stage(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class Stage:
     run: Callable[[], None]
     steps: int
     then: State | None
@@ -363,7 +366,8 @@ TWRPS = frozenset({
 })
 
 
-class Step(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class Step:
     estimate: str
     image: str
     label: str
@@ -1752,18 +1756,21 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
     saved = work / f"current-gpt-{os.environ['ANDROID_SERIAL']}.bin"
     if not saved.exists():
         saved.write_bytes(data=raw)
-    primary, backup, backup_sector, parts = stock_gpt(raw=raw)
+    table = stock_gpt(raw=raw)
     files = {}
-    for name, data in (("gpt-primary.bin", primary), ("gpt-backup.bin", backup)):
+    for name, data in (
+        ("gpt-primary.bin", table.primary),
+        ("gpt-backup.bin", table.backup),
+    ):
         files[name] = work / name
         files[name].write_bytes(data=data)
     boot = work / "boot.img"
-    boot_size = parts["boot_a"].size
+    boot_size = table.partitions["boot_a"].size
     files["boot"] = work / "boot16.img"
     files["boot"].write_bytes(data=boot.read_bytes().ljust(boot_size, b"\0"))
     files["expdb"] = work / "expdb.zero"
-    files["expdb"].write_bytes(data=b"\0" * parts["expdb"].size)
-    misc = bytearray(parts["misc"].size)
+    files["expdb"].write_bytes(data=b"\0" * table.partitions["expdb"].size)
+    misc = bytearray(table.partitions["misc"].size)
     misc[
         BOOTLOADER_CONTROL_BLOCK_OFFSET : BOOTLOADER_CONTROL_BLOCK_OFFSET
         + len(BOOTLOADER_CONTROL_BLOCK)
@@ -1773,7 +1780,7 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
     for image in ("system", "tee", "lk"):
         files[image] = work / (image + ".img")
     for step in (*WRITES, *chain_writes()):
-        if files[step.image].stat().st_size > parts[step.partition].size:
+        if files[step.image].stat().st_size > table.partitions[step.partition].size:
             _die(message=f"{files[step.image].name} does not fit {step.partition}")
     if (
         adb_shell(command="[ -b /dev/block/mmcblk0boot0 ] && echo block").split(
@@ -1821,10 +1828,10 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
 
     try:
         restore(
-            backup_sector=backup_sector,
+            backup_sector=table.backup_sector,
             build=build,
             files=files,
-            parts=parts,
+            parts=table.partitions,
             work=work,
         )
     except subprocess.TimeoutExpired as error:

@@ -72,6 +72,7 @@ def payload(  # ruff: ignore[too-many-arguments]
     kinds: dict[str, int],
     omit_block_size: bool = False,
     short: str = "",
+    signature: int = 263,
     stale: str = "",
     version: int = 2,
 ) -> bytes:
@@ -120,8 +121,21 @@ def payload(  # ruff: ignore[too-many-arguments]
             field=ota.ManifestField.PARTITIONS,
         )
         data += blob
-    head = b"CrAU" + struct.pack(">QQI", version, len(manifest), 0)
-    return head + manifest + data
+    head = b"CrAU" + struct.pack(">QQI", version, len(manifest), signature)
+    return head + manifest + bytes(signature) + data
+
+
+def test_blob_and_number_check_the_wire_type() -> None:
+    assert ota.blob(value=b"x") == b"x"
+    assert ota.number(value=7) == 7
+    with pytest.raises(
+        expected_exception=SystemExit, match="has a number where it needs bytes"
+    ):
+        ota.blob(value=7)
+    with pytest.raises(
+        expected_exception=SystemExit, match="has bytes where it needs a number"
+    ):
+        ota.number(value=b"x")
 
 
 def test_extract(*, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path) -> None:
@@ -228,7 +242,7 @@ def test_extract_reads_another_block_size_and_skips_other_partitions(
     *, tmp_path: pathlib.Path
 ) -> None:
     images = {**IMAGES, "vendor": image(name="vendor", size=100)}
-    body = payload(block_size=512, images=images, kinds=KINDS)
+    body = payload(block_size=512, images=images, kinds=KINDS, signature=0)
     update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")
     ota.extract(update=update, work=tmp_path)
     for name, body in IMAGES.items():
@@ -271,12 +285,24 @@ def test_fields_stops_at_a_cut_manifest(*, error: str, message: bytes) -> None:
 
 
 def test_transfer_list() -> None:
-    commands, size = ota.transfer_list(text="3\n4\n0\n0\nerase 2,0,4\nnew 4,0,1,2,4\n")
-    assert size == 4 * BLOCK
-    assert commands == [
-        ("erase", [(0, 4 * BLOCK)]),
-        ("new", [(0, BLOCK), (2 * BLOCK, 4 * BLOCK)]),
-    ]
+    transfers = ota.transfer_list(text="3\n4\n0\n0\nerase 2,0,4\nnew 4,0,1,2,4\n")
+    assert transfers == ota.TransferList(
+        commands=[
+            ota.TransferCommand(
+                ranges=[ota.BlockRange(end=4 * BLOCK, start=0)], verb="erase"
+            ),
+            ota.TransferCommand(
+                ranges=[
+                    ota.BlockRange(end=BLOCK, start=0),
+                    ota.BlockRange(end=4 * BLOCK, start=2 * BLOCK),
+                ],
+                verb="new",
+            ),
+        ],
+        size=4 * BLOCK,
+    )
+    with pytest.raises(expected_exception=TypeError):
+        sorted(transfers.commands[1].ranges)
 
 
 @pytest.mark.parametrize(
@@ -294,6 +320,12 @@ def test_transfer_list() -> None:
 def test_transfer_list_fails(*, message: str, text: str) -> None:
     with pytest.raises(expected_exception=SystemExit, match=message):
         ota.transfer_list(text=text)
+
+
+def test_transfer_list_orders_ranges_by_their_start() -> None:
+    nested = ota.transfer_list(text="3\n6\n0\n0\nerase 2,2,6\nnew 2,0,6\n")
+    assert nested.size == 6 * BLOCK
+    assert [command.verb for command in nested.commands] == ["erase", "new"]
 
 
 def test_varint() -> None:

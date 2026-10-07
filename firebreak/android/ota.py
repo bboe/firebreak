@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import bz2
+import dataclasses
 import enum
 import lzma
 import struct
@@ -10,6 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import pathlib
     from collections.abc import Iterator
+    from typing import IO
 
 from firebreak.cache import digest
 from firebreak.ui import _die, passed
@@ -21,9 +23,16 @@ BLOCK_IMAGES = {
     "tee": "images/tz.img",
 }
 IMAGES = ("preloader", "lk", "tee", "boot", "system")
+LABEL_WIDTH = max(map(len, IMAGES))
 PAYLOAD_VERSION = 2
 TRANSFER_FIELDS = 2
 VARINT_MORE = 0x80
+
+
+@dataclasses.dataclass(frozen=True)
+class BlockRange:
+    end: int
+    start: int
 
 
 class ExtentField(enum.IntEnum):
@@ -36,9 +45,24 @@ class InfoField(enum.IntEnum):
     HASH = 2
 
 
+@dataclasses.dataclass(frozen=True)
+class Manifest:
+    block_size: int
+    data_start: int
+    partitions: dict[str, PayloadPartition]
+
+
 class ManifestField(enum.IntEnum):
     BLOCK_SIZE = 3
     PARTITIONS = 13
+
+
+@dataclasses.dataclass(frozen=True)
+class Operation:
+    data_length: int
+    data_offset: int
+    extents: list[tuple[int, int]]
+    kind: int
 
 
 class OperationField(enum.IntEnum):
@@ -60,6 +84,24 @@ class PartitionField(enum.IntEnum):
     OPERATIONS = 8
 
 
+@dataclasses.dataclass(frozen=True)
+class PayloadPartition:
+    info: dict[int, int | bytes]
+    operations: list[bytes]
+
+
+@dataclasses.dataclass(frozen=True)
+class TransferCommand:
+    ranges: list[BlockRange]
+    verb: str
+
+
+@dataclasses.dataclass(frozen=True)
+class TransferList:
+    commands: list[TransferCommand]
+    size: int
+
+
 class WireType(enum.IntEnum):
     VARINT = 0
     FIXED64 = 1
@@ -67,97 +109,34 @@ class WireType(enum.IntEnum):
     FIXED32 = 5
 
 
-def extract(*, update: pathlib.Path, work: pathlib.Path) -> None:  # ruff: ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
-    with zipfile.ZipFile(file=update) as archive:  # ruff: ignore[too-many-nested-blocks]
-        if "payload.bin" not in archive.namelist():
+def blob(*, value: int | bytes) -> bytes:
+    if isinstance(value, int):
+        _die(message="the OTA's manifest has a number where it needs bytes")
+        return b""
+    return value
+
+
+def by_start(*, ranges: list[BlockRange]) -> list[BlockRange]:
+    return sorted(ranges, key=lambda block_range: block_range.start)
+
+
+def decompress(*, data: bytes, kind: int, name: str) -> bytes:
+    if kind == OperationType.REPLACE:
+        return data
+    if kind == OperationType.REPLACE_BZ:
+        return bz2.decompress(data=data)
+    if kind == OperationType.REPLACE_XZ:
+        return lzma.decompress(data=data)
+    _die(message=f"{name} has op type {kind}")
+    return b""
+
+
+def extract(*, update: pathlib.Path, work: pathlib.Path) -> None:
+    with zipfile.ZipFile(file=update) as archive:
+        if "payload.bin" in archive.namelist():
+            extract_payload(archive=archive, work=work)
+        else:
             extract_blocks(archive=archive, work=work)
-            return
-        with archive.open(name="payload.bin") as stream:
-            header = stream.read(24)
-            if (
-                header[:4] != b"CrAU"
-                or struct.unpack(">Q", header[4:12])[0] != PAYLOAD_VERSION
-            ):
-                _die(message="the OTA's payload.bin is not a version 2 update payload")
-            manifest_size = struct.unpack(">Q", header[12:20])[0]
-            signature_size = struct.unpack(">I", header[20:24])[0]
-            manifest = stream.read(manifest_size)
-        data_start = 24 + manifest_size + signature_size
-        block_size = 4096
-        partitions = {}
-        for manifest_field, _, manifest_value in fields(message=manifest):
-            if manifest_field == ManifestField.BLOCK_SIZE:
-                block_size = manifest_value
-            if manifest_field == ManifestField.PARTITIONS:
-                details, operations = {}, []
-                for field, _, value in fields(message=manifest_value):
-                    if field == PartitionField.OPERATIONS:
-                        operations.append(value)
-                    else:
-                        details[field] = value
-                partitions[details[PartitionField.NAME].decode()] = (
-                    {
-                        field: value
-                        for field, _, value in fields(
-                            message=details[PartitionField.NEW_INFO]
-                        )
-                    },
-                    operations,
-                )
-        with archive.open(name="payload.bin") as payload:
-            for name in IMAGES:
-                if name not in partitions:
-                    _die(message=f"the OTA has no {name} image")
-                info, operations = partitions[name]
-                path = work / (name + ".img")
-                if (
-                    path.is_file()
-                    and digest(kind="sha256", path=path) == info[InfoField.HASH].hex()
-                ):
-                    passed(
-                        message=f"{name:>{max(map(len, IMAGES))}} matches the manifest"
-                    )
-                    continue
-                image = bytearray(info[InfoField.SIZE])
-                for operation in operations:
-                    operation_fields, extents = {}, []
-                    for field, _, value in fields(message=operation):
-                        if field == OperationField.DST_EXTENTS:
-                            extents.append({
-                                extent_field: extent_value
-                                for extent_field, _, extent_value in fields(
-                                    message=value
-                                )
-                            })
-                        else:
-                            operation_fields[field] = value
-                    payload.seek(
-                        data_start + operation_fields.get(OperationField.DATA_OFFSET, 0)
-                    )
-                    blob = payload.read(
-                        operation_fields.get(OperationField.DATA_LENGTH, 0)
-                    )
-                    kind = operation_fields[OperationField.TYPE]
-                    if kind == OperationType.REPLACE:
-                        decompressed = blob
-                    elif kind == OperationType.REPLACE_BZ:
-                        decompressed = bz2.decompress(data=blob)
-                    elif kind == OperationType.REPLACE_XZ:
-                        decompressed = lzma.decompress(data=blob)
-                    else:
-                        _die(message=f"{name} has op type {kind}")
-                    position = 0
-                    for extent in extents:
-                        length = extent[ExtentField.NUM_BLOCKS] * block_size
-                        offset = extent.get(ExtentField.START_BLOCK, 0) * block_size
-                        image[offset : offset + length] = decompressed[
-                            position : position + length
-                        ]
-                        position += length
-                path.write_bytes(data=memoryview(object=image)[: info[InfoField.SIZE]])
-                if digest(kind="sha256", path=path) != info[InfoField.HASH].hex():
-                    _die(message=name + " does not match the manifest")
-                passed(message=f"{name:>{max(map(len, IMAGES))}} matches the manifest")
 
 
 def extract_blocks(*, archive: zipfile.ZipFile, work: pathlib.Path) -> None:
@@ -166,29 +145,54 @@ def extract_blocks(*, archive: zipfile.ZipFile, work: pathlib.Path) -> None:
         if name != "preloader":
             data += bytes(-len(data) % 4096)
         (work / (name + ".img")).write_bytes(data=data)
-        passed(message=f"{name:>{max(map(len, IMAGES))}} taken from the OTA")
-    commands, size = transfer_list(
-        text=archive.read(name="system.transfer.list").decode()
-    )
+        passed(message=f"{name:>{LABEL_WIDTH}} taken from the OTA")
+    transfers = transfer_list(text=archive.read(name="system.transfer.list").decode())
     with (
         (work / "system.img").open(mode="wb") as image,
         archive.open(name="system.new.dat") as new_data,
     ):
-        image.truncate(size)
-        for verb, ranges in commands:
-            if verb != "new":
+        image.truncate(transfers.size)
+        for command in transfers.commands:
+            if command.verb != "new":
                 continue
-            for start, end in ranges:
-                image.seek(start)
-                for offset in range(start, end, 1 << 20):
-                    length = min(1 << 20, end - offset)
+            for block_range in command.ranges:
+                image.seek(block_range.start)
+                for offset in range(block_range.start, block_range.end, 1 << 20):
+                    length = min(1 << 20, block_range.end - offset)
                     chunk = new_data.read(length)
                     if len(chunk) != length:
                         _die(message="the OTA's system.new.dat is short")
                     image.write(chunk)
         if new_data.read(1):
             _die(message="the OTA's system.new.dat outlasts its transfer list")
-    passed(message=f"{'system':>{max(map(len, IMAGES))}} built from the transfer list")
+    passed(message=f"{'system':>{LABEL_WIDTH}} built from the transfer list")
+
+
+def extract_payload(*, archive: zipfile.ZipFile, work: pathlib.Path) -> None:
+    with archive.open(name="payload.bin") as payload:
+        manifest = read_manifest(payload=payload)
+        for name in IMAGES:
+            if name not in manifest.partitions:
+                _die(message=f"the OTA has no {name} image")
+            partition = manifest.partitions[name]
+            want = blob(value=partition.info[InfoField.HASH]).hex()
+            path = work / (name + ".img")
+            if not path.is_file() or digest(kind="sha256", path=path) != want:
+                path.write_bytes(
+                    data=image_bytes(
+                        manifest=manifest,
+                        name=name,
+                        partition=partition,
+                        payload=payload,
+                    )
+                )
+                if digest(kind="sha256", path=path) != want:
+                    _die(message=name + " does not match the manifest")
+            passed(message=f"{name:>{LABEL_WIDTH}} matches the manifest")
+
+
+def field_values(*, message: bytes) -> dict[int, int | bytes]:
+    return {field: value for field, _, value in fields(message=message)}
 
 
 def fields(*, message: bytes) -> Iterator[tuple[int, int, int | bytes]]:
@@ -215,20 +219,103 @@ def fields(*, message: bytes) -> Iterator[tuple[int, int, int | bytes]]:
         yield field_number, wire_type, value
 
 
-def transfer_command(*, words: list[str]) -> tuple[str, list[tuple[int, int]]]:
+def image_bytes(
+    *, manifest: Manifest, name: str, partition: PayloadPartition, payload: IO[bytes]
+) -> bytearray:
+    size = number(value=partition.info[InfoField.SIZE])
+    image = bytearray(size)
+    for message in partition.operations:
+        operation = payload_operation(message=message)
+        payload.seek(manifest.data_start + operation.data_offset)
+        data = decompress(
+            data=payload.read(operation.data_length), kind=operation.kind, name=name
+        )
+        position = 0
+        for start_block, block_count in operation.extents:
+            length = block_count * manifest.block_size
+            offset = start_block * manifest.block_size
+            image[offset : offset + length] = data[position : position + length]
+            position += length
+    del image[size:]
+    return image
+
+
+def number(*, value: int | bytes) -> int:
+    if isinstance(value, bytes):
+        _die(message="the OTA's manifest has bytes where it needs a number")
+        return 0
+    return value
+
+
+def payload_operation(*, message: bytes) -> Operation:
+    values, extents = {}, []
+    for field, _, value in fields(message=message):
+        if field == OperationField.DST_EXTENTS:
+            extent = field_values(message=blob(value=value))
+            extents.append((
+                number(value=extent.get(ExtentField.START_BLOCK, 0)),
+                number(value=extent[ExtentField.NUM_BLOCKS]),
+            ))
+        else:
+            values[field] = value
+    return Operation(
+        data_length=number(value=values.get(OperationField.DATA_LENGTH, 0)),
+        data_offset=number(value=values.get(OperationField.DATA_OFFSET, 0)),
+        extents=extents,
+        kind=number(value=values[OperationField.TYPE]),
+    )
+
+
+def payload_partition(*, message: bytes) -> tuple[str, PayloadPartition]:
+    details, operations = {}, []
+    for field, _, value in fields(message=message):
+        if field == PartitionField.OPERATIONS:
+            operations.append(blob(value=value))
+        else:
+            details[field] = value
+    return blob(value=details[PartitionField.NAME]).decode(), PayloadPartition(
+        info=field_values(message=blob(value=details[PartitionField.NEW_INFO])),
+        operations=operations,
+    )
+
+
+def read_manifest(*, payload: IO[bytes]) -> Manifest:
+    header = payload.read(24)
+    if header[:4] != b"CrAU" or struct.unpack(">Q", header[4:12])[0] != PAYLOAD_VERSION:
+        _die(message="the OTA's payload.bin is not a version 2 update payload")
+    manifest_size, signature_size = struct.unpack(">QI", header[12:24])
+    block_size = 4096
+    partitions = {}
+    for field, _, value in fields(message=payload.read(manifest_size)):
+        if field == ManifestField.BLOCK_SIZE:
+            block_size = number(value=value)
+        elif field == ManifestField.PARTITIONS:
+            name, partition = payload_partition(message=blob(value=value))
+            partitions[name] = partition
+    return Manifest(
+        block_size=block_size,
+        data_start=24 + manifest_size + signature_size,
+        partitions=partitions,
+    )
+
+
+def transfer_command(*, words: list[str]) -> TransferCommand:
     numbers = words[1].split(sep=",") if len(words) == TRANSFER_FIELDS else []
     if words[0] not in {"erase", "new", "zero"} or not all(
         number.isdigit() for number in numbers
     ):
         _die(message=f"the OTA's transfer list has a {words[0]!r} command")
     bounds = [int(number) * 4096 for number in numbers[1:]]
-    ranges = list(zip(bounds[::2], bounds[1::2]))
-    if any(start >= end for start, end in ranges):
+    ranges = [
+        BlockRange(end=end, start=start)
+        for start, end in zip(bounds[::2], bounds[1::2])
+    ]
+    if any(block_range.start >= block_range.end for block_range in ranges):
         _die(message="the OTA's transfer list has an empty or reversed range")
-    return words[0], ranges
+    return TransferCommand(ranges=ranges, verb=words[0])
 
 
-def transfer_list(*, text: str) -> tuple[list[tuple[str, list[tuple[int, int]]]], int]:
+def transfer_list(*, text: str) -> TransferList:
     lines = text.split(sep="\n")
     if lines[0] not in {"3", "4"}:
         _die(message=f"the OTA's transfer list is version {lines[0]}")
@@ -238,25 +325,27 @@ def transfer_list(*, text: str) -> tuple[list[tuple[str, list[tuple[int, int]]]]
         if words
     ]
     size = 0
-    for start, end in sorted(
-        block_range for _, ranges in commands for block_range in ranges
+    for block_range in by_start(
+        ranges=[block_range for command in commands for block_range in command.ranges]
     ):
-        if start > size:
+        if block_range.start > size:
             _die(message="the OTA's transfer list leaves a gap")
-        size = max(size, end)
+        size = max(size, block_range.end)
     if not size:
         _die(message="the OTA's transfer list writes nothing")
     written = 0
-    for start, end in sorted(
-        block_range
-        for verb, ranges in commands
-        if verb != "erase"
-        for block_range in ranges
+    for block_range in by_start(
+        ranges=[
+            block_range
+            for command in commands
+            if command.verb != "erase"
+            for block_range in command.ranges
+        ]
     ):
-        if start < written:
+        if block_range.start < written:
             _die(message="the OTA's transfer list writes a block twice")
-        written = end
-    return commands, size
+        written = block_range.end
+    return TransferList(commands=commands, size=size)
 
 
 def varint(*, data: bytes, index: int) -> tuple[int, int]:

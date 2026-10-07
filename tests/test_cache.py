@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import http.client
 import io
@@ -108,7 +109,7 @@ def test_fetch_fails(
     source = tmp_path / "zip.bin"
     source.write_bytes(data=BODY)
     download = item(source=source)
-    wrong = download._replace(sha256="0" * 64)
+    wrong = dataclasses.replace(download, sha256="0" * 64)
     with pytest.raises(expected_exception=SystemExit, match="does not hash to"):
         cache.fetch(download=wrong)
     source.unlink()

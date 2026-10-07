@@ -859,7 +859,8 @@ fastbrick, and in any TWRP the restore runs.
 - The manifest's own lengths are not trusted. A number cut short raised a bare
   `IndexError`, and a field cut short returned fewer bytes than it declared
   with no error, so the run ended in a traceback or wrote a short image. Both
-  now stop with the reason.
+  now stop with the reason. A field read as the wrong wire type stops too: it
+  used to reach an attribute that an int does not have.
 - A passed check prints `ok` rather than the tick where the console cannot
   encode it, such as a legacy Windows code page, which would otherwise raise
   `UnicodeEncodeError`.

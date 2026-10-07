@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import hashlib
 import http.client
 import os
@@ -10,7 +11,7 @@ import sys
 import threading
 import urllib.request
 import zipfile
-from typing import TYPE_CHECKING, BinaryIO, NamedTuple
+from typing import TYPE_CHECKING, BinaryIO
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -22,7 +23,8 @@ LOCKS_GUARD = threading.Lock()
 MEGA = 1e6
 
 
-class Download(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class Download:
     name: str
     sha256: str
     url: str
