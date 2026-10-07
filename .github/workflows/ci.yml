@@ -5,6 +5,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - run: uvx --with tox-uv==1.36.1 tox@4.64.9 -e build,floor
+      - if: ${{ !cancelled() }}
+        run: .tox/floor/bin/coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: htmlcov/
   pre-commit:
     runs-on: ubuntu-latest
     steps:

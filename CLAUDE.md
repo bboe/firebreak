@@ -12,7 +12,7 @@ reasoned out.
 uvx --with tox-uv tox            # lint, build, then floor, as CI runs them
 uvx --with tox-uv tox -e lint    # pre-commit-hooks, CodeSorter, markdownlint, ruff, toml-sort
 uvx --with tox-uv tox -e build   # dist/: wheel and sdist; build/firebreak.pyz
-uvx --with tox-uv tox -e build,floor   # macOS only: pytest on Apple's 3.9.6, against a fresh pyz
+uvx --with tox-uv tox -e build,floor   # macOS only: pytest and coverage on Apple's 3.9.6
 ```
 
 ## Rules
@@ -29,6 +29,11 @@ uvx --with tox-uv tox -e build,floor   # macOS only: pytest on Apple's 3.9.6, ag
   and on `filter=` to the extract calls. It cannot see methods on objects or
   other keyword arguments. It runs on macOS, so a Windows-only name fails it
   even behind a platform check. CI runs it on a macOS runner.
+- Every module but `__main__.py` keeps 90% line coverage, each on its own.
+  `floor` fails a module below that. CI puts the report in the job summary
+  and the HTML in a `coverage` artifact. The tests build their own payloads, boot
+  images and tables, and fake adb, pyserial and amonet; none needs a Dot or a
+  download.
 - The code carries no explanatory comments. The why goes in `docs/rooting.md`,
   on the section that covers the step. `# ruff: ignore[...]` lines stay.
 - Nothing here proves a change but a run on a Dot. Each target has a different

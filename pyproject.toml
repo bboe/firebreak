@@ -17,6 +17,17 @@ firebreak = "firebreak.__main__:main"
 [project.urls]
 Source = "https://github.com/bboe/firebreak"
 
+[tool.coverage.paths]
+firebreak = ["firebreak/", "*/site-packages/firebreak/"]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.coverage.run]
+omit = ["*/firebreak/__main__.py"]
+parallel = true
+source_pkgs = ["firebreak"]
+
 [tool.ruff]
 preview = true
 target-version = "py39"
@@ -39,7 +50,15 @@ ignore = [
 select = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["assert", "implicit-namespace-package"]
+"tests/*" = [
+    "assert",
+    "boolean-type-hint-positional-argument",
+    "compare-to-empty-string",
+    "hardcoded-temp-file",
+    "implicit-namespace-package",
+    "magic-value-comparison",
+    "pytest-fixture-autouse",
+]
 
 [tool.tomlsort]
 sort_table_keys = true
@@ -65,9 +84,20 @@ skip_install = true
 
 [tool.tox.env.floor]
 base_python = ["/usr/bin/python3"]
-commands = [["pytest", { replace = "posargs", extend = true }]]
+commands = [
+    ["coverage", "run", "-m", "pytest", { replace = "posargs", extend = true }],
+    ["coverage", "combine", "--quiet"],
+    ["coverage", "report"],
+    ["coverage", "html", "--quiet"],
+    ["coverage", "json", "--quiet"],
+    [
+        "python",
+        "-c",
+        "import json, sys; files = json.load(open('coverage.json'))['files']; low = [f'{name}: {data[\"summary\"][\"percent_covered\"]:.1f}%' for name, data in sorted(files.items()) if data['summary']['percent_covered'] < 90]; sys.exit('under 90% coverage:\\n' + '\\n'.join(low) if low else 0)",
+    ],
+]
 depends = ["build"]
-deps = ["pytest"]
+deps = ["coverage==7.10.7", "pytest"]
 package = "wheel"
 
 [tool.tox.env.lint]

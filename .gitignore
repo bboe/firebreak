@@ -1,6 +1,8 @@
 *.egg-info/
 .claude/
 .coverage
+.coverage.*
+coverage.json
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
