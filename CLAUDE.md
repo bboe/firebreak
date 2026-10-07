@@ -43,8 +43,9 @@ uvx --with tox-uv tox -e build,floor   # macOS only: pytest and coverage on Appl
 - Trust `adb shell`'s exit status only in v2.0.0's TWRP and TWRP 3.7.0_9-bboe2;
   elsewhere it can exit 0 whatever happened. It merges the device's stderr into
   stdout, and can cut the tail of the output. A read that decides something ends
-  with a marker of its own, at the **end**, and the check requires it. An md5
-  needs none: a cut digest is shorter than 32 characters.
+  with a marker of its own, at the **end**, and the check requires it. A cut
+  md5 is shorter than 32 characters, but the md5 of a read that returned
+  nothing is whole, so a hash of `dd`'s output also needs `dd`'s record count.
 - The by-name nodes for the bootloader partitions can be RAM decoys in TWRP.
   Write and read back through `/dev/block/mmcblk0pN`.
 - An image written with `dd` leaves the partition's old bytes past its end.

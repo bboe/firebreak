@@ -39,7 +39,11 @@ own, which is why an unlock carries `files` beside its archive.
 | `Reboot` | nothing |
 
 An offset is in sectors, as amonet's are. `unrecoverable=True` marks a write
-after which a stop needs the eMMC short: biscuit's preloader.
+after which a stop needs the eMMC short: biscuit's preloader. The TWRP chain
+moves those writes after every other, so a stop anywhere earlier still reaches
+the bootrom. That is safe only while no recoverable write covers sectors an
+earlier unrecoverable one also writes. No plan does, `tests/test_plan.py`
+says so, and the chain does not support one yet.
 
 ## Resolution
 
@@ -70,6 +74,31 @@ again. Against amonet's own `modify_step1`, `modify_step2` and `generate_gpt`
 with its GUIDs pinned, the tables are byte for byte the same on four stock
 tables, except the protective MBR: amonet writes a size of `0xFFFFFFFF`, and
 firebreak keeps the sector it read.
+
+## The recovery executor
+
+`firebreak/recovery.py` carries out a plan's actions with `dd` under TWRP.
+
+- It refuses the whole plan before writing if a step has nothing it can write,
+  such as `ZeroRpmb` or `Reboot`. The caller drops the steps its route does
+  another way.
+- A partition is written through its own `mmcblk0pN`, at an offset into it, and
+  each node must be a block device of the size its table entry gives. boot0 is
+  unlocked for its write and locked again. A target outside every partition,
+  such as the backup table, goes to `mmcblk0` at its absolute offset. TWRP's
+  toolbox `dd` cannot reach past 2 GiB there, and nothing refuses such a target
+  up front: the run stops at its first read. The TWRP route has none.
+- A region that already holds its bytes is skipped. A write smaller than a
+  sector is read, patched, and written back whole.
+- Every write is staged, pushed, written and read back. A read counts only
+  with `dd`'s full record count.
+
+Measured on a Dot at amonet v1.1.0-bboe, with the plan resolved from its own
+table: every image region matched byte for byte, each was rewritten and read
+back in about 7 s in all, and a run that cleared boot0's header, skipped the
+rest and wrote the preloader back left a Dot that booted rooted. Its `misc`
+was all zeros: the boot control block is state, not part of the chain, so a
+comparison against an installed Dot leaves it out.
 
 ## The guardrail
 

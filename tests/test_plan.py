@@ -133,6 +133,30 @@ def described(*, actions: tuple[plan.Action, ...]) -> list[tuple]:
     ]
 
 
+def reordered_overlaps(*, actions: tuple[plan.Action, ...]) -> list[tuple[str, str]]:
+    def span(action: plan.Action) -> tuple[str, int, int]:
+        first = action.offset // SECTOR
+        end = -(-(action.offset + action.length) // SECTOR)
+        return ("boot0" if action.target == BOOT0 else "disk", first, end)
+
+    found = []
+    writes = [action for action in actions if action.length]
+    for index, unrecoverable in enumerate(writes):
+        if not unrecoverable.unrecoverable:
+            continue
+        place, first, end = span(unrecoverable)
+        for later in writes[index + 1 :]:
+            other, later_first, later_end = span(later)
+            if (
+                not later.unrecoverable
+                and other == place
+                and later_first < end
+                and first < later_end
+            ):
+                found.append((unrecoverable.label, later.label))
+    return found
+
+
 def test_a_device_without_a_needed_feature_is_refused(*, source: pathlib.Path) -> None:
     unlock = Unlock(
         device=Device(features=frozenset(), name="bare"),
@@ -196,6 +220,44 @@ def test_a_table_that_is_not_intact_is_refused(*, source: pathlib.Path) -> None:
     raw[2 * SECTOR + 40] ^= 1
     with pytest.raises(ValueError, match=r"^the partition table is not intact$"):
         plan.resolve(raw=bytes(raw), source=source, unlock=AMONET_BISCUIT_V1_1_0)
+
+
+@pytest.mark.parametrize(
+    argnames="unlock",
+    argvalues=[AMONET_BISCUIT_V1_1_0, AMONET_BISCUIT_V1_1_0_BBOE],
+    ids=lambda unlock: unlock.name,
+)
+@pytest.mark.parametrize(
+    argnames="layout",
+    argvalues=[BISCUIT_STOCK, BISCUIT_SHUFFLED],
+    ids=["stock", "shuffled"],
+)
+def test_no_plan_yet_has_a_recoverable_write_over_an_earlier_unrecoverable_one(
+    *,
+    layout: tuple[tuple[str, int, int], ...],
+    source: pathlib.Path,
+    unlock: Unlock,
+) -> None:
+    actions = plan.resolve(
+        raw=biscuit_table(layout=layout), source=source, unlock=unlock
+    )
+    assert reordered_overlaps(actions=actions) == []
+    assert reordered_overlaps(
+        actions=(
+            plan.Action(
+                kind="Write",
+                label="preloader",
+                length=1024,
+                offset=0,
+                target=BOOT0,
+                unrecoverable=True,
+            ),
+            plan.Action(kind="Write", label="lk", length=512, offset=0, target="lk_a"),
+            plan.Action(
+                kind="Write", label="patch", length=7, offset=1000, target=BOOT0
+            ),
+        )
+    ) == [("preloader", "patch")]
 
 
 def test_show(*, source: pathlib.Path) -> None:

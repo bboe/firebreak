@@ -534,10 +534,20 @@ ring read white.
   else goes to a partition node: `dd` answers `EINVAL` past block 4194304, and
   `boot_a` (7199744), `boot_b` (7425024) and the backup GPT (7651295) are all
   above it. `losetup -o` reads 0 bytes there too.
-- The chain's writes name `dd`. They need no `conv`, which `/sbin/dd` refuses,
-  and a `seek` write to a block device does not truncate: after a root,
-  `boot.hdr` at block 0 of `boot_a` and `boot.payload` at 223207 both read back
-  whole. `SESSION.dd` is set only on the `stock` path.
+- The chain is amonet v1.1.0's plugin plan (`docs/plugins.md`), less the steps
+  this route does another way: the RPMB, forcing fastboot, and the reboots. A
+  region that already holds its bytes is skipped, so a rerun resumes where the
+  last one stopped. Measured from stock 8146: a run stopped during the first
+  LK write, and the rerun skipped boot0's header, the four boot writes and
+  `tee1`, wrote the rest, and the Dot booted rooted. It skipped the BCB too,
+  which the stock install had already written.
+- `ERASED` is set only after the plan resolves and every node checks out, so
+  those stops leave the next run on its usual path. A stop between that and
+  the boot0 clear leaves it set with boot0 intact, which costs the next run a
+  bootrom handshake that times out.
+- Its writes use `toybox dd` with `conv=notrunc` where it exists, as the
+  `stock` path does; the `dd` on the path refuses `conv`, and does not truncate
+  at a `seek` without it.
 - Each target is checked as a block device, at the length its table entry
   gives, before anything is written, boot0 included. `dd` to a name that is not
   one writes a file in RAM `/dev` that reads back and matches.
@@ -558,16 +568,21 @@ ring read white.
   `lk_a` against amonet's `lk.bin`, amonet v2.0.0's then amonet v1.1.0's, and
   refuse the rest, so a chain write needs proof the Dot is amonet's rather than
   a build string it shares with stock. amonet v1.1.0's LK passes, so a
-  part-written chain still resumes. Every stock LK is 241664 or 245760 bytes,
-  against 359744 and 372368, so none can match. The check is defence in depth,
-  not a fix for a reachable failure.
+  part-written chain still resumes. When `lk_a` matches neither, `lk_b` is
+  read too: the chain writes `lk_a` first, so a run stopped inside that write
+  leaves `lk_a` torn and `lk_b` as it was. Both routes into the chain leave
+  amonet v2.0.0's LK in both slots: its installer writes both, and so does the
+  fastbrick, measured on a Dot read the moment its TWRP came up from stock.
+  Every stock LK is 241664 or 245760 bytes, against 359744 and 372368, so none
+  can match. The check is defence in depth, not a fix for a reachable failure.
 - The probe waits for `mtp` on every TWRP, not only amonet v1.1.0's. adb
   answers first, and the switch to `mtp,adb` re-enumerates USB, so a stage
   starting in that window reads truncated output with exit 255. So each
   device-side answer this route reads ends in a marker of its own, `sgdisk
   --print` included, because adb cuts the tail: a marker at the front leaves a
-  cut line parsing as an empty, and therefore passing, result. An md5 needs
-  none, since a cut digest is shorter than 32 characters.
+  cut line parsing as an empty, and therefore passing, result. A cut md5 is
+  shorter than 32 characters, but a read that returned nothing hashes to a
+  whole one, so the chain's reads and writes also require `dd`'s record count.
 - v2.0.0's TWRP costs the install nothing. It returns `adb shell`'s exit status
   and has every tool the install needs, and `/system` took 81 s there, as under
   bboe2: `gunzip` and the eMMC are the limit, not adb.

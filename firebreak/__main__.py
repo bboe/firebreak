@@ -78,6 +78,8 @@ from firebreak.host import (
     usb_serial,
 )
 from firebreak.mediatek.bootrom import child_bootrom, child_reset
+from firebreak.plan import TABLE_SECTORS, resolve
+from firebreak.recovery import check, execute
 from firebreak.ui import (
     ARGUMENTS,
     MINUTE,
@@ -95,14 +97,15 @@ from firebreak.ui import (
     status,
     warn,
 )
+from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v1_1_0_bboe
 
 AMONET_BISCUIT_V1_1_0 = "amonet-biscuit-v1.1.0"
 AMONET_BISCUIT_V1_1_0_BBOE = AMONET_BISCUIT_V1_1_0 + "-bboe"
+AMONET_BISCUIT_V1_1_0_ZIP = amonet_biscuit_v1_1_0.SOURCE
 AMONET_BISCUIT_V2_0_0 = "amonet-biscuit-v2.0.0"
 AMONET_V1_1_0_ALIGN = 0x400
 AMONET_V1_1_0_APPEND = 0x6E000
 AMONET_V1_1_0_BOOT_BLOCKS = 0x37000
-AMONET_V1_1_0_PAYLOAD_SEEK = 223207
 AMONET_V2_0_0_FIREOS_BUILD = "8146"
 BOOTLOADER_CONTROL_BLOCK = b"\0ABB\x01\x8f\0"
 BOOTLOADER_CONTROL_BLOCK_OFFSET = 0x360
@@ -142,12 +145,6 @@ HEAD_CHECK = 1 << 20
 LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
 MD5_DIGITS = 32
 MIRROR = "https://github.com/hkfuertes/amazon_device_biscuit/releases/download/none"
-AMONET_BISCUIT_V1_1_0_ZIP = Download(
-    directory="v1",
-    name="amonet-biscuit-v1.1.0.zip",
-    sha256="bd4d3a18b6b6e9ff6e49a4739159a81020673202795cb3959f7c9ff24351b663",
-    url=MIRROR + "/amonet-biscuit-v1.1.0.zip",
-)
 AMONET_BISCUIT_V2_0_0_ZIP = Download(
     directory="v2",
     name="amonet-biscuit-v2.0.0.zip",
@@ -157,13 +154,9 @@ AMONET_BISCUIT_V2_0_0_ZIP = Download(
 SHORT_WAIT = 5
 STOCK_STEPS = 16
 TABLE_FIELDS = 6
-TWRP_VERSION = "3.7.0_9-bboe2"
-TWRP = Download(
-    name=f"twrp-{TWRP_VERSION}-biscuit.img",
-    sha256="f59052713a6580a1477490b2f9cad80e9b31d22408861b18fd442129a71f2ad9",
-    url="https://github.com/bboe/twrp_device_amazon_echo-mt8163/releases/download/"
-    f"v{TWRP_VERSION}/twrp-v{TWRP_VERSION}-biscuit.img",
-)
+TWRP = amonet_biscuit_v1_1_0_bboe.RECOVERY
+TWRP_SKIPS = frozenset({"ForceFastboot", "Reboot", "ZeroRpmb"})
+TWRP_VERSION = amonet_biscuit_v1_1_0_bboe.TWRP_VERSION
 TWRP_VERSIONS = ("3.2.", "3.7.")
 UPDATER = "com.amazon.device.software.ota"
 UPDATE_HOSTS = (
@@ -290,10 +283,6 @@ sync
         ' g=$([ -b "$n" ] && blockdev --getsize64 "$n" || echo no);'
         ' [ "$g" = "$s" ] || b="$b $n=$g"; done; echo "$b nodes-ok"'
     )
-    SEEK_WRITE = (
-        "dd if={source} of={target} bs=512 seek={seek} 2>/dev/null;"
-        " sync; echo 3 > /proc/sys/vm/drop_caches"
-    )
     SYSTEM = """\
 set -e
 m=/tmp/fireos-system
@@ -412,9 +401,21 @@ WRITES = (
 
 def amonet_chain() -> None:
     part = partitions()
-    if "lk_a" not in part:
-        _die(message="the Dot's partition table has no lk_a. " + again())
-    node = f"{DISK}p{part['lk_a'][0]}"
+    for slot in ("lk_a", "lk_b"):
+        if slot not in part:
+            _die(message=f"the Dot's partition table has no {slot}. " + again())
+    if any(amonet_lk(node=f"{DISK}p{part[slot][0]}") for slot in ("lk_a", "lk_b")):
+        return
+    _die(
+        message="neither lk_a nor lk_b holds amonet v2.0.0's or v1.1.0's LK, so"
+        " this Dot is locked and the recovery it started is one amonet left"
+        " behind. Nothing was written. Unlock it first: unplug the USB cable,"
+        " hold the action button, plug it back in, and let go when the ring"
+        " turns green. " + again()
+    )
+
+
+def amonet_lk(*, node: str) -> bool:
     for download in (AMONET_BISCUIT_V2_0_0_ZIP, AMONET_BISCUIT_V1_1_0_ZIP):
         local = unpack(download=download) / "bin" / "lk.bin"
         want = digest(kind="md5", path=local)
@@ -426,7 +427,7 @@ def amonet_chain() -> None:
             )
             held = read.split(sep="\n")[-1].split(sep=" ")[0]
             if held == want:
-                return
+                return True
             if len(held) == MD5_DIGITS:
                 break
             if attempt + 1 < PUSH_TRIES:
@@ -437,13 +438,7 @@ def amonet_chain() -> None:
                 f" {local.stat().st_size} bytes: {held or 'nothing'}. Nothing"
                 " was written. " + again()
             )
-    _die(
-        message="lk_a holds neither amonet v2.0.0's nor v1.1.0's LK, so this Dot"
-        " is locked and the recovery it started is one amonet left behind."
-        " Nothing was written. Unlock it first: unplug the USB cable, hold the"
-        " action button, plug it back in, and let go when the ring turns green. "
-        + again()
-    )
+    return False
 
 
 def amonet_v1_1_0_append() -> None:
@@ -505,54 +500,32 @@ def amonet_v1_1_0_append() -> None:
 
 def amonet_v1_1_0_chain() -> None:
     amonet_chain()
-    amonet = unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
-    twrp = amonet / "bin" / "twrp.img"
-    if ARGUMENTS.target == AMONET_BISCUIT_V1_1_0_BBOE:
-        twrp = fetch(download=TWRP)
-    node, part = chain_nodes()
-    with tempfile.TemporaryDirectory(dir=CACHE) as temporary:
-        work = pathlib.Path(temporary)
-        PROGRESS.begin(estimate="5 s", label="clear the preloader header (boot0)")
-        ERASED.touch()
-        answer = adb_shell(command=Shell.CLEAR_BOOT0.value).split(sep="\n")[-1].split()
-        if answer != ["4096", "0"]:
-            read, *still_set = answer or [""]
-            if read == "4096" and still_set:
-                ERASED.unlink(missing_ok=True)
-            _die(message="boot0's header did not read back as cleared. " + again())
-        PROGRESS.begin(estimate="20 s", label="writing amonet v1.1.0's bootchain")
-        for name, source, seek in (
-            ("boot_a", "boot.hdr", 0),
-            ("boot_a", "boot.payload", AMONET_V1_1_0_PAYLOAD_SEEK),
-            ("boot_b", "boot.hdr", 0),
-            ("boot_b", "boot.payload", AMONET_V1_1_0_PAYLOAD_SEEK),
-            ("tee1", "tz.img", 0),
-            ("tee2", "tz.img", 0),
-            ("lk_a", "lk.bin", 0),
-            ("lk_b", "lk.bin", 0),
-        ):
-            write_checked(
-                local=amonet / "bin" / source,
-                node=node[name],
-                seek=seek,
-                work=work,
-            )
-        write_checked(local=twrp, node=node["recovery"], seek=0, work=work)
-        PROGRESS.begin(estimate="5 s", label="write misc, slot a marked good")
-        if adb_shell(command=Shell.FLUSH.value).split(sep="\n")[-1] != "flushed":
-            _die(message="the Dot did not flush its caches. " + again())
-        block = bytearray(read_sectors(count=1, start=part["misc"][1] + 1))
-        block[
-            BOOTLOADER_CONTROL_BLOCK_OFFSET - 512 : BOOTLOADER_CONTROL_BLOCK_OFFSET
-            - 512
-            + len(BOOTLOADER_CONTROL_BLOCK)
-        ] = BOOTLOADER_CONTROL_BLOCK
-        staged = work / "misc.block"
-        staged.write_bytes(data=bytes(block))
-        write_checked(local=staged, node=node["misc"], seek=1, work=work)
-        install_fireos(reboot=False, slot="_a")
-        write_preloader(image=amonet / "bin" / "preloader.img")
-        ERASED.unlink(missing_ok=True)
+    chain_nodes()
+    unlock = {
+        unlock.name: unlock
+        for unlock in (
+            amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0,
+            amonet_biscuit_v1_1_0_bboe.AMONET_BISCUIT_V1_1_0_BBOE,
+        )
+    }[ARGUMENTS.target]
+    try:
+        resolved = resolve(
+            raw=read_sectors(count=TABLE_SECTORS, start=0),
+            source=unpack(download=unlock.source),
+            unlock=unlock,
+        )
+    except (FileNotFoundError, KeyError, ValueError) as error:
+        _die(
+            message=f"{unlock.name} does not fit this Dot: {error.args[0]}. Nothing was"
+            " written. " + again()
+        )
+    actions = tuple(action for action in resolved if action.kind not in TWRP_SKIPS)
+    check(actions=actions)
+    ERASED.touch()
+    execute(actions=tuple(action for action in actions if not action.unrecoverable))
+    install_fireos(reboot=False, slot="_a")
+    execute(actions=tuple(action for action in actions if action.unrecoverable))
+    ERASED.unlink(missing_ok=True)
     run(arguments=["adb", "reboot"], check=True, timeout=60)
     PROGRESS.begin(estimate="4 min", label="waiting for rooted Fire OS 5 to boot")
 
@@ -785,7 +758,7 @@ def build_system(*, target: pathlib.Path) -> None:
     part.replace(target=target)
 
 
-def chain_nodes() -> tuple[dict[str, str], dict[str, tuple[int, int, int]]]:
+def chain_nodes() -> None:
     part = partitions()
     for name in (*CHAIN_PARTS, "boot_a_x", "boot_b_x"):
         if name not in part:
@@ -819,7 +792,6 @@ def chain_nodes() -> tuple[dict[str, str], dict[str, tuple[int, int, int]]]:
             message="/dev/block/mmcblk0boot0 is not a block device, so the"
             " preloader would be written to a file in RAM. " + again()
         )
-    return node, part
 
 
 def chain_writes() -> tuple[Step, ...]:
@@ -2156,7 +2128,7 @@ def stages() -> dict[State, Stage]:
                 then=State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
             ),
             State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(
-                run=amonet_v1_1_0_chain, steps=9, then=goal
+                run=amonet_v1_1_0_chain, steps=17, then=goal
             ),
             State.AMONET_V1_1_0_BBOE_TWRP: Stage(
                 run=install_fireos, steps=5, then=State.ROOTED_AMONET_V1_1_0_BBOE
@@ -2328,55 +2300,6 @@ def write(
     if wrong:
         restore_failed(message=f"{label} did not verify{wrong}; do not reboot")
     PROGRESS.end()
-
-
-def write_checked(
-    *, local: pathlib.Path, node: str, seek: int, work: pathlib.Path
-) -> None:
-    data = local.read_bytes()
-    padded = work / local.name
-    padded.write_bytes(data=data.ljust(-(-len(data) // 512) * 512, b"\0"))
-    remote = DOT_TEMPORARY_DIRECTORY / local.name
-    push_checked(local=padded, remote=remote)
-    adb_shell(
-        command=Shell.SEEK_WRITE.value.format(seek=seek, source=remote, target=node),
-        timeout=600,
-    )
-    blocks = padded.stat().st_size // 512
-    want = digest(kind="md5", path=padded)
-    for attempt in range(PUSH_TRIES):
-        read = adb_shell(
-            command=f"[ -b {node} ] && dd if={node} bs=512 skip={seek}"
-            f" count={blocks} 2>/dev/null | md5sum",
-            timeout=600,
-        )
-        if read.split(sep="\n")[-1].split(sep=" ")[0] == want:
-            return
-        if attempt + 1 < PUSH_TRIES:
-            reconnect(remote=DISK)
-    _die(message=f"{local.name} did not read back from {node}. " + again())
-
-
-def write_preloader(*, image: pathlib.Path) -> None:
-    PROGRESS.begin(estimate="5 s", label="write preloader to boot0")
-    staged = DOT_TEMPORARY_DIRECTORY / image.name
-    push_checked(local=image, remote=staged)
-    adb_shell(command=Shell.BOOT0.value.format(source=staged))
-    blocks = image.stat().st_size // 512
-    want = digest(kind="md5", path=image)
-    for attempt in range(PUSH_TRIES):
-        read = adb_shell(
-            command="d=dd; toybox dd --help >/dev/null 2>&1 && d='toybox dd';"
-            f" $d if=/dev/block/mmcblk0boot0 bs=512 count={blocks} 2>/dev/null | md5sum"
-        )
-        if read.split(sep="\n")[-1].split(sep=" ")[0] == want:
-            return
-        if attempt + 1 < PUSH_TRIES:
-            reconnect(remote=DISK)
-    _die(
-        message="the preloader did not read back, so boot0 is still cleared"
-        " and the Dot restarts into its bootrom. " + again()
-    )
 
 
 def write_system(*, system: str) -> None:
