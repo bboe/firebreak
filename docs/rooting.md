@@ -273,18 +273,18 @@ ring read white.
   these floors.
 - Downloads go to `$XDG_CACHE_HOME/firebreak` (default `~/.cache/firebreak`),
   or `%LOCALAPPDATA%\firebreak` on Windows. The script moves what the old
-  `overdub-firmware`, `overdub-root` and `overdub-stock` folders hold into
+  `overdub-firmware`, `overdub-root` and `overdub-stock` directories hold into
   it before it reads the cache, so an interrupted downgrade's marker
-  survives. A name already in the new folder stays in the old. Each
+  survives. A name already in the new directory stays in the old. Each
   is checked against a pinned SHA-256 before use and on every run. The amonet
   trees unpacked from the two zips are not, and neither is the system image
   built from Fire OS's.
-- The system image's folder is named after the zip's hash, so a new zip builds
-  a new image. Its `md5` file is written last and synced with the image before
-  the folder is renamed into place, so the script trusts a folder only when
-  `md5` is in it, and rebuilds otherwise. If the md5 read back still fails
-  after the last try, the script deletes `md5` alone, which works even when
-  another process holds the image open.
+- The system image's directory is named after the zip's hash, so a new zip
+  builds a new image. Its `md5` file is written last and synced with the image
+  before the directory is renamed into place, so the script trusts a directory
+  only when `md5` is in it, and rebuilds otherwise. If the md5 read back still
+  fails after the last try, the script deletes `md5` alone, which works even
+  when another process holds the image open.
 - The run starts the downloads in a background thread at the first probe that
   does not find the Dot booted, rooted or starting. So they overlap the wait
   for a Dot and for the fastboot gesture. A Dot found rooted needs no download
@@ -321,7 +321,7 @@ ring read white.
   that needs it.
 - `-m` puts a child's working directory first on its import path, so a child
   runs in the cache or amonet's `modules`, never where the run started. A
-  `firebreak` folder there would replace the package, and a `serial.py` the
+  `firebreak` directory there would replace the package, and a `serial.py` the
   pinned wheel. The child drops that entry before it does anything else. It
   checks the entry first: under `PYTHONSAFEPATH` Python adds no such directory.
   The bootrom child then puts its own directory back, because amonet's modules
@@ -743,7 +743,7 @@ ring read white.
 - The image is padded to a 4096-byte multiple and written with `dd`.
   After `sync` the page cache is dropped, and the partition is read back by
   md5 over the image's length.
-- The host's copies go in a folder under the cache, not in `%TEMP%`. On
+- The host's copies go in a directory under the cache, not in `%TEMP%`. On
   Windows 11, reading a newly written boot image from `%TEMP%` stalled for
   10.3 s in 10 of 15 trials, and in 0 of 23 trials elsewhere.
 

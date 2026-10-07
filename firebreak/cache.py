@@ -38,7 +38,7 @@ class Download:
     sha256: str
     url: str
     browser: bool = False
-    folder: str = ""
+    directory: str = ""
     size: int = 0
 
 
@@ -540,11 +540,11 @@ def trash_dir() -> pathlib.Path | None:
 
 
 def unpack(*, download: Download) -> pathlib.Path:
-    with hold(lock=lock_for(key=download.folder)):
+    with hold(lock=lock_for(key=download.directory)):
         archive = fetch(download=download)
-        target = CACHE / download.folder
+        target = CACHE / download.directory
         if not target.is_dir():
-            part = CACHE / (download.folder + ".part")
+            part = CACHE / (download.directory + ".part")
             shutil.rmtree(ignore_errors=True, path=part)
             with zipfile.ZipFile(file=archive) as zip_file:
                 zip_file.extractall(path=part)

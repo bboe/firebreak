@@ -143,13 +143,13 @@ LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
 MD5_DIGITS = 32
 MIRROR = "https://github.com/hkfuertes/amazon_device_biscuit/releases/download/none"
 AMONET_BISCUIT_V1_1_0_ZIP = Download(
-    folder="v1",
+    directory="v1",
     name="amonet-biscuit-v1.1.0.zip",
     sha256="bd4d3a18b6b6e9ff6e49a4739159a81020673202795cb3959f7c9ff24351b663",
     url=MIRROR + "/amonet-biscuit-v1.1.0.zip",
 )
 AMONET_BISCUIT_V2_0_0_ZIP = Download(
-    folder="v2",
+    directory="v2",
     name="amonet-biscuit-v2.0.0.zip",
     sha256="98297293701082bc7272efe077f941c56fc7b6e1f27ef6f2e93b6e4c6fc7b62d",
     url=MIRROR + "/amonet-biscuit-v2.0.0.zip",

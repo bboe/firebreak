@@ -40,9 +40,9 @@ class Response(io.BytesIO):
 
 @pytest.fixture
 def cached(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> pathlib.Path:
-    folder = tmp_path / "cache"
-    monkeypatch.setattr(name="CACHE", target=cache, value=folder)
-    return folder
+    directory = tmp_path / "cache"
+    monkeypatch.setattr(name="CACHE", target=cache, value=directory)
+    return directory
 
 
 def archived(*, path: pathlib.Path) -> pathlib.Path:
@@ -63,9 +63,9 @@ def browser_item() -> cache.Download:
     )
 
 
-def item(*, folder: str = "", source: pathlib.Path) -> cache.Download:
+def item(*, directory: str = "", source: pathlib.Path) -> cache.Download:
     return cache.Download(
-        folder=folder,
+        directory=directory,
         name=source.name,
         sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
         url=source.as_uri(),
@@ -994,7 +994,7 @@ def test_unpack(*, cached: pathlib.Path, tmp_path: pathlib.Path) -> None:
     source = tmp_path / "amonet.zip"
     with zipfile.ZipFile(file=source, mode="w") as archive:
         archive.writestr(data=b"lk", zinfo_or_arcname="amonet/bin/lk.bin")
-    download = item(folder="v9", source=source)
+    download = item(directory="v9", source=source)
     target = cache.unpack(download=download)
     assert target == cached / "v9" / "amonet"
     assert (target / "bin" / "lk.bin").read_bytes() == b"lk"
@@ -1011,7 +1011,7 @@ def test_unpack_replaces_a_partial_extract(
         archive.writestr(data=b"lk", zinfo_or_arcname="amonet/bin/lk.bin")
     (cached / "v9.part" / "amonet").mkdir(parents=True)
     (cached / "v9.part" / "amonet" / "junk").write_bytes(data=b"junk")
-    target = cache.unpack(download=item(folder="v9", source=source))
+    target = cache.unpack(download=item(directory="v9", source=source))
     assert sorted(path.name for path in target.rglob("*")) == ["bin", "lk.bin"]
     assert not (cached / "v9.part").exists()
 

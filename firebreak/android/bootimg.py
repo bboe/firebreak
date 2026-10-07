@@ -161,10 +161,10 @@ def magisk_files(
     }
     with zipfile.ZipFile(file=magisk) as archive:
         for info in archive.infolist():
-            folder, _, name = info.filename.partition("/")
-            if folder in {"arm", "common"}:
+            directory, _, name = info.filename.partition("/")
+            if directory in {"arm", "common"}:
                 path = name
-            elif folder == "chromeos":
+            elif directory == "chromeos":
                 path = info.filename
             else:
                 continue
