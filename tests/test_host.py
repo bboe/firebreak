@@ -190,6 +190,7 @@ def test_child_path_finds_the_package(*, tmp_path: pathlib.Path) -> None:
     wheel, package = host.child_path(wheel=tmp_path).split(sep=os.pathsep)
     assert wheel == str(tmp_path)
     assert (pathlib.Path(package) / "firebreak" / "__main__.py").is_file()
+    assert host.child_path(wheel=None) == package
 
 
 def test_command(*, capsys: pytest.CaptureFixture[str]) -> None:
@@ -297,6 +298,13 @@ def test_on_usb(
     assert host.on_usb(line=line) is want
 
 
+def test_probe_serial_asks_for_the_module_the_child_imports() -> None:
+    assert host.SERIAL_PROBE.endswith("import serial")
+    assert host.probe_serial() is True
+    renamed = host.SERIAL_PROBE.replace("import serial", "import pyserial")
+    assert host.command(arguments=[sys.executable, "-c", renamed]).returncode != 0
+
+
 def test_push_checked(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
@@ -337,6 +345,33 @@ def test_push_checked_fails(  # ruff: ignore[too-many-arguments]
     with pytest.raises(expected_exception=SystemExit, match=said):
         host.push_checked(local=local, remote="/tmp/x")
     assert reconnects == ["/tmp/x", "/tmp/x"]
+
+
+def test_pyserial_wheel_gives_the_wheel_when_the_child_cannot_import(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    wheel = tmp_path / "pyserial.whl"
+    fetched, probes = [], []
+
+    def fetch(*, download: object) -> pathlib.Path:
+        fetched.append(download)
+        return wheel
+
+    def missing() -> bool:
+        probes.append(False)
+        return False
+
+    monkeypatch.setattr(name="fetch", target=host, value=fetch)
+    monkeypatch.setattr(name="probe_serial", target=host, value=missing)
+    assert host.pyserial_wheel() == wheel
+    assert host.pyserial_wheel() == wheel
+    assert fetched == [host.PYSERIAL, host.PYSERIAL]
+    assert len(probes) == 1
+
+    host.SESSION.serial_ready = None
+    monkeypatch.setattr(name="probe_serial", target=host, value=lambda: True)
+    assert host.pyserial_wheel() is None
+    assert fetched == [host.PYSERIAL, host.PYSERIAL]
 
 
 def test_reconnect(

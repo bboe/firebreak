@@ -4,21 +4,20 @@ import dataclasses
 import hashlib
 import http.client
 import io
+import pathlib
+import re
 import sys
 import threading
 import types
 import urllib.request
 import zipfile
-from typing import TYPE_CHECKING
 
 import pytest
 
 from firebreak import cache
 
-if TYPE_CHECKING:
-    import pathlib
-
 BODY = b"firmware" * 1000
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 class Response(io.BytesIO):
@@ -180,6 +179,19 @@ def test_move_old_caches(*, cached: pathlib.Path) -> None:
     (old / "kept").unlink()
     cache.move_old_caches()
     assert not old.exists()
+
+
+def test_pyserial_pin_matches_the_download() -> None:
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    pinned = re.search(
+        flags=re.MULTILINE,
+        pattern=r'^dependencies = \["pyserial==([^"]+)"\]$',
+        string=pyproject,
+    )
+    assert pinned, "pyproject.toml does not pin pyserial"
+    wheel = f"pyserial-{pinned[1]}-py2.py3-none-any.whl"
+    assert cache.PYSERIAL.name == wheel
+    assert cache.PYSERIAL.url.endswith("/" + wheel)
 
 
 @pytest.mark.parametrize(

@@ -17,9 +17,10 @@ uvx --with tox-uv tox -e build,floor   # macOS only: pytest and coverage on Appl
 
 ## Rules
 
-- Python 3.9 or later, standard library only. Users run it with `uvx` from this
-  repository until the first release, which adds `firebreak.pyz` and the PyPI
-  wheel.
+- Python 3.9 or later. pyserial is the one dependency, pinned to the version a
+  pyz run downloads; everything else is the standard library. Users run it with
+  `uvx` from this repository until the first release, which adds `firebreak.pyz`
+  and the PyPI wheel.
 - A release is a `v` tag matching `version` in `pyproject.toml`. `release.yml`
   publishes the wheel to PyPI by trusted publishing and attaches the pyz to a
   GitHub release.

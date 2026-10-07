@@ -111,8 +111,8 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   goes on as from amonet-v2.0.0-twrp. `stock` takes the same path: from emOS
   0.10 on amonet v1.1.0 with TWRP 3.7.0_9-bboe2 it restored 8146 in 3 min
   3 s.
-- Finding the port by USB ID needs pyserial, so the probe runs a child with
-  the bootrom step's pinned wheel. It runs only when adb lists no Dot.
+- Finding the port by USB ID needs pyserial, so the probe runs a child that
+  imports it. It runs only when adb lists no Dot.
 - A port that will not open, as on Linux without the udev `tty` line, stops
   the run with the rules and the commands that add them.
 - The child opens the port and sends a newline. A prompt ending in `#` gets
@@ -304,21 +304,28 @@ ring read white.
   that zip.
 - Nothing deletes a download, so a later run downloads nothing. A rooted run
   prints the cache's path and size and says it is safe to delete.
-- The emOS probe and the bootrom step need pyserial, and the probe runs on
-  every poll that lists no Dot, so every run fetches the wheel. The script puts
-  the pinned pure wheel from PyPI on the child's `PYTHONPATH`, and Python
-  imports it straight from the zip. Nothing is installed.
+- The emOS probe and the bootrom step need pyserial, which a wheel or source
+  install declares as a dependency, pinned to the same version the download
+  holds. A test reads the pin out of `pyproject.toml` and checks it names that
+  wheel, so the two cannot drift.
+- A pyz carries no dependencies, so the run fetches the pinned pure wheel from
+  PyPI when the host has none, puts it on the child's `PYTHONPATH`, and Python
+  imports it straight from the zip. Nothing is installed. A host that already
+  has pyserial fetches nothing and the child imports the installed one, which
+  amonet's own `import serial` then finds too.
 - Each child is firebreak itself, run as `python -m firebreak _child <name>`
-  with the pyz or `site-packages` on its `PYTHONPATH`, beside pyserial. A path
-  to re-run would not do: the wheel's Windows launcher is an `.exe`. pyserial is
-  on the child's path only, and the bootrom child also needs amonet's `modules`
-  directory, so their imports wait until the child runs.
+  with the pyz or `site-packages` on its `PYTHONPATH`, and the wheel beside it
+  when one was fetched. A path to re-run would not do: the wheel's Windows
+  launcher is an `.exe`. The bootrom child also needs amonet's `modules`
+  directory, so these imports wait until the child runs, each in the function
+  that needs it.
 - `-m` puts a child's working directory first on its import path, so a child
   runs in the cache or amonet's `modules`, never where the run started. A
   `firebreak` folder there would replace the package, and a `serial.py` the
-  pinned wheel. The child also drops that entry before importing pyserial. It
-  checks the entry first: under `PYTHONSAFEPATH` Python adds no such directory,
-  and the first entry is the wheel.
+  pinned wheel. The child drops that entry before it does anything else. It
+  checks the entry first: under `PYTHONSAFEPATH` Python adds no such directory.
+  The bootrom child then puts its own directory back, because amonet's modules
+  are there.
 - `adb get-state` reports `unauthorized` on stderr, so the script reads both
   streams.
 - Without `ANDROID_SERIAL`, the run uses the one Dot on USB in

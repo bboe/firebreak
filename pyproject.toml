@@ -3,6 +3,7 @@ build-backend = "hatchling.build"
 requires = ["hatchling"]
 
 [project]
+dependencies = ["pyserial==3.5"]
 description = "Root an Echo Dot (2nd Generation), move it between amonet targets, or return it to stock"
 license = "BSD-2-Clause"
 license-files = ["LICENSE.txt"]

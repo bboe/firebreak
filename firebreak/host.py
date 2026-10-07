@@ -8,7 +8,7 @@ import sys
 import time
 from typing import BinaryIO
 
-from firebreak.cache import digest
+from firebreak.cache import PYSERIAL, digest, fetch
 from firebreak.ui import ARGUMENTS, PROGRESS, SESSION, _die, clock, program, show
 
 AS_ROOT = (
@@ -45,6 +45,7 @@ Then run it again with the new group, which a new login also has:
 
 """  # ruff: ignore[line-too-long]
 PUSH_TRIES = 3
+SERIAL_PROBE = "import sys; sys.path.pop(0); import serial"
 USER_SERIAL = os.environ.get("ANDROID_SERIAL")
 
 
@@ -110,17 +111,18 @@ def child(*, arguments: list[str] | None = None, name: str) -> list[str]:
     ]
 
 
-def child_path(*, wheel: pathlib.Path) -> str:
-    return os.pathsep.join((
-        str(wheel),
-        str(pathlib.Path(__file__).resolve().parents[1]),
-    ))
+def child_path(*, wheel: pathlib.Path | None) -> str:
+    package = str(pathlib.Path(__file__).resolve().parents[1])
+    if wheel is None:
+        return package
+    return os.pathsep.join((str(wheel), package))
 
 
 def command(  # ruff: ignore[too-many-arguments]
     *,
     arguments: list[str | pathlib.PurePath],
     directory: pathlib.Path | None = None,
+    environment: dict[str, str] | None = None,
     standard_error: int | None = None,
     standard_input: int | BinaryIO | None = None,
     standard_output: int | None = None,
@@ -133,6 +135,7 @@ def command(  # ruff: ignore[too-many-arguments]
         args=arguments,
         check=False,
         cwd=directory,
+        env=environment,
         stderr=standard_error,
         stdin=standard_input,
         stdout=standard_output,
@@ -211,6 +214,20 @@ def on_usb(*, line: str) -> bool:
     )
 
 
+def probe_serial() -> bool:
+    try:
+        result = command(
+            arguments=[sys.executable, "-c", SERIAL_PROBE],
+            environment=dict(os.environ, PYTHONPATH=child_path(wheel=None)),
+            standard_error=subprocess.DEVNULL,
+            standard_output=subprocess.DEVNULL,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
 def push_checked(*, local: pathlib.Path, remote: str | pathlib.PurePosixPath) -> None:
     for attempt in range(PUSH_TRIES):
         if attempt:
@@ -234,6 +251,12 @@ def push_checked(*, local: pathlib.Path, remote: str | pathlib.PurePosixPath) ->
         message=f"{remote} did not arrive intact after {PUSH_TRIES} tries;"
         f" the last: {said}"
     )
+
+
+def pyserial_wheel() -> pathlib.Path | None:
+    if SESSION.serial_ready is None:
+        SESSION.serial_ready = probe_serial()
+    return None if SESSION.serial_ready else fetch(download=PYSERIAL)
 
 
 def reconnect(*, remote: str | pathlib.PurePosixPath) -> None:

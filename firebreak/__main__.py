@@ -43,7 +43,6 @@ from firebreak.cache import (
     CACHE,
     ERASED,
     MAGISK,
-    PYSERIAL,
     Download,
     cache_note,
     digest,
@@ -72,6 +71,7 @@ from firebreak.host import (
     md5_mismatch,
     no_port_help,
     push_checked,
+    pyserial_wheel,
     reconnect,
     rerun,
     run,
@@ -616,7 +616,7 @@ def bootrom(  # ruff: ignore[complex-structure, too-many-branches, too-many-stat
     amonet: pathlib.Path,
     erase: Callable[[], str] | None,
     payload: pathlib.Path,
-    wheel: pathlib.Path,
+    wheel: pathlib.Path | None,
 ) -> bool:
     shutil.copyfile(dst=amonet / "brom-payload" / "build" / "payload.bin", src=payload)
     log_path = CACHE / "bootrom.log"
@@ -1052,7 +1052,7 @@ def countdown() -> None:
 
 def downgrade() -> None:
     amonet = unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
-    wheel = fetch(download=PYSERIAL)
+    wheel = pyserial_wheel()
     if getvar(name="unlock_status").lower() != "true":
         _die(message="not in amonet's fastboot")
     little_kernel = getvar(name="lk_build_desc")
@@ -1136,7 +1136,7 @@ def emos(*, action: str) -> str:
         capture_output=True,
         check=False,
         cwd=CACHE,
-        env=dict(os.environ, PYTHONPATH=child_path(wheel=fetch(download=PYSERIAL))),
+        env=dict(os.environ, PYTHONPATH=child_path(wheel=pyserial_wheel())),
         text=True,
         timeout=30,
     ).stdout.strip()
@@ -1443,7 +1443,7 @@ def prefetch() -> None:
             download(build=build)
         return
     unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
-    fetch(download=PYSERIAL)
+    pyserial_wheel()
     fetch(download=FIREOS)
     fetch(download=MAGISK)
     fetch(download=TWRP)
@@ -1906,7 +1906,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 amonet=unpack(download=AMONET_BISCUIT_V1_1_0_ZIP),
                 erase=None,
                 payload=amonet_v2_0_0_payload(),
-                wheel=fetch(download=PYSERIAL),
+                wheel=pyserial_wheel(),
             ):
                 amonet_v1_1_0_recovery()
             else:
