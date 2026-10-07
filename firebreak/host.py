@@ -9,13 +9,13 @@ import time
 from typing import BinaryIO
 
 from firebreak.cache import digest
-from firebreak.ui import ARGS, PROGRESS, SESSION, _die, clock, program, show
+from firebreak.ui import ARGUMENTS, PROGRESS, SESSION, _die, clock, program, show
 
 AS_ROOT = (
     "run this as your own user, not as root or with sudo: the downloads would"
     " belong to root, and on Linux udev rules let a user open the Dot"
 )
-DOT_TMP = pathlib.PurePosixPath("/tmp")  # ruff: ignore[hardcoded-temp-file]
+DOT_TEMPORARY_DIRECTORY = pathlib.PurePosixPath("/tmp")  # ruff: ignore[hardcoded-temp-file]
 MORE_THAN_ONE = (
     "more than one Dot on USB: set ANDROID_SERIAL to one's serial (adb"
     " devices lists them)"
@@ -50,27 +50,29 @@ USER_SERIAL = os.environ.get("ANDROID_SERIAL")
 
 def adb_script(*, body: str, name: str, work: pathlib.Path) -> bool:
     local = work / name
-    with local.open("w", newline="\n") as f:
-        f.write(body)
-    remote = DOT_TMP / "root-step.sh"
+    with local.open(mode="w", newline="\n") as file:
+        file.write(body)
+    remote = DOT_TEMPORARY_DIRECTORY / "root-step.sh"
     push_checked(local=local, remote=remote)
     command = f"sh {remote}; s=$?; rm -f {remote}; exit $s"
-    return run(args=["adb", "shell", command], timeout=300).returncode == 0
+    return run(arguments=["adb", "shell", command], timeout=300).returncode == 0
 
 
 def adb_shell(*, command: str, timeout: float = 300) -> str:
-    out = run(args=["adb", "shell", "-n", command], timeout=timeout).stdout
+    output = run(arguments=["adb", "shell", "-n", command], timeout=timeout).stdout
     return "\n".join(
-        line for line in out.split("\n") if not line.startswith("__bionic_open_tzdata")
+        line
+        for line in output.split(sep="\n")
+        if not line.startswith("__bionic_open_tzdata")
     ).strip()
 
 
 def check_adb() -> None:
-    words = run(args=["adb", "version"], timeout=30).stdout.split()
+    words = run(arguments=["adb", "version"], timeout=30).stdout.split()
     version = (
         words[4] if words[:4] == ["Android", "Debug", "Bridge", "version"] else "?"
     )
-    parts = version.split(".")
+    parts = version.split(sep=".")
     if not all(part.isdigit() for part in parts) or tuple(map(int, parts)) < (1, 0, 36):
         _die(
             message=f"adb reports version {version}; this needs 1.0.36"
@@ -87,7 +89,7 @@ def check_user() -> None:
     import pwd  # ruff: ignore[import-outside-top-level]
 
     try:
-        plugdev = grp.getgrnam("plugdev")
+        plugdev = grp.getgrnam(name="plugdev")
     except KeyError:
         _die(message=NO_ACCESS + rerun())
     if plugdev.gr_gid in os.getgroups():
@@ -97,18 +99,18 @@ def check_user() -> None:
     _die(message=NO_ACCESS + rerun())
 
 
-def child(name: str, *args: str) -> list[str]:
+def child(*, arguments: list[str] | None = None, name: str) -> list[str]:
     return [
         sys.executable,
         "-m",
         "firebreak",
         "_child",
         name,
-        *args,
+        *(arguments or []),
     ]
 
 
-def child_path(wheel: pathlib.Path) -> str:
+def child_path(*, wheel: pathlib.Path) -> str:
     return os.pathsep.join((
         str(wheel),
         str(pathlib.Path(__file__).resolve().parents[1]),
@@ -117,23 +119,23 @@ def child_path(wheel: pathlib.Path) -> str:
 
 def command(  # ruff: ignore[too-many-arguments]
     *,
-    args: list[str | pathlib.PurePath],
-    cwd: pathlib.Path | None = None,
-    stderr: int | None = None,
-    stdin: int | BinaryIO | None = None,
-    stdout: int | None = None,
+    arguments: list[str | pathlib.PurePath],
+    directory: pathlib.Path | None = None,
+    standard_error: int | None = None,
+    standard_input: int | BinaryIO | None = None,
+    standard_output: int | None = None,
     timeout: float | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
-    loud = ARGS.verbose and not SESSION.probing
+    loud = ARGUMENTS.verbose and not SESSION.probing
     if loud:
-        show(text=f"{clock()} $ {' '.join(map(str, args))}")
+        show(text=f"{clock()} $ {' '.join(map(str, arguments))}")
     result = subprocess.run(
-        args,
+        args=arguments,
         check=False,
-        cwd=cwd,
-        stderr=stderr,
-        stdin=stdin,
-        stdout=stdout,
+        cwd=directory,
+        stderr=standard_error,
+        stdin=standard_input,
+        stdout=standard_output,
         timeout=timeout,
     )
     if loud:
@@ -141,36 +143,36 @@ def command(  # ruff: ignore[too-many-arguments]
     return result
 
 
-def devices(args: list[str]) -> str:
+def devices(*, arguments: list[str]) -> str:
     for _ in range(5):
-        out = run(args=args, timeout=30).stdout
-        lines = out.splitlines()
+        output = run(arguments=arguments, timeout=30).stdout
+        lines = output.splitlines()
         if not any("no permissions" in line for line in lines) or any(
             line.split()[1:2] in (["device"], ["recovery"], ["fastboot"])
             for line in lines
         ):
-            return out
+            return output
         time.sleep(1)
     _die(message=NO_ACCESS + rerun())
     return ""
 
 
-def getvar(name: str) -> str:
+def getvar(*, name: str) -> str:
     try:
-        out = run(args=["fastboot", "getvar", name], timeout=30).stdout
+        output = run(arguments=["fastboot", "getvar", name], timeout=30).stdout
     except subprocess.TimeoutExpired:
         return ""
-    for line in out.splitlines():
+    for line in output.splitlines():
         if line.startswith(name + ":"):
             return line[len(name) + 1 :].strip()
     return ""
 
 
 def in_fastboot() -> bool:
-    out = devices(["fastboot", "devices"])
+    output = devices(arguments=["fastboot", "devices"])
     serials = [
         line.split()[0]
-        for line in out.splitlines()
+        for line in output.splitlines()
         if line.split()[1:2] == ["fastboot"]
     ]
     if USER_SERIAL:
@@ -181,7 +183,7 @@ def in_fastboot() -> bool:
 
 
 def md5_mismatch(*, command: str, want: str) -> str:
-    got = [*adb_shell(command=command).split("\n")[-1].split(" "), ""][0]
+    got = [*adb_shell(command=command).split(sep="\n")[-1].split(sep=" "), ""][0]
     return "" if got == want else f": read {got or 'nothing'}, expected {want}"
 
 
@@ -198,7 +200,7 @@ def no_port_help() -> str:
     return "No new COM port appeared. Windows may need a driver for USB ID 0e8d:0003."
 
 
-def on_usb(line: str) -> bool:
+def on_usb(*, line: str) -> bool:
     if os.name != "nt":
         return " usb:" in line
     parts = line.split()
@@ -212,13 +214,13 @@ def on_usb(line: str) -> bool:
 def push_checked(*, local: pathlib.Path, remote: str | pathlib.PurePosixPath) -> None:
     for attempt in range(PUSH_TRIES):
         if attempt:
-            reconnect(remote)
+            reconnect(remote=remote)
         try:  # ruff: ignore[too-many-statements-in-try-clause]
-            result = run(args=["adb", "push", local, remote], timeout=600)
+            result = run(arguments=["adb", "push", local, remote], timeout=600)
             if result.returncode != 0:
                 said = result.stdout
                 continue
-            if adb_shell(command=f"md5sum {remote}", timeout=300).split(" ")[
+            if adb_shell(command=f"md5sum {remote}", timeout=300).split(sep=" ")[
                 0
             ] == digest(kind="md5", path=local):
                 return
@@ -234,41 +236,44 @@ def push_checked(*, local: pathlib.Path, remote: str | pathlib.PurePosixPath) ->
     )
 
 
-def reconnect(remote: str | pathlib.PurePosixPath) -> None:
+def reconnect(*, remote: str | pathlib.PurePosixPath) -> None:
     PROGRESS.note(
-        f"{remote} did not arrive; waiting for the Dot to reconnect to try again."
+        message=f"{remote} did not arrive; waiting for the Dot to reconnect to try"
+        " again."
     )
     try:
-        run(args=["adb", "wait-for-recovery"], timeout=120)
+        run(arguments=["adb", "wait-for-recovery"], timeout=120)
     except subprocess.TimeoutExpired:
         _die(message="the Dot did not reconnect over USB in recovery")
     time.sleep(5)
 
 
 def rerun() -> str:
-    command = shlex.join([*program(), *sys.argv[1:]])
-    return "sg plugdev -c " + shlex.quote(command)
+    command = shlex.join(split_command=[*program(), *sys.argv[1:]])
+    return "sg plugdev -c " + shlex.quote(s=command)
 
 
 def run(
     *,
-    args: list[str | pathlib.PurePath],
+    arguments: list[str | pathlib.PurePath],
     check: bool = False,
-    cwd: pathlib.Path | None = None,
-    stdin: BinaryIO | int = subprocess.DEVNULL,
+    directory: pathlib.Path | None = None,
+    standard_input: BinaryIO | int = subprocess.DEVNULL,
     timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     result = command(
-        args=args,
-        cwd=cwd,
-        stderr=subprocess.STDOUT,
-        stdin=stdin,
-        stdout=subprocess.PIPE,
+        arguments=arguments,
+        directory=directory,
+        standard_error=subprocess.STDOUT,
+        standard_input=standard_input,
+        standard_output=subprocess.PIPE,
         timeout=timeout,
     )
-    result.stdout = result.stdout.decode("utf-8", "replace").replace("\r", "")
+    result.stdout = result.stdout.decode(encoding="utf-8", errors="replace").replace(
+        "\r", ""
+    )
     if check and result.returncode != 0:
-        _die(message=f"{' '.join(map(str, args))} failed:\n{result.stdout}")
+        _die(message=f"{' '.join(map(str, arguments))} failed:\n{result.stdout}")
     return result
 
 
@@ -279,18 +284,18 @@ def usb_serial() -> str | None:
                 message="ANDROID_SERIAL names a network device;"
                 " this needs the Dot on USB"
             )
-        devices(["adb", "devices", "-l"])
+        devices(arguments=["adb", "devices", "-l"])
         return USER_SERIAL
-    out = devices(["adb", "devices", "-l"])
-    usb = [
+    output = devices(arguments=["adb", "devices", "-l"])
+    connected_serials = [
         line.split()[0]
-        for line in out.splitlines()[1:]
-        if on_usb(line) and "no permissions" not in line
+        for line in output.splitlines()[1:]
+        if on_usb(line=line) and "no permissions" not in line
     ]
-    if len(usb) > 1:
+    if len(connected_serials) > 1:
         _die(message=MORE_THAN_ONE)
-    if usb:
-        os.environ["ANDROID_SERIAL"] = usb[0]
-        return usb[0]
+    if connected_serials:
+        os.environ["ANDROID_SERIAL"] = connected_serials[0]
+        return connected_serials[0]
     os.environ.pop("ANDROID_SERIAL", None)
     return None

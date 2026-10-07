@@ -15,60 +15,64 @@ if TYPE_CHECKING:
     import pathlib
 
 BLOCK = 4096
-
-
 KINDS = {
     "lk": ota.OperationType.REPLACE_BZ,
     "tee": ota.OperationType.REPLACE_XZ,
 }
 
 
-def block_ota(path: pathlib.Path, transfer: str, dat: bytes) -> pathlib.Path:
-    members = {member: image(name, 1000) for name, member in ota.BLOCK_IMAGES.items()}
+def block_ota(*, new_data: bytes, path: pathlib.Path, transfer: str) -> pathlib.Path:
+    members = {
+        member: image(name=name, size=1000) for name, member in ota.BLOCK_IMAGES.items()
+    }
     return write_ota(
-        path,
-        {**members, "system.new.dat": dat, "system.transfer.list": transfer.encode()},
+        members={
+            **members,
+            "system.new.dat": new_data,
+            "system.transfer.list": transfer.encode(),
+        },
+        path=path,
     )
 
 
 def extent(*, blocks: int, start: int) -> bytes:
-    head = number(ota.ExtentField.START_BLOCK, start) if start else b""
+    head = number(field=ota.ExtentField.START_BLOCK, value=start) if start else b""
     return nested(
-        ota.OperationField.DST_EXTENTS,
-        head + number(ota.ExtentField.NUM_BLOCKS, blocks),
+        body=head + number(field=ota.ExtentField.NUM_BLOCKS, value=blocks),
+        field=ota.OperationField.DST_EXTENTS,
     )
 
 
-def image(name: str, size: int) -> bytes:
+def image(*, name: str, size: int) -> bytes:
     seed = hashlib.sha256(name.encode()).digest()
     return (seed * (size // len(seed) + 1))[:size]
 
 
 IMAGES = {
-    "boot": image("boot", BLOCK + 1),
-    "lk": image("lk", 2 * BLOCK),
-    "preloader": image("preloader", 5000),
-    "system": image("system", 3 * BLOCK),
-    "tee": image("tee", 3000),
+    "boot": image(name="boot", size=BLOCK + 1),
+    "lk": image(name="lk", size=2 * BLOCK),
+    "preloader": image(name="preloader", size=5000),
+    "system": image(name="system", size=3 * BLOCK),
+    "tee": image(name="tee", size=3000),
 }
 
 
-def nested(field: int, body: bytes) -> bytes:
-    return varint(field << 3 | 2) + varint(len(body)) + body
+def nested(*, body: bytes, field: int) -> bytes:
+    return varint(value=field << 3 | 2) + varint(value=len(body)) + body
 
 
-def number(field: int, n: int) -> bytes:
-    return varint(field << 3) + varint(n)
+def number(*, field: int, value: int) -> bytes:
+    return varint(value=field << 3) + varint(value=value)
 
 
 def payload(
+    *,
     images: dict[str, bytes],
     kinds: dict[str, int],
-    *,
     stale: str = "",
     version: int = 2,
 ) -> bytes:
-    manifest = number(ota.ManifestField.BLOCK_SIZE, BLOCK)
+    manifest = number(field=ota.ManifestField.BLOCK_SIZE, value=BLOCK)
     data = b""
     for name, body in images.items():
         padded = body.ljust(-(-len(body) // BLOCK) * BLOCK, b"\0")
@@ -76,7 +80,7 @@ def payload(
         blob = {
             ota.OperationType.REPLACE_BZ: bz2.compress,
             ota.OperationType.REPLACE_XZ: lzma.compress,
-        }.get(kind, lambda b: b)(padded)
+        }.get(kind, lambda *, data: data)(data=padded)
         blocks = len(padded) // BLOCK
         if name == "system":
             extents = extent(blocks=1, start=blocks - 1) + extent(
@@ -86,117 +90,130 @@ def payload(
         else:
             extents = extent(blocks=blocks, start=0)
         operation = (
-            number(ota.OperationField.TYPE, kind)
-            + number(ota.OperationField.DATA_OFFSET, len(data))
-            + number(ota.OperationField.DATA_LENGTH, len(blob))
+            number(field=ota.OperationField.TYPE, value=kind)
+            + number(field=ota.OperationField.DATA_OFFSET, value=len(data))
+            + number(field=ota.OperationField.DATA_LENGTH, value=len(blob))
             + extents
         )
-        info = number(ota.InfoField.SIZE, len(body)) + nested(
-            ota.InfoField.HASH, hashlib.sha256(body + b"x" * (name == stale)).digest()
+        info = number(field=ota.InfoField.SIZE, value=len(body)) + nested(
+            body=hashlib.sha256(body + b"x" * (name == stale)).digest(),
+            field=ota.InfoField.HASH,
         )
         manifest += nested(
-            ota.ManifestField.PARTITIONS,
-            nested(ota.PartitionField.NAME, name.encode())
-            + nested(ota.PartitionField.NEW_INFO, info)
-            + nested(ota.PartitionField.OPERATIONS, operation),
+            body=nested(body=name.encode(), field=ota.PartitionField.NAME)
+            + nested(body=info, field=ota.PartitionField.NEW_INFO)
+            + nested(body=operation, field=ota.PartitionField.OPERATIONS),
+            field=ota.ManifestField.PARTITIONS,
         )
         data += blob
     head = b"CrAU" + struct.pack(">QQI", version, len(manifest), 0)
     return head + manifest + data
 
 
-def test_extract(capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path) -> None:
-    update = write_ota(tmp_path / "ota.zip", {"payload.bin": payload(IMAGES, KINDS)})
-    ota.extract(ota=update, work=tmp_path)
+def test_extract(*, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path) -> None:
+    update = write_ota(
+        members={"payload.bin": payload(images=IMAGES, kinds=KINDS)},
+        path=tmp_path / "ota.zip",
+    )
+    ota.extract(update=update, work=tmp_path)
     for name, body in IMAGES.items():
         assert (tmp_path / f"{name}.img").read_bytes() == body
     assert capsys.readouterr().out.count("matches the manifest") == 5
-    (tmp_path / "boot.img").write_bytes(b"stale")
-    ota.extract(ota=update, work=tmp_path)
+    (tmp_path / "boot.img").write_bytes(data=b"stale")
+    ota.extract(update=update, work=tmp_path)
     assert (tmp_path / "boot.img").read_bytes() == IMAGES["boot"]
 
 
 def test_extract_blocks(
-    capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
 ) -> None:
-    dat = image("a", BLOCK) + image("b", 2 * BLOCK)
+    new_data = image(name="a", size=BLOCK) + image(name="b", size=2 * BLOCK)
     transfer = "4\n6\n0\n0\nerase 2,0,6\nnew 2,4,6\nnew 2,0,1\nzero 2,1,4\n"
-    ota.extract(ota=block_ota(tmp_path / "ota.zip", transfer, dat), work=tmp_path)
+    ota.extract(
+        update=block_ota(
+            new_data=new_data, path=tmp_path / "ota.zip", transfer=transfer
+        ),
+        work=tmp_path,
+    )
     for name in ota.BLOCK_IMAGES:
-        want = image(name, 1000)
+        want = image(name=name, size=1000)
         if name != "preloader":
             want += bytes(BLOCK - 1000)
         assert (tmp_path / f"{name}.img").read_bytes() == want
     system = (tmp_path / "system.img").read_bytes()
     assert len(system) == 6 * BLOCK
-    assert system[4 * BLOCK :] == dat[: 2 * BLOCK]
-    assert system[:BLOCK] == dat[2 * BLOCK :]
+    assert system[4 * BLOCK :] == new_data[: 2 * BLOCK]
+    assert system[:BLOCK] == new_data[2 * BLOCK :]
     assert system[BLOCK : 4 * BLOCK] == bytes(3 * BLOCK)
     assert "system built from the transfer list" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
-    ("dat", "message"),
-    [
+    argnames=("new_data", "message"),
+    argvalues=[
         (bytes(BLOCK), "system.new.dat is short"),
         (bytes(3 * BLOCK), "system.new.dat outlasts its transfer list"),
     ],
 )
 def test_extract_blocks_checks_the_data(
-    dat: bytes, message: str, tmp_path: pathlib.Path
+    *, message: str, new_data: bytes, tmp_path: pathlib.Path
 ) -> None:
-    update = block_ota(tmp_path / "ota.zip", "4\n2\n0\n0\nnew 2,0,2\n", dat)
-    with pytest.raises(SystemExit, match=message):
-        ota.extract(ota=update, work=tmp_path)
+    update = block_ota(
+        new_data=new_data, path=tmp_path / "ota.zip", transfer="4\n2\n0\n0\nnew 2,0,2\n"
+    )
+    with pytest.raises(expected_exception=SystemExit, match=message):
+        ota.extract(update=update, work=tmp_path)
 
 
-def test_extract_checks_the_hash(tmp_path: pathlib.Path) -> None:
-    body = payload(IMAGES, KINDS, stale="system")
-    update = write_ota(tmp_path / "ota.zip", {"payload.bin": body})
-    with pytest.raises(SystemExit, match="system does not match the manifest"):
-        ota.extract(ota=update, work=tmp_path)
+def test_extract_checks_the_hash(*, tmp_path: pathlib.Path) -> None:
+    body = payload(images=IMAGES, kinds=KINDS, stale="system")
+    update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")
+    with pytest.raises(
+        expected_exception=SystemExit, match="system does not match the manifest"
+    ):
+        ota.extract(update=update, work=tmp_path)
 
 
 @pytest.mark.parametrize(
-    ("change", "message"),
-    [
+    argnames=("change", "message"),
+    argvalues=[
         ({"version": 1}, "not a version 2 update payload"),
         ({"drop": "tee"}, "the OTA has no tee image"),
         ({"kind": 4}, "lk has op type 4"),
     ],
 )
 def test_extract_fails(
-    change: dict[str, object], message: str, tmp_path: pathlib.Path
+    *, change: dict[str, object], message: str, tmp_path: pathlib.Path
 ) -> None:
-    images = {k: v for k, v in IMAGES.items() if k != change.get("drop")}
+    images = {key: value for key, value in IMAGES.items() if key != change.get("drop")}
     kinds = {**KINDS, "lk": change.get("kind", KINDS["lk"])}
-    body = payload(images, kinds, version=int(change.get("version", 2)))
-    update = write_ota(tmp_path / "ota.zip", {"payload.bin": body})
-    with pytest.raises(SystemExit, match=message):
-        ota.extract(ota=update, work=tmp_path)
+    body = payload(images=images, kinds=kinds, version=int(change.get("version", 2)))
+    update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")
+    with pytest.raises(expected_exception=SystemExit, match=message):
+        ota.extract(update=update, work=tmp_path)
 
 
 def test_fields() -> None:
     message = (
-        number(1, 300)
-        + nested(2, b"hi")
-        + varint(3 << 3 | 1)
+        number(field=1, value=300)
+        + nested(body=b"hi", field=2)
+        + varint(value=3 << 3 | 1)
         + bytes(range(8))
-        + varint(4 << 3 | 5)
+        + varint(value=4 << 3 | 5)
         + b"abcd"
     )
-    assert list(ota.fields(message)) == [
+    assert list(ota.fields(message=message)) == [
         (1, 0, 300),
         (2, 2, b"hi"),
         (3, 1, bytes(range(8))),
         (4, 5, b"abcd"),
     ]
-    with pytest.raises(SystemExit, match="wire type 3"):
-        list(ota.fields(varint(5 << 3 | 3)))
+    with pytest.raises(expected_exception=SystemExit, match="wire type 3"):
+        list(ota.fields(message=varint(value=5 << 3 | 3)))
 
 
 def test_transfer_list() -> None:
-    commands, size = ota.transfer_list("3\n4\n0\n0\nerase 2,0,4\nnew 4,0,1,2,4\n")
+    commands, size = ota.transfer_list(text="3\n4\n0\n0\nerase 2,0,4\nnew 4,0,1,2,4\n")
     assert size == 4 * BLOCK
     assert commands == [
         ("erase", [(0, 4 * BLOCK)]),
@@ -205,8 +222,8 @@ def test_transfer_list() -> None:
 
 
 @pytest.mark.parametrize(
-    ("text", "message"),
-    [
+    argnames=("text", "message"),
+    argvalues=[
         ("2\n1\n0\n0\nnew 2,0,1\n", "transfer list is version 2"),
         ("4\n1\n0\n0\nmove 2,0,1\n", "has a 'move' command"),
         ("4\n1\n0\n0\nnew 2,0,x\n", "has a 'new' command"),
@@ -216,26 +233,26 @@ def test_transfer_list() -> None:
         ("4\n1\n0\n0\nnew 2,0,2\nzero 2,1,2\n", "writes a block twice"),
     ],
 )
-def test_transfer_list_fails(message: str, text: str) -> None:
-    with pytest.raises(SystemExit, match=message):
-        ota.transfer_list(text)
+def test_transfer_list_fails(*, message: str, text: str) -> None:
+    with pytest.raises(expected_exception=SystemExit, match=message):
+        ota.transfer_list(text=text)
 
 
 def test_varint() -> None:
-    assert ota.varint(b=b"\x00\xac\x02", i=1) == (300, 3)
+    assert ota.varint(data=b"\x00\xac\x02", index=1) == (300, 3)
 
 
-def varint(n: int) -> bytes:
-    out = bytearray()
+def varint(*, value: int) -> bytes:
+    encoded = bytearray()
     while True:
-        low, n = n & 0x7F, n >> 7
-        out.append(low | (0x80 if n else 0))
-        if not n:
-            return bytes(out)
+        low, value = value & 0x7F, value >> 7
+        encoded.append(low | (0x80 if value else 0))
+        if not value:
+            return bytes(encoded)
 
 
-def write_ota(path: pathlib.Path, members: dict[str, bytes]) -> pathlib.Path:
-    with zipfile.ZipFile(path, "w") as z:
+def write_ota(*, members: dict[str, bytes], path: pathlib.Path) -> pathlib.Path:
+    with zipfile.ZipFile(file=path, mode="w") as archive:
         for name, body in members.items():
-            z.writestr(name, body)
+            archive.writestr(data=body, zinfo_or_arcname=name)
     return path

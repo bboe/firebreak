@@ -56,7 +56,9 @@ ERASED = CACHE / "boot0-erased"
 
 def cache_note() -> None:
     if CACHE.is_dir():
-        size = sum(f.stat().st_size for f in CACHE.rglob("*") if f.is_file())
+        size = sum(
+            file.stat().st_size for file in CACHE.rglob(pattern="*") if file.is_file()
+        )
         path, home = str(CACHE), str(pathlib.Path.home())
         if os.name != "nt" and path.startswith(home + os.sep):
             path = "~" + path[len(home) :]
@@ -67,21 +69,21 @@ def cache_note() -> None:
 
 
 def digest(*, kind: str, limit: int = 0, path: pathlib.Path) -> str:
-    h = hashlib.new(kind, usedforsecurity=False)
+    hasher = hashlib.new(name=kind, usedforsecurity=False)
     left = limit or path.stat().st_size
-    with path.open("rb") as f:
+    with path.open(mode="rb") as file:
         while left > 0:
-            block = f.read(min(1 << 20, left))
+            block = file.read(min(1 << 20, left))
             if not block:
                 break
             left -= len(block)
-            h.update(block)
-    return h.hexdigest()
+            hasher.update(block)
+    return hasher.hexdigest()
 
 
-def fetch(download: Download) -> pathlib.Path:
+def fetch(*, download: Download) -> pathlib.Path:
     name, want = download.name, download.sha256
-    with hold(lock_for(download)):
+    with hold(lock=lock_for(key=download)):
         CACHE.mkdir(exist_ok=True, parents=True)
         path = CACHE / name
         if path in SESSION.verified or (
@@ -91,10 +93,12 @@ def fetch(download: Download) -> pathlib.Path:
             return path
         part = CACHE / (name + ".part")
         try:
-            with urllib.request.urlopen(download.url, timeout=60) as response:  # ruff: ignore[multiple-with-statements]
-                with part.open("wb") as out:
+            with urllib.request.urlopen(timeout=60, url=download.url) as response:  # ruff: ignore[multiple-with-statements]
+                with part.open(mode="wb") as part_file:
                     done, total = save(
-                        label="downloading " + name, out=out, response=response
+                        destination=part_file,
+                        label="downloading " + name,
+                        response=response,
                     )
         except (OSError, http.client.HTTPException) as error:
             _die(message=f"downloading {name} failed: {error!r}")
@@ -105,13 +109,13 @@ def fetch(download: Download) -> pathlib.Path:
             )
         if digest(kind="sha256", path=part) != want:
             _die(message=f"{name} does not hash to {want}")
-        part.replace(path)
+        part.replace(target=path)
         SESSION.verified.add(path)
         return path
 
 
 @contextlib.contextmanager
-def hold(lock: threading.Lock) -> Generator[None, None, None]:
+def hold(*, lock: threading.Lock) -> Generator[None, None, None]:
     while not lock.acquire(timeout=0.5):
         pass
     try:
@@ -120,7 +124,7 @@ def hold(lock: threading.Lock) -> Generator[None, None, None]:
         lock.release()
 
 
-def lock_for(key: object) -> threading.Lock:
+def lock_for(*, key: object) -> threading.Lock:
     with LOCKS_GUARD:
         return LOCKS.setdefault(key, threading.Lock())
 
@@ -134,51 +138,54 @@ def move_old_caches() -> None:
         for path in source.iterdir():
             if not (CACHE / path.name).exists():
                 with contextlib.suppress(OSError):
-                    shutil.move(str(path), str(CACHE / path.name))
+                    shutil.move(dst=str(CACHE / path.name), src=str(path))
         with contextlib.suppress(OSError):
             source.rmdir()
 
 
 def save(
-    *, label: str, out: BinaryIO, response: http.client.HTTPResponse
+    *, destination: BinaryIO, label: str, response: http.client.HTTPResponse
 ) -> tuple[int, int]:
-    total = int(response.headers.get("Content-Length") or 0)
-    div, unit = (1e3, "KB") if 0 < total < MEGA else (MEGA, "MB")
+    total = int(response.headers.get(name="Content-Length") or 0)
+    divisor, unit = (1e3, "KB") if 0 < total < MEGA else (MEGA, "MB")
 
-    def meter(done: int) -> str:
+    def meter(*, done: int) -> str:
         if total:
             return (
-                f"{done / div:.1f} of {total / div:.1f} {unit} ({100 * done // total}%)"
+                f"{done / divisor:.1f} of {total / divisor:.1f} {unit}"
+                f" ({100 * done // total}%)"
             )
-        return f"{done / div:.1f} {unit}"
+        return f"{done / divisor:.1f} {unit}"
 
-    room = 78 - (len(meter(total)) if total else 12)
+    room = 78 - (len(meter(done=total)) if total else 12)
     if len(label) > room:
         label = label[: room - 3] + "..."
     done = 0
     loud = threading.current_thread() is threading.main_thread() and sys.stdout.isatty()
     if loud:
-        show(end="", flush=True, text=f"{label:<{room}} {meter(0):>{78 - room}}")
+        show(end="", flush=True, text=f"{label:<{room}} {meter(done=0):>{78 - room}}")
     for block in iter(lambda: response.read(1 << 20), b""):
-        out.write(block)
+        destination.write(block)
         done += len(block)
         if loud:
             show(
-                end="", flush=True, text=f"\r{label:<{room}} {meter(done):>{78 - room}}"
+                end="",
+                flush=True,
+                text=f"\r{label:<{room}} {meter(done=done):>{78 - room}}",
             )
     if loud:
         print()
     return done, total
 
 
-def unpack(download: Download) -> pathlib.Path:
-    with hold(lock_for(download.folder)):
-        archive = fetch(download)
+def unpack(*, download: Download) -> pathlib.Path:
+    with hold(lock=lock_for(key=download.folder)):
+        archive = fetch(download=download)
         target = CACHE / download.folder
         if not target.is_dir():
             part = CACHE / (download.folder + ".part")
-            shutil.rmtree(part, ignore_errors=True)
-            with zipfile.ZipFile(archive) as z:
-                z.extractall(part)
-            part.replace(target)
+            shutil.rmtree(ignore_errors=True, path=part)
+            with zipfile.ZipFile(file=archive) as zip_file:
+                zip_file.extractall(path=part)
+            part.replace(target=target)
         return target / "amonet"

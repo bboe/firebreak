@@ -7,10 +7,10 @@ import struct
 import sys
 import time
 
-BROM_PID = 0x0003
+BOOTROM_PRODUCT_ID = 0x0003
 HANDSHAKE_WAIT = 10
-MEDIATEK_VID = 0x0E8D
-PRELOADER_PID = 0x2000
+MEDIATEK_VENDOR_ID = 0x0E8D
+PRELOADER_PRODUCT_ID = 0x2000
 
 
 def child_bootrom() -> int:  # ruff: ignore[complex-structure, too-many-statements]
@@ -25,112 +25,126 @@ def child_bootrom() -> int:  # ruff: ignore[complex-structure, too-many-statemen
     resume = os.environ.get("FIREBREAK_RESUME")
     start_payload = amonet.load_payload
 
-    def emmc_read(self: common.Device, idx: int) -> bytes:
-        self.dev.write(struct.pack(">III", 0xF00DD00D, 0x1000, idx))
-        return read_flushed(self, 0x200)
+    def emmc_read(self: common.Device, index: int) -> bytes:
+        self.dev.write(data=struct.pack(">III", 0xF00DD00D, 0x1000, index))
+        return read_flushed(device=self, size=0x200)
 
-    def emmc_write_blocks(self: common.Device, idx: int, data: bytes) -> None:
+    def emmc_write_blocks(self: common.Device, index: int, data: bytes) -> None:
         self.dev.write(
-            struct.pack(">IIII", 0xF00DD00D, 0x1003, idx, len(data) // 0x200)
+            data=struct.pack(">IIII", 0xF00DD00D, 0x1003, index, len(data) // 0x200)
         )
-        self.dev.write(data)
-        if self.dev.read(4) != b"\xd0\xd0\xd0\xd0":
-            msg = "device failure"
-            raise RuntimeError(msg)
+        self.dev.write(data=data)
+        if self.dev.read(size=4) != b"\xd0\xd0\xd0\xd0":
+            message = "device failure"
+            raise RuntimeError(message)
 
     def flash_data(
-        dev: common.Device, data: bytes, start_block: int, max_size: int = 0
+        device: common.Device, data: bytes, start_block: int, max_size: int = 0
     ) -> None:
         if marker:
             pathlib.Path(marker).touch()
         data += b"\0" * (-len(data) % 0x200)
         if max_size and len(data) > max_size:
-            msg = "data too big to flash"
-            raise RuntimeError(msg)
-        for x in range(0, len(data), 64 * 0x200):
-            dev.emmc_write_blocks(start_block + x // 0x200, data[x : x + 64 * 0x200])
+            message = "data too big to flash"
+            raise RuntimeError(message)
+        for offset in range(0, len(data), 64 * 0x200):
+            device.emmc_write_blocks(
+                data=data[offset : offset + 64 * 0x200],
+                index=start_block + offset // 0x200,
+            )
 
-    def read_flushed(self: common.Device, size: int) -> bytes:
-        self.dev.write(struct.pack(">IIII", 0xF00DD00D, 0x5000, 0x201000, 4))
-        data = self.dev.read(size + 4)
+    def read_flushed(*, device: common.Device, size: int) -> bytes:
+        device.dev.write(data=struct.pack(">IIII", 0xF00DD00D, 0x5000, 0x201000, 4))
+        data = device.dev.read(size=size + 4)
         if len(data) != size + 4:
-            msg = "read fail"
-            raise RuntimeError(msg)
+            message = "read fail"
+            raise RuntimeError(message)
         return data[:size]
 
     def rpmb_read(self: common.Device) -> bytes:
-        self.dev.write(struct.pack(">II", 0xF00DD00D, 0x2000))
-        return read_flushed(self, 0x100)
+        self.dev.write(data=struct.pack(">II", 0xF00DD00D, 0x2000))
+        return read_flushed(device=self, size=0x100)
 
     def find_device(self: common.Device, *_: object) -> None:
         seen = {
-            p.device: p.pid
-            for p in list_ports.comports()
-            if p.vid == MEDIATEK_VID and not (resume and p.pid == BROM_PID)
+            port_info.device: port_info.pid
+            for port_info in list_ports.comports()
+            if port_info.vid == MEDIATEK_VENDOR_ID
+            and not (resume and port_info.pid == BOOTROM_PRODUCT_ID)
         }
         failed = {}
-        log("Waiting for bootrom")
+        log(s="Waiting for bootrom")
         while True:
-            pids = {
-                p.device: p.pid for p in list_ports.comports() if p.vid == MEDIATEK_VID
+            product_ids = {
+                port_info.device: port_info.pid
+                for port_info in list_ports.comports()
+                if port_info.vid == MEDIATEK_VENDOR_ID
             }
-            seen = {port: pid for port, pid in seen.items() if port in pids}
-            failed = {port: at for port, at in failed.items() if port in pids}
-            for port, pid in sorted(pids.items()):
-                if pid is None or seen.get(port) == pid:
+            seen = {
+                port: product_id
+                for port, product_id in seen.items()
+                if port in product_ids
+            }
+            failed = {
+                port: first_failure
+                for port, first_failure in failed.items()
+                if port in product_ids
+            }
+            for port, product_id in sorted(product_ids.items()):
+                if product_id is None or seen.get(port) == product_id:
                     continue
-                if pid == BROM_PID:
+                if product_id == BOOTROM_PRODUCT_ID:
                     try:
                         self.dev = serial.Serial(
-                            port, common.BAUD, timeout=common.TIMEOUT
+                            baudrate=common.BAUD, port=port, timeout=common.TIMEOUT
                         )
-                    except serial.SerialException as e:
-                        at = failed.setdefault(port, time.monotonic())
-                        if at and time.monotonic() - at >= 1:
+                    except serial.SerialException as error:
+                        first_failure = failed.setdefault(port, time.monotonic())
+                        if first_failure and time.monotonic() - first_failure >= 1:
                             failed[port] = 0
-                            log("Cannot open " + port + ": " + str(e))
+                            log(s="Cannot open " + port + ": " + str(error))
                         continue
-                    log("Found port = " + port)
+                    log(s="Found port = " + port)
                     return
-                seen[port] = pid
-                if pid == PRELOADER_PID:
-                    log("Ignoring the preloader on " + port)
+                seen[port] = product_id
+                if product_id == PRELOADER_PRODUCT_ID:
+                    log(s="Ignoring the preloader on " + port)
             time.sleep(0.25)
 
-    def answered(self: common.Device) -> bool:
+    def answered(*, device: common.Device) -> bool:
         deadline = time.monotonic() + HANDSHAKE_WAIT
         try:
             while time.monotonic() < deadline:
-                if self._writeb(b"\xa0") == b"\x5f":
+                if device._writeb(out_str=b"\xa0") == b"\x5f":  # ruff: ignore[private-member-access]
                     return True
-                self.dev.flushInput()
+                device.dev.flushInput()
         except serial.SerialException:
             pass
         return False
 
     def handshake(self: common.Device) -> None:
-        while not answered(self):
-            log("The bootrom did not answer the handshake")
+        while not answered(device=self):
+            log(s="The bootrom did not answer the handshake")
             port = self.dev.port
             with contextlib.suppress(serial.SerialException):
                 self.dev.close()
             self.dev = None
-            while any(p.device == port for p in list_ports.comports()):
+            while any(port_info.device == port for port_info in list_ports.comports()):
                 time.sleep(0.25)
-            find_device(self)
-        self.check(self._writeb(b"\x0a"), b"\xf5")
-        self.check(self._writeb(b"\x50"), b"\xaf")
-        self.check(self._writeb(b"\x05"), b"\xfa")
+            find_device(self=self)
+        self.check(gold=b"\xf5", test=self._writeb(out_str=b"\x0a"))
+        self.check(gold=b"\xaf", test=self._writeb(out_str=b"\x50"))
+        self.check(gold=b"\xfa", test=self._writeb(out_str=b"\x05"))
 
-    def load_payload(dev: common.Device, path: str) -> None:
-        start_payload(dev, path)
+    def load_payload(device: common.Device, path: str) -> None:
+        start_payload(dev=device, path=path)
         try:
-            dev.emmc_switch(0)
-            answered = dev.emmc_read(0)[510:512] == b"\x55\xaa"
+            device.emmc_switch(part=0)
+            answered = device.emmc_read(index=0)[510:512] == b"\x55\xaa"
         except RuntimeError:
             answered = False
         if not answered:
-            log("The eMMC did not answer")
+            log(s="The eMMC did not answer")
             raise SystemExit(3)
 
     common.Device.emmc_read = emmc_read
@@ -149,12 +163,12 @@ def child_reset() -> int:
     from serial.tools import list_ports  # ruff: ignore[import-outside-top-level]
 
     for port in list_ports.comports():
-        if port.vid == MEDIATEK_VID:
+        if port.vid == MEDIATEK_VENDOR_ID:
             try:
                 with serial.Serial(
-                    port.device, 115200, timeout=1, write_timeout=1
-                ) as dev:
-                    dev.write(struct.pack(">II", 0xF00DD00D, 0x3000))
+                    baudrate=115200, port=port.device, timeout=1, write_timeout=1
+                ) as connection:
+                    connection.write(data=struct.pack(">II", 0xF00DD00D, 0x3000))
             except serial.SerialException:
                 pass
     return 0

@@ -16,135 +16,166 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture(autouse=True)
-def no_waiting(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(host.time, "sleep", lambda _: None)
-    monkeypatch.setattr(host, "USER_SERIAL", None)
+def no_waiting(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(name="sleep", target=host.time, value=lambda _: None)
+    monkeypatch.setattr(name="USER_SERIAL", target=host, value=None)
 
 
 def answers(
-    monkeypatch: pytest.MonkeyPatch, *replies: str | subprocess.CompletedProcess[str]
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    replies: list[str | subprocess.CompletedProcess[str]],
 ) -> list[list[str]]:
     asked: list[list[str]] = []
     pending = list(replies)
 
-    def run(*, args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        asked.append([str(arg) for arg in args])
+    def run(*, arguments: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        asked.append([str(argument) for argument in arguments])
         reply = pending.pop(0) if len(pending) > 1 else pending[0]
         if isinstance(reply, subprocess.CompletedProcess):
             return reply
-        return completed(reply)
+        return completed(standard_output=reply)
 
-    monkeypatch.setattr(host, "run", run)
+    monkeypatch.setattr(name="run", target=host, value=run)
     return asked
 
 
 def completed(
-    stdout: str = "", returncode: int = 0
+    *, return_code: int = 0, standard_output: str = ""
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout)
+    return subprocess.CompletedProcess(
+        args=[], returncode=return_code, stdout=standard_output
+    )
 
 
 def linux(
-    monkeypatch: pytest.MonkeyPatch, *, gid: int, groups: list[int], members: list[str]
+    *,
+    group_id: int,
+    groups: list[int],
+    members: list[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    group = types.SimpleNamespace(gr_gid=gid, gr_mem=members)
-    monkeypatch.setattr(host.sys, "platform", "linux")
-    monkeypatch.setattr(os, "geteuid", lambda: 1000)
-    monkeypatch.setattr(os, "getgroups", lambda: groups)
+    group = types.SimpleNamespace(gr_gid=group_id, gr_mem=members)
+    monkeypatch.setattr(name="platform", target=host.sys, value="linux")
+    monkeypatch.setattr(name="geteuid", target=os, value=lambda: 1000)
+    monkeypatch.setattr(name="getgroups", target=os, value=lambda: groups)
     grp = types.ModuleType("grp")
-    grp.getgrnam = lambda name: group if name == "plugdev" else None
+    grp.getgrnam = lambda *, name: group if name == "plugdev" else None
     pwd = types.ModuleType("pwd")
     pwd.getpwuid = lambda _: types.SimpleNamespace(pw_name="me")
-    monkeypatch.setitem(sys.modules, "grp", grp)
-    monkeypatch.setitem(sys.modules, "pwd", pwd)
+    monkeypatch.setitem(dic=sys.modules, name="grp", value=grp)
+    monkeypatch.setitem(dic=sys.modules, name="pwd", value=pwd)
 
 
 def pushing(
-    monkeypatch: pytest.MonkeyPatch,
     *,
     md5: str,
+    monkeypatch: pytest.MonkeyPatch,
     push: Callable[[], subprocess.CompletedProcess[str]],
 ) -> list[str]:
     reconnects: list[str] = []
-    monkeypatch.setattr(host, "run", lambda **_: push())
-    monkeypatch.setattr(host, "adb_shell", lambda **_: f"{md5}  /tmp/x")
-    monkeypatch.setattr(host, "reconnect", reconnects.append)
+    monkeypatch.setattr(name="run", target=host, value=lambda **_: push())
+    monkeypatch.setattr(
+        name="adb_shell", target=host, value=lambda **_: f"{md5}  /tmp/x"
+    )
+    monkeypatch.setattr(
+        name="reconnect",
+        target=host,
+        value=lambda *, remote: reconnects.append(remote),
+    )
     return reconnects
 
 
-def test_adb_script(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
+def test_adb_script(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
     pushed = []
     monkeypatch.setattr(
-        host, "push_checked", lambda *, local, remote: pushed.append((local, remote))
+        name="push_checked",
+        target=host,
+        value=lambda *, local, remote: pushed.append((local, remote)),
     )
-    asked = answers(monkeypatch, completed(returncode=0), completed(returncode=1))
+    asked = answers(
+        monkeypatch=monkeypatch,
+        replies=[completed(return_code=0), completed(return_code=1)],
+    )
     assert host.adb_script(body="echo hi\n", name="step.sh", work=tmp_path)
     assert (tmp_path / "step.sh").read_bytes() == b"echo hi\n"
-    assert pushed == [(tmp_path / "step.sh", host.DOT_TMP / "root-step.sh")]
+    assert pushed == [
+        (tmp_path / "step.sh", host.DOT_TEMPORARY_DIRECTORY / "root-step.sh")
+    ]
     assert asked[0][:2] == ["adb", "shell"]
     assert not host.adb_script(body="exit 1\n", name="step.sh", work=tmp_path)
 
 
-def test_adb_shell_drops_linker_noise(monkeypatch: pytest.MonkeyPatch) -> None:
-    asked = answers(monkeypatch, "__bionic_open_tzdata: x\nuid=0\n")
+def test_adb_shell_drops_linker_noise(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    asked = answers(
+        monkeypatch=monkeypatch, replies=["__bionic_open_tzdata: x\nuid=0\n"]
+    )
     assert host.adb_shell(command="id") == "uid=0"
     assert asked == [["adb", "shell", "-n", "id"]]
 
 
 @pytest.mark.parametrize(
-    ("out", "ok"),
-    [
+    argnames=("output", "accepted"),
+    argvalues=[
         ("Android Debug Bridge version 1.0.41\n", True),
         ("Android Debug Bridge version 1.0.36\n", True),
         ("Android Debug Bridge version 1.0.32\n", False),
         ("something else\n", False),
     ],
 )
-def test_check_adb(monkeypatch: pytest.MonkeyPatch, ok: bool, out: str) -> None:
-    answers(monkeypatch, out)
-    if ok:
+def test_check_adb(
+    *, accepted: bool, monkeypatch: pytest.MonkeyPatch, output: str
+) -> None:
+    answers(monkeypatch=monkeypatch, replies=[output])
+    if accepted:
         host.check_adb()
     else:
-        with pytest.raises(SystemExit, match=r"this needs 1\.0\.36"):
+        with pytest.raises(expected_exception=SystemExit, match=r"this needs 1\.0\.36"):
             host.check_adb()
 
 
-def test_check_user(monkeypatch: pytest.MonkeyPatch) -> None:
-    linux(monkeypatch, gid=46, groups=[46], members=[])
+def test_check_user(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    linux(group_id=46, groups=[46], members=[], monkeypatch=monkeypatch)
     host.check_user()
-    linux(monkeypatch, gid=46, groups=[], members=["me"])
-    with pytest.raises(SystemExit, match="predates its user joining plugdev"):
+    linux(group_id=46, groups=[], members=["me"], monkeypatch=monkeypatch)
+    with pytest.raises(
+        expected_exception=SystemExit, match="predates its user joining plugdev"
+    ):
         host.check_user()
-    linux(monkeypatch, gid=46, groups=[], members=[])
-    with pytest.raises(SystemExit, match="cannot open the Dot over USB"):
+    linux(group_id=46, groups=[], members=[], monkeypatch=monkeypatch)
+    with pytest.raises(
+        expected_exception=SystemExit, match="cannot open the Dot over USB"
+    ):
         host.check_user()
 
 
-def test_check_user_elsewhere(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(os, "geteuid", lambda: 1000)
-    monkeypatch.setattr(host.sys, "platform", "darwin")
+def test_check_user_elsewhere(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(name="geteuid", target=os, value=lambda: 1000)
+    monkeypatch.setattr(name="platform", target=host.sys, value="darwin")
     host.check_user()
 
 
-def test_check_user_refuses_root(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(os, "geteuid", lambda: 0)
-    with pytest.raises(SystemExit, match="not as root"):
+def test_check_user_refuses_root(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(name="geteuid", target=os, value=lambda: 0)
+    with pytest.raises(expected_exception=SystemExit, match="not as root"):
         host.check_user()
 
 
-def test_check_user_without_plugdev(monkeypatch: pytest.MonkeyPatch) -> None:
-    linux(monkeypatch, gid=46, groups=[], members=[])
+def test_check_user_without_plugdev(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    linux(group_id=46, groups=[], members=[], monkeypatch=monkeypatch)
 
-    def missing(_: str) -> None:
+    def missing(**_: str) -> None:
         raise KeyError
 
-    monkeypatch.setattr(sys.modules["grp"], "getgrnam", missing)
-    with pytest.raises(SystemExit, match="cannot open the Dot over USB"):
+    monkeypatch.setattr(name="getgrnam", target=sys.modules["grp"], value=missing)
+    with pytest.raises(
+        expected_exception=SystemExit, match="cannot open the Dot over USB"
+    ):
         host.check_user()
 
 
 def test_child() -> None:
-    assert host.child("emos", "find") == [
+    assert host.child(arguments=["find"], name="emos") == [
         sys.executable,
         "-m",
         "firebreak",
@@ -154,90 +185,101 @@ def test_child() -> None:
     ]
 
 
-def test_child_path_finds_the_package(tmp_path: pathlib.Path) -> None:
-    wheel, package = host.child_path(tmp_path).split(os.pathsep)
+def test_child_path_finds_the_package(*, tmp_path: pathlib.Path) -> None:
+    wheel, package = host.child_path(wheel=tmp_path).split(sep=os.pathsep)
     assert wheel == str(tmp_path)
     assert (pathlib.Path(package) / "firebreak" / "__main__.py").is_file()
 
 
-def test_command(capsys: pytest.CaptureFixture[str]) -> None:
+def test_command(*, capsys: pytest.CaptureFixture[str]) -> None:
     script = [sys.executable, "-c", "import sys; sys.exit(3)"]
-    assert host.command(args=script).returncode == 3
+    assert host.command(arguments=script).returncode == 3
     assert capsys.readouterr().out == ""
-    host.ARGS.verbose = True
-    host.command(args=script)
+    host.ARGUMENTS.verbose = True
+    host.command(arguments=script)
     shown = capsys.readouterr().out.splitlines()
     assert shown[0].endswith(f"$ {' '.join(script)}")
     assert shown[1].endswith("  exit 3")
     host.SESSION.probing = True
-    host.command(args=script)
+    host.command(arguments=script)
     assert capsys.readouterr().out == ""
 
 
-def test_devices(monkeypatch: pytest.MonkeyPatch) -> None:
-    answers(monkeypatch, "???? no permissions\n", "S1 device usb:1\n")
-    assert host.devices(["adb", "devices"]) == "S1 device usb:1\n"
+def test_devices(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    answers(
+        monkeypatch=monkeypatch, replies=["???? no permissions\n", "S1 device usb:1\n"]
+    )
+    assert host.devices(arguments=["adb", "devices"]) == "S1 device usb:1\n"
 
 
-def test_devices_without_permission(monkeypatch: pytest.MonkeyPatch) -> None:
-    asked = answers(monkeypatch, "???? no permissions\n")
-    with pytest.raises(SystemExit, match="cannot open the Dot over USB"):
-        host.devices(["adb", "devices"])
+def test_devices_without_permission(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    asked = answers(monkeypatch=monkeypatch, replies=["???? no permissions\n"])
+    with pytest.raises(
+        expected_exception=SystemExit, match="cannot open the Dot over USB"
+    ):
+        host.devices(arguments=["adb", "devices"])
     assert len(asked) == 5
 
 
-def test_getvar(monkeypatch: pytest.MonkeyPatch) -> None:
-    answers(monkeypatch, "unlock_status: true\nlk_build_desc: abc \nFinished.\n")
-    assert host.getvar("lk_build_desc") == "abc"
-    assert host.getvar("product") == ""
+def test_getvar(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    answers(
+        monkeypatch=monkeypatch,
+        replies=["unlock_status: true\nlk_build_desc: abc \nFinished.\n"],
+    )
+    assert host.getvar(name="lk_build_desc") == "abc"
+    assert host.getvar(name="product") == ""
 
     def slow(**_: object) -> None:
         raise subprocess.TimeoutExpired(cmd="fastboot", timeout=30)
 
-    monkeypatch.setattr(host, "run", slow)
-    assert host.getvar("product") == ""
+    monkeypatch.setattr(name="run", target=host, value=slow)
+    assert host.getvar(name="product") == ""
 
 
-def test_in_fastboot(monkeypatch: pytest.MonkeyPatch) -> None:
-    answers(monkeypatch, "")
+def test_in_fastboot(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    answers(monkeypatch=monkeypatch, replies=[""])
     assert not host.in_fastboot()
-    answers(monkeypatch, "S1\tfastboot\n")
+    answers(monkeypatch=monkeypatch, replies=["S1\tfastboot\n"])
     assert host.in_fastboot()
-    answers(monkeypatch, "S1\tfastboot\nS2\tfastboot\n")
-    with pytest.raises(SystemExit, match="more than one Dot"):
+    answers(monkeypatch=monkeypatch, replies=["S1\tfastboot\nS2\tfastboot\n"])
+    with pytest.raises(expected_exception=SystemExit, match="more than one Dot"):
         host.in_fastboot()
-    monkeypatch.setattr(host, "USER_SERIAL", "S2")
+    monkeypatch.setattr(name="USER_SERIAL", target=host, value="S2")
     assert host.in_fastboot()
-    monkeypatch.setattr(host, "USER_SERIAL", "S3")
+    monkeypatch.setattr(name="USER_SERIAL", target=host, value="S3")
     assert not host.in_fastboot()
 
 
-def test_md5_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
-    answers(monkeypatch, "abc  /dev/x\n")
+def test_md5_mismatch(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    answers(monkeypatch=monkeypatch, replies=["abc  /dev/x\n"])
     assert host.md5_mismatch(command="md5sum /dev/x", want="abc") == ""
     assert host.md5_mismatch(command="md5sum /dev/x", want="def") == (
         ": read abc, expected def"
     )
-    answers(monkeypatch, "")
+    answers(monkeypatch=monkeypatch, replies=[""])
     assert host.md5_mismatch(command="md5sum /dev/x", want="def") == (
         ": read nothing, expected def"
     )
 
 
 @pytest.mark.parametrize(
-    ("platform", "want"),
-    [("linux", "/dev/ttyACM*"), ("darwin", "/dev/cu.usbmodem*"), ("win32", "COM port")],
+    argnames=("platform", "want"),
+    argvalues=[
+        ("linux", "/dev/ttyACM*"),
+        ("darwin", "/dev/cu.usbmodem*"),
+        ("win32", "COM port"),
+    ],
 )
 def test_no_port_help(
-    monkeypatch: pytest.MonkeyPatch, platform: str, want: str
+    *, monkeypatch: pytest.MonkeyPatch, platform: str, want: str
 ) -> None:
-    monkeypatch.setattr(host.sys, "platform", platform)
+    monkeypatch.setattr(name="platform", target=host.sys, value=platform)
     assert want in host.no_port_help()
 
 
 @pytest.mark.parametrize(
-    ("name", "line", "want"),
-    [
+    argnames=("name", "line", "want"),
+    argvalues=[
         ("posix", "S1 device usb:1-1 product:x", True),
         ("posix", "192.168.1.40:5555 device product:x", False),
         ("nt", "S1 device product:x", True),
@@ -248,103 +290,110 @@ def test_no_port_help(
     ],
 )
 def test_on_usb(
-    line: str,
-    monkeypatch: pytest.MonkeyPatch,
-    name: str,
-    want: bool,
+    *, line: str, monkeypatch: pytest.MonkeyPatch, name: str, want: bool
 ) -> None:
-    monkeypatch.setattr(host, "os", types.SimpleNamespace(name=name))
-    assert host.on_usb(line) is want
+    monkeypatch.setattr(name="os", target=host, value=types.SimpleNamespace(name=name))
+    assert host.on_usb(line=line) is want
 
 
-def test_push_checked(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
+def test_push_checked(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
     local = tmp_path / "x"
-    local.write_bytes(b"x")
+    local.write_bytes(data=b"x")
     md5 = host.digest(kind="md5", path=local)
-    reconnects = pushing(monkeypatch, md5=md5, push=completed)
+    reconnects = pushing(md5=md5, monkeypatch=monkeypatch, push=completed)
     host.push_checked(local=local, remote="/tmp/x")
     assert reconnects == []
 
 
 @pytest.mark.parametrize(
-    ("returncode", "md5", "timeout", "said"),
-    [
+    argnames=("return_code", "md5", "timeout", "said"),
+    argvalues=[
         (1, "", False, "the last: adb: error"),
         (0, "0" * 32, False, "the last: its md5 read back"),
         (0, "", True, "the last: adb push did not"),
     ],
 )
-def test_push_checked_fails(  # ruff: ignore[too-many-arguments, too-many-positional-arguments]
+def test_push_checked_fails(  # ruff: ignore[too-many-arguments]
+    *,
     md5: str,
     monkeypatch: pytest.MonkeyPatch,
-    returncode: int,
+    return_code: int,
     said: str,
     timeout: bool,
     tmp_path: pathlib.Path,
 ) -> None:
     local = tmp_path / "x"
-    local.write_bytes(b"x")
+    local.write_bytes(data=b"x")
 
     def push() -> subprocess.CompletedProcess[str]:
         if timeout:
             raise subprocess.TimeoutExpired(cmd=["adb", "push"], timeout=600)
-        return completed("adb: error", returncode)
+        return completed(return_code=return_code, standard_output="adb: error")
 
-    reconnects = pushing(monkeypatch, md5=md5, push=push)
-    with pytest.raises(SystemExit, match=said):
+    reconnects = pushing(md5=md5, monkeypatch=monkeypatch, push=push)
+    with pytest.raises(expected_exception=SystemExit, match=said):
         host.push_checked(local=local, remote="/tmp/x")
     assert reconnects == ["/tmp/x", "/tmp/x"]
 
 
 def test_reconnect(
-    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    asked = answers(monkeypatch, "")
-    host.reconnect("/tmp/x")
+    asked = answers(monkeypatch=monkeypatch, replies=[""])
+    host.reconnect(remote="/tmp/x")
     assert asked == [["adb", "wait-for-recovery"]]
     assert "/tmp/x did not arrive" in capsys.readouterr().out
 
     def slow(**_: object) -> None:
         raise subprocess.TimeoutExpired(cmd="adb", timeout=120)
 
-    monkeypatch.setattr(host, "run", slow)
-    with pytest.raises(SystemExit, match="did not reconnect"):
-        host.reconnect("/tmp/x")
+    monkeypatch.setattr(name="run", target=host, value=slow)
+    with pytest.raises(expected_exception=SystemExit, match="did not reconnect"):
+        host.reconnect(remote="/tmp/x")
 
 
-def test_rerun(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(sys, "argv", ["/src/firebreak/__main__.py", "stock"])
-    monkeypatch.setattr(sys, "executable", "/usr/bin/python3")
+def test_rerun(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["/src/firebreak/__main__.py", "stock"]
+    )
+    monkeypatch.setattr(name="executable", target=sys, value="/usr/bin/python3")
     assert host.rerun() == "sg plugdev -c '/usr/bin/python3 -m firebreak stock'"
 
 
 def test_run() -> None:
     script = "import sys; sys.stdout.write('a\\r\\nb\\n'); sys.exit(2)"
-    result = host.run(args=[sys.executable, "-c", script])
+    result = host.run(arguments=[sys.executable, "-c", script])
     assert (result.returncode, result.stdout) == (2, "a\nb\n")
-    with pytest.raises(SystemExit, match="failed:\na\nb"):
-        host.run(args=[sys.executable, "-c", script], check=True)
+    with pytest.raises(expected_exception=SystemExit, match="failed:\na\nb"):
+        host.run(arguments=[sys.executable, "-c", script], check=True)
 
 
-def test_usb_serial(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_usb_serial(*, monkeypatch: pytest.MonkeyPatch) -> None:
     head = "List of devices attached\n"
-    monkeypatch.setenv("ANDROID_SERIAL", "old")
-    answers(monkeypatch, head)
+    monkeypatch.setenv(name="ANDROID_SERIAL", value="old")
+    answers(monkeypatch=monkeypatch, replies=[head])
     assert host.usb_serial() is None
     assert "ANDROID_SERIAL" not in os.environ
-    answers(monkeypatch, head + "S1 device usb:1 product:x\n10.0.0.2:5555 device\n")
+    answers(
+        monkeypatch=monkeypatch,
+        replies=[head + "S1 device usb:1 product:x\n10.0.0.2:5555 device\n"],
+    )
     assert host.usb_serial() == "S1"
     assert os.environ["ANDROID_SERIAL"] == "S1"
-    answers(monkeypatch, head + "S1 device usb:1\nS2 recovery usb:2\n")
-    with pytest.raises(SystemExit, match="more than one Dot"):
+    answers(
+        monkeypatch=monkeypatch, replies=[head + "S1 device usb:1\nS2 recovery usb:2\n"]
+    )
+    with pytest.raises(expected_exception=SystemExit, match="more than one Dot"):
         host.usb_serial()
 
 
-def test_usb_serial_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    asked = answers(monkeypatch, "")
-    monkeypatch.setattr(host, "USER_SERIAL", "S9")
+def test_usb_serial_from_the_environment(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    asked = answers(monkeypatch=monkeypatch, replies=[""])
+    monkeypatch.setattr(name="USER_SERIAL", target=host, value="S9")
     assert host.usb_serial() == "S9"
     assert asked == [["adb", "devices", "-l"]]
-    monkeypatch.setattr(host, "USER_SERIAL", "10.0.0.2:5555")
-    with pytest.raises(SystemExit, match="names a network device"):
+    monkeypatch.setattr(name="USER_SERIAL", target=host, value="10.0.0.2:5555")
+    with pytest.raises(expected_exception=SystemExit, match="names a network device"):
         host.usb_serial()

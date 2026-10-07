@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 @pytest.fixture(autouse=True)
 def fresh_session() -> Iterator[None]:
-    ui.ARGS.verbose = False
+    ui.ARGUMENTS.verbose = False
     vars(ui.SESSION).update(vars(ui.Session()))
     vars(ui.PROGRESS).update(vars(ui.Progress()))
     yield
