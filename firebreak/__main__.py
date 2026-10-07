@@ -12,36 +12,88 @@ step is there.
 from __future__ import annotations
 
 import argparse
-import base64
-import bz2
 import contextlib
-import dataclasses
 import enum
 import gzip
 import hashlib
 import http.client
-import lzma
 import os
 import pathlib
 import re
 import shlex
 import shutil
-import sqlite3
 import stat
-import struct
 import subprocess
 import sys
 import tempfile
-import textwrap
 import threading
 import time
 import urllib.request
 import zipfile
-import zlib
-from typing import IO, TYPE_CHECKING, BinaryIO, NamedTuple, NoReturn, TextIO
+from typing import IO, TYPE_CHECKING, NamedTuple, NoReturn
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Iterator
+    from collections.abc import Callable, Iterator
+
+from firebreak.android.bootimg import boot_image, cpio, magisk_db, magisk_files
+from firebreak.android.gpt import Partition, gpt_intact, stock_gpt
+from firebreak.android.ota import extract
+from firebreak.cache import (
+    CACHE,
+    ERASED,
+    MAGISK,
+    PYSERIAL,
+    Download,
+    cache_note,
+    digest,
+    fetch,
+    hold,
+    lock_for,
+    move_old_caches,
+    save,
+    unpack,
+)
+from firebreak.host import (
+    DOT_TMP,
+    MORE_THAN_ONE,
+    NO_ACCESS,
+    PUSH_TRIES,
+    USER_SERIAL,
+    adb_script,
+    adb_shell,
+    check_adb,
+    check_user,
+    child,
+    child_path,
+    command,
+    getvar,
+    in_fastboot,
+    md5_mismatch,
+    no_port_help,
+    push_checked,
+    reconnect,
+    rerun,
+    run,
+    usb_serial,
+)
+from firebreak.mediatek.bootrom import child_bootrom, child_reset
+from firebreak.ui import (
+    ARGS,
+    MINUTE,
+    PROGRESS,
+    SESSION,
+    ANSIColor,
+    Kind,
+    _die,
+    again,
+    clock,
+    paint,
+    passed,
+    say,
+    show,
+    status,
+    warn,
+)
 
 AMONET_BISCUIT_V1_1_0 = "amonet-biscuit-v1.1.0"
 AMONET_BISCUIT_V1_1_0_BBOE = AMONET_BISCUIT_V1_1_0 + "-bboe"
@@ -51,25 +103,13 @@ AMONET_V1_1_0_APPEND = 0x6E000
 AMONET_V1_1_0_BOOT_BLOCKS = 0x37000
 AMONET_V1_1_0_PAYLOAD_SEEK = 223207
 AMONET_V2_0_0_FIREOS_BUILD = "8146"
-ARGS = argparse.Namespace(build="", target=AMONET_BISCUIT_V1_1_0_BBOE, verbose=False)
-AS_ROOT = (
-    "run this as your own user, not as root or with sudo: the downloads would"
-    " belong to root, and on Linux udev rules let a user open the Dot"
-)
 BCB = b"\0ABB\x01\x8f\0"
 BCB_OFFSET = 0x360
-BLOCK_IMAGES = {
-    "boot": "boot.img",
-    "lk": "images/lk.bin",
-    "preloader": "images/preloader.img",
-    "tee": "images/tz.img",
-}
 BOOT_ROOT_SHA256 = "de49cc88b27a8e77cf97cf0156bee50e4ddc0e116c41aaede06b494e38397be0"
 BOOT_ROOT_URL = (
     "https://xdaforums.com/attachments/boot-root-zip.6388001/"
     "?hash=51efcb2ca8973118855bf9ccae40446b"
 )
-BROM_PID = 0x0003
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
 CHAIN_PARTS = (
     "boot_a",
@@ -82,63 +122,45 @@ CHAIN_PARTS = (
     "tee2",
 )
 CHAIN_TEE = ("tee2", "tee1")
-CMDLINE_SIZE = 512
 DISK = "/dev/block/mmcblk0"
-DOT_TMP = pathlib.PurePosixPath("/tmp")  # ruff: ignore[hardcoded-temp-file]
 EMOS_USB_ID = (0x1949, 0x2007)
 FASTBOOT_MODE = (
     "Unplug the USB cable, press and hold the action button (the one with a dot),"
     " plug the cable back in, and let go when the light ring turns green."
 )
+FIREOS = Download(
+    name="update-kindle-csm_biscuit-272.6.8.0_user_680767620.bin",
+    sha256="6ababc517529938f0d1e836c3410a91df19683ae62d7fca9e2ca57320d5d2faa",
+    url="https://d1s31zyz7dcc2d.cloudfront.net/47a1457e0802980eb32f63cd3ce355c0/"
+    "update-kindle-csm_biscuit-272.6.8.0_user_680767620.bin",
+)
 FTVDB = "https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/"
-GPT_HEADER_SIZE = 92
-HANDSHAKE_WAIT = 10
 HEAD_CHECK = 1 << 20
-IMAGES = ("preloader", "lk", "tee", "boot", "system")
 LK_DESC = re.compile(r"[0-9a-f]{7}-\d{8}_\d{6}")
 MD5_DIGITS = 32
-MEDIATEK_VID = 0x0E8D
-MEGA = 1e6
-MINUTE = 60
 MIRROR = "https://github.com/hkfuertes/amazon_device_biscuit/releases/download/none"
-MORE_THAN_ONE = (
-    "more than one Dot on USB: set ANDROID_SERIAL to one's serial (adb"
-    " devices lists them)"
+AMONET_BISCUIT_V1_1_0_ZIP = Download(
+    folder="v1",
+    name="amonet-biscuit-v1.1.0.zip",
+    sha256="bd4d3a18b6b6e9ff6e49a4739159a81020673202795cb3959f7c9ff24351b663",
+    url=MIRROR + "/amonet-biscuit-v1.1.0.zip",
 )
-NEW_GROUP = """this shell predates its user joining plugdev. Log in again, or run:
-
-adb kill-server
-"""
-NO_ACCESS = """this user cannot open the Dot over USB. These commands let it:
-
-sudo groupadd -f plugdev
-sudo tee /etc/udev/rules.d/51-echo-dot.rules >/dev/null <<'EOF'
-SUBSYSTEM=="usb", ATTR{idVendor}=="1949", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="4ee2", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="d001", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="0bb4", ATTR{idProduct}=="0c01", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="0e8d", ATTR{idProduct}=="0003", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-SUBSYSTEM=="tty", ATTRS{idVendor}=="0e8d", ATTRS{idProduct}=="0003", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-SUBSYSTEM=="tty", ATTRS{idVendor}=="1949", ATTRS{idProduct}=="2007", MODE="0660", GROUP="plugdev", TAG+="uaccess"
-EOF
-sudo udevadm control --reload
-sudo udevadm trigger
-sudo usermod -aG plugdev "$USER"
-adb kill-server
-
-Then run it again with the new group, which a new login also has:
-
-"""  # ruff: ignore[line-too-long]
-PAYLOAD_VERSION = 2
-PRELOADER_PID = 0x2000
-PUSH_TRIES = 3
+AMONET_BISCUIT_V2_0_0_ZIP = Download(
+    folder="v2",
+    name="amonet-biscuit-v2.0.0.zip",
+    sha256="98297293701082bc7272efe077f941c56fc7b6e1f27ef6f2e93b6e4c6fc7b62d",
+    url=MIRROR + "/amonet-biscuit-v2.0.0.zip",
+)
 SHORT_WAIT = 5
-SPINNER = "\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f"
-STOCK_PARTITIONS = 16
 STOCK_STEPS = 16
 TABLE_FIELDS = 6
-TRANSFER_FIELDS = 2
 TWRP_VERSION = "3.7.0_9-bboe2"
+TWRP = Download(
+    name=f"twrp-{TWRP_VERSION}-biscuit.img",
+    sha256="f59052713a6580a1477490b2f9cad80e9b31d22408861b18fd442129a71f2ad9",
+    url="https://github.com/bboe/twrp_device_amazon_echo-mt8163/releases/download/"
+    f"v{TWRP_VERSION}/twrp-v{TWRP_VERSION}-biscuit.img",
+)
 TWRP_VERSIONS = ("3.2.", "3.7.")
 UPDATER = "com.amazon.device.software.ota"
 UPDATE_HOSTS = (
@@ -147,14 +169,7 @@ UPDATE_HOSTS = (
     "amzndigitaldownloads.edgesuite.net",
     "amzdigital-a.akamaihd.com",
 )
-USER_SERIAL = os.environ.get("ANDROID_SERIAL")
-VARINT_MORE = 0x80
 WAIT = 600
-
-
-class ANSIColor(enum.Enum):
-    RED = 31
-    YELLOW = 33
 
 
 class Build(NamedTuple):
@@ -226,206 +241,10 @@ BUILDS = {
 }
 
 
-class Download(NamedTuple):
-    name: str
-    sha256: str
-    url: str
-    folder: str = ""
-
-
-AMONET_BISCUIT_V1_1_0_ZIP = Download(
-    folder="v1",
-    name="amonet-biscuit-v1.1.0.zip",
-    sha256="bd4d3a18b6b6e9ff6e49a4739159a81020673202795cb3959f7c9ff24351b663",
-    url=MIRROR + "/amonet-biscuit-v1.1.0.zip",
-)
-AMONET_BISCUIT_V2_0_0_ZIP = Download(
-    folder="v2",
-    name="amonet-biscuit-v2.0.0.zip",
-    sha256="98297293701082bc7272efe077f941c56fc7b6e1f27ef6f2e93b6e4c6fc7b62d",
-    url=MIRROR + "/amonet-biscuit-v2.0.0.zip",
-)
-FIREOS = Download(
-    name="update-kindle-csm_biscuit-272.6.8.0_user_680767620.bin",
-    sha256="6ababc517529938f0d1e836c3410a91df19683ae62d7fca9e2ca57320d5d2faa",
-    url="https://d1s31zyz7dcc2d.cloudfront.net/47a1457e0802980eb32f63cd3ce355c0/"
-    "update-kindle-csm_biscuit-272.6.8.0_user_680767620.bin",
-)
-MAGISK = Download(
-    name="Magisk-v17.3.zip",
-    sha256="18e46b16b25ebe691c282fe311beccd4811cd533848a64e2efbd754fb85efde7",
-    url="https://github.com/topjohnwu/Magisk/releases/download/v17.3/Magisk-v17.3.zip",
-)
-PYSERIAL = Download(
-    name="pyserial-3.5-py2.py3-none-any.whl",
-    sha256="c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0",
-    url="https://files.pythonhosted.org/packages/07/bc/"
-    "587a445451b253b285629263eb51c2d8e9bcea4fc97826266d186f96f558/pyserial-3.5-py2.py3-none-any.whl",
-)
-TWRP = Download(
-    name=f"twrp-{TWRP_VERSION}-biscuit.img",
-    sha256="f59052713a6580a1477490b2f9cad80e9b31d22408861b18fd442129a71f2ad9",
-    url="https://github.com/bboe/twrp_device_amazon_echo-mt8163/releases/download/"
-    f"v{TWRP_VERSION}/twrp-v{TWRP_VERSION}-biscuit.img",
-)
-LOCKS = {
-    key: threading.Lock()
-    for key in (
-        AMONET_BISCUIT_V1_1_0_ZIP,
-        AMONET_BISCUIT_V2_0_0_ZIP,
-        FIREOS,
-        MAGISK,
-        PYSERIAL,
-        TWRP,
-        *BUILDS,
-        "v1",
-        "v2",
-    )
-}
-
-
-class ExtentField(enum.IntEnum):
-    START_BLOCK = 1
-    NUM_BLOCKS = 2
-
-
-class InfoField(enum.IntEnum):
-    SIZE = 1
-    HASH = 2
-
-
-class Kind(enum.Enum):
-    ERROR = "error"
-    INFO = "info"
-    WARN = "warn"
-
-
 class LK(enum.Enum):
     FIREOS5 = "f379dba-20170906_000423"
     FIREOS6 = "63cb91b-20221007_072309"
     FIREOS6_4315 = "41fb3ce-20221007_151724"
-
-
-class ManifestField(enum.IntEnum):
-    BLOCK_SIZE = 3
-    PARTITIONS = 13
-
-
-class OperationField(enum.IntEnum):
-    TYPE = 1
-    DATA_OFFSET = 2
-    DATA_LENGTH = 3
-    DST_EXTENTS = 6
-
-
-class OperationType(enum.IntEnum):
-    REPLACE = 0
-    REPLACE_BZ = 1
-    REPLACE_XZ = 8
-
-
-class Partition(NamedTuple):
-    number: int
-    first: int
-    sectors: int
-
-    @property
-    def size(self) -> int:
-        return self.sectors * 512
-
-
-class PartitionField(enum.IntEnum):
-    NAME = 1
-    NEW_INFO = 7
-    OPERATIONS = 8
-
-
-class Progress:
-    def __init__(self) -> None:
-        self.t0 = time.monotonic()
-        self.ts = self.t0
-        self.line = ""
-        self.open = False
-        self.step = 0
-        self.steps = 0
-        self.stopped = threading.Event()
-        self.ticker = None
-
-    def begin(self, *, estimate: str = "", label: str) -> None:
-        self.end()
-        self.step += 1
-        about = f"(~{estimate})" if estimate else ""
-        total = str(self.steps or "?")
-        self.line = f"[{self.step:>{len(total)}}/{total}] {label:<38} {about:<8} "
-        self.ts = time.monotonic()
-        self.open = True
-        if ARGS.verbose:
-            show(text=f"{clock()} {self.line.rstrip()}")
-        elif not sys.stdout.isatty():
-            show(text=self.line.rstrip())
-        else:
-            self.start()
-
-    def end(self, *, skipped: bool = False) -> None:
-        if not self.open:
-            return
-        self.open = False
-        back = "\r" if self.halt() else ""
-        took = "skip" if skipped else self.seconds()
-        total = f"({since(self.t0)} total)"
-        stamp = f"{clock()} " if ARGS.verbose else ""
-        show(text=f"{back}{stamp}{self.line}{mark()} {took} {total:>15}")
-
-    def halt(self) -> bool:
-        if not self.ticker:
-            return False
-        self.stopped.set()
-        self.ticker.join()
-        self.ticker = None
-        return True
-
-    def note(self, message: str) -> None:
-        running = self.halt()
-        if running:
-            print()
-        warn(message)
-        if running:
-            self.start()
-
-    def seconds(self) -> str:
-        return f"{int(time.monotonic() - self.ts):3d}s"
-
-    def start(self) -> None:
-        show(end="", flush=True, text=self.line)
-        self.stopped.clear()
-        self.ticker = threading.Thread(daemon=True, target=self.tick)
-        self.ticker.start()
-
-    def tick(self) -> None:
-        width = 2 if mark() == "✅" else len(mark())
-        frames = SPINNER if mark() == "✅" else "|/-\\"
-        count = 0
-        while not self.stopped.wait(0.1):
-            frame = frames[count % len(frames)]
-            show(
-                end="",
-                flush=True,
-                text=f"\r{self.line}{frame:<{width}} {self.seconds()}",
-            )
-            count += 1
-
-
-@dataclasses.dataclass
-class Session:
-    dd: str = "dd"
-    probing: bool = False
-    short: bool = False
-    shown: Kind | None = None
-    system_lock: threading.Lock = dataclasses.field(default_factory=threading.Lock)
-    verified: set[pathlib.Path] = dataclasses.field(default_factory=set)
-
-
-SESSION = Session()
 
 
 class Shell(enum.Enum):
@@ -536,8 +355,6 @@ GOALS = {
     AMONET_BISCUIT_V2_0_0: State.AMONET_V2_0_0_BOOTED,
 }
 ROOTED = {State.ROOTED, State.ROOTED_AMONET_V1_1_0_BBOE, State.ROOTED_AMONET_V1_1_0}
-
-
 TWRPS = frozenset({
     State.AMONET_V1_1_0_TWRP,
     State.AMONET_V2_0_0_TWRP,
@@ -585,51 +402,6 @@ WRITES = (
         partition="misc",
     ),
 )
-
-
-class WireType(enum.IntEnum):
-    VARINT = 0
-    FIXED64 = 1
-    LEN = 2
-    FIXED32 = 5
-
-
-def _die(*, message: str, prefix: str = "ERROR: ") -> NoReturn:
-    if PROGRESS.halt():
-        print()
-    if SESSION.shown not in {None, Kind.ERROR}:
-        print()
-    SESSION.shown = Kind.ERROR
-    text = prefix + message
-    if "\n" not in text:
-        text = textwrap.fill(text, 79)
-    if prefix and color(sys.stderr):
-        text = f"\033[{ANSIColor.RED.value}m{text}\033[0m"
-    raise SystemExit(text)
-
-
-def adb_script(*, body: str, name: str, work: pathlib.Path) -> bool:
-    local = work / name
-    with local.open("w", newline="\n") as f:
-        f.write(body)
-    remote = DOT_TMP / "root-step.sh"
-    push_checked(local=local, remote=remote)
-    command = f"sh {remote}; s=$?; rm -f {remote}; exit $s"
-    return run(args=["adb", "shell", command], timeout=300).returncode == 0
-
-
-def adb_shell(*, command: str, timeout: float = 300) -> str:
-    out = run(args=["adb", "shell", "-n", command], timeout=timeout).stdout
-    return "\n".join(
-        line for line in out.split("\n") if not line.startswith("__bionic_open_tzdata")
-    ).strip()
-
-
-def again() -> str:
-    command = [pathlib.Path(word).name for word in program()]
-    if command[1:2] != ["-m"] and pathlib.Path(command[-1]).suffix != ".pyz":
-        command = command[1:]
-    return f"Run {shlex.join([*command, *sys.argv[1:]])} again."
 
 
 def amonet_chain() -> None:
@@ -794,61 +566,6 @@ def amonet_v1_1_0_recovery() -> None:
 def amonet_v2_0_0_payload() -> pathlib.Path:
     amonet = unpack(AMONET_BISCUIT_V2_0_0_ZIP)
     return amonet / "brom-payload" / "build" / "payload.bin"
-
-
-def boot_image(*, fireos: pathlib.Path, magisk: pathlib.Path) -> bytes:
-    with zipfile.ZipFile(fireos) as z:
-        stock = z.read("boot.img")
-    with zipfile.ZipFile(magisk) as z:
-        magiskinit = z.read("arm/magiskinit")
-    kernel_size, ramdisk_size, page = (
-        struct.unpack_from("<I", stock, offset)[0] for offset in (8, 16, 36)
-    )
-    header = bytearray(stock[:page])
-    cmdline = bytes(header[64:576]).split(b"\0")[0]
-    header[64:576] = (cmdline + b" androidboot.selinux=permissive").ljust(
-        CMDLINE_SIZE, b"\0"
-    )
-    kernel = stock[page : page + kernel_size]
-    start = page + -(-kernel_size // page) * page
-    files = cpio_files(gzip.decompress(stock[start : start + ramdisk_size]))
-    mode, prop = files[b"default.prop"]
-    prop = re.sub(rb"(?m)^ro\.secure=1$", b"ro.secure=0", prop)
-    prop = re.sub(rb"(?m)^ro\.debuggable=0$", b"ro.debuggable=1", prop)
-    prop = re.sub(
-        rb"(?m)^persist\.sys\.usb\.config=.*", b"persist.sys.usb.config=mtp,adb", prop
-    )
-    files[b"default.prop"] = (mode, prop)
-    for name, (mode, body) in files.items():
-        if name.startswith(b"fstab"):
-            files[name] = (mode, body.replace(b",verify", b"").replace(b"verify,", b""))
-    files[b".backup"] = (0o40000, b"")
-    files[b".backup/.magisk"] = (
-        0o100000,
-        b"KEEPVERITY=false\nKEEPFORCEENCRYPT=false\n\0",
-    )
-    files[b".backup/init"] = files[b"init"]
-    files[b".backup/verity_key"] = files.pop(b"verity_key")
-    files[b"init"] = (0o100750, magiskinit)
-    return boot_pack(
-        header=header,
-        kernel=magisk_kernel(kernel),
-        ramdisk=gzip.compress(cpio(files), compresslevel=9, mtime=0),
-    )
-
-
-def boot_pack(*, header: bytes | bytearray, kernel: bytes, ramdisk: bytes) -> bytes:
-    page = len(header)
-    sizes = struct.pack("<I", len(kernel)), struct.pack("<I", len(ramdisk))
-    out = bytearray(header)
-    out[8:12], out[16:20] = sizes
-    sha1 = hashlib.sha1(
-        kernel + sizes[0] + ramdisk + sizes[1] + bytes(4), usedforsecurity=False
-    )
-    out[576:608] = sha1.digest().ljust(32, b"\0")
-    for part in (kernel, ramdisk):
-        out += part.ljust(-(-len(part) // page) * page, b"\0")
-    return bytes(out)
 
 
 def boot_root() -> pathlib.Path:
@@ -1076,32 +793,6 @@ def build_system(target: pathlib.Path) -> None:
     part.replace(target)
 
 
-def cache_dir() -> pathlib.Path:
-    if os.name == "nt":
-        base = os.environ.get("LOCALAPPDATA") or pathlib.Path.home()
-    else:
-        base = os.environ.get("XDG_CACHE_HOME") or pathlib.Path.home() / ".cache"
-    return pathlib.Path(base) / "firebreak"
-
-
-CACHE = cache_dir()
-
-
-ERASED = CACHE / "boot0-erased"
-
-
-def cache_note() -> None:
-    if CACHE.is_dir():
-        size = sum(f.stat().st_size for f in CACHE.rglob("*") if f.is_file())
-        path, home = str(CACHE), str(pathlib.Path.home())
-        if os.name != "nt" and path.startswith(home + os.sep):
-            path = "~" + path[len(home) :]
-        show(
-            text=f"{path} holds {size // 1000000} MB of downloads and images for"
-            " the next run. It is safe to delete."
-        )
-
-
 def chain_nodes() -> tuple[dict[str, str], dict[str, tuple[int, int, int]]]:
     part = partitions()
     for name in (*CHAIN_PARTS, "boot_a_x", "boot_b_x"):
@@ -1179,19 +870,6 @@ def chain_writes() -> tuple[Step, ...]:
     )
 
 
-def check_adb() -> None:
-    words = run(args=["adb", "version"], timeout=30).stdout.split()
-    version = (
-        words[4] if words[:4] == ["Android", "Debug", "Bridge", "version"] else "?"
-    )
-    parts = version.split(".")
-    if not all(part.isdigit() for part in parts) or tuple(map(int, parts)) < (1, 0, 36):
-        _die(
-            message=f"adb reports version {version}; this needs 1.0.36"
-            " (platform-tools r24) or newer"
-        )
-
-
 def check_nodes(*, want: dict[str, int]) -> str:
     command = Shell.NODES.value.format(
         pairs=" ".join(f"{node}:{size}" for node, size in want.items())
@@ -1212,167 +890,6 @@ def check_nodes(*, want: dict[str, int]) -> str:
         f" devices: {said!r}. " + again()
     )
     return ""
-
-
-def check_user() -> None:
-    if os.name != "nt" and os.geteuid() == 0:
-        _die(message=AS_ROOT)
-    if not sys.platform.startswith("linux"):
-        return
-    import grp  # ruff: ignore[import-outside-top-level]
-    import pwd  # ruff: ignore[import-outside-top-level]
-
-    try:
-        plugdev = grp.getgrnam("plugdev")
-    except KeyError:
-        _die(message=NO_ACCESS + rerun())
-    if plugdev.gr_gid in os.getgroups():
-        return
-    if pwd.getpwuid(os.getuid()).pw_name in plugdev.gr_mem:
-        _die(message=NEW_GROUP + rerun())
-    _die(message=NO_ACCESS + rerun())
-
-
-def child(name: str, *args: str) -> list[str]:
-    return [
-        sys.executable,
-        "-m",
-        "firebreak",
-        "_child",
-        name,
-        *args,
-    ]
-
-
-def child_bootrom() -> int:  # ruff: ignore[complex-structure, too-many-statements]
-    sys.path.insert(0, str(pathlib.Path.cwd()))
-    import common  # ruff: ignore[import-outside-top-level]
-    import main as amonet  # ruff: ignore[import-outside-top-level]
-    import serial  # ruff: ignore[import-outside-top-level]
-    from logger import log  # ruff: ignore[import-outside-top-level]
-    from serial.tools import list_ports  # ruff: ignore[import-outside-top-level]
-
-    marker = os.environ.get("FIREBREAK_ERASED")
-    resume = os.environ.get("FIREBREAK_RESUME")
-    start_payload = amonet.load_payload
-
-    def emmc_read(self: common.Device, idx: int) -> bytes:
-        self.dev.write(struct.pack(">III", 0xF00DD00D, 0x1000, idx))
-        return read_flushed(self, 0x200)
-
-    def emmc_write_blocks(self: common.Device, idx: int, data: bytes) -> None:
-        self.dev.write(
-            struct.pack(">IIII", 0xF00DD00D, 0x1003, idx, len(data) // 0x200)
-        )
-        self.dev.write(data)
-        if self.dev.read(4) != b"\xd0\xd0\xd0\xd0":
-            msg = "device failure"
-            raise RuntimeError(msg)
-
-    def flash_data(
-        dev: common.Device, data: bytes, start_block: int, max_size: int = 0
-    ) -> None:
-        if marker:
-            pathlib.Path(marker).touch()
-        data += b"\0" * (-len(data) % 0x200)
-        if max_size and len(data) > max_size:
-            msg = "data too big to flash"
-            raise RuntimeError(msg)
-        for x in range(0, len(data), 64 * 0x200):
-            dev.emmc_write_blocks(start_block + x // 0x200, data[x : x + 64 * 0x200])
-
-    def read_flushed(self: common.Device, size: int) -> bytes:
-        self.dev.write(struct.pack(">IIII", 0xF00DD00D, 0x5000, 0x201000, 4))
-        data = self.dev.read(size + 4)
-        if len(data) != size + 4:
-            msg = "read fail"
-            raise RuntimeError(msg)
-        return data[:size]
-
-    def rpmb_read(self: common.Device) -> bytes:
-        self.dev.write(struct.pack(">II", 0xF00DD00D, 0x2000))
-        return read_flushed(self, 0x100)
-
-    def find_device(self: common.Device, *_: object) -> None:
-        seen = {
-            p.device: p.pid
-            for p in list_ports.comports()
-            if p.vid == MEDIATEK_VID and not (resume and p.pid == BROM_PID)
-        }
-        failed = {}
-        log("Waiting for bootrom")
-        while True:
-            pids = {
-                p.device: p.pid for p in list_ports.comports() if p.vid == MEDIATEK_VID
-            }
-            seen = {port: pid for port, pid in seen.items() if port in pids}
-            failed = {port: at for port, at in failed.items() if port in pids}
-            for port, pid in sorted(pids.items()):
-                if pid is None or seen.get(port) == pid:
-                    continue
-                if pid == BROM_PID:
-                    try:
-                        self.dev = serial.Serial(
-                            port, common.BAUD, timeout=common.TIMEOUT
-                        )
-                    except serial.SerialException as e:
-                        at = failed.setdefault(port, time.monotonic())
-                        if at and time.monotonic() - at >= 1:
-                            failed[port] = 0
-                            log("Cannot open " + port + ": " + str(e))
-                        continue
-                    log("Found port = " + port)
-                    return
-                seen[port] = pid
-                if pid == PRELOADER_PID:
-                    log("Ignoring the preloader on " + port)
-            time.sleep(0.25)
-
-    def answered(self: common.Device) -> bool:
-        deadline = time.monotonic() + HANDSHAKE_WAIT
-        try:
-            while time.monotonic() < deadline:
-                if self._writeb(b"\xa0") == b"\x5f":
-                    return True
-                self.dev.flushInput()
-        except serial.SerialException:
-            pass
-        return False
-
-    def handshake(self: common.Device) -> None:
-        while not answered(self):
-            log("The bootrom did not answer the handshake")
-            port = self.dev.port
-            with contextlib.suppress(serial.SerialException):
-                self.dev.close()
-            self.dev = None
-            while any(p.device == port for p in list_ports.comports()):
-                time.sleep(0.25)
-            find_device(self)
-        self.check(self._writeb(b"\x0a"), b"\xf5")
-        self.check(self._writeb(b"\x50"), b"\xaf")
-        self.check(self._writeb(b"\x05"), b"\xfa")
-
-    def load_payload(dev: common.Device, path: str) -> None:
-        start_payload(dev, path)
-        try:
-            dev.emmc_switch(0)
-            answered = dev.emmc_read(0)[510:512] == b"\x55\xaa"
-        except RuntimeError:
-            answered = False
-        if not answered:
-            log("The eMMC did not answer")
-            raise SystemExit(3)
-
-    common.Device.emmc_read = emmc_read
-    common.Device.emmc_write_blocks = emmc_write_blocks
-    common.Device.find_device = find_device
-    common.Device.handshake = handshake
-    common.Device.rpmb_read = rpmb_read
-    amonet.flash_data = flash_data
-    amonet.load_payload = load_payload
-    amonet.main()
-    return 0
 
 
 def child_emos(action: str, want: str) -> int:
@@ -1415,29 +932,6 @@ def child_main(name: str, *args: str) -> int:
         del sys.path[0]
     children = {"bootrom": child_bootrom, "emos": child_emos, "reset": child_reset}
     return children[name](*args)
-
-
-def child_path(wheel: pathlib.Path) -> str:
-    return os.pathsep.join((
-        str(wheel),
-        str(pathlib.Path(__file__).resolve().parents[1]),
-    ))
-
-
-def child_reset() -> int:
-    import serial  # ruff: ignore[import-outside-top-level]
-    from serial.tools import list_ports  # ruff: ignore[import-outside-top-level]
-
-    for port in list_ports.comports():
-        if port.vid == MEDIATEK_VID:
-            try:
-                with serial.Serial(
-                    port.device, 115200, timeout=1, write_timeout=1
-                ) as dev:
-                    dev.write(struct.pack(">II", 0xF00DD00D, 0x3000))
-            except serial.SerialException:
-                pass
-    return 0
 
 
 def clear_boot0() -> None:
@@ -1522,44 +1016,6 @@ Run again with another target to move the Dot to it.""",
     root()
 
 
-def clock() -> str:
-    return time.strftime("%H:%M:%S")
-
-
-def color(stream: TextIO) -> bool:
-    if os.environ.get("NO_COLOR") or os.environ.get("TERM") == "dumb":
-        return False
-    if os.name == "nt" and "WT_SESSION" not in os.environ:
-        return False
-    return stream.isatty()
-
-
-def command(  # ruff: ignore[too-many-arguments]
-    *,
-    args: list[str | pathlib.PurePath],
-    cwd: pathlib.Path | None = None,
-    stderr: int | None = None,
-    stdin: int | BinaryIO | None = None,
-    stdout: int | None = None,
-    timeout: float | None = None,
-) -> subprocess.CompletedProcess[bytes]:
-    loud = ARGS.verbose and not SESSION.probing
-    if loud:
-        show(text=f"{clock()} $ {' '.join(map(str, args))}")
-    result = subprocess.run(
-        args,
-        check=False,
-        cwd=cwd,
-        stderr=stderr,
-        stdin=stdin,
-        stdout=stdout,
-        timeout=timeout,
-    )
-    if loud:
-        show(text=f"{clock()}   exit {result.returncode}")
-    return result
-
-
 def countdown() -> None:
     text = "The bootrom answered. The short may come off now; continuing{}."
     if not sys.stdout.isatty():
@@ -1571,59 +1027,6 @@ def countdown() -> None:
         time.sleep(1)
     status(text.format(""))
     print()
-
-
-def cpio(files: dict[bytes, tuple[int, bytes]]) -> bytes:
-    out = bytearray()
-    for inode, name in enumerate([*sorted(files), b"TRAILER!!!"], start=300000):
-        mode, body = files.get(name, (0, b""))
-        fields = (inode, mode, 0, 0, 1, 0, len(body), 0, 0, 0, 0, len(name) + 1, 0)
-        out += b"070701" + b"".join(b"%08x" % field for field in fields) + name + b"\0"
-        out += bytes(-len(out) % 4) + body
-        out += bytes(-len(out) % 4)
-    return bytes(out)
-
-
-def cpio_files(data: bytes) -> dict[bytes, tuple[int, bytes]]:
-    files = {}
-    at = 0
-    while True:
-        if data[at : at + 6] != b"070701":
-            _die(message=f"{FIREOS.name}'s ramdisk is not a newc cpio archive")
-        fields = [int(data[at + 6 + 8 * i : at + 14 + 8 * i], 16) for i in range(13)]
-        name = data[at + 110 : at + 109 + fields[11]]
-        at = (at + 110 + fields[11] + 3) & ~3
-        body = data[at : at + fields[6]]
-        at = (at + fields[6] + 3) & ~3
-        if name == b"TRAILER!!!":
-            return files
-        files[name] = (fields[1], body)
-
-
-def devices(args: list[str]) -> str:
-    for _ in range(5):
-        out = run(args=args, timeout=30).stdout
-        lines = out.splitlines()
-        if not any("no permissions" in line for line in lines) or any(
-            line.split()[1:2] in (["device"], ["recovery"], ["fastboot"])
-            for line in lines
-        ):
-            return out
-        time.sleep(1)
-    _die(message=NO_ACCESS + rerun())
-
-
-def digest(*, kind: str, limit: int = 0, path: pathlib.Path) -> str:
-    h = hashlib.new(kind, usedforsecurity=False)
-    left = limit or path.stat().st_size
-    with path.open("rb") as f:
-        while left > 0:
-            block = f.read(min(1 << 20, left))
-            if not block:
-                break
-            left -= len(block)
-            h.update(block)
-    return h.hexdigest()
 
 
 def downgrade() -> None:
@@ -1737,104 +1140,6 @@ def erase_by_fastboot() -> str:
     return ""
 
 
-def extract(*, ota: pathlib.Path, work: pathlib.Path) -> None:  # ruff: ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
-    with zipfile.ZipFile(ota) as z:  # ruff: ignore[too-many-nested-blocks]
-        if "payload.bin" not in z.namelist():
-            extract_blocks(work=work, z=z)
-            return
-        with z.open("payload.bin") as f:
-            h = f.read(24)
-            if h[:4] != b"CrAU" or struct.unpack(">Q", h[4:12])[0] != PAYLOAD_VERSION:
-                _die(message="the OTA's payload.bin is not a version 2 update payload")
-            msize = struct.unpack(">Q", h[12:20])[0]
-            sig = struct.unpack(">I", h[20:24])[0]
-            manifest = f.read(msize)
-        base = 24 + msize + sig
-        block = 4096
-        partitions = {}
-        for fn, _, v in fields(manifest):
-            if fn == ManifestField.BLOCK_SIZE:
-                block = v
-            if fn == ManifestField.PARTITIONS:
-                d, ops = {}, []
-                for a, _, c in fields(v):
-                    if a == PartitionField.OPERATIONS:
-                        ops.append(c)
-                    else:
-                        d[a] = c
-                partitions[d[PartitionField.NAME].decode()] = (
-                    {a: c for a, _, c in fields(d[PartitionField.NEW_INFO])},
-                    ops,
-                )
-        with z.open("payload.bin") as payload:
-            for name in IMAGES:
-                if name not in partitions:
-                    _die(message=f"the OTA has no {name} image")
-                info, ops = partitions[name]
-                path = work / (name + ".img")
-                if (
-                    path.is_file()
-                    and digest(kind="sha256", path=path) == info[InfoField.HASH].hex()
-                ):
-                    passed(f"{name:>{max(map(len, IMAGES))}} matches the manifest")
-                    continue
-                img = bytearray(info[InfoField.SIZE])
-                for op in ops:
-                    o, extents = {}, []
-                    for a, _, c in fields(op):
-                        if a == OperationField.DST_EXTENTS:
-                            extents.append({x: y for x, _, y in fields(c)})
-                        else:
-                            o[a] = c
-                    payload.seek(base + o.get(OperationField.DATA_OFFSET, 0))
-                    blob = payload.read(o.get(OperationField.DATA_LENGTH, 0))
-                    kind = o[OperationField.TYPE]
-                    if kind == OperationType.REPLACE:
-                        raw = blob
-                    elif kind == OperationType.REPLACE_BZ:
-                        raw = bz2.decompress(blob)
-                    elif kind == OperationType.REPLACE_XZ:
-                        raw = lzma.decompress(blob)
-                    else:
-                        _die(message=f"{name} has op type {kind}")
-                    pos = 0
-                    for e in extents:
-                        n = e[ExtentField.NUM_BLOCKS] * block
-                        at = e.get(ExtentField.START_BLOCK, 0) * block
-                        img[at : at + n] = raw[pos : pos + n]
-                        pos += n
-                path.write_bytes(memoryview(img)[: info[InfoField.SIZE]])
-                if digest(kind="sha256", path=path) != info[InfoField.HASH].hex():
-                    _die(message=name + " does not match the manifest")
-                passed(f"{name:>{max(map(len, IMAGES))}} matches the manifest")
-
-
-def extract_blocks(*, work: pathlib.Path, z: zipfile.ZipFile) -> None:
-    for name, member in BLOCK_IMAGES.items():
-        data = z.read(member)
-        if name != "preloader":
-            data += bytes(-len(data) % 4096)
-        (work / (name + ".img")).write_bytes(data)
-        passed(f"{name:>{max(map(len, IMAGES))}} taken from the OTA")
-    commands, size = transfer_list(z.read("system.transfer.list").decode())
-    with (work / "system.img").open("wb") as out, z.open("system.new.dat") as dat:
-        out.truncate(size)
-        for verb, ranges in commands:
-            if verb != "new":
-                continue
-            for start, end in ranges:
-                out.seek(start)
-                for offset in range(start, end, 1 << 20):
-                    n = min(1 << 20, end - offset)
-                    chunk = dat.read(n)
-                    if len(chunk) != n:
-                        _die(message="the OTA's system.new.dat is short")
-                    out.write(chunk)
-        if dat.read(1):
-            _die(message="the OTA's system.new.dat outlasts its transfer list")
-    passed(f"{'system':>{max(map(len, IMAGES))}} built from the transfer list")
-
-
 def fastbrick() -> None:
     amonet = unpack(AMONET_BISCUIT_V2_0_0_ZIP)
     if getvar("product") != "BISCUIT":
@@ -1874,84 +1179,6 @@ def fastbrick() -> None:
     )
 
 
-def fetch(download: Download) -> pathlib.Path:
-    name, want = download.name, download.sha256
-    with hold(LOCKS[download]):
-        CACHE.mkdir(exist_ok=True, parents=True)
-        path = CACHE / name
-        if path in SESSION.verified or (
-            path.is_file() and digest(kind="sha256", path=path) == want
-        ):
-            SESSION.verified.add(path)
-            return path
-        part = CACHE / (name + ".part")
-        try:
-            with urllib.request.urlopen(download.url, timeout=60) as response:  # ruff: ignore[multiple-with-statements]
-                with part.open("wb") as out:
-                    done, total = save(
-                        label="downloading " + name, out=out, response=response
-                    )
-        except (OSError, http.client.HTTPException) as error:
-            _die(message=f"downloading {name} failed: {error!r}")
-        if total and done != total:
-            _die(
-                message=f"downloading {name} stopped after {done} of {total} bytes. "
-                + again()
-            )
-        if digest(kind="sha256", path=part) != want:
-            _die(message=f"{name} does not hash to {want}")
-        part.replace(path)
-        SESSION.verified.add(path)
-        return path
-
-
-def fields(b: bytes) -> Iterator[tuple[int, int, int | bytes]]:
-    i = 0
-    while i < len(b):
-        k, i = varint(b=b, i=i)
-        fn, wt = k >> 3, k & 7
-        if wt == WireType.VARINT:
-            v, i = varint(b=b, i=i)
-        elif wt == WireType.LEN:
-            n, i = varint(b=b, i=i)
-            v = b[i : i + n]
-            i += n
-        elif wt == WireType.FIXED64:
-            v = b[i : i + 8]
-            i += 8
-        elif wt == WireType.FIXED32:
-            v = b[i : i + 4]
-            i += 4
-        else:
-            _die(message=f"the OTA's manifest has wire type {wt}")
-        yield fn, wt, v
-
-
-def getvar(name: str) -> str:
-    try:
-        out = run(args=["fastboot", "getvar", name], timeout=30).stdout
-    except subprocess.TimeoutExpired:
-        return ""
-    for line in out.splitlines():
-        if line.startswith(name + ":"):
-            return line[len(name) + 1 :].strip()
-    return ""
-
-
-def gpt_intact(*, entries: bytes, hdr: bytes) -> bool:
-    if hdr[:8] != b"EFI PART" or struct.unpack("<I", hdr[12:16])[0] != GPT_HEADER_SIZE:
-        return False
-    if struct.unpack("<II", hdr[80:88]) != (128, 128):
-        return False
-    h = bytearray(hdr[:92])
-    h[16:20] = bytes(4)
-    return (
-        zlib.crc32(h) & 0xFFFFFFFF == struct.unpack("<I", hdr[16:20])[0]
-        and zlib.crc32(entries[: 128 * 128]) & 0xFFFFFFFF
-        == struct.unpack("<I", hdr[88:92])[0]
-    )
-
-
 def hide_updater() -> None:
     def hidden() -> bool:
         out = adb_shell(command=f"su -c 'dumpsys package {UPDATER}'", timeout=60)
@@ -1967,30 +1194,6 @@ def hide_updater() -> None:
             message=f"{UPDATER} is not hidden; an update would replace the"
             " boot image and remove root"
         )
-
-
-@contextlib.contextmanager
-def hold(lock: threading.Lock) -> Generator[None, None, None]:
-    while not lock.acquire(timeout=0.5):
-        pass
-    try:
-        yield
-    finally:
-        lock.release()
-
-
-def in_fastboot() -> bool:
-    out = devices(["fastboot", "devices"])
-    serials = [
-        line.split()[0]
-        for line in out.splitlines()
-        if line.split()[1:2] == ["fastboot"]
-    ]
-    if USER_SERIAL:
-        return USER_SERIAL in serials
-    if len(serials) > 1:
-        _die(message=MORE_THAN_ONE)
-    return bool(serials)
 
 
 def install_amonet_v2_0_0() -> None:
@@ -2125,68 +1328,6 @@ def install_magisk(*, magisk: pathlib.Path, work: pathlib.Path) -> None:
         _die(message="Magisk 17.3's files did not verify on the Dot")
 
 
-def magisk_binary(magiskinit: bytes) -> bytes:
-    at = magiskinit.find(b"\xfd7zXZ\0")
-    while at != -1:
-        with contextlib.suppress(lzma.LZMAError):
-            binary = lzma.LZMADecompressor().decompress(magiskinit[at:])
-            if binary.startswith(b"\x7fELF"):
-                return binary
-        at = magiskinit.find(b"\xfd7zXZ\0", at + 1)
-    _die(message=f"{MAGISK.name}'s magiskinit holds no magisk binary")
-
-
-def magisk_db(path: pathlib.Path) -> None:
-    db = sqlite3.connect(path)
-    db.execute(
-        "CREATE TABLE policies (uid INT, package_name TEXT, policy INT, "
-        "until INT, logging INT, notification INT)"
-    )
-    db.execute("INSERT INTO policies VALUES (2000, 'com.android.shell', 2, 0, 1, 0)")
-    db.commit()
-    db.close()
-
-
-def magisk_files(*, db: bytes, magisk: pathlib.Path) -> dict[bytes, tuple[int, bytes]]:
-    files = {
-        b"data/adb": (0o40700, b""),
-        b"data/adb/magisk": (0o40755, b""),
-        b"data/adb/magisk/chromeos": (0o40755, b""),
-        b"data/adb/magisk.db": (0o100600, db),
-    }
-    with zipfile.ZipFile(magisk) as z:
-        for info in z.infolist():
-            folder, _, name = info.filename.partition("/")
-            if folder in {"arm", "common"}:
-                path = name
-            elif folder == "chromeos":
-                path = info.filename
-            else:
-                continue
-            files[f"data/adb/magisk/{path}".encode()] = (0o100755, z.read(info))
-        script = z.read("META-INF/com/google/android/update-binary").decode()
-    packed = re.search(r"^BB_ARM=(\S+)", script, re.MULTILINE)
-    if not packed:
-        _die(message=f"{MAGISK.name} has no busybox in its installer")
-    files[b"data/adb/magisk/busybox"] = (
-        0o100755,
-        lzma.decompress(base64.b64decode(packed.group(1))),
-    )
-    files[b"data/adb/magisk/magisk"] = (
-        0o100755,
-        magisk_binary(files[b"data/adb/magisk/magiskinit"][1]),
-    )
-    return files
-
-
-def magisk_kernel(kernel: bytes) -> bytes:
-    stream = zlib.decompressobj(31)
-    image = stream.decompress(kernel[512:])
-    image = image.replace(b"skip_initramfs\0", b"want_initramfs\0")
-    body = gzip.compress(image, compresslevel=9, mtime=0) + stream.unused_data
-    return kernel[:4] + struct.pack("<I", len(body)) + kernel[8:512] + body
-
-
 def main() -> None:
     if sys.argv[1:2] == ["_child"]:
         sys.exit(child_main(*sys.argv[2:]))
@@ -2199,61 +1340,6 @@ def main() -> None:
             message=f"{' '.join(map(str, error.cmd))} did not finish in"
             f" {error.timeout:.0f} seconds"
         )
-
-
-def mark() -> str:
-    try:
-        "\u2705".encode(sys.stdout.encoding or "ascii")
-    except (LookupError, UnicodeEncodeError):
-        return "done"
-    return "\u2705"
-
-
-def md5_mismatch(*, command: str, want: str) -> str:
-    got = [*adb_shell(command=command).split("\n")[-1].split(" "), ""][0]
-    return "" if got == want else f": read {got or 'nothing'}, expected {want}"
-
-
-def move_old_caches() -> None:
-    for old in ("overdub-firmware", "overdub-root", "overdub-stock"):
-        source = CACHE.parent / old
-        if not source.is_dir():
-            continue
-        CACHE.mkdir(exist_ok=True, parents=True)
-        for path in source.iterdir():
-            if not (CACHE / path.name).exists():
-                with contextlib.suppress(OSError):
-                    shutil.move(str(path), str(CACHE / path.name))
-        with contextlib.suppress(OSError):
-            source.rmdir()
-
-
-def no_port_help() -> str:
-    if sys.platform.startswith("linux"):
-        return (
-            "No new /dev/ttyACM* port could be opened. Stop ModemManager if it runs,\n"
-            "and check that /etc/udev/rules.d/51-echo-dot.rules has this line:\n\n"
-            'SUBSYSTEM=="tty", ATTRS{idVendor}=="0e8d", ATTRS{idProduct}=="0003",'
-            ' MODE="0660", GROUP="plugdev", TAG+="uaccess"'
-        )
-    if sys.platform == "darwin":
-        return "No new /dev/cu.usbmodem* port appeared."
-    return "No new COM port appeared. Windows may need a driver for USB ID 0e8d:0003."
-
-
-def on_usb(line: str) -> bool:
-    if os.name != "nt":
-        return " usb:" in line
-    parts = line.split()
-    return (
-        parts[1:2] in (["device"], ["recovery"], ["unauthorized"])
-        and ":" not in parts[0]
-        and not parts[0].startswith("emulator-")
-    )
-
-
-def paint(*, code: ANSIColor, text: str) -> str:
-    return f"\033[{code.value}m{text}\033[0m" if color(sys.stdout) else text
 
 
 def partition_field(*, name: str, number: int) -> str:
@@ -2294,10 +1380,6 @@ def partitions() -> dict[str, tuple[int, int, int]]:
     return found
 
 
-def passed(message: str) -> None:
-    show(text=f"{mark()} {message}")
-
-
 def prebuild() -> None:
     with contextlib.suppress(Exception, SystemExit):
         system_image()
@@ -2317,7 +1399,7 @@ def prefetch() -> None:
     unpack(AMONET_BISCUIT_V2_0_0_ZIP)
     if ARGS.target in {"stock", AMONET_BISCUIT_V2_0_0}:
         build = ARGS.build or AMONET_V2_0_0_FIREOS_BUILD
-        with hold(LOCKS[build]):
+        with hold(lock_for(build)):
             download(build)
         return
     unpack(AMONET_BISCUIT_V1_1_0_ZIP)
@@ -2402,37 +1484,6 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
     return State.EMOS if emos("find") == "1" else State.NONE
 
 
-def program() -> list[str]:
-    if pathlib.Path(sys.argv[0]).name == "__main__.py":
-        return [sys.executable, "-m", "firebreak"]
-    return [sys.executable, sys.argv[0]]
-
-
-def push_checked(*, local: pathlib.Path, remote: str | pathlib.PurePosixPath) -> None:
-    for attempt in range(PUSH_TRIES):
-        if attempt:
-            reconnect(remote)
-        try:  # ruff: ignore[too-many-statements-in-try-clause]
-            result = run(args=["adb", "push", local, remote], timeout=600)
-            if result.returncode != 0:
-                said = result.stdout
-                continue
-            if adb_shell(command=f"md5sum {remote}", timeout=300).split(" ")[
-                0
-            ] == digest(kind="md5", path=local):
-                return
-            said = "its md5 read back did not match"
-        except subprocess.TimeoutExpired as error:
-            said = (
-                f"{' '.join(map(str, error.cmd))} did not finish in"
-                f" {error.timeout:.0f} seconds"
-            )
-    _die(
-        message=f"{remote} did not arrive intact after {PUSH_TRIES} tries;"
-        f" the last: {said}"
-    )
-
-
 def read_recovery(size: int) -> bytes:
     return command(
         args=[
@@ -2470,17 +1521,6 @@ def reboot_recovery(label: str) -> None:
     PROGRESS.begin(estimate="40 s", label=label)
 
 
-def reconnect(remote: str | pathlib.PurePosixPath) -> None:
-    PROGRESS.note(
-        f"{remote} did not arrive; waiting for the Dot to reconnect to try again."
-    )
-    try:
-        run(args=["adb", "wait-for-recovery"], timeout=120)
-    except subprocess.TimeoutExpired:
-        _die(message="the Dot did not reconnect over USB in recovery")
-    time.sleep(5)
-
-
 def remaining(*, start: State, table: dict[State, Stage]) -> int | None:
     total = 0
     for _ in range(len(table) + 1):
@@ -2516,11 +1556,6 @@ def replace_twrp() -> None:
             " running. " + again()
         )
     run(args=["adb", "reboot", "recovery"], check=True, timeout=60)
-
-
-def rerun() -> str:
-    command = shlex.join([*program(), *sys.argv[1:]])
-    return "sg plugdev -c " + shlex.quote(command)
 
 
 def restore(
@@ -2979,82 +2014,6 @@ def rooted() -> State:
     return State.ROOTED
 
 
-def run(
-    *,
-    args: list[str | pathlib.PurePath],
-    check: bool = False,
-    cwd: pathlib.Path | None = None,
-    stdin: BinaryIO | int = subprocess.DEVNULL,
-    timeout: float | None = None,
-) -> subprocess.CompletedProcess[str]:
-    result = command(
-        args=args,
-        cwd=cwd,
-        stderr=subprocess.STDOUT,
-        stdin=stdin,
-        stdout=subprocess.PIPE,
-        timeout=timeout,
-    )
-    result.stdout = result.stdout.decode("utf-8", "replace").replace("\r", "")
-    if check and result.returncode != 0:
-        _die(message=f"{' '.join(map(str, args))} failed:\n{result.stdout}")
-    return result
-
-
-def save(
-    *, label: str, out: BinaryIO, response: http.client.HTTPResponse
-) -> tuple[int, int]:
-    total = int(response.headers.get("Content-Length") or 0)
-    div, unit = (1e3, "KB") if 0 < total < MEGA else (MEGA, "MB")
-
-    def meter(done: int) -> str:
-        if total:
-            return (
-                f"{done / div:.1f} of {total / div:.1f} {unit} ({100 * done // total}%)"
-            )
-        return f"{done / div:.1f} {unit}"
-
-    room = 78 - (len(meter(total)) if total else 12)
-    if len(label) > room:
-        label = label[: room - 3] + "..."
-    done = 0
-    loud = threading.current_thread() is threading.main_thread() and sys.stdout.isatty()
-    if loud:
-        show(end="", flush=True, text=f"{label:<{room}} {meter(0):>{78 - room}}")
-    for block in iter(lambda: response.read(1 << 20), b""):
-        out.write(block)
-        done += len(block)
-        if loud:
-            show(
-                end="", flush=True, text=f"\r{label:<{room}} {meter(done):>{78 - room}}"
-            )
-    if loud:
-        print()
-    return done, total
-
-
-def say(*, code: ANSIColor | None = None, text: str) -> None:
-    text = textwrap.fill(text, 79)
-    show(
-        kind=Kind.WARN if code else Kind.INFO,
-        text=paint(code=code, text=text) if code else text,
-    )
-
-
-def show(*, kind: Kind = Kind.INFO, text: str, **options: str | bool) -> None:
-    if SESSION.shown not in {None, kind}:
-        print()
-    SESSION.shown = kind
-    print(text, **options)
-
-
-def since(start: float) -> str:
-    seconds = int(time.monotonic() - start)
-    if seconds < MINUTE:
-        return f"{seconds}s"
-    return f"{seconds // 60}m {seconds % 60:02d}s"
-
-
 def stages() -> dict[State, Stage]:
     downgrades = frozenset({
         State.AMONET_V2_0_0_TWRP,
@@ -3160,79 +2119,6 @@ def state() -> State:
     return current
 
 
-def status(text: str) -> None:
-    if sys.stdout.isatty():
-        show(
-            end="",
-            flush=True,
-            kind=Kind.WARN,
-            text="\r" + paint(code=ANSIColor.YELLOW, text=text.ljust(79)),
-        )
-    else:
-        warn(text)
-
-
-def stock_gpt(  # ruff: ignore[too-many-locals]
-    raw: bytes,
-) -> tuple[bytes, bytes, int, dict[str, Partition]]:
-    mbr, hdr, entries = (
-        raw[:512],
-        bytearray(raw[512:1024]),
-        raw[1024 : 1024 + 128 * 128],
-    )
-    if not gpt_intact(entries=entries, hdr=hdr):
-        _die(message="neither copy of the Dot's partition table is intact")
-    last_usable = struct.unpack("<Q", hdr[48:56])[0]
-    backup_lba = max(struct.unpack("<QQ", hdr[24:40]))
-    names = [
-        entries[i * 128 + 56 : (i + 1) * 128].decode("utf-16le").rstrip("\0")
-        for i in range(128)
-    ]
-    amonet = any(name.endswith("_x") for name in names)
-    new = bytearray(128 * 128)
-    k = 0
-    for i in range(128):
-        e = bytearray(entries[i * 128 : (i + 1) * 128])
-        if e[:16] == b"\0" * 16:
-            continue
-        name = names[i]
-        if amonet and name in {"boot_a", "boot_b"}:
-            continue
-        if name.endswith("_x"):
-            name = name[:-2]
-            e[56:128] = name.encode("utf-16le").ljust(72, b"\0")
-        if name == "userdata":
-            e[40:48] = struct.pack("<Q", last_usable)
-        new[k * 128 : (k + 1) * 128] = e
-        k += 1
-    if k != STOCK_PARTITIONS:
-        _die(
-            message=f"the stock table would have {k} partitions, not {STOCK_PARTITIONS}"
-        )
-    entries_crc = zlib.crc32(new) & 0xFFFFFFFF
-
-    def header(*, alternate: int, at: int, my: int) -> bytes:
-        h = bytearray(hdr[:92])
-        h[16:20] = b"\0" * 4
-        h[24:32] = struct.pack("<Q", my)
-        h[32:40] = struct.pack("<Q", alternate)
-        h[72:80] = struct.pack("<Q", at)
-        h[88:92] = struct.pack("<I", entries_crc)
-        h[16:20] = struct.pack("<I", zlib.crc32(h) & 0xFFFFFFFF)
-        return bytes(h).ljust(512, b"\0")
-
-    parts = {}
-    for i in range(k):
-        e = new[i * 128 : (i + 1) * 128]
-        first, last = struct.unpack("<QQ", e[32:48])
-        parts[e[56:128].decode("utf-16le").rstrip("\0")] = Partition(
-            first=first, number=i + 1, sectors=last - first + 1
-        )
-    primary = mbr + header(alternate=backup_lba, at=2, my=1) + bytes(new)
-    backup = bytes(new) + header(alternate=1, at=backup_lba - 32, my=backup_lba)
-    return primary, backup, backup_lba - 32, parts
-
-
 def swap_twrp() -> None:
     image, label = unpack(AMONET_BISCUIT_V1_1_0_ZIP) / "bin" / "twrp.img", "TWRP 3.2.3"
     if ARGS.target == AMONET_BISCUIT_V1_1_0_BBOE:
@@ -3276,45 +2162,6 @@ def system_image() -> tuple[pathlib.Path, str, int]:
     return target / "system.img.gz", want, int(blocks)
 
 
-def transfer_command(words: list[str]) -> tuple[str, list[tuple[int, int]]]:
-    numbers = words[1].split(",") if len(words) == TRANSFER_FIELDS else []
-    if words[0] not in {"erase", "new", "zero"} or not all(
-        n.isdigit() for n in numbers
-    ):
-        _die(message=f"the OTA's transfer list has a {words[0]!r} command")
-    bounds = [int(n) * 4096 for n in numbers[1:]]
-    ranges = list(zip(bounds[::2], bounds[1::2]))
-    if any(start >= end for start, end in ranges):
-        _die(message="the OTA's transfer list has an empty or reversed range")
-    return words[0], ranges
-
-
-def transfer_list(text: str) -> tuple[list[tuple[str, list[tuple[int, int]]]], int]:
-    lines = text.split("\n")
-    if lines[0] not in {"3", "4"}:
-        _die(message=f"the OTA's transfer list is version {lines[0]}")
-    commands = [
-        transfer_command(words)
-        for words in (line.split() for line in lines[4:])
-        if words
-    ]
-    size = 0
-    for start, end in sorted(r for _, ranges in commands for r in ranges):
-        if start > size:
-            _die(message="the OTA's transfer list leaves a gap")
-        size = max(size, end)
-    if not size:
-        _die(message="the OTA's transfer list writes nothing")
-    written = 0
-    for start, end in sorted(
-        r for verb, ranges in commands if verb != "erase" for r in ranges
-    ):
-        if start < written:
-            _die(message="the OTA's transfer list writes a block twice")
-        written = end
-    return commands, size
-
-
 def unmount(*, started: bool = False) -> None:
     left = adb_shell(command=Shell.UNMOUNT.value).split("\n")[-1]
     if left.startswith("left:"):
@@ -3326,54 +2173,6 @@ def unmount(*, started: bool = False) -> None:
     if started:
         restore_failed(message + "; do not reboot")
     _die(message=message + "; nothing was written")
-
-
-def unpack(download: Download) -> pathlib.Path:
-    with hold(LOCKS[download.folder]):
-        archive = fetch(download)
-        target = CACHE / download.folder
-        if not target.is_dir():
-            part = CACHE / (download.folder + ".part")
-            shutil.rmtree(part, ignore_errors=True)
-            with zipfile.ZipFile(archive) as z:
-                z.extractall(part)
-            part.replace(target)
-        return target / "amonet"
-
-
-def usb_serial() -> str | None:
-    if USER_SERIAL:
-        if ":" in USER_SERIAL:
-            _die(
-                message="ANDROID_SERIAL names a network device;"
-                " this needs the Dot on USB"
-            )
-        devices(["adb", "devices", "-l"])
-        return USER_SERIAL
-    out = devices(["adb", "devices", "-l"])
-    usb = [
-        line.split()[0]
-        for line in out.splitlines()[1:]
-        if on_usb(line) and "no permissions" not in line
-    ]
-    if len(usb) > 1:
-        _die(message=MORE_THAN_ONE)
-    if usb:
-        os.environ["ANDROID_SERIAL"] = usb[0]
-        return usb[0]
-    os.environ.pop("ANDROID_SERIAL", None)
-    return None
-
-
-def varint(*, b: bytes, i: int) -> tuple[int, int]:
-    r = s = 0
-    while True:
-        x = b[i]
-        i += 1
-        r |= (x & 0x7F) << s
-        s += 7
-        if x < VARINT_MORE:
-            return r, i
 
 
 def wait_for_twrp() -> None:
@@ -3389,15 +2188,6 @@ def wait_for_twrp() -> None:
         if time.monotonic() > deadline:
             _die(message="TWRP did not finish starting within 30 seconds")
         time.sleep(1)
-
-
-def warn(text: str) -> None:
-    show(
-        kind=Kind.WARN, text=paint(code=ANSIColor.YELLOW, text=textwrap.fill(text, 79))
-    )
-
-
-PROGRESS = Progress()
 
 
 def write(
