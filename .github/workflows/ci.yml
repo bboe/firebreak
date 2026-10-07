@@ -1,3 +1,17 @@
+jobs:
+  minimum-python:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uvx --with tox-uv==1.36.1 tox@4.64.9 -e build,floor
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uvx --with tox-uv==1.36.1 tox@4.64.9 -e lint
+
 name: CI
 
 on:
@@ -7,18 +21,3 @@ on:
 
 permissions:
   contents: read
-
-jobs:
-  minimum-python:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - run: /usr/bin/python3 tests/python_floor.py
-      - run: /usr/bin/python3 dot_firmware.py --help
-      - run: test -x dot_firmware.py
-
-  pre-commit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - run: pipx run pre-commit==4.6.2 run --all-files --show-diff-on-failure

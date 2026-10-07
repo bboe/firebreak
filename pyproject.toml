@@ -1,3 +1,22 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[project]
+description = "Root an Echo Dot (2nd Generation), move it between amonet targets, or return it to stock"
+license = "BSD-2-Clause"
+license-files = ["LICENSE.txt"]
+name = "firebreak"
+readme = "README.md"
+requires-python = ">=3.9"
+version = "0.1.0"
+
+[project.scripts]
+firebreak = "firebreak.__main__:main"
+
+[project.urls]
+Source = "https://github.com/bboe/firebreak"
+
 [tool.ruff]
 preview = true
 target-version = "py39"
@@ -20,4 +39,39 @@ ignore = [
 select = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["implicit-namespace-package"]
+"tests/*" = ["assert", "implicit-namespace-package"]
+
+[tool.tomlsort]
+sort_table_keys = true
+spaces_indent_inline_array = 4
+trailing_comma_inline_array = true
+
+[tool.tox]
+env_list = ["lint", "build", "floor"]
+requires = ["tox>=4.21", "tox-uv"]
+
+[tool.tox.env.build]
+allowlist_externals = ["rm", "uv"]
+commands = [
+    ["rm", "-rf", "build", "dist"],
+    ["uv", "build", "--quiet"],
+    [
+        "python",
+        "-c",
+        "import pathlib, zipapp; pathlib.Path('build').mkdir(); zipapp.create_archive('.', 'build/firebreak.pyz', '/usr/bin/env python3', 'firebreak.__main__:main', lambda p: p.parts[0] == 'firebreak' and '__pycache__' not in p.parts, True)",
+    ],
+]
+skip_install = true
+
+[tool.tox.env.floor]
+base_python = ["/usr/bin/python3"]
+commands = [["pytest", { replace = "posargs", extend = true }]]
+depends = ["build"]
+deps = ["pytest"]
+package = "wheel"
+
+[tool.tox.env.lint]
+commands = [["pre-commit", "run", "--all-files", "--show-diff-on-failure"]]
+deps = ["pre-commit==4.6.2"]
+set_env = { SKIP = "no-commit-to-branch" }
+skip_install = true

@@ -1,8 +1,8 @@
 # firebreak
 
-`dot_firmware.py` unlocks an Echo Dot (2nd Generation) over USB, moves it
-between amonet targets, or returns it to stock. Run it again with another target
-to move the Dot. A stopped run picks up where it left off.
+firebreak unlocks an Echo Dot (2nd Generation) over USB, moves it between amonet
+targets, or returns it to stock. Run it again with another target to move the
+Dot. A stopped run picks up where it left off.
 
 | target | the Dot ends with | time |
 | --- | --- | --- |
@@ -13,8 +13,9 @@ to move the Dot. A stopped run picks up where it left off.
 
 ## Run it
 
-It needs Python 3.9 or later, and `adb` and `fastboot` from Android
-platform-tools.
+It needs `adb` and `fastboot` from Android platform-tools, and
+[uv](https://docs.astral.sh/uv/), which runs firebreak from this repository and
+fetches a Python for it when needed.
 
 ### macOS
 
@@ -22,20 +23,19 @@ These commands use [Homebrew](https://brew.sh). Without it, download Google's
 [platform-tools](https://developer.android.com/tools/releases/platform-tools).
 
 ```sh
-brew install --cask android-platform-tools
-curl -LO https://raw.githubusercontent.com/bboe/firebreak/main/dot_firmware.py
-python3 dot_firmware.py              # amonet-biscuit-v1.1.0-bboe
-python3 dot_firmware.py stock 8146   # or 4315, 4405, 5041, 6302, 8138, 8142
+brew install --cask android-platform-tools uv
+uvx --from git+https://github.com/bboe/firebreak firebreak              # amonet-biscuit-v1.1.0-bboe
+uvx --from git+https://github.com/bboe/firebreak firebreak stock 8146   # or 4315, 4405, 5041, 6302, 8138, 8142
 ```
 
 ### Linux
 
-These commands are for Debian and Ubuntu. Run the script without `sudo`.
+These commands are for Debian and Ubuntu. Run firebreak without `sudo`.
 
 ```sh
 sudo apt install adb fastboot curl
-curl -LO https://raw.githubusercontent.com/bboe/firebreak/main/dot_firmware.py
-python3 dot_firmware.py
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uvx --from git+https://github.com/bboe/firebreak firebreak
 ```
 
 ### Windows
@@ -44,9 +44,8 @@ Run these in PowerShell. Open a new terminal after the installs.
 
 ```powershell
 winget install Google.PlatformTools
-winget install Python.Python.3.12
-curl.exe -LO https://raw.githubusercontent.com/bboe/firebreak/main/dot_firmware.py
-py -3 dot_firmware.py
+winget install astral-sh.uv
+uvx --from git+https://github.com/bboe/firebreak firebreak
 ```
 
 The bootrom step also needs MediaTek's VCOM driver. It runs for `--short`, for a
@@ -86,8 +85,8 @@ driver](#windows).
    between R60 and C52 beside the eMMC ([where that is on the
    board](https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/)). Do not
    use C52, which is a capacitor.
-3. With the Dot unplugged, run `python3 dot_firmware.py --short` (`py -3
-   dot_firmware.py --short` on Windows).
+3. With the Dot unplugged, run
+   `uvx --from git+https://github.com/bboe/firebreak firebreak --short`.
 4. When the script prints "Short the Dot's test point and plug it in", hold a
    wire from that passive to the shield frame beside it, which is ground, and
    plug the Dot in. A Dot plugged in before that message can go unseen. On

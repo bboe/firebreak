@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Change the firmware on an Echo Dot (2nd Generation) over USB: root it, or
 return it to stock. It finds where the Dot is, from stock, part way through, or
 on another target, and keeps going until the Dot is on the target: it waits
@@ -627,7 +626,10 @@ def adb_shell(*, command: str, timeout: float = 300) -> str:
 
 
 def again() -> str:
-    return f"Run {shlex.join(['dot_firmware.py', *sys.argv[1:]])} again."
+    command = [pathlib.Path(word).name for word in program()]
+    if command[1:2] != ["-m"] and pathlib.Path(command[-1]).suffix != ".pyz":
+        command = command[1:]
+    return f"Run {shlex.join([*command, *sys.argv[1:]])} again."
 
 
 def amonet_chain() -> None:
@@ -886,7 +888,7 @@ def bootrom(  # ruff: ignore[complex-structure, too-many-branches, too-many-stat
 ) -> bool:
     shutil.copyfile(payload, amonet / "brom-payload" / "build" / "payload.bin")
     log_path = CACHE / "bootrom.log"
-    env = dict(os.environ, PYTHONPATH=str(wheel), PYTHONUNBUFFERED="1")
+    env = dict(os.environ, PYTHONPATH=child_path(wheel), PYTHONUNBUFFERED="1")
     if SESSION.short:
         env["FIREBREAK_ERASED"] = str(ERASED)
     if not erase and not SESSION.short:
@@ -895,6 +897,7 @@ def bootrom(  # ruff: ignore[complex-structure, too-many-branches, too-many-stat
             subprocess.run(
                 child("reset"),
                 check=False,
+                cwd=CACHE,
                 env=env,
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
@@ -1105,7 +1108,7 @@ def chain_nodes() -> tuple[dict[str, str], dict[str, tuple[int, int, int]]]:
         if name not in part:
             _die(
                 message=f"the Dot's partition table has no {name}. Rebuild it"
-                f" with dot_firmware.py stock {AMONET_V2_0_0_FIREOS_BUILD}, then"
+                f" with firebreak stock {AMONET_V2_0_0_FIREOS_BUILD}, then"
                 " root again."
             )
     for name in ("boot_a", "boot_b"):
@@ -1233,7 +1236,8 @@ def check_user() -> None:
 def child(name: str, *args: str) -> list[str]:
     return [
         sys.executable,
-        str(pathlib.Path(__file__).resolve()),
+        "-m",
+        "firebreak",
         "_child",
         name,
         *args,
@@ -1407,10 +1411,17 @@ def child_emos(action: str, want: str) -> int:
 
 
 def child_main(name: str, *args: str) -> int:
-    if sys.path[0] == str(pathlib.Path(__file__).resolve().parent):
+    if sys.path[0] == str(pathlib.Path.cwd()):
         del sys.path[0]
     children = {"bootrom": child_bootrom, "emos": child_emos, "reset": child_reset}
     return children[name](*args)
+
+
+def child_path(wheel: pathlib.Path) -> str:
+    return os.pathsep.join((
+        str(wheel),
+        str(pathlib.Path(__file__).resolve().parents[1]),
+    ))
 
 
 def child_reset() -> int:
@@ -1445,6 +1456,70 @@ def clear_boot0() -> None:
         "boot0 did not read back, so whether its header cleared is unknown;"
         " nothing else was written"
     )
+
+
+def cli() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=f"""targets:
+  {AMONET_BISCUIT_V1_1_0_BBOE}, the default
+      rooted Fire OS 5.5.5.4 on amonet v1.1.0, with TWRP {TWRP_VERSION}.
+  {AMONET_BISCUIT_V1_1_0}
+      the same, with amonet v1.1.0's own TWRP 3.2.3.
+  {AMONET_BISCUIT_V2_0_0}
+      amonet v2.0.0's own procedure: Fire OS 6 {AMONET_V2_0_0_FIREOS_BUILD}
+      with boot-root.zip's root adb.
+  stock BUILD
+      Amazon's Fire OS 6 BUILD, which erases the whole Dot.
+Run again with another target to move the Dot to it.""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        prog="firebreak",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="print each adb and fastboot command, its exit status and the"
+        " time, and each state the Dot reaches",
+    )
+    parser.add_argument(
+        "--short",
+        action="store_true",
+        help="for a Dot that shows no light and needs its test point shorted:"
+        " wait for its bootrom, say when the short may come off, then go on",
+    )
+    parser.add_argument(
+        "target",
+        choices=tuple(GOALS),
+        default=AMONET_BISCUIT_V1_1_0_BBOE,
+        help="the target, one of those listed below",
+        metavar="TARGET",
+        nargs="?",
+    )
+    parser.add_argument(
+        "build",
+        choices=sorted(BUILDS),
+        help="with stock, and only with stock: the build to install, one of "
+        + ", ".join(sorted(BUILDS)),
+        metavar="BUILD",
+        nargs="?",
+    )
+    options = parser.parse_intermixed_args()
+    if (options.target == "stock") != (options.build is not None):
+        parser.error(
+            "stock takes a BUILD, and no other target does: "
+            + ", ".join(sorted(BUILDS))
+        )
+    ARGS.build = options.build or ""
+    ARGS.target = options.target
+    ARGS.verbose = options.verbose
+    for tool in ("adb", "fastboot"):
+        if not shutil.which(tool):
+            _die(message=tool + " not found: install Android platform-tools")
+    check_user()
+    check_adb()
+    move_old_caches()
+    SESSION.short = options.short
+    root()
 
 
 def clock() -> str:
@@ -1625,7 +1700,8 @@ def emos(action: str) -> str:
         child("emos", action, USER_SERIAL or ""),
         capture_output=True,
         check=False,
-        env=dict(os.environ, PYTHONPATH=str(fetch(PYSERIAL))),
+        cwd=CACHE,
+        env=dict(os.environ, PYTHONPATH=child_path(fetch(PYSERIAL))),
         text=True,
         timeout=30,
     ).stdout.strip()
@@ -2112,66 +2188,17 @@ def magisk_kernel(kernel: bytes) -> bytes:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        epilog=f"""targets:
-  {AMONET_BISCUIT_V1_1_0_BBOE}, the default
-      rooted Fire OS 5.5.5.4 on amonet v1.1.0, with TWRP {TWRP_VERSION}.
-  {AMONET_BISCUIT_V1_1_0}
-      the same, with amonet v1.1.0's own TWRP 3.2.3.
-  {AMONET_BISCUIT_V2_0_0}
-      amonet v2.0.0's own procedure: Fire OS 6 {AMONET_V2_0_0_FIREOS_BUILD}
-      with boot-root.zip's root adb.
-  stock BUILD
-      Amazon's Fire OS 6 BUILD, which erases the whole Dot.
-Run again with another target to move the Dot to it.""",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="print each adb and fastboot command, its exit status and the"
-        " time, and each state the Dot reaches",
-    )
-    parser.add_argument(
-        "--short",
-        action="store_true",
-        help="for a Dot that shows no light and needs its test point shorted:"
-        " wait for its bootrom, say when the short may come off, then go on",
-    )
-    parser.add_argument(
-        "target",
-        choices=tuple(GOALS),
-        default=AMONET_BISCUIT_V1_1_0_BBOE,
-        help="the target, one of those listed below",
-        metavar="TARGET",
-        nargs="?",
-    )
-    parser.add_argument(
-        "build",
-        choices=sorted(BUILDS),
-        help="with stock, and only with stock: the build to install, one of "
-        + ", ".join(sorted(BUILDS)),
-        metavar="BUILD",
-        nargs="?",
-    )
-    options = parser.parse_intermixed_args()
-    if (options.target == "stock") != (options.build is not None):
-        parser.error(
-            "stock takes a BUILD, and no other target does: "
-            + ", ".join(sorted(BUILDS))
+    if sys.argv[1:2] == ["_child"]:
+        sys.exit(child_main(*sys.argv[2:]))
+    try:
+        cli()
+    except KeyboardInterrupt:
+        _die(message="stopped", prefix="")
+    except subprocess.TimeoutExpired as error:
+        _die(
+            message=f"{' '.join(map(str, error.cmd))} did not finish in"
+            f" {error.timeout:.0f} seconds"
         )
-    ARGS.build = options.build or ""
-    ARGS.target = options.target
-    ARGS.verbose = options.verbose
-    for tool in ("adb", "fastboot"):
-        if not shutil.which(tool):
-            _die(message=tool + " not found: install Android platform-tools")
-    check_user()
-    check_adb()
-    move_old_caches()
-    SESSION.short = options.short
-    root()
 
 
 def mark() -> str:
@@ -2375,6 +2402,12 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
     return State.EMOS if emos("find") == "1" else State.NONE
 
 
+def program() -> list[str]:
+    if pathlib.Path(sys.argv[0]).name == "__main__.py":
+        return [sys.executable, "-m", "firebreak"]
+    return [sys.executable, sys.argv[0]]
+
+
 def push_checked(*, local: pathlib.Path, remote: str | pathlib.PurePosixPath) -> None:
     for attempt in range(PUSH_TRIES):
         if attempt:
@@ -2486,7 +2519,8 @@ def replace_twrp() -> None:
 
 
 def rerun() -> str:
-    return "sg plugdev -c " + shlex.quote(shlex.join([sys.executable, *sys.argv]))
+    command = shlex.join([*program(), *sys.argv[1:]])
+    return "sg plugdev -c " + shlex.quote(command)
 
 
 def restore(
@@ -2606,7 +2640,7 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
         elif not version.startswith(TWRP_VERSIONS):
             _die(
                 message="this needs a TWRP for this Dot: v1.1.0's 3.2.3,"
-                f" v2.0.0's 3.7.0, or the {TWRP_VERSION} that dot_firmware.py"
+                f" v2.0.0's 3.7.0, or the {TWRP_VERSION} that firebreak"
                 " installs"
             )
     if (
@@ -2680,7 +2714,7 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
         "About to overwrite this Dot's bootloaders, system and data with"
         f" stock {build}."
     )
-    warn("Root is gone afterwards; dot_firmware.py puts it back.")
+    warn("Root is gone afterwards; firebreak puts it back.")
     try:
         for left in range(10, 0, -1):
             show(
@@ -2863,7 +2897,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 warn(
                     "If you will root it again, do not set it up in the Alexa app"
                     " first: on Wi-Fi it can take an update to a build"
-                    " dot_firmware.py does not support."
+                    " firebreak does not support."
                 )
             else:
                 say(
@@ -2917,7 +2951,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 boot_root()
             if ARGS.target in {"stock", AMONET_BISCUIT_V2_0_0} or current not in ROOTED:
                 prefetch()
-            warn("Keep the Dot plugged in until dot_firmware.py finishes.")
+            warn("Keep the Dot plugged in until firebreak finishes.")
         done.add(current)
         stage = table.get(current)
         if stage:
@@ -3516,14 +3550,4 @@ def write_system(system: str) -> None:
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["_child"]:
-        sys.exit(child_main(*sys.argv[2:]))
-    try:
-        main()
-    except KeyboardInterrupt:
-        _die(message="stopped", prefix="")
-    except subprocess.TimeoutExpired as error:
-        _die(
-            message=f"{' '.join(map(str, error.cmd))} did not finish in"
-            f" {error.timeout:.0f} seconds"
-        )
+    main()

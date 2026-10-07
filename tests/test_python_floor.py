@@ -11,7 +11,7 @@ FILTERED = {"extract", "extractall", "unpack_archive"}
 FLOOR = (3, 9, 6)
 FUNCTIONS = (ast.AsyncFunctionDef, ast.FunctionDef, ast.Lambda)
 MISSING = object()
-SCRIPT = pathlib.Path(__file__).resolve().parent.parent / "dot_firmware.py"
+PACKAGE = pathlib.Path(__file__).resolve().parent.parent / "firebreak"
 
 
 def attributes(
@@ -90,7 +90,7 @@ def imports(tree: ast.Module) -> tuple[dict[str, object], list[tuple[int, str]]]
         aliases = node.names if isinstance(node, (ast.Import, ast.ImportFrom)) else []
         for alias in aliases:
             module = getattr(node, "module", None) or alias.name
-            if module.split(".")[0] in DOWNLOADED:
+            if module.split(".")[0] in {*DOWNLOADED, PACKAGE.name}:
                 continue
             loaded = load(module)
             if loaded is None:
@@ -114,18 +114,6 @@ def load(module: str) -> object:
         return None
 
 
-def main() -> int:
-    if sys.version_info[:3] != FLOOR:
-        print(f"Python {sys.version.split()[0]} is not the floor, 3.9.6")
-        return 1
-    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
-    modules, found = imports(tree)
-    found += attributes(modules=modules, tree=tree)
-    for line, name in sorted(found):
-        print(f"dot_firmware.py:{line}: {name} is not in Python 3.9.6")
-    return 1 if found else 0
-
-
 def member(*, loaded: object, module: str, name: str) -> object:
     if hasattr(loaded, name):
         return getattr(loaded, name)
@@ -147,5 +135,13 @@ def shadowed(name: str, node: ast.AST, parents: dict[ast.AST, ast.AST]) -> bool:
     return False
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+def test_floor() -> None:
+    assert sys.version_info[:3] == FLOOR, "not Apple's /usr/bin/python3, 3.9.6"
+    found = []
+    for path in sorted(PACKAGE.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        modules, missing = imports(tree)
+        missing += attributes(modules=modules, tree=tree)
+        where = path.relative_to(PACKAGE.parent)
+        found += [f"{where}:{line}: {name}" for line, name in sorted(missing)]
+    assert not found, "not in Python 3.9.6:\n" + "\n".join(found)

@@ -1,11 +1,10 @@
 # Rooting
 
-`dot_firmware.py` takes a Dot from stock Fire OS 6 to rooted Fire OS 5.5.5.4.
-It polls the Dot every 2 seconds, does the stage for the state it finds, and
-stops when the Dot is in the state its optional target names. The table gives
-the stages for the default, `amonet-biscuit-v1.1.0-bboe`; [Targets](#targets)
-has the others, and [Back to stock](#back-to-stock-the-stock-target) the
-`stock` target.
+firebreak takes a Dot from stock Fire OS 6 to rooted Fire OS 5.5.5.4. It polls
+the Dot every 2 seconds, does the stage for the state it finds, and stops when
+the Dot is in the state its optional target names. The table gives the stages
+for the default, `amonet-biscuit-v1.1.0-bboe`; [Targets](#targets) has the
+others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 
 | state | how it is recognised | what the run does |
 | --- | --- | --- |
@@ -204,7 +203,7 @@ has the others, and [Back to stock](#back-to-stock-the-stock-target) the
   TWRP 3.7.0_9-bboe1 came in under every estimate. Its replace step took 37 s
   on a Dot.
 
-The ring during `dot_firmware.py stock 6302`, from a rooted Dot not set up:
+The ring during `firebreak stock 6302`, from a rooted Dot not set up:
 
 | ring | when |
 | --- | --- |
@@ -257,8 +256,8 @@ ring read white.
 ## The host
 
 - Python 3.9 or later, because stock macOS's `/usr/bin/python3` is 3.9.6. CI
-  runs its `--help` on that interpreter, and `tests/python_floor.py` checks
-  that the script uses no module, attribute or import 3.9.6 lacks.
+  runs its `--help` on that interpreter, and `tests/test_python_floor.py` checks
+  that the package uses no module, attribute or import 3.9.6 lacks.
 - The standard library only, so the script runs on stock macOS, Linux and
   Windows. adb and fastboot are the only external tools.
 - On a terminal, `ERROR:` lines are red and warnings yellow. `NO_COLOR`,
@@ -309,14 +308,17 @@ ring read white.
   every poll that lists no Dot, so every run fetches the wheel. The script puts
   the pinned pure wheel from PyPI on the child's `PYTHONPATH`, and Python
   imports it straight from the zip. Nothing is installed.
-- Each child is the script itself, run as `dot_firmware.py _child <name>`.
-  pyserial is on the child's path only, and the bootrom child also needs
-  amonet's `modules` directory, so their imports wait until the child runs.
-- A child drops the script's own directory from its import path first. A
-  script downloaded to `~/Downloads` would otherwise import any `serial.py`
-  there in place of the pinned wheel. It checks the entry first: under
-  `PYTHONSAFEPATH` Python adds no such directory, and the first entry is the
-  wheel.
+- Each child is firebreak itself, run as `python -m firebreak _child <name>`
+  with the pyz or `site-packages` on its `PYTHONPATH`, beside pyserial. A path
+  to re-run would not do: the wheel's Windows launcher is an `.exe`. pyserial is
+  on the child's path only, and the bootrom child also needs amonet's `modules`
+  directory, so their imports wait until the child runs.
+- `-m` puts a child's working directory first on its import path, so a child
+  runs in the cache or amonet's `modules`, never where the run started. A
+  `firebreak` folder there would replace the package, and a `serial.py` the
+  pinned wheel. The child also drops that entry before importing pyserial. It
+  checks the entry first: under `PYTHONSAFEPATH` Python adds no such directory,
+  and the first entry is the wheel.
 - `adb get-state` reports `unauthorized` on stderr, so the script reads both
   streams.
 - Without `ANDROID_SERIAL`, the run uses the one Dot on USB in
@@ -364,11 +366,11 @@ ring read white.
   the rules make `sudo` needless.
 - It checks at start that the process has `plugdev`, even for a desktop user
   covered by `uaccess`, so the check is one question. A user not in the group
-  gets the rules and the commands to add them, starting with
-  `groupadd -f plugdev` because Fedora and Arch have no such group. A user in
-  `/etc/group` whose shell predates that gets `adb kill-server` and the `sg`
-  line. The `sg` line repeats the command as run, interpreter, path and flags
-  included, because `./dot_firmware.py` is wrong from another directory.
+  gets the rules and the commands to add them, starting with `groupadd -f
+  plugdev` because Fedora and Arch have no such group. A user in `/etc/group`
+  whose shell predates that gets `adb kill-server` and the `sg` line. The `sg`
+  line repeats the command as run, interpreter, path and flags included, because
+  `./firebreak.pyz` is wrong from another directory.
 - Without the rules adb lists the Dot as `no permissions`. When that lasts 5
   seconds and nothing else listed is usable, the run stops and prints
   the same rules and commands. A shorter spell is udev still setting
@@ -762,11 +764,11 @@ ring read white.
 
 ## Back to stock: the stock target
 
-`dot_firmware.py stock <build>` returns a Dot on amonet v1.1.0 or v2.0.0 to
-stock Fire OS 6, to test a root from a clean start. `stock` is a target like
-the others, so every state has a route to it: a rooted Dot goes to recovery,
-amonet v1.1.0's fastboot gets amonet v1.1.0's TWRP, Fire OS 5's locked fastboot
-gets the fastbrick, and in any TWRP the restore runs.
+`firebreak stock <build>` returns a Dot on amonet v1.1.0 or v2.0.0 to stock Fire
+OS 6, to test a root from a clean start. `stock` is a target like the others, so
+every state has a route to it: a rooted Dot goes to recovery, amonet v1.1.0's
+fastboot gets amonet v1.1.0's TWRP, Fire OS 5's locked fastboot gets the
+fastbrick, and in any TWRP the restore runs.
 
 - `stock` takes a `BUILD`, and no other target does. The run downloads the
   build before it touches the Dot.
@@ -916,5 +918,5 @@ gets the fastbrick, and in any TWRP the restore runs.
   that looks right pays for the full comparison, 13 s against the 80 s a write
   would take.
 - A restored Dot has no Wi-Fi until it is set up in the Alexa app. To root it
-  again, skip that setup: on Wi-Fi it can update to a build
-  `dot_firmware.py` does not support, or away from the build under test.
+  again, skip that setup: on Wi-Fi it can update to a build firebreak does not
+  support, or away from the build under test.

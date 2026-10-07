@@ -1,15 +1,37 @@
 repos:
   - hooks:
+      - id: check-added-large-files
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - args: [ --fix=lf ]
+        id: mixed-line-ending
+      - args: [ --pytest-test-first ]
+        files: ^tests/.*\.py$
+        id: name-tests-test
+      - id: no-commit-to-branch
+      - files: ^\.github/workflows/.*\.ya?ml$
+        id: sort-simple-yaml
+      - id: trailing-whitespace
+    repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+  - hooks:
       - id: codesorter
     repo: https://github.com/praw-dev/CodeSorter
     rev: 03a8cecfa6ae82183f9e152d1bbb16ea6a6c1d11  # frozen: v0.2.8
+  - hooks:
+      - id: markdownlint-cli2
+        language_version: 22.20.0
+    repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: 916ad0aaa108c64d294101002066f530ea170b10  # frozen: v0.23.3
   - hooks:
       - id: ruff-check
       - id: ruff-format
     repo: https://github.com/astral-sh/ruff-pre-commit
     rev: f12be1ebaa5351c1fc76472de98db2c3446c8253  # frozen: v0.16.10
   - hooks:
-      - id: markdownlint-cli2
-        language_version: 22.20.0
-    repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: 916ad0aaa108c64d294101002066f530ea170b10  # frozen: v0.23.3
+      - id: toml-sort-fix
+    repo: https://github.com/pappasam/toml-sort
+    rev: 6bcff12c5d156baa6897ca2a85f6d534af296e7c  # frozen: v0.25.0
