@@ -124,7 +124,9 @@ def _die(*, message: str, prefix: str = "ERROR: ") -> NoReturn:
     SESSION.shown = Kind.ERROR
     text = prefix + message
     if "\n" not in text:
-        text = textwrap.fill(text=text, width=79)
+        text = textwrap.fill(
+            break_long_words=False, break_on_hyphens=False, text=text, width=79
+        )
     if prefix and color(stream=sys.stderr):
         text = f"\033[{ANSIColor.RED.value}m{text}\033[0m"
     raise SystemExit(text)
@@ -172,7 +174,9 @@ def program() -> list[str]:
 
 
 def say(*, code: ANSIColor | None = None, text: str) -> None:
-    text = textwrap.fill(text=text, width=79)
+    text = textwrap.fill(
+        break_long_words=False, break_on_hyphens=False, text=text, width=79
+    )
     show(
         kind=Kind.WARN if code else Kind.INFO,
         text=paint(code=code, text=text) if code else text,
@@ -208,7 +212,12 @@ def status(*, text: str) -> None:
 def warn(*, text: str) -> None:
     show(
         kind=Kind.WARN,
-        text=paint(code=ANSIColor.YELLOW, text=textwrap.fill(text=text, width=79)),
+        text=paint(
+            code=ANSIColor.YELLOW,
+            text=textwrap.fill(
+                break_long_words=False, break_on_hyphens=False, text=text, width=79
+            ),
+        ),
     )
 
 

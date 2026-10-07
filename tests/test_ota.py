@@ -65,33 +65,47 @@ def number(*, field: int, value: int) -> bytes:
     return varint(value=field << 3) + varint(value=value)
 
 
-def payload(
+def payload(  # ruff: ignore[too-many-arguments]
     *,
+    block_size: int = BLOCK,
     images: dict[str, bytes],
     kinds: dict[str, int],
+    omit_block_size: bool = False,
+    short: str = "",
     stale: str = "",
     version: int = 2,
 ) -> bytes:
-    manifest = number(field=ota.ManifestField.BLOCK_SIZE, value=BLOCK)
+    manifest = (
+        b""
+        if omit_block_size
+        else number(field=ota.ManifestField.BLOCK_SIZE, value=block_size)
+    )
     data = b""
     for name, body in images.items():
-        padded = body.ljust(-(-len(body) // BLOCK) * BLOCK, b"\0")
+        padded = body.ljust(-(-len(body) // block_size) * block_size, b"\0")
         kind = kinds.get(name, ota.OperationType.REPLACE)
         blob = {
             ota.OperationType.REPLACE_BZ: bz2.compress,
             ota.OperationType.REPLACE_XZ: lzma.compress,
         }.get(kind, lambda *, data: data)(data=padded)
-        blocks = len(padded) // BLOCK
+        blocks = len(padded) // block_size
         if name == "system":
             extents = extent(blocks=1, start=blocks - 1) + extent(
                 blocks=blocks - 1, start=0
             )
-            blob = padded[-BLOCK:] + padded[:-BLOCK]
+            blob = padded[-block_size:] + padded[:-block_size]
         else:
             extents = extent(blocks=blocks, start=0)
+        if name == short:
+            blob = blob[:-block_size]
+        offset = (
+            number(field=ota.OperationField.DATA_OFFSET, value=len(data))
+            if data
+            else b""
+        )
         operation = (
             number(field=ota.OperationField.TYPE, value=kind)
-            + number(field=ota.OperationField.DATA_OFFSET, value=len(data))
+            + offset
             + number(field=ota.OperationField.DATA_LENGTH, value=len(blob))
             + extents
         )
@@ -165,6 +179,15 @@ def test_extract_blocks_checks_the_data(
         ota.extract(update=update, work=tmp_path)
 
 
+def test_extract_catches_a_short_blob(*, tmp_path: pathlib.Path) -> None:
+    body = payload(images=IMAGES, kinds=KINDS, short="system")
+    update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")
+    with pytest.raises(
+        expected_exception=SystemExit, match="system does not match the manifest"
+    ):
+        ota.extract(update=update, work=tmp_path)
+
+
 def test_extract_checks_the_hash(*, tmp_path: pathlib.Path) -> None:
     body = payload(images=IMAGES, kinds=KINDS, stale="system")
     update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")
@@ -172,6 +195,14 @@ def test_extract_checks_the_hash(*, tmp_path: pathlib.Path) -> None:
         expected_exception=SystemExit, match="system does not match the manifest"
     ):
         ota.extract(update=update, work=tmp_path)
+
+
+def test_extract_defaults_the_block_size(*, tmp_path: pathlib.Path) -> None:
+    body = payload(block_size=BLOCK, images=IMAGES, kinds=KINDS, omit_block_size=True)
+    update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")
+    ota.extract(update=update, work=tmp_path)
+    for name, image_bytes in IMAGES.items():
+        assert (tmp_path / f"{name}.img").read_bytes() == image_bytes
 
 
 @pytest.mark.parametrize(
@@ -193,6 +224,18 @@ def test_extract_fails(
         ota.extract(update=update, work=tmp_path)
 
 
+def test_extract_reads_another_block_size_and_skips_other_partitions(
+    *, tmp_path: pathlib.Path
+) -> None:
+    images = {**IMAGES, "vendor": image(name="vendor", size=100)}
+    body = payload(block_size=512, images=images, kinds=KINDS)
+    update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")
+    ota.extract(update=update, work=tmp_path)
+    for name, body in IMAGES.items():
+        assert (tmp_path / f"{name}.img").read_bytes() == body
+    assert not (tmp_path / "vendor.img").exists()
+
+
 def test_fields() -> None:
     message = (
         number(field=1, value=300)
@@ -210,6 +253,21 @@ def test_fields() -> None:
     ]
     with pytest.raises(expected_exception=SystemExit, match="wire type 3"):
         list(ota.fields(message=varint(value=5 << 3 | 3)))
+
+
+@pytest.mark.parametrize(
+    argnames=("message", "error"),
+    argvalues=[
+        (b"\x08", "ends inside a number"),
+        (b"\x88", "ends inside a number"),
+        (b"\x12\x05ab", "ends inside a field"),
+        (b"\x19" + bytes(4), "ends inside a field"),
+        (b"\x25ab", "ends inside a field"),
+    ],
+)
+def test_fields_stops_at_a_cut_manifest(*, error: str, message: bytes) -> None:
+    with pytest.raises(expected_exception=SystemExit, match=error):
+        list(ota.fields(message=message))
 
 
 def test_transfer_list() -> None:

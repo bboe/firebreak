@@ -210,6 +210,8 @@ def fields(*, message: bytes) -> Iterator[tuple[int, int, int | bytes]]:
             index += 4
         else:
             _die(message=f"the OTA's manifest has wire type {wire_type}")
+        if index > len(message):
+            _die(message="the OTA's manifest ends inside a field")
         yield field_number, wire_type, value
 
 
@@ -260,6 +262,8 @@ def transfer_list(*, text: str) -> tuple[list[tuple[str, list[tuple[int, int]]]]
 def varint(*, data: bytes, index: int) -> tuple[int, int]:
     result = shift = 0
     while True:
+        if index >= len(data):
+            _die(message="the OTA's manifest ends inside a number")
         byte = data[index]
         index += 1
         result |= (byte & 0x7F) << shift

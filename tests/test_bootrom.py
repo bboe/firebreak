@@ -227,6 +227,13 @@ def test_find_device_retries_a_port_it_cannot_open(*, fakes: Fakes) -> None:
     assert fakes.logged.count("Cannot open p1: p1") == 1
 
 
+def test_find_device_takes_a_bootrom_back_on_the_same_port(*, fakes: Fakes) -> None:
+    fakes.ports = [[bootrom_port(device="p1")], [], [bootrom_port(device="p1")]]
+    device = run_child(fakes=fakes)()
+    device.find_device()
+    assert device.dev.port == "p1"
+
+
 def test_find_device_waits_for_a_new_bootrom(*, fakes: Fakes) -> None:
     other = Port(device="usb0", pid=1, vid=0x1234)
     preloader = bootrom_port(device="p2", product_id=bootrom.PRELOADER_PRODUCT_ID)

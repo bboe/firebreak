@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import shlex
 import subprocess
 import sys
 import types
@@ -362,12 +363,26 @@ def test_rerun(*, monkeypatch: pytest.MonkeyPatch) -> None:
     assert host.rerun() == "sg plugdev -c '/usr/bin/python3 -m firebreak stock'"
 
 
+def test_rerun_quotes_a_path_with_spaces(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    argv = ["/My Files/firebreak.pyz", "stock", "it's"]
+    monkeypatch.setattr(name="argv", target=sys, value=argv)
+    monkeypatch.setattr(name="executable", target=sys, value="/usr/bin/python3")
+    command = shlex.split(s=host.rerun())
+    assert command[:3] == ["sg", "plugdev", "-c"]
+    assert shlex.split(s=command[3]) == ["/usr/bin/python3", *argv]
+
+
 def test_run() -> None:
     script = "import sys; sys.stdout.write('a\\r\\nb\\n'); sys.exit(2)"
     result = host.run(arguments=[sys.executable, "-c", script])
     assert (result.returncode, result.stdout) == (2, "a\nb\n")
     with pytest.raises(expected_exception=SystemExit, match="failed:\na\nb"):
         host.run(arguments=[sys.executable, "-c", script], check=True)
+
+
+def test_run_replaces_bytes_that_are_not_utf_8() -> None:
+    script = "import sys; sys.stdout.buffer.write(bytes([97, 255, 98]))"
+    assert host.run(arguments=[sys.executable, "-c", script]).stdout == "a\ufffdb"
 
 
 def test_usb_serial(*, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -387,6 +402,16 @@ def test_usb_serial(*, monkeypatch: pytest.MonkeyPatch) -> None:
     )
     with pytest.raises(expected_exception=SystemExit, match="more than one Dot"):
         host.usb_serial()
+
+
+def test_usb_serial_finds_an_unauthorized_dot(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    answers(
+        monkeypatch=monkeypatch,
+        replies=["List of devices attached\nS1 unauthorized usb:1-1 transport_id:1\n"],
+    )
+    assert host.usb_serial() == "S1"
 
 
 def test_usb_serial_from_the_environment(*, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -9,6 +9,11 @@ import pytest
 
 from firebreak import ui
 
+URL = (
+    "https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/"
+    "723886117a7a4a8a543c2ec955dcd54e-13222529668-fire-os-6574-1-ns65741-8138-2026-08-31/"
+)
+
 
 @pytest.mark.parametrize(
     argnames=("program_path", "want"),
@@ -43,6 +48,14 @@ def test_color(
     assert ui.color(stream=sys.stdout) is want
 
 
+def test_color_keeps_color_for_an_empty_no_color(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tty(monkeypatch=monkeypatch)
+    monkeypatch.setenv(name="NO_COLOR", value="")
+    assert ui.color(stream=sys.stdout)
+
+
 def test_color_needs_a_tty(*, monkeypatch: pytest.MonkeyPatch) -> None:
     tty(monkeypatch=monkeypatch)
     monkeypatch.setattr(name="isatty", target=sys.stdout, value=lambda: False)
@@ -75,6 +88,12 @@ def test_die_halts_progress_and_fills(
     assert capsys.readouterr().out.endswith("\n")
 
 
+def test_die_keeps_a_url_whole() -> None:
+    with pytest.raises(expected_exception=SystemExit) as raised:
+        ui._die(message="no download link on " + URL)  # ruff: ignore[private-member-access]
+    assert str(raised.value).split("\n") == ["ERROR: no download link on", URL]
+
+
 def test_die_keeps_newlines_and_plain_without_color() -> None:
     ui.SESSION.shown = ui.Kind.INFO
     with pytest.raises(expected_exception=SystemExit) as raised:
@@ -101,6 +120,18 @@ def test_paint(*, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_passed(*, capsys: pytest.CaptureFixture[str]) -> None:
     ui.passed(message="ok")
     assert capsys.readouterr().out == "✅ ok\n"
+
+
+def test_progress_aligns_two_digit_counts(
+    *, capsys: pytest.CaptureFixture[str]
+) -> None:
+    ui.PROGRESS.steps = 16
+    for _ in range(10):
+        ui.PROGRESS.begin(label="step")
+        ui.PROGRESS.end()
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("[ 1/16] step")
+    assert lines[-2].startswith("[10/16] step")
 
 
 def test_progress_not_a_tty(*, capsys: pytest.CaptureFixture[str]) -> None:
@@ -168,6 +199,12 @@ def test_say(
     tty(monkeypatch=monkeypatch)
     ui.say(code=ui.ANSIColor.YELLOW, text="yellow")
     assert capsys.readouterr().out == "plain\n\n\033[33myellow\033[0m\n"
+
+
+def test_say_and_warn_keep_a_url_whole(*, capsys: pytest.CaptureFixture[str]) -> None:
+    ui.say(text="see " + URL)
+    ui.warn(text="see " + URL)
+    assert capsys.readouterr().out == f"see\n{URL}\n\nsee\n{URL}\n"
 
 
 def test_show_separates_kinds(*, capsys: pytest.CaptureFixture[str]) -> None:

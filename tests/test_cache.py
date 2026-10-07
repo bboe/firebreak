@@ -127,6 +127,18 @@ def test_fetch_fails(
         cache.fetch(download=download)
 
 
+def test_fetch_replaces_a_corrupt_copy(
+    *, cached: pathlib.Path, tmp_path: pathlib.Path
+) -> None:
+    source = tmp_path / "zip.bin"
+    source.write_bytes(data=BODY)
+    cached.mkdir()
+    (cached / "zip.bin").write_bytes(data=b"corrupt")
+    (cached / "zip.bin.part").write_bytes(data=b"stale")
+    assert cache.fetch(download=item(source=source)).read_bytes() == BODY
+    assert not (cached / "zip.bin.part").exists()
+
+
 def test_hold() -> None:
     lock = threading.Lock()
     with cache.hold(lock=lock):
@@ -222,3 +234,16 @@ def test_unpack(*, cached: pathlib.Path, tmp_path: pathlib.Path) -> None:
     (target / "bin" / "lk.bin").write_bytes(data=b"kept")
     assert cache.unpack(download=download) == target
     assert (target / "bin" / "lk.bin").read_bytes() == b"kept"
+
+
+def test_unpack_replaces_a_partial_extract(
+    *, cached: pathlib.Path, tmp_path: pathlib.Path
+) -> None:
+    source = tmp_path / "amonet.zip"
+    with zipfile.ZipFile(file=source, mode="w") as archive:
+        archive.writestr(data=b"lk", zinfo_or_arcname="amonet/bin/lk.bin")
+    (cached / "v9.part" / "amonet").mkdir(parents=True)
+    (cached / "v9.part" / "amonet" / "junk").write_bytes(data=b"junk")
+    target = cache.unpack(download=item(folder="v9", source=source))
+    assert sorted(path.name for path in target.rglob("*")) == ["bin", "lk.bin"]
+    assert not (cached / "v9.part").exists()

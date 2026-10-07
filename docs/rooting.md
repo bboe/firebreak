@@ -700,6 +700,11 @@ ring read white.
 - The cmdline is the 512-byte header field at offset 64. Stock is
   `bootopt=64S3,32N2,64N2`; the script appends a space and
   `androidboot.selinux=permissive`.
+- The field ends in a NUL, so the line with that addition must stay under 512
+  bytes. Padding the field pads but never cuts, so a longer line grew the
+  header past its page, moved the kernel and the ramdisk off their offsets,
+  and raised nothing. The script stops instead. Biscuit's stock line leaves
+  room; this guards another device's.
 - Then Magisk's patch, as its `boot_patch.sh` does it with `KEEPVERITY` and
   `KEEPFORCEENCRYPT` false. `init` becomes `magiskinit` and `verity_key`
   goes; both originals go into `.backup`, with `.magisk`. In the kernel,
@@ -711,6 +716,9 @@ ring read white.
 - The kernel is a 512-byte MTK header, a gzip stream and the dtb. Only the
   stream and the header's size field change. The ramdisk's cpio is written as
   magiskboot writes one: sorted, inodes from 300000, every mtime 0.
+- Reading a cpio ends at the trailer or at the end of the data. A ramdisk cut
+  short before its trailer read an empty magic past the end, and the run then
+  blamed the format rather than the length.
 - The stock image ends in a 2,048-byte signature. It is dropped, as magiskboot
   dropped it: the unlocked LK does not check it.
 - Compared with the image that `twrp install` of Magisk wrote on a Dot, every
@@ -848,6 +856,10 @@ fastbrick, and in any TWRP the restore runs.
   pinned by the SHA-256 of a copy that matched it.
 - Each `payload.bin` operation is read where it lies, so peak memory is one
   image plus one operation: about 1 GB, for the 768 MB system image.
+- The manifest's own lengths are not trusted. A number cut short raised a bare
+  `IndexError`, and a field cut short returned fewer bytes than it declared
+  with no error, so the run ended in a traceback or wrote a short image. Both
+  now stop with the reason.
 - A passed check prints `ok` rather than the tick where the console cannot
   encode it, such as a legacy Windows code page, which would otherwise raise
   `UnicodeEncodeError`.

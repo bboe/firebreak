@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     import pathlib
 
 COMMAND_LINE_SIZE = 512
+CPIO_HEADER_SIZE = 110
 
 
 def boot_image(*, fireos: pathlib.Path, magisk: pathlib.Path) -> bytes:
@@ -32,9 +33,13 @@ def boot_image(*, fireos: pathlib.Path, magisk: pathlib.Path) -> bytes:
     )
     header = bytearray(stock[:page])
     command_line = bytes(header[64:576]).split(sep=b"\0")[0]
-    header[64:576] = (command_line + b" androidboot.selinux=permissive").ljust(
-        COMMAND_LINE_SIZE, b"\0"
-    )
+    command_line += b" androidboot.selinux=permissive"
+    if len(command_line) >= COMMAND_LINE_SIZE:
+        _die(
+            message="the stock boot image's command line has no room for"
+            " androidboot.selinux=permissive"
+        )
+    header[64:576] = command_line.ljust(COMMAND_LINE_SIZE, b"\0")
     kernel = stock[page : page + kernel_size]
     start = page + -(-kernel_size // page) * page
     files = cpio_files(data=gzip.decompress(data=stock[start : start + ramdisk_size]))
@@ -101,9 +106,11 @@ def cpio(*, files: dict[bytes, tuple[int, bytes]]) -> bytes:
 def cpio_files(*, data: bytes) -> dict[bytes, tuple[int, bytes]]:
     files = {}
     offset = 0
-    while True:
+    while offset < len(data):
         if data[offset : offset + 6] != b"070701":
             _die(message="the boot image's ramdisk is not a newc cpio archive")
+        if len(data) - offset < CPIO_HEADER_SIZE:
+            _die(message="the boot image's ramdisk ends inside a cpio header")
         fields = [
             int(data[offset + 6 + 8 * index : offset + 14 + 8 * index], 16)
             for index in range(13)
@@ -115,6 +122,8 @@ def cpio_files(*, data: bytes) -> dict[bytes, tuple[int, bytes]]:
         if name == b"TRAILER!!!":
             return files
         files[name] = (fields[1], body)
+    _die(message="the boot image's ramdisk ends without a cpio trailer")
+    return {}
 
 
 def magisk_binary(*, magiskinit: bytes) -> bytes:

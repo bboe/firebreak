@@ -62,11 +62,11 @@ def magiskinit() -> bytes:
     )
 
 
-def stock_boot() -> bytes:
+def stock_boot(*, command_line: bytes = b"console=tty0") -> bytes:
     header = bytearray(PAGE)
     header[:8] = b"ANDROID!"
     header[36:40] = struct.pack("<I", PAGE)
-    header[64:76] = b"console=tty0"
+    header[64 : 64 + len(command_line)] = command_line
     return bootimg.boot_pack(
         header=header,
         kernel=kernel(image=b"linux skip_initramfs\0 rest"),
@@ -102,6 +102,27 @@ def test_boot_image(*, tmp_path: pathlib.Path) -> None:
     assert files[b"fstab.other"][1] == b"/dev/data /data ext4 rw wait\n"
 
 
+@pytest.mark.parametrize(
+    argnames=("length", "fits"), argvalues=[(480, True), (481, False)]
+)
+def test_boot_image_needs_room_on_the_command_line(
+    *, fits: bool, length: int, tmp_path: pathlib.Path
+) -> None:
+    fireos = tmp_path / "fireos.zip"
+    with zipfile.ZipFile(file=fireos, mode="w") as archive:
+        archive.writestr(
+            data=stock_boot(command_line=b"x" * length), zinfo_or_arcname="boot.img"
+        )
+    magisk = magisk_zip(path=tmp_path / "m.zip")
+    if not fits:
+        with pytest.raises(expected_exception=SystemExit, match="has no room for"):
+            bootimg.boot_image(fireos=fireos, magisk=magisk)
+        return
+    header, _, _ = unpack(image=bootimg.boot_image(fireos=fireos, magisk=magisk))
+    assert len(header) == PAGE
+    assert header[64:576].endswith(b" androidboot.selinux=permissive\0")
+
+
 def test_boot_pack() -> None:
     header = bytearray(PAGE)
     image = bootimg.boot_pack(header=header, kernel=b"k" * 3000, ramdisk=b"r" * 10)
@@ -118,6 +139,22 @@ def test_boot_pack() -> None:
     assert image[576:608] == sha1 + bytes(12)
     assert image[PAGE : PAGE + 3000] == b"k" * 3000
     assert image[3 * PAGE : 3 * PAGE + 10] == b"r" * 10
+
+
+def test_cpio_files_catches_a_cut_header() -> None:
+    archive = bootimg.cpio(files=RAMDISK)
+    start = archive.find(b"070701", 1)
+    for cut in (6, 50, bootimg.CPIO_HEADER_SIZE - 1):
+        with pytest.raises(
+            expected_exception=SystemExit, match="ends inside a cpio header"
+        ):
+            bootimg.cpio_files(data=archive[: start + cut])
+
+
+def test_cpio_files_needs_a_trailer() -> None:
+    archive = bootimg.cpio(files=RAMDISK)
+    with pytest.raises(expected_exception=SystemExit, match="without a cpio trailer"):
+        bootimg.cpio_files(data=archive[: archive.rindex(b"070701")])
 
 
 def test_cpio_files_refuses_other_formats() -> None:

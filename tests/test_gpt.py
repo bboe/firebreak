@@ -36,12 +36,12 @@ def entry(*, first: int, last: int, name: str) -> bytes:
     )
 
 
-def raw(*, names: list[str]) -> bytes:
-    header, entries = table(names=names)
+def raw(*, backup: bool = False, names: list[str]) -> bytes:
+    header, entries = table(backup=backup, names=names)
     return b"M" * 512 + header + entries
 
 
-def table(*, names: list[str]) -> tuple[bytes, bytes]:
+def table(*, backup: bool = False, names: list[str]) -> tuple[bytes, bytes]:
     entries = bytearray(128 * 128)
     first = 34
     for index, name in enumerate(iterable=names):
@@ -54,9 +54,12 @@ def table(*, names: list[str]) -> tuple[bytes, bytes]:
     header[:8] = b"EFI PART"
     header[8:12] = b"\0\0\1\0"
     header[12:16] = struct.pack("<I", 92)
-    header[24:40] = struct.pack("<QQ", 1, DISK - 1)
+    own, alternate, entries_address = (
+        (DISK - 1, 1, DISK - 33) if backup else (1, DISK - 1, 2)
+    )
+    header[24:40] = struct.pack("<QQ", own, alternate)
     header[40:56] = struct.pack("<QQ", 34, LAST_USABLE)
-    header[72:80] = struct.pack("<Q", 2)
+    header[72:80] = struct.pack("<Q", entries_address)
     header[80:88] = struct.pack("<II", 128, 128)
     header[88:92] = struct.pack("<I", zlib.crc32(entries) & 0xFFFFFFFF)
     header[16:20] = struct.pack("<I", zlib.crc32(header) & 0xFFFFFFFF)
@@ -90,6 +93,13 @@ def test_stock_gpt_keeps_a_stock_table() -> None:
     assert list(parts) == [*OTHERS, "boot_a", "boot_b", "userdata"]
     assert parts["boot_a"] == gpt.Partition(first=1334, number=14, sectors=100)
     assert parts["boot_a"].size == 100 * 512
+
+
+def test_stock_gpt_reads_the_backup_header() -> None:
+    names = [*OTHERS, "boot_a", "boot_b", "userdata"]
+    assert gpt.stock_gpt(raw=raw(backup=True, names=names)) == gpt.stock_gpt(
+        raw=raw(names=names)
+    )
 
 
 def test_stock_gpt_undoes_amonets_table() -> None:
