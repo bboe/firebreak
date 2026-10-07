@@ -26,7 +26,7 @@ class Partition:
 
 
 @dataclasses.dataclass(frozen=True)
-class StockTable:
+class Table:
     backup: bytes
     backup_sector: int
     partitions: dict[str, Partition]
@@ -55,8 +55,10 @@ def gpt_intact(*, entries: bytes, header: bytes) -> bool:
 
 def partition_map(*, entries: bytes) -> dict[str, Partition]:
     parts = {}
-    for number in range(1, STOCK_PARTITIONS + 1):
+    for number in range(1, ENTRY_COUNT + 1):
         entry = entries[(number - 1) * ENTRY_SIZE : number * ENTRY_SIZE]
+        if entry[:16] == bytes(16):
+            continue
         first, last = struct.unpack("<QQ", entry[32:48])
         parts[entry_name(entry=entry)] = Partition(
             first=first, number=number, sectors=last - first + 1
@@ -64,12 +66,34 @@ def partition_map(*, entries: bytes) -> dict[str, Partition]:
     return parts
 
 
+def rebuilt_gpt(*, entries: bytes, raw: bytes) -> Table:
+    template = raw[SECTOR_SIZE : 2 * SECTOR_SIZE]
+    backup_address = max(struct.unpack("<QQ", template[24:40]))
+    backup_sector = backup_address - ENTRIES_SIZE // SECTOR_SIZE
+    primary_header = table_header(
+        alternate_address=backup_address,
+        entries=entries,
+        entries_address=2,
+        own_address=1,
+        template=template,
+    )
+    backup_header = table_header(
+        alternate_address=1,
+        entries=entries,
+        entries_address=backup_sector,
+        own_address=backup_address,
+        template=template,
+    )
+    return Table(
+        backup=entries + backup_header,
+        backup_sector=backup_sector,
+        partitions=partition_map(entries=entries),
+        primary=raw[:SECTOR_SIZE] + primary_header + entries,
+    )
+
+
 def stock_entries(*, entries: bytes, last_usable: int) -> bytes:
-    used = [
-        entries[offset : offset + ENTRY_SIZE]
-        for offset in range(0, ENTRIES_SIZE, ENTRY_SIZE)
-        if entries[offset : offset + 16] != bytes(16)
-    ]
+    used = used_entries(entries=entries)
     amonet = any(entry_name(entry=entry).endswith("_x") for entry in used)
     stock = bytearray()
     for entry in used:
@@ -92,35 +116,16 @@ def stock_entries(*, entries: bytes, last_usable: int) -> bytes:
     return bytes(stock.ljust(ENTRIES_SIZE, b"\0"))
 
 
-def stock_gpt(*, raw: bytes) -> StockTable:
+def stock_gpt(*, raw: bytes) -> Table:
     template = raw[SECTOR_SIZE : 2 * SECTOR_SIZE]
     entries = raw[2 * SECTOR_SIZE : 2 * SECTOR_SIZE + ENTRIES_SIZE]
     if not gpt_intact(entries=entries, header=template):
         _die(message="neither copy of the Dot's partition table is intact")
-    stock = stock_entries(
-        entries=entries, last_usable=struct.unpack("<Q", template[48:56])[0]
-    )
-    backup_address = max(struct.unpack("<QQ", template[24:40]))
-    backup_sector = backup_address - ENTRIES_SIZE // SECTOR_SIZE
-    primary_header = table_header(
-        alternate_address=backup_address,
-        entries=stock,
-        entries_address=2,
-        own_address=1,
-        template=template,
-    )
-    backup_header = table_header(
-        alternate_address=1,
-        entries=stock,
-        entries_address=backup_sector,
-        own_address=backup_address,
-        template=template,
-    )
-    return StockTable(
-        backup=stock + backup_header,
-        backup_sector=backup_sector,
-        partitions=partition_map(entries=stock),
-        primary=raw[:SECTOR_SIZE] + primary_header + stock,
+    return rebuilt_gpt(
+        entries=stock_entries(
+            entries=entries, last_usable=struct.unpack("<Q", template[48:56])[0]
+        ),
+        raw=raw,
     )
 
 
@@ -139,3 +144,11 @@ def table_header(
     header[88:92] = struct.pack("<I", zlib.crc32(entries))
     header[16:20] = struct.pack("<I", zlib.crc32(header))
     return bytes(header.ljust(SECTOR_SIZE, b"\0"))
+
+
+def used_entries(*, entries: bytes) -> list[bytes]:
+    return [
+        entries[offset : offset + ENTRY_SIZE]
+        for offset in range(0, ENTRIES_SIZE, ENTRY_SIZE)
+        if entries[offset : offset + 16] != bytes(16)
+    ]
