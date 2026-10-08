@@ -110,8 +110,10 @@ def test_the_chain_checks_then_marks_boot0_then_writes_the_preloader_last(
         calls.append(("resolve", options["unlock"].name))
         return ACTIONS
 
-    for name in ("amonet_chain", "chain_nodes", "check", "execute", "install_fireos"):
+    for name in ("amonet_chain", "chain_nodes", "install_fireos"):
         monkeypatch.setattr(name=name, target=main, value=record(name))
+    for name in ("check", "execute"):
+        monkeypatch.setattr(name=name, target=main.recovery, value=record(name))
     monkeypatch.setattr(name="read_sectors", target=main, value=lambda **_: b"table")
     monkeypatch.setattr(name="resolve", target=main, value=resolved)
     monkeypatch.setattr(name="run", target=main, value=lambda **_: None)

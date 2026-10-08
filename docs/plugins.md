@@ -100,6 +100,27 @@ rest and wrote the preloader back left a Dot that booted rooted. Its `misc`
 was all zeros: the boot control block is state, not part of the chain, so a
 comparison against an installed Dot leaves it out.
 
+## The bootrom executor
+
+`firebreak/bootrom.py` carries out a plan over USB, through any client that
+offers `firebreak/emmc.py`'s operations.
+
+- The bootrom checks where its own word writes land. The GCPU's writes skip
+  that check, so one engine write clears it, and plain word writes then reach
+  anywhere.
+- Blocks are absolute and areas are numbered, 0 for the user area and 1 for
+  boot0, so an action needs only its offset.
+- It does the two steps recovery skips: the RPMB zero and the reboot. The plan
+  stops at its first reboot, because a rebooted Dot answers no USB command.
+- A region that already holds its bytes is skipped, so a stopped run resumes.
+- The payloads speak different command sets, read from each binary's dispatch.
+  All take `0x1000`-`0x1002`, `0x2000`, `0x2001` and `0x3000`. Biscuit's
+  v2.0.0 adds `0x1003`, `0x1004`, `0x5000`, `0x5002` and `0x5003`. Crown's
+  v2.0.1 adds `0x5000` and `0x7000`. So each client pins its binary's SHA-256.
+- Offline, against a simulator, the bytes match the amonet code this replaced.
+  The one exception is the defeat: the same 535 register writes, in 21 commands
+  instead of 47.
+
 ## The guardrail
 
 `tests/test_plan.py` resolves both unlocks against biscuit's geometry, from a

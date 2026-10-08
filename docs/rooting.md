@@ -63,11 +63,8 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   the payload's reboot command, `0xf00dd00d` then `0x3000`; the Dot came back
   as its bootrom within 5 seconds. Sent to a live bootrom on a Dot, it did
   no harm: the handshake that followed went through.
-- The command goes out before amonet starts. amonet records the ports at
-  start and takes any port that appears later as the Dot, so a command sent
-  after it starts could reach a Dot it is already talking to. On a resume it
-  also takes a bootrom port, `0e8d:0003`, that was there at start: that is
-  the Dot, whose window may close before any other port appears.
+- The run then waits up to those 5 seconds for each port it poked to go, so
+  it does not open a payload's port while the payload reboots.
 - On macOS, a run stopped 12 seconds into amonet's `tz` write resumed this
   way: amonet found the bootrom 4 seconds after the run started, and the root
   finished.
@@ -99,6 +96,10 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   window went on through the root. With the limit, on a Dot stopped the same
   way, the resume asked for the replug 10 s after it took the port, and the
   same run finished the root to amonet-biscuit-v1.1.0-bboe in 9 min 6 s.
+- The replug gets its own 10 minutes for the port to return, and the step
+  stops 30 minutes after it starts. Without that cap, a bootrom that answers
+  `0x5f` and nothing more is reopened every 10 seconds for good: a probe run
+  reached 51 handshakes. On the erase route nothing else ends the run.
 
 ## A Dot on emOS
 
@@ -309,23 +310,17 @@ ring read white.
   holds. A test reads the pin out of `pyproject.toml` and checks it names that
   wheel, so the two cannot drift.
 - A pyz carries no dependencies, so the run fetches the pinned pure wheel from
-  PyPI when the host has none, puts it on the child's `PYTHONPATH`, and Python
-  imports it straight from the zip. Nothing is installed. A host that already
-  has pyserial fetches nothing and the child imports the installed one, which
-  amonet's own `import serial` then finds too.
-- Each child is firebreak itself, run as `python -m firebreak _child <name>`
-  with the pyz or `site-packages` on its `PYTHONPATH`, and the wheel beside it
-  when one was fetched. A path to re-run would not do: the wheel's Windows
-  launcher is an `.exe`. The bootrom child also needs amonet's `modules`
-  directory, so these imports wait until the child runs, each in the function
-  that needs it.
+  PyPI when the host has none and imports pyserial from that zip: on this
+  process's `sys.path` for the bootrom, on the emOS child's `PYTHONPATH`. A
+  host with pyserial fetches nothing.
+- The one child left is emOS's, `python -m firebreak _child emos`, with the pyz
+  or `site-packages` on its `PYTHONPATH`. A path to re-run would not do: the
+  wheel's Windows launcher is an `.exe`.
 - `-m` puts a child's working directory first on its import path, so a child
   runs in the cache or amonet's `modules`, never where the run started. A
   `firebreak` directory there would replace the package, and a `serial.py` the
   pinned wheel. The child drops that entry before it does anything else. It
   checks the entry first: under `PYTHONSAFEPATH` Python adds no such directory.
-  The bootrom child then puts its own directory back, because amonet's modules
-  are there.
 - `adb get-state` reports `unauthorized` on stderr, so the script reads both
   streams.
 - Without `ANDROID_SERIAL`, the run uses the one Dot on USB in
@@ -597,9 +592,21 @@ ring read white.
 
 ## Downgrade: amonet v2.0.0 to v1.1.0
 
-- v1.1.0's `modules/main.py` must start **before** the Dot reboots: it records
-  the serial ports that exist, then waits for a new one. The erase runs only
-  if main.py is still running 3 seconds after it starts.
+- firebreak erases boot0, then opens the port whose USB product id is the
+  bootrom's, so a port that was already there does not matter.
+- The engine is the GCPU, `gcpu@10210000` in the device tree: a 4 KiB window
+  that holds every register the exploit touches. Fire OS hands it to the TEE,
+  which is encrypted, so the registers are read from the preloader instead.
+- The preloader drives the engine with the same sequence, at `0x1d1bc` as
+  Thumb-2. It names every `gcpu.Register` and gives `ACQUIRE_VALUES` and
+  `SLOT_POINTER_VALUES`. `0x400`, `0xC48` and `0xC68` are computed, not
+  literals, so a byte search misses them. The routines are identical in every
+  cached preloader, biscuit's and crown's. `tests/test_preloader.py` checks
+  them, and skips without a cache, so CI never runs it.
+- The bootrom owns `0x102868` and `0x1028A8`, so the preloader does not hold
+  them. Both agree with [mtkclient](https://github.com/bkerler/mtkclient)
+  (GPL-3.0); nothing was copied. mtkclient also clears `0x1072DC`. One write
+  to `0x102868` has been enough on every run, and why is not known.
 - This route now runs only from amonet v2.0.0's fastboot, for `--short`. From
   amonet v2.0.0's TWRP the targets write the chain in place instead; the
   section above has it.
@@ -608,8 +615,8 @@ ring read white.
   not `true`.
 - It runs `fastboot erase boot0` and `fastboot reboot`, and the Dot drops into
   its bootrom.
-- The script feeds main.py the newlines its prompts read, and is done when
-  main.py logs `Reboot to unlocked fastboot`.
+- The step ends with the plan's own reboot. Every write reports its own
+  result, so no log is read.
 - The bootrom is `0e8d:0003`. On macOS it is `/dev/cu.usbmodem*`. On Linux it
   is `/dev/ttyACM*`, owned by `dialout` unless the udev `tty` line gives it to
   `plugdev`, and ModemManager can grab it first. On Windows it is a COM port
@@ -622,17 +629,29 @@ ring read white.
   can come through Windows Update. Windows bound adb (`1949:0112`) and
   v1.1.0's TWRP (`18d1:4ee2`) itself. TWRP 3.7.0_9-bboeN is untried on
   Windows. macOS and Linux need no driver.
-- main.py's `serial_ports()` silently skips a port it cannot open, and waits
-  forever. So the script gives it 60 seconds after the reboot to log
-  `Found port`, then stops it and says why a port may be missing.
-- The script runs main.py through `child_bootrom`, with v2.0.0's payload from
-  the zip the fastbrick already uses. It writes 64 blocks per command,
-  `0x1003`. On macOS and Windows the step takes 18 s from `Found port` to the
-  reboot.
+- A port that will not open is named once and retried: udev or a modem
+  manager can hold it for a moment. The wait is 60 seconds after the erase,
+  and 600 when the run waits for a short.
+- The run uploads v2.0.0's payload from the fastbrick's zip, reads the Dot's
+  partition table over USB, resolves v1.1.0's plan against it, and reads every
+  write back. On macOS and Windows the step takes 18 s.
+- The bootrom's word commands are big-endian and the Dot's memory is
+  little-endian, so the payload and the AES input go out byte-swapped per
+  word. Unswapped bytes load in the wrong order and nothing on the wire shows
+  it, which is why `write_words` takes words.
+- It reads and writes 64 blocks per command, `0x1004` and `0x1003`. One block
+  per command was 10 times slower: every region is read twice, and each round
+  trip costs about 10 ms.
+- The payload does not answer the area switch, `0x1002`, so block 0 is checked
+  after each one: boot0 starts `EMMC_BOOT` or is zeros, and the user area ends
+  `55 AA`. A read-back alone cannot catch a lost switch, because it reads
+  through the same wrong area.
+- A read-back proves the transfer, not that the eMMC kept the bytes: its
+  256 KiB write cache answers reads. The cache is off at power-on and the
+  payload never turns it on, so this step writes uncached.
 - v2.0.0's payload ends a 512-byte block read and a 256-byte RPMB read on a
-  full packet, and Windows' VCOM driver waits for a short packet. So
-  `child_bootrom` follows each read with a 4-byte read, `0x5000`, and drops
-  those 4 bytes.
+  full packet, and Windows' VCOM driver waits for a short packet. So each such
+  read is followed by a 4-byte read, `0x5000`, whose bytes are dropped.
 - v1.1.0's `fastboot-step.sh` ships a Linux-only fastboot. The script runs its
   three commands with the host's fastboot instead: `bin/tz.img` to `tee2`,
   TWRP 3.7.0_9-bboe2 to `recovery` in place of v1.1.0's `bin/twrp.img`, then

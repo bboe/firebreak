@@ -36,6 +36,14 @@ from typing import IO, TYPE_CHECKING, NoReturn
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
+    import serial
+
+    from firebreak.emmc import Emmc
+    from firebreak.plan import Action
+
+from firebreak import bootrom, recovery
+from firebreak.amonet.biscuit_v2_0_0 import Client
+from firebreak.amonet.payload import NotReadyError, Payload, start_payload
 from firebreak.android.bootimg import boot_image, cpio, magisk_db, magisk_files
 from firebreak.android.gpt import Partition, gpt_intact, stock_gpt
 from firebreak.android.ota import extract
@@ -53,6 +61,7 @@ from firebreak.cache import (
     save,
     unpack,
 )
+from firebreak.emmc import EmmcArea
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
     MORE_THAN_ONE,
@@ -77,9 +86,18 @@ from firebreak.host import (
     run,
     usb_serial,
 )
-from firebreak.mediatek.bootrom import child_bootrom, child_reset
+from firebreak.mediatek import range_check
+from firebreak.mediatek.usbdl import (
+    BAUD_RATE,
+    PORT_POLL_INTERVAL,
+    READ_TIMEOUT,
+    Bootrom,
+    HandshakeTimeoutError,
+    ProductId,
+    UsbdlError,
+    mediatek_ports,
+)
 from firebreak.plan import TABLE_SECTORS, resolve
-from firebreak.recovery import check, execute
 from firebreak.ui import (
     ARGUMENTS,
     MINUTE,
@@ -109,6 +127,8 @@ AMONET_V1_1_0_BOOT_BLOCKS = 0x37000
 AMONET_V2_0_0_FIREOS_BUILD = "8146"
 BOOTLOADER_CONTROL_BLOCK = b"\0ABB\x01\x8f\0"
 BOOTLOADER_CONTROL_BLOCK_OFFSET = 0x360
+BOOTROM_STEP_TIMEOUT = 30 * MINUTE
+BOOTROM_WRITE_TIMEOUT = 30
 BOOT_ROOT = Download(
     browser=True,
     name="boot-root.zip",
@@ -151,6 +171,10 @@ AMONET_BISCUIT_V2_0_0_ZIP = Download(
     sha256="98297293701082bc7272efe077f941c56fc7b6e1f27ef6f2e93b6e4c6fc7b62d",
     url=MIRROR + "/amonet-biscuit-v2.0.0.zip",
 )
+OPEN_GRACE = 1
+POKE_GONE_WAIT = 5
+POKE_WRITE_TIMEOUT = 1
+REPLUG_WAIT = 600
 SHORT_WAIT = 5
 STOCK_STEPS = 16
 TABLE_FIELDS = 6
@@ -520,11 +544,15 @@ def amonet_v1_1_0_chain() -> None:
             " written. " + again()
         )
     actions = tuple(action for action in resolved if action.kind not in TWRP_SKIPS)
-    check(actions=actions)
+    recovery.check(actions=actions)
     ERASED.touch()
-    execute(actions=tuple(action for action in actions if not action.unrecoverable))
+    recovery.execute(
+        actions=tuple(action for action in actions if not action.unrecoverable)
+    )
     install_fireos(reboot=False, slot="_a")
-    execute(actions=tuple(action for action in actions if action.unrecoverable))
+    recovery.execute(
+        actions=tuple(action for action in actions if action.unrecoverable)
+    )
     ERASED.unlink(missing_ok=True)
     run(arguments=["adb", "reboot"], check=True, timeout=60)
     PROGRESS.begin(estimate="4 min", label="waiting for rooted Fire OS 5 to boot")
@@ -558,176 +586,167 @@ def amonet_v2_0_0_payload() -> pathlib.Path:
     return amonet / "brom-payload" / "build" / "payload.bin"
 
 
-def bootrom(  # ruff: ignore[complex-structure, too-many-branches, too-many-statements]
+def await_amonet_fastboot() -> None:
+    for _ in range(30):
+        try:
+            if in_fastboot() and getvar(name="lk_build_desc") == LK.FIREOS5.value:
+                return
+        except subprocess.TimeoutExpired:
+            pass
+        time.sleep(2)
+    _die(message="the Dot did not come back in v1.1.0's fastboot")
+
+
+def await_bootrom_port(
+    *, deadline: float, erase: Callable[[], str] | None, preloaders: set[str]
+) -> serial.Serial | None:
+    failures: dict[str, float] = {}
+    missed = 0
+    while True:
+        found = mediatek_ports()
+        failures = {name: when for name, when in failures.items() if name in found}
+        preloaders &= set(found)
+        for name in sorted(found):
+            if found[name] != ProductId.BOOTROM:
+                continue
+            port = open_bootrom(failures=failures, name=name)
+            if port is not None:
+                return port
+        for name in sorted(found):
+            if found[name] != ProductId.PRELOADER or name in preloaders:
+                continue
+            preloaders.add(name)
+            if not erase and not SESSION.short:
+                return None
+            if SESSION.short:
+                missed += 1
+                say_missed_short(count=missed)
+        if time.monotonic() >= deadline:
+            _die(
+                message="the Dot's bootrom did not show up as a serial port.\n"
+                + no_port_help()
+            )
+        time.sleep(PORT_POLL_INTERVAL)
+
+
+def await_port_gone(*, deadline: float, name: str) -> None:
+    while name in mediatek_ports() and time.monotonic() < deadline:
+        time.sleep(PORT_POLL_INTERVAL)
+
+
+def bootloader_plan(*, amonet: pathlib.Path, live: Emmc) -> tuple[Action, ...]:
+    check_emmc(live=live)
+    unlock = amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0
+    try:
+        raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
+    except (OSError, UsbdlError) as error:
+        _die(
+            message=f"the Dot's partition table could not be read: {error}."
+            f" {unwritten()} Unplug the Dot. " + again()
+        )
+    try:
+        resolved = resolve(raw=raw, source=amonet, unlock=unlock)
+    except (FileNotFoundError, KeyError, ValueError) as error:
+        _die(
+            message=f"{unlock.name} does not fit this Dot: {error.args[0]}."
+            f" {unwritten()} " + again()
+        )
+    kinds = [action.kind for action in resolved]
+    if bootrom.REBOOT not in kinds:
+        return resolved
+    return resolved[: kinds.index(bootrom.REBOOT) + 1]
+
+
+def bootrom_client(
+    *, deadline: float, erase: Callable[[], str] | None
+) -> Bootrom | None:
+    overall = time.monotonic() + BOOTROM_STEP_TIMEOUT
+    preloaders = {
+        name
+        for name, product in mediatek_ports().items()
+        if product == ProductId.PRELOADER
+    }
+    while True:
+        port = await_bootrom_port(deadline=deadline, erase=erase, preloaders=preloaders)
+        if port is None:
+            return None
+        client = Bootrom(port=port)
+        try:
+            client.handshake()
+        except (HandshakeTimeoutError, OSError) as error:
+            with contextlib.suppress(OSError):
+                client.port.close()
+            if SESSION.short:
+                _die(
+                    message=f"the Dot's bootrom did not answer ({error})."
+                    f" {unwritten()} Unplug the Dot. " + again()
+                )
+            PROGRESS.note(
+                message=f"The Dot's bootrom did not answer ({error}). Unplug the Dot"
+                " and plug it back in; the run goes on when its bootrom returns."
+            )
+            await_port_gone(deadline=overall, name=port.name)
+            if time.monotonic() >= overall:
+                _die(
+                    message="the Dot's bootrom never answered a handshake."
+                    f" {unwritten()} Unplug the Dot. " + again()
+                )
+            deadline = min(overall, time.monotonic() + REPLUG_WAIT)
+        except UsbdlError as error:
+            with contextlib.suppress(OSError):
+                client.port.close()
+            _die(
+                message=f"the Dot's bootrom did not answer as one: {error}."
+                f" {unwritten()} Unplug the Dot. " + again()
+            )
+        else:
+            return client
+
+
+def bootrom_step(
     *,
     amonet: pathlib.Path,
     erase: Callable[[], str] | None,
     payload: pathlib.Path,
     wheel: pathlib.Path | None,
 ) -> bool:
-    shutil.copyfile(dst=amonet / "brom-payload" / "build" / "payload.bin", src=payload)
-    log_path = CACHE / "bootrom.log"
-    environment = dict(
-        os.environ, PYTHONPATH=child_path(wheel=wheel), PYTHONUNBUFFERED="1"
-    )
-    if SESSION.short:
-        environment["FIREBREAK_ERASED"] = str(ERASED)
-    if not erase and not SESSION.short:
-        environment["FIREBREAK_RESUME"] = "1"
-        with contextlib.suppress(subprocess.TimeoutExpired):
-            subprocess.run(
-                args=child(name="reset"),
-                check=False,
-                cwd=CACHE,
-                env=environment,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                timeout=30,
-            )
-    with log_path.open(mode="w") as log:
-        if ARGUMENTS.verbose:
-            show(
-                text=f"{clock()} $ "
-                + shlex.join(split_command=child(name="bootrom"))
-                + " (amonet v1.1.0 bootrom step, 64 blocks per write)"
-            )
-        bootrom_process = subprocess.Popen(
-            args=child(name="bootrom"),
-            cwd=amonet / "modules",
-            env=environment,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.PIPE,
-            stdout=log,
+    if wheel is not None and str(wheel) not in sys.path:
+        sys.path.insert(0, str(wheel))
+    if erase:
+        ERASED.touch()
+        failure = erase()
+        if failure:
+            _die(message=failure)
+    elif SESSION.short:
+        say(
+            code=ANSIColor.YELLOW,
+            text="Short the Dot's test point and plug it in. The run waits for"
+            " its bootrom, then says when the short may come off.",
         )
-        if not SESSION.short:
-            bootrom_process.stdin.write(b"\n" * 5)
-            bootrom_process.stdin.close()
-        started = time.monotonic()
-        while time.monotonic() - started < (30 if SESSION.short else 3):
-            if bootrom_process.poll() is not None or (
-                SESSION.short
-                and "Waiting for bootrom" in log_path.read_text(errors="replace")
-            ):
-                break
-            time.sleep(0.25)
-        if bootrom_process.poll() is not None:
-            _die(message=f"v1.1.0's bootrom step did not start; see {log_path}")
-        if erase:
-            ERASED.touch()
-            try:
-                failure = erase()
-            except subprocess.TimeoutExpired:
-                bootrom_process.kill()
-                raise
-            if failure:
-                bootrom_process.kill()
-                _die(message=failure)
-        elif SESSION.short:
-            say(
-                code=ANSIColor.YELLOW,
-                text="Short the Dot's test point and plug it in. The run waits for"
-                " its bootrom, then says when the short may come off.",
-            )
-            status(text="Waiting for the bootrom.")
-        else:
-            PROGRESS.begin(estimate="40 s", label="waiting for the Dot to restart")
-        deadline = time.monotonic() + (60 if erase else 600)
-        missed = unopened = 0
-        while bootrom_process.poll() is None and time.monotonic() < deadline:
-            text = log_path.read_text(errors="replace")
-            if "Found port" in text:
-                break
-            if not erase and not SESSION.short and "Ignoring the preloader" in text:
-                bootrom_process.kill()
-                ERASED.unlink(missing_ok=True)
-                PROGRESS.note(
-                    message="The Dot started its preloader, so boot0 is intact and it"
-                    " needs no bootrom step."
-                )
-                return False
-            if SESSION.short and text.count("Ignoring the preloader") > missed:
-                missed = text.count("Ignoring the preloader")
-                if sys.stdout.isatty():
-                    print()
-                said = (
-                    f"Short {missed} missed: the Dot started normally. Unplug, short,"
-                    " and plug it in again."
-                )
-                show(kind=Kind.WARN, text=paint(code=ANSIColor.RED, text=said))
-                status(text="Waiting for the bootrom.")
-            if text.count("Cannot open") > unopened:
-                unopened = text.count("Cannot open")
-                if SESSION.short and sys.stdout.isatty():
-                    print()
-                said = "Cannot open" + text.split(sep="Cannot open")[-1].splitlines()[0]
-                said += ". The run keeps trying."
-                if SESSION.short:
-                    warn(text=said)
-                    status(text="Waiting for the bootrom.")
-                else:
-                    PROGRESS.note(message=said)
-            time.sleep(1)
-        else:
-            if bootrom_process.poll() is None:
-                bootrom_process.kill()
-                _die(
-                    message="the Dot's bootrom did not show up as a serial port.\n"
-                    + no_port_help()
-                )
-        if SESSION.short and bootrom_process.poll() is None:
-            countdown()
-            with contextlib.suppress(OSError):
-                bootrom_process.stdin.write(b"\n" * 5)
-                bootrom_process.stdin.close()
-        if not erase:
-            PROGRESS.begin(estimate="30 s", label="writing amonet v1.1.0's bootloader")
-        deadline = time.monotonic() + 1800
-        unanswered = 0
-        while bootrom_process.poll() is None:
-            if time.monotonic() > deadline:
-                bootrom_process.kill()
-                _die(message=f"v1.1.0's bootrom step did not finish; see {log_path}")
-            text = log_path.read_text(errors="replace")
-            if text.count("did not answer the handshake") > unanswered:
-                unanswered = text.count("did not answer the handshake")
-                if SESSION.short:
-                    bootrom_process.kill()
-                    _die(
-                        message="the Dot's bootrom did not answer. Nothing was"
-                        " written. Unplug the Dot. " + again()
-                    )
-                PROGRESS.note(
-                    message="The Dot's bootrom did not answer. Unplug the Dot and"
-                    " plug it back in; the run goes on when its bootrom returns."
-                )
-            if text.count("Cannot open") > unopened:
-                unopened = text.count("Cannot open")
-                said = "Cannot open" + text.split(sep="Cannot open")[-1].splitlines()[0]
-                PROGRESS.note(message=said + ". The run keeps trying.")
-            time.sleep(1)
-    if bootrom_process.returncode != 0:
-        said = log_path.read_text(errors="replace")
-        if SESSION.short and (
-            "The eMMC did not answer" in said or "expected pattern" in said
-        ):
-            _die(
-                message="the Dot's eMMC did not answer, most likely because the"
-                " short was still on. Nothing was written. Unplug the Dot. " + again()
-            )
-        _die(message=f"v1.1.0's bootrom step failed; see {log_path}")
-    if "Reboot to unlocked fastboot" not in log_path.read_text(errors="replace"):
-        _die(message=f"v1.1.0's bootrom step did not finish; see {log_path}")
-    ERASED.unlink(missing_ok=True)
-    for _ in range(30):
-        try:
-            if in_fastboot() and getvar(name="lk_build_desc") == LK.FIREOS5.value:
-                break
-        except subprocess.TimeoutExpired:
-            pass
-        time.sleep(2)
+        status(text="Waiting for the bootrom.")
     else:
-        _die(message="the Dot did not come back in v1.1.0's fastboot")
+        poke_live_payload()
+        PROGRESS.begin(estimate="40 s", label="waiting for the Dot to restart")
+    client = bootrom_client(
+        deadline=time.monotonic() + (60 if erase else 600), erase=erase
+    )
+    if client is None:
+        ERASED.unlink(missing_ok=True)
+        PROGRESS.note(
+            message="The Dot started its preloader, so boot0 is intact and it"
+            " needs no bootrom step."
+        )
+        return False
+    live = exploit(client=client, payload=payload)
+    actions = bootrom.check(actions=bootloader_plan(amonet=amonet, live=live))
+    if PROGRESS.steps:
+        PROGRESS.steps += len(actions) - 1
+    ERASED.touch()
+    bootrom.execute(actions=actions, payload=live)
+    with contextlib.suppress(OSError):
+        client.port.close()
+    ERASED.unlink(missing_ok=True)
+    await_amonet_fastboot()
     return True
 
 
@@ -834,6 +853,25 @@ def chain_writes() -> tuple[Step, ...]:
     )
 
 
+def check_emmc(*, live: Emmc) -> None:
+    try:
+        live.switch_partition(partition=EmmcArea.USER)
+        block = live.read_block(index=0)
+    except (OSError, UsbdlError) as error:
+        said = str(error)
+    else:
+        if bootrom.switched(block=block, partition=EmmcArea.USER):
+            return
+        wanted = bootrom.USER_AREA_SIGNATURE
+        said = (
+            f"block 0 of its user area ends {block[-len(wanted) :]!r}, not {wanted!r}"
+        )
+    _die(
+        message=f"the Dot's eMMC did not answer{short_hint()}: {said}."
+        f" {unwritten()} Unplug the Dot. " + again()
+    )
+
+
 def check_nodes(*, want: dict[str, int]) -> str:
     command = Shell.NODES.value.format(
         pairs=" ".join(f"{node}:{size}" for node, size in want.items())
@@ -896,9 +934,7 @@ def child_emos(*, action: str, want: str) -> int:
 def child_main(*, arguments: list[str], name: str) -> int:
     if sys.path[0] == str(pathlib.Path.cwd()):
         del sys.path[0]
-    if name == "emos":
-        return child_emos(action=arguments[0], want=arguments[1])
-    return {"bootrom": child_bootrom, "reset": child_reset}[name]()
+    return {"emos": child_emos}[name](action=arguments[0], want=arguments[1])
 
 
 def clear_boot0() -> None:
@@ -1009,8 +1045,10 @@ def downgrade() -> None:
         )
     if little_kernel == LK.FIREOS5.value:
         _die(message="the Dot already runs amonet v1.1.0's bootloader. " + again())
-    PROGRESS.begin(estimate="45 s", label="writing amonet v1.1.0's bootloader")
-    bootrom(
+    PROGRESS.begin(
+        estimate="5 s", label="erasing boot0 so the Dot falls into its bootrom"
+    )
+    bootrom_step(
         amonet=amonet,
         erase=erase_by_fastboot,
         payload=amonet_v2_0_0_payload(),
@@ -1116,6 +1154,27 @@ def erase_by_fastboot() -> str:
         if result.returncode != 0:
             return f"{' '.join(arguments)} failed:\n{result.stdout}"
     return ""
+
+
+def exploit(*, client: Bootrom, payload: pathlib.Path) -> Client:
+    data = payload.read_bytes()
+    try:
+        client.disable_watchdog()
+        if SESSION.short:
+            countdown()
+        range_check.defeat(bootrom=client)
+        live = start_payload(bootrom=client, client=Client, payload=data)
+    except NotReadyError as error:
+        _die(
+            message=f"the payload did not start{short_hint()}: {error}."
+            f" {unwritten()} Unplug the Dot. " + again()
+        )
+    except (OSError, UsbdlError) as error:
+        _die(
+            message=f"the exploit did not go through the Dot's bootrom: {error}."
+            f" {unwritten()} Unplug the Dot. " + again()
+        )
+    return live
 
 
 def fastbrick() -> None:
@@ -1312,6 +1371,17 @@ def install_magisk(*, magisk: pathlib.Path, work: pathlib.Path) -> None:
         _die(message="Magisk 17.3's files did not verify on the Dot")
 
 
+def keep_trying(*, message: str) -> None:
+    said = message + ". The run keeps trying."
+    if not SESSION.short:
+        PROGRESS.note(message=said)
+        return
+    if sys.stdout.isatty():
+        print()
+    warn(text=said)
+    status(text="Waiting for the bootrom.")
+
+
 def main() -> None:
     if sys.argv[1:2] == ["_child"]:
         sys.exit(child_main(arguments=sys.argv[3:], name=sys.argv[2]))
@@ -1324,6 +1394,28 @@ def main() -> None:
             message=f"{' '.join(map(str, error.cmd))} did not finish in"
             f" {error.timeout:.0f} seconds"
         )
+
+
+def open_bootrom(*, failures: dict[str, float], name: str) -> serial.Serial | None:
+    try:
+        return open_serial_port(name=name, write_timeout=BOOTROM_WRITE_TIMEOUT)
+    except OSError as error:
+        first = failures.setdefault(name, time.monotonic())
+        if first and time.monotonic() - first >= OPEN_GRACE:
+            failures[name] = 0
+            keep_trying(message=f"Cannot open {name}: {error}")
+        return None
+
+
+def open_serial_port(*, name: str, write_timeout: float) -> serial.Serial:
+    import serial  # ruff: ignore[import-outside-top-level]
+
+    return serial.Serial(
+        baudrate=BAUD_RATE,
+        port=name,
+        timeout=READ_TIMEOUT,
+        write_timeout=write_timeout,
+    )
 
 
 def partition_field(*, name: str, number: int) -> str:
@@ -1364,6 +1456,20 @@ def partitions() -> dict[str, tuple[int, int, int]]:
     if "userdata" not in found:
         _die(message="no userdata in the Dot's partition table")
     return found
+
+
+def poke_live_payload() -> None:
+    poked = []
+    for name in sorted(mediatek_ports()):
+        with (
+            contextlib.suppress(OSError),
+            open_serial_port(name=name, write_timeout=POKE_WRITE_TIMEOUT) as connection,
+        ):
+            Payload(port=connection).reboot()
+            poked.append(name)
+    deadline = time.monotonic() + POKE_GONE_WAIT
+    for name in poked:
+        await_port_gone(deadline=deadline, name=name)
 
 
 def prebuild() -> None:
@@ -1848,7 +1954,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             left = remaining(start=State.AMONET_V1_1_0_BBOE_TWRP, table=table)
             if left is not None:
                 PROGRESS.steps = PROGRESS.step + (2 if SESSION.short else 3) + left
-            if bootrom(
+            if bootrom_step(
                 amonet=unpack(download=AMONET_BISCUIT_V1_1_0_ZIP),
                 erase=None,
                 payload=amonet_v2_0_0_payload(),
@@ -2023,6 +2129,24 @@ def rooted() -> State:
         ):
             return found
     return State.ROOTED
+
+
+def say_missed_short(*, count: int) -> None:
+    if sys.stdout.isatty():
+        print()
+    show(
+        kind=Kind.WARN,
+        text=paint(
+            code=ANSIColor.RED,
+            text=f"Short {count} missed: the Dot started normally. Unplug, short,"
+            " and plug it in again.",
+        ),
+    )
+    status(text="Waiting for the bootrom.")
+
+
+def short_hint() -> str:
+    return ", most likely because the short was still on" if SESSION.short else ""
 
 
 def stages() -> dict[State, Stage]:
@@ -2224,6 +2348,10 @@ def unmount(*, started: bool = False) -> None:
     if started:
         restore_failed(message=message + "; do not reboot")
     _die(message=message + "; nothing was written")
+
+
+def unwritten() -> str:
+    return "Only boot0 was erased." if ERASED.exists() else "Nothing was written."
 
 
 def wait_for_twrp() -> None:
