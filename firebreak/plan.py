@@ -19,9 +19,11 @@ from firebreak.plugin import (
     Write,
     ZeroRpmb,
 )
+from firebreak.sizes import padded
 
 if TYPE_CHECKING:
     import pathlib
+    from collections.abc import Callable
 
     from firebreak.android.gpt import Partition
     from firebreak.plugin import Step, Unlock
@@ -40,6 +42,7 @@ class Action:
     kind: str
     label: str
     data: bytes | None = None
+    expect: bytes | None = None
     image: pathlib.Path | None = None
     length: int | None = None
     offset: int | None = None
@@ -78,8 +81,23 @@ def action(
             target=BOOT0,
         )
     if isinstance(step, ZeroRpmb):
-        return Action(kind=kind, label=step.label, source=repr(step.expect))
+        return Action(
+            expect=step.expect,
+            kind=kind,
+            label=step.label,
+            source=repr(step.expect),
+        )
     return Action(kind=kind, label=step.label, target=step.into)
+
+
+def contents(*, action: Action) -> bytes:
+    if action.data is not None:
+        return action.data
+    if action.image is None:
+        message = f"{action.kind} has nothing to write"
+        raise ValueError(message)
+    data = action.image.read_bytes()
+    return data.ljust(padded(length=len(data), unit=SECTOR_SIZE), b"\0")
 
 
 def image_of(*, image: str, source: pathlib.Path, unlock: Unlock) -> pathlib.Path:
@@ -140,10 +158,6 @@ def resolve(*, raw: bytes, source: pathlib.Path, unlock: Unlock) -> tuple[Action
     return tuple(actions)
 
 
-def sector_padded(*, length: int) -> int:
-    return length + -length % SECTOR_SIZE
-
-
 def show(*, actions: tuple[Action, ...]) -> str:
     lines = []
     for index, action in enumerate(iterable=actions, start=1):
@@ -163,6 +177,18 @@ def show(*, actions: tuple[Action, ...]) -> str:
     return "\n".join(lines)
 
 
+def whole_sectors(
+    *, action: Action, offset: int, read: Callable[..., bytes]
+) -> tuple[int, bytes]:
+    data = contents(action=action)
+    first, lead = divmod(offset, SECTOR_SIZE)
+    if not lead and not len(data) % SECTOR_SIZE:
+        return first, data
+    count = -(-(lead + len(data)) // SECTOR_SIZE)
+    block = read(count=count, first=first)
+    return first, block[:lead] + data + block[lead + len(data) :]
+
+
 def written(
     *,
     partitions: dict[str, Partition],
@@ -171,7 +197,7 @@ def written(
     unlock: Unlock,
 ) -> Action:
     path = image_of(image=step.image, source=source, unlock=unlock)
-    length = sector_padded(length=path.stat().st_size)
+    length = padded(length=path.stat().st_size, unit=SECTOR_SIZE)
     if step.target == BOOT0:
         offset, partition, room = step.sector_offset * SECTOR_SIZE, None, None
     else:

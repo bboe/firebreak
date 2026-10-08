@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import hashlib
 import pathlib
 import subprocess
@@ -15,7 +16,7 @@ from firebreak.host import (
     push_checked,
     reconnect,
 )
-from firebreak.plan import SECTOR_SIZE, sector_padded
+from firebreak.plan import SECTOR_SIZE, whole_sectors
 from firebreak.plugin import BOOT0
 from firebreak.ui import PROGRESS, _die, again
 
@@ -75,49 +76,26 @@ def check(*, actions: tuple[Action, ...]) -> tuple[Action, ...]:
     return writes
 
 
-def contents(*, action: Action) -> bytes:
-    if action.data is not None:
-        return action.data
-    if action.image is None:
-        message = f"{action.kind} has nothing to write"
-        raise ValueError(message)
-    data = action.image.read_bytes()
-    return data.ljust(sector_padded(length=len(data)), b"\0")
-
-
 def execute(*, actions: tuple[Action, ...]) -> None:
     writes = check(actions=actions)
     with tempfile.TemporaryDirectory(dir=CACHE) as temporary:
         for index, action in enumerate(writes):
             PROGRESS.begin(label=action.label)
             node, offset = place(action=action)
-            first, data = sectors(action=action, node=node, offset=offset)
-            if held(count=len(data) // SECTOR_SIZE, first=first, node=node) == md5(
+            first, data = whole_sectors(
+                action=action,
+                offset=offset,
+                read=functools.partial(read_raw, node=node),
+            )
+            if read(count=len(data) // SECTOR_SIZE, first=first, node=node) == md5(
                 data=data
             ):
                 PROGRESS.end(skipped=True)
                 continue
             staged = pathlib.Path(temporary) / f"{index}.img"
             staged.write_bytes(data=data)
-            put(first=first, node=node, staged=staged)
+            write(first=first, node=node, staged=staged)
             PROGRESS.end()
-
-
-def held(*, count: int, first: int, node: str) -> str:
-    read = HASH.format(count=count, first=first, node=node)
-    for attempt in range(PUSH_TRIES):
-        if attempt:
-            reconnect(remote=node)
-        said = [*adb_shell(command=read, timeout=600).split(sep="\n")[-2:], "", ""]
-        digest = said[0].split(sep=" ")[0]
-        if said[1] == "whole" and len(digest) == MD5_DIGITS:
-            break
-    else:
-        _die(
-            message=f"{node} did not answer with an md5 of {count} sectors at"
-            f" {first}. Do not restart the Dot. " + again()
-        )
-    return digest
 
 
 def md5(*, data: bytes) -> str:
@@ -135,7 +113,43 @@ def place(*, action: Action) -> tuple[str, int]:
     )
 
 
-def put(*, first: int, node: str, staged: pathlib.Path) -> None:
+def read(*, count: int, first: int, node: str) -> str:
+    script = HASH.format(count=count, first=first, node=node)
+    for attempt in range(PUSH_TRIES):
+        if attempt:
+            reconnect(remote=node)
+        said = [*adb_shell(command=script, timeout=600).split(sep="\n")[-2:], "", ""]
+        digest = said[0].split(sep=" ")[0]
+        if said[1] == "whole" and len(digest) == MD5_DIGITS:
+            break
+    else:
+        _die(
+            message=f"{node} did not answer with an md5 of {count} sectors at"
+            f" {first}. Do not restart the Dot. " + again()
+        )
+    return digest
+
+
+def read_raw(*, count: int, first: int, node: str) -> bytes:
+    try:
+        block = command(
+            arguments=[
+                "adb",
+                "exec-out",
+                READ.format(count=count, first=first, node=node),
+            ],
+            standard_input=subprocess.DEVNULL,
+            standard_output=subprocess.PIPE,
+            timeout=60,
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as error:
+        _die(message=f"{node} could not be read at sector {first}: {error}. " + again())
+    if len(block) != count * SECTOR_SIZE:
+        _die(message=f"read {len(block)} bytes at sector {first} of {node}. " + again())
+    return block
+
+
+def write(*, first: int, node: str, staged: pathlib.Path) -> None:
     remote = DOT_TEMPORARY_DIRECTORY / staged.name
     push_checked(local=staged, remote=remote)
     unlock = relock = ""
@@ -154,34 +168,10 @@ def put(*, first: int, node: str, staged: pathlib.Path) -> None:
         ),
         timeout=600,
     )
-    if said.split(sep="\n")[-1] != "written" or held(
+    if said.split(sep="\n")[-1] != "written" or read(
         count=count, first=first, node=node
     ) != md5(data=data):
         _die(
             message=f"{len(data)} bytes at sector {first} of {node} did not read"
             " back. Do not restart the Dot. " + again()
         )
-
-
-def sectors(*, action: Action, node: str, offset: int) -> tuple[int, bytes]:
-    data = contents(action=action)
-    first, lead = divmod(offset, SECTOR_SIZE)
-    if not lead and not len(data) % SECTOR_SIZE:
-        return first, data
-    count = -(-(lead + len(data)) // SECTOR_SIZE)
-    try:
-        block = command(
-            arguments=[
-                "adb",
-                "exec-out",
-                READ.format(count=count, first=first, node=node),
-            ],
-            standard_input=subprocess.DEVNULL,
-            standard_output=subprocess.PIPE,
-            timeout=60,
-        ).stdout
-    except (OSError, subprocess.SubprocessError) as error:
-        _die(message=f"{node} could not be read at sector {first}: {error}. " + again())
-    if len(block) != count * SECTOR_SIZE:
-        _die(message=f"read {len(block)} bytes at sector {first} of {node}. " + again())
-    return first, block[:lead] + data + block[lead + len(data) :]

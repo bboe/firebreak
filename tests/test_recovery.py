@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import recovery
+from firebreak import plan, recovery
 from firebreak.android.gpt import Partition
 from firebreak.plan import Action
 from firebreak.plugin import BOOT0
@@ -301,7 +301,7 @@ def test_a_write_that_does_not_land_stops_it(*, dot: FakeDot) -> None:
 
 def test_an_action_with_nothing_to_write_is_refused() -> None:
     with pytest.raises(ValueError, match="nothing to write"):
-        recovery.contents(action=Action(kind="Reboot", label="reboot"))
+        plan.contents(action=Action(kind="Reboot", label="reboot"))
 
 
 def test_an_image_is_padded_to_whole_sectors(
