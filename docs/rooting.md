@@ -449,46 +449,52 @@ ring read white.
 - Fire OS 6 without root for a minute after the install means
   `boot-root.zip` did not take, and the run stops. A single such read during
   the first boot does not stop it.
-- From amonet v1.1.0 the run installs amonet v2.0.0's zip from either amonet
-  v1.1.0 TWRP, the XDA route from amonet v1.1.0. The zip restores the stock
-  partition table and writes the preloader, LK, TZ, payload and TWRP, then
-  reboots into v2.0.0's TWRP. A rooted Dot first goes to recovery.
-- The zip writes the preloader first. A stop after that left a valid
-  preloader in front of a mixed LK and TEE: no bootrom, and maybe no LK,
-  so only the eMMC short reached it. So the run installs a copy whose
-  installer writes the preloader last, after the `misc` wipe, and clears
-  boot0's header before the install, with `boot0-erased`, as the restore
-  does. A stop before the preloader then lands in the bootrom, and the
-  resume writes amonet v1.1.0 and installs the zip again. Every other file
-  in the copy is the pinned zip's. The copy is rebuilt on every run, in
-  about 2 s, so a change to the edit cannot leave an old copy installed.
-- The marker goes when the zip prints `- Done`, which it does after the
-  preloader. Before that, the zip's own reboot read as a Dot with nothing on
-  USB and the marker set, and the run started a resume for a Dot that was
-  booting. The check comes before the zip's `(!)` lines, some of which it
-  prints and goes on past.
-- A TWRP that does not pass the zip's output on would still leave the marker,
-  and TWRP 3.2.3 was not tried here. So a resume without an erase or `--short`
-  that sees the preloader, `0e8d:2000`, takes boot0 as intact: it stops the
-  bootrom step, deletes the marker, and goes on polling. On a Dot rebooted from
-  Fire OS 6 with the marker set by hand, the run said so 2 s later and ended at
+- From amonet v1.1.0 the run carries out amonet v2.0.0's plan from either
+  amonet v1.1.0 TWRP, in place of its zip, the XDA route from amonet v1.1.0.
+  A rooted Dot first goes to recovery. The plan resolves against the Dot's
+  table before anything is written, so a table that does not fit is refused
+  with nothing changed.
+- boot0's header is cleared first, with `boot0-erased`, as the zip copy did
+  and the restore does. From there to the preloader, any stop lands in the
+  bootrom, and the resume writes amonet v1.1.0 and goes on from its TWRP. A
+  stock table under amonet v1.1.0's LK would not boot, so nothing is
+  written before the clear.
+- Then the table goes back to stock through `sgdisk`, as the zip's
+  `restore_gpt` does, because the backup table sits past the 2 GiB that
+  TWRP's toolbox `dd` reaches. `sgdisk` must leave `userdata` ending at the
+  last usable sector with its GUIDs kept, and each `<target>_x` renamed
+  back. The run then resolves the plan again, against the table `sgdisk`
+  left, and stops unless that gives the writes it checked before the clear.
+  Only `userdata` and the two appended partitions change, so every
+  partition the plan writes keeps its node, and no reboot comes between.
+- Then the TEE, both LKs, kaeru, the TEE payload and v2.0.0's TWRP are
+  written and read back; `misc` is zeroed, as the zip does; and the
+  preloader is written last. The plan's RPMB zero, `FASTBOOT_PLEASE` and
+  reboots are left out, as for v1.1.0's chain from v2.0.0's TWRP; the run
+  reboots into recovery itself.
+- The zip wrote the preloader first. A stop after that left a valid
+  preloader in front of a mixed LK and TEE: no bootrom, and maybe no LK, so
+  only the eMMC short reached it. The zip is no longer installed, and no
+  patched copy of it is built.
+- Cut on a Dot, with the patched zip this replaced: a reboot from the Dot
+  itself when the zip logged `Updating tz`, after LK and before the
+  preloader. The bootrom appeared 4 s later, the same run's resume took it
+  with no one touching the Dot, wrote amonet v1.1.0, installed the zip again
+  from bboe2, and went on to amonet v2.0.0: `[1/8]` to `[13/13]`, 6 min 43 s
+  in all. This TWRP has no `/proc/sysrq-trigger` and its `reboot` takes no
+  `-f`, so the cut was a plain `reboot`. The plan clears boot0 first and
+  writes the preloader last, as that copy did.
+- A resume without an erase or `--short` that sees the preloader,
+  `0e8d:2000`, takes boot0 as intact: it stops the bootrom step, deletes the
+  marker, and goes on polling. On a Dot rebooted from Fire OS 6 with the
+  marker set by hand, the run said so 2 s later and ended at
   amonet-v2.0.0-booted, with nothing written.
-- Measured on a Dot: TWRP 3.7.0_9-bboe2 installs the copy in 19 s, as it
-  did the pinned zip, and the Dot came up in v2.0.0's TWRP with no resume.
-- Cut on a Dot: a reboot from the Dot itself when the zip logged `Updating tz`,
-  after LK and before the preloader. The bootrom appeared 4 s later, the same
-  run's resume took it with no one touching the Dot, wrote amonet v1.1.0,
-  installed the zip again from bboe2, and went on to amonet v2.0.0: `[1/8]` to
-  `[13/13]`, 6 min 43 s in all. This TWRP has no `/proc/sysrq-trigger` and its
-  `reboot` takes no `-f`, so the cut was a plain `reboot`.
-- The zip checks `ro.build.product` in `/default.prop` and needs `/sbin/sh`
-  and `sgdisk`. Both amonet v1.1.0 TWRPs say `biscuit` and ship both.
 - An amonet v1.1.0 Dot started in fastboot reads as stock-fireos5-fastboot,
   and the fastbrick leaves it in v2.0.0's TWRP on amonet v1.1.0's partition
   table. The probe reads that as amonet-v2.0.0-twrp-v1.1.0-table, and for
-  `amonet-biscuit-v2.0.0` the run installs the zip there first. The amonet
-  v2.0.0 install itself stops if `boot_a_x` is still there, or if `sgdisk`
-  prints no `userdata`.
+  `amonet-biscuit-v2.0.0` the run carries out the plan there first. The
+  amonet v2.0.0 install itself stops if `boot_a_x` is still there, or if
+  `sgdisk` prints no `userdata`.
 - In v2.0.0's fastboot the run asks for the + button at power-on, which
   starts v2.0.0's TWRP, and waits for it without limit.
 - `--short` goes with any target. Its bootrom step writes amonet v1.1.0, and
@@ -499,7 +505,7 @@ ring read white.
 | --- | --- | --- |
 | rooted-amonet-v1.1.0-bboe | amonet-biscuit-v1.1.0 | 9 s |
 | rooted-amonet-v1.1.0 | amonet-biscuit-v1.1.0-bboe | 9 s |
-| rooted-amonet-v1.1.0-bboe | amonet-biscuit-v2.0.0 | 5 min 22 s: recovery 30 s, the zip 19 s and its reboot 19 s, the wipes 3 s, the installs 96 s and 117 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
+| rooted-amonet-v1.1.0-bboe | amonet-biscuit-v2.0.0 | 5 min 11 s, on 2026-10-09, by the plan: recovery 28 s, boot0 under 1 s, the table 1 s, the writes 5 s with TWRP 3 s of it, the preloader under 1 s, recovery 19 s, the wipes 4 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s. The zip took 5 min 22 s, its install 19 s and its reboot 19 s |
 | amonet-v2.0.0-booted | amonet-biscuit-v1.1.0 | 8 min 28 s through the bootrom, which this starting state no longer uses, kept to compare against: recovery 19 s, the downgrade 43 s, TWRP 27 s, the install 86 s, Fire OS 5's first boot 321 s, TWRP 3.2.3 7 s |
 | amonet-v2.0.0-booted | amonet-biscuit-v1.1.0-bboe | 7 min 42 s, with no bootrom: recovery 19 s, the table 1 s, recovery 19 s, boot0 under 1 s, the chain 6 s, `misc` under 1 s, userdata 4 s, `/system` 79 s, the boot image 3 s, Magisk 1 s, the preloader under 1 s, Fire OS 5's first boot 321 s |
 | stock-fastboot | amonet-biscuit-v1.1.0-bboe | 8 min 3 s, with no bootrom: the fastbrick, then the same route as from amonet-v2.0.0-booted |
@@ -507,8 +513,8 @@ ring read white.
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.
-- Not run: the zip from TWRP 3.2.3, the zip on amonet v1.1.0's partition table
-  in v2.0.0's TWRP, and `--short` to amonet v2.0.0.
+- Not run: the plan from TWRP 3.2.3, the plan on amonet v1.1.0's partition
+  table in v2.0.0's TWRP, and `--short` to amonet v2.0.0.
 
 ## Writing amonet v1.1.0 from v2.0.0's TWRP
 

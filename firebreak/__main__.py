@@ -24,6 +24,7 @@ import re
 import shlex
 import shutil
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -39,13 +40,12 @@ if TYPE_CHECKING:
     import serial
 
     from firebreak.emmc import Emmc
-    from firebreak.plan import Action
 
 from firebreak import bootrom, recovery
 from firebreak.amonet.biscuit_v2_0_0 import Client
 from firebreak.amonet.payload import NotReadyError, Payload, start_payload
 from firebreak.android.bootimg import boot_image, cpio, magisk_db, magisk_files
-from firebreak.android.gpt import Partition, gpt_intact, stock_gpt
+from firebreak.android.gpt import Partition, gpt_intact, partition_map, stock_gpt
 from firebreak.android.ota import extract
 from firebreak.cache import (
     CACHE,
@@ -97,7 +97,8 @@ from firebreak.mediatek.usbdl import (
     UsbdlError,
     mediatek_ports,
 )
-from firebreak.plan import TABLE_SECTORS, resolve
+from firebreak.plan import SECTOR_SIZE, TABLE_SECTORS, Action, resolve
+from firebreak.plugin import Repartition
 from firebreak.twrp import (
     CLEAR_BOOT0,
     DISK,
@@ -136,10 +137,10 @@ from firebreak.unlocks import (
     amonet_biscuit_v2_0_0,
 )
 
-AMONET_BISCUIT_V1_1_0 = "amonet-biscuit-v1.1.0"
-AMONET_BISCUIT_V1_1_0_BBOE = AMONET_BISCUIT_V1_1_0 + "-bboe"
+AMONET_BISCUIT_V1_1_0 = amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0.name
+AMONET_BISCUIT_V1_1_0_BBOE = amonet_biscuit_v1_1_0_bboe.AMONET_BISCUIT_V1_1_0_BBOE.name
 AMONET_BISCUIT_V1_1_0_ZIP = amonet_biscuit_v1_1_0.SOURCE
-AMONET_BISCUIT_V2_0_0 = "amonet-biscuit-v2.0.0"
+AMONET_BISCUIT_V2_0_0 = amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0.name
 AMONET_BISCUIT_V2_0_0_ZIP = amonet_biscuit_v2_0_0.SOURCE
 AMONET_V1_1_0_ALIGN = 0x400
 AMONET_V1_1_0_APPEND = 0x6E000
@@ -573,6 +574,23 @@ def amonet_v1_1_0_recovery() -> None:
 def amonet_v2_0_0_payload() -> pathlib.Path:
     amonet = unpack(download=AMONET_BISCUIT_V2_0_0_ZIP)
     return amonet / "brom-payload" / "build" / "payload.bin"
+
+
+def amonet_v2_0_0_plan(
+    *, written: str
+) -> tuple[dict[str, Partition], tuple[Action, ...]]:
+    unlock = amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0
+    raw = read_sectors(count=TABLE_SECTORS, start=0)
+    try:
+        resolved = resolve(
+            raw=raw, source=unpack(download=unlock.source), unlock=unlock
+        )
+    except (FileNotFoundError, KeyError, ValueError) as error:
+        restore_failed(
+            message=f"{unlock.name} does not fit this Dot: {error.args[0]}."
+            f" {written} " + again()
+        )
+    return partition_map(entries=raw[2 * SECTOR_SIZE :]), resolved
 
 
 def await_amonet_fastboot() -> None:
@@ -1183,10 +1201,22 @@ def hide_updater() -> None:
 
 
 def install_amonet_v2_0_0() -> None:
-    zip_path = preloader_last()
-    PROGRESS.begin(estimate="40 s", label="installing amonet v2.0.0")
-    remote = DOT_TEMPORARY_DIRECTORY / AMONET_BISCUIT_V2_0_0_ZIP.name
-    push_checked(local=zip_path, remote=remote)
+    table, resolved = amonet_v2_0_0_plan(written="Nothing was written.")
+    skipped = {*TWRP_SKIPS, Repartition.__name__}
+    actions = tuple(action for action in resolved if action.kind not in skipped)
+    misc = table["misc"]
+    wipe = Action(
+        data=bytes(misc.size),
+        kind="Write",
+        label="zero misc",
+        length=misc.size,
+        offset=misc.first * SECTOR_SIZE,
+        partition=misc,
+        source="zeros",
+        target="misc",
+    )
+    recovery.check(actions=(*actions, wipe))
+    PROGRESS.begin(estimate="5 s", label="clear the preloader header (boot0)")
     ERASED.touch()
     answer = adb_shell(command=CLEAR_BOOT0, timeout=60).split()
     if answer[-2:] != ["4096", "0"]:
@@ -1194,16 +1224,26 @@ def install_amonet_v2_0_0() -> None:
             ERASED.unlink(missing_ok=True)
         _die(
             message="boot0's header did not read back as cleared, so amonet"
-            " v2.0.0's zip was not installed. " + again()
+            " v2.0.0 was not written. " + again()
         )
-    output = ""
-    with contextlib.suppress(subprocess.TimeoutExpired):
-        output = adb_shell(command=f"twrp install {remote}", timeout=120)
-    if "- Done" in output:
-        ERASED.unlink(missing_ok=True)
-    errors = [line for line in output.split(sep="\n") if "(!)" in line]
-    if errors:
-        _die(message="amonet v2.0.0's zip failed: " + errors[0])
+    PROGRESS.begin(estimate="5 s", label="restoring the stock partition table")
+    restore_stock_table()
+    _, restored = amonet_v2_0_0_plan(
+        written="boot0's header is cleared and the table is stock."
+    )
+    if tuple(action for action in restored if action.kind not in TWRP_SKIPS) != actions:
+        restore_failed(
+            message="the plan against the table sgdisk left is not the one"
+            " checked. " + again()
+        )
+    recovery.execute(
+        actions=(*(action for action in actions if not action.unrecoverable), wipe)
+    )
+    recovery.execute(
+        actions=tuple(action for action in actions if action.unrecoverable)
+    )
+    ERASED.unlink(missing_ok=True)
+    run(arguments=["adb", "reboot", "recovery"], check=True, timeout=60)
     PROGRESS.begin(estimate="40 s", label="waiting for v2.0.0 recovery to start")
 
 
@@ -1410,35 +1450,6 @@ def prefetch() -> None:
     fetch(download=MAGISK)
     fetch(download=TWRP)
     threading.Thread(daemon=True, target=prebuild).start()
-
-
-def preloader_last() -> pathlib.Path:
-    patched = CACHE / ("preloader-last-" + AMONET_BISCUIT_V2_0_0_ZIP.name)
-    source = fetch(download=AMONET_BISCUIT_V2_0_0_ZIP)
-    script = "META-INF/com/google/android/update-binary"
-    anchor = "set_progress 1.00\n"
-    with zipfile.ZipFile(file=source) as source_archive:
-        text = source_archive.read(name=script).decode()
-        start = text.find('ui_print "- Updating preloader"')
-        end = text.find('ui_print "- Updating lk"')
-        if not 0 < start < end or text.count(anchor) != 1:
-            _die(
-                message=f"{AMONET_BISCUIT_V2_0_0_ZIP.name}'s installer is not the"
-                " one expected"
-            )
-        rest = text[:start] + text[end:]
-        moved = rest.replace(anchor, anchor + "\n" + text[start:end])
-        part = patched.with_suffix(suffix=".part")
-        with zipfile.ZipFile(file=part, mode="w") as patched_archive:
-            for info in source_archive.infolist():
-                data = (
-                    moved.encode()
-                    if info.filename == script
-                    else source_archive.read(name=info)
-                )
-                patched_archive.writestr(data=data, zinfo_or_arcname=info)
-    part.replace(target=patched)
-    return patched
 
 
 def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-statements, too-many-branches]
@@ -1779,6 +1790,45 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
         restore_failed(message="stopped part way. Do not reboot. " + again())
 
 
+def restore_stock_table() -> None:
+    part = partitions()
+    if "boot_a_x" not in part:
+        return
+    number, start, _ = part["userdata"]
+    last = struct.unpack("<Q", read_sectors(count=2, start=0)[560:568])[0]
+    code = partition_field(name="Partition GUID code", number=number)
+    unique_identifier = partition_field(name="Partition unique GUID", number=number)
+    adb_shell(
+        command=f"sgdisk --set-alignment=1 --delete={part['boot_b'][0]}"
+        f" --delete={part['boot_a'][0]} --delete={number}"
+        f" --new={number}:{start}:{last} --typecode={number}:{code}"
+        f" --partition-guid={number}:{unique_identifier}"
+        f" --change-name={number}:userdata"
+        f" --change-name={part['boot_a_x'][0]}:boot_a"
+        f" --change-name={part['boot_b_x'][0]}:boot_b {DISK}",
+        timeout=60,
+    )
+    left = partitions()
+    for name, want in (
+        ("userdata", (number, start, last)),
+        ("boot_a", part["boot_a_x"]),
+        ("boot_b", part["boot_b_x"]),
+    ):
+        if left.get(name) != want:
+            restore_failed(
+                message=f"sgdisk left {name} as {left.get(name)}, not {want}. "
+                + again()
+            )
+    for field, holds in (
+        ("Partition GUID code", code),
+        ("Partition unique GUID", unique_identifier),
+    ):
+        if partition_field(name=field, number=number) != holds:
+            restore_failed(
+                message=f"sgdisk left userdata a different {field}. " + again()
+            )
+
+
 def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
     usage = run(arguments=["fastboot", "--help"], timeout=30).stdout
     if not any(line.split()[:1] == ["-S"] for line in usage.splitlines()):
@@ -2094,16 +2144,16 @@ def stages() -> dict[State, Stage]:
     if ARGUMENTS.target == AMONET_BISCUIT_V2_0_0:
         return table | {
             State.AMONET_V1_1_0_TWRP: Stage(
-                run=install_amonet_v2_0_0, steps=2, then=State.AMONET_V2_0_0_TWRP
+                run=install_amonet_v2_0_0, steps=11, then=State.AMONET_V2_0_0_TWRP
             ),
             State.AMONET_V2_0_0_TWRP: Stage(
                 run=install_fireos6, steps=5, then=State.AMONET_V2_0_0_BOOTED
             ),
             State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(
-                run=install_amonet_v2_0_0, steps=2, then=State.AMONET_V2_0_0_TWRP
+                run=install_amonet_v2_0_0, steps=11, then=State.AMONET_V2_0_0_TWRP
             ),
             State.AMONET_V1_1_0_BBOE_TWRP: Stage(
-                run=install_amonet_v2_0_0, steps=2, then=State.AMONET_V2_0_0_TWRP
+                run=install_amonet_v2_0_0, steps=11, then=State.AMONET_V2_0_0_TWRP
             ),
             State.ROOTED: Stage(
                 run=lambda: reboot_recovery(label=to_twrp),

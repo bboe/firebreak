@@ -33,8 +33,11 @@ v2.0.0's `main.py` has two branches its plan leaves out: `fixgpt`, a manual
 mode that writes its own table, and a run from the preloader, which leaves
 boot0 alone. firebreak reaches the bootrom, so the plan writes the preloader.
 
-No route carries out v2.0.0's plan yet. A Dot reaches amonet v2.0.0 through
-the fastbrick, or through v2.0.0's own zip from an amonet v1.1.0 TWRP.
+From an amonet v1.1.0 TWRP, firebreak carries out v2.0.0's plan in place of
+its zip: docs/rooting.md has the route. From stock, the fastbrick unlocks
+the Dot instead. In the plan, as in `main.py`, `FASTBOOT_PLEASE` lands after
+the preloader, so a bootrom route that stops between the two is past a
+resume and has no fastboot marker. The TWRP route leaves that step out.
 
 ## The steps
 
