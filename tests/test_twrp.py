@@ -95,6 +95,7 @@ def carried() -> None:
 def erased() -> pathlib.Path:
     twrp.ERASED.parent.mkdir(exist_ok=True, parents=True)
     twrp.ERASED.touch()
+    twrp.SESSION.boot0_marker = twrp.ERASED
     return twrp.ERASED
 
 
@@ -503,7 +504,7 @@ def test_a_write_that_does_not_verify_stops_it(
     adb.answers["flushed"] = ["flushed"]
     with pytest.raises(SystemExit, match="did not verify") as stopped:
         twrp.write(estimate="5 s", label="table", path=image, sector=8)
-    assert "boot0 has no preloader" in " ".join(str(stopped.value).split())
+    assert "boot0 may hold no preloader" in " ".join(str(stopped.value).split())
 
 
 def test_a_write_with_a_matching_head_still_checks_the_whole(
@@ -528,7 +529,9 @@ def test_an_uncleared_boot0_header_stops_before_the_bootrom_fallback(
     with pytest.raises(SystemExit, match="did not clear") as stopped:
         twrp.clear_boot0()
     assert not erased.exists()
-    assert "nothing else was written" in " ".join(str(stopped.value).split())
+    said = " ".join(str(stopped.value).split())
+    assert "nothing else was written" in said
+    assert "boot0 may hold no preloader" not in said
 
 
 def test_an_unread_boot0_says_the_dot_cannot_start(
@@ -538,7 +541,7 @@ def test_an_unread_boot0_says_the_dot_cannot_start(
     adb.answers["force_ro"] = [""]
     with pytest.raises(SystemExit, match="did not read back") as stopped:
         twrp.clear_boot0()
-    assert "boot0 has no preloader" in " ".join(str(stopped.value).split())
+    assert "boot0 may hold no preloader" in " ".join(str(stopped.value).split())
 
 
 def test_nothing_mounted_goes_on(*, adb: FakeAdb) -> None:

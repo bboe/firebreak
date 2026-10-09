@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import types
 from typing import TYPE_CHECKING
 
 import pytest
@@ -156,6 +157,20 @@ def test_a_plan_that_does_not_resolve_stops_before_anything_is_written(
     assert not main.ERASED.exists()
 
 
+def test_a_stale_marker_says_nothing_before_the_dot_is_seen(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    main.ERASED.parent.mkdir(exist_ok=True, parents=True)
+    main.ERASED.touch()
+    monkeypatch.setattr(
+        name="run", target=main, value=lambda **_: types.SimpleNamespace(stdout="")
+    )
+    with pytest.raises(SystemExit, match="no -S option") as stopped:
+        main.root()
+    assert "boot0 may hold no preloader" not in " ".join(str(stopped.value).split())
+    assert main.SESSION.boot0_marker is None
+
+
 def test_a_stock_table_is_left_alone(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         name="partitions", target=main, value=lambda: {"boot_a": (10, 1, 2)}
@@ -217,13 +232,14 @@ def test_amonet_v2_0_0_stops_with_boot0_cleared_if_sgdisk_left_another_table(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[tuple] = []
+    main.SESSION.boot0_marker = main.ERASED
     with pytest.raises(SystemExit, match="not the one checked") as stopped:
         install(
             calls=calls, monkeypatch=monkeypatch, plans=[V2_ACTIONS, MOVED + V2_ACTIONS]
         )
     assert "execute" not in [call[0] for call in calls]
     assert main.ERASED.exists()
-    assert "will not start at all" in " ".join(str(stopped.value).split())
+    assert "shows no light and starts nothing" in " ".join(str(stopped.value).split())
 
 
 def test_amonet_v2_0_0_that_does_not_fit_writes_nothing(
@@ -242,7 +258,25 @@ def test_amonet_v2_0_0_that_does_not_fit_writes_nothing(
         main.install_amonet_v2_0_0()
     said = " ".join(str(stopped.value).split())
     assert "Nothing was written." in said
-    assert "will not start" not in said
+    assert "boot0 may hold no preloader" not in said
+
+
+def test_erasing_boot0_that_fails_leaves_no_marker(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    main.ERASED.parent.mkdir(exist_ok=True, parents=True)
+    main.ERASED.touch()
+    answers = iter([1, 0, 1])
+    monkeypatch.setattr(
+        name="run",
+        target=main,
+        value=lambda **_: types.SimpleNamespace(returncode=next(answers), stdout="no"),
+    )
+    assert main.erase_by_fastboot().startswith("fastboot erase boot0 failed")
+    assert not main.ERASED.exists()
+    main.ERASED.touch()
+    assert main.erase_by_fastboot().startswith("fastboot reboot failed")
+    assert main.ERASED.exists()
 
 
 def test_target_names_are_the_unlocks_names() -> None:
@@ -335,6 +369,57 @@ def test_the_guard_refuses_a_stock_lk_in_both_slots(
             slots={"lk_a": LK["stock"], "lk_b": LK["stock"]},
             tmp_path=tmp_path,
         )
+
+
+def test_the_session_has_no_marker_while_the_first_probe_runs(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    main.ERASED.parent.mkdir(exist_ok=True, parents=True)
+    main.ERASED.touch()
+
+    def state() -> main.State:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        name="run",
+        target=main,
+        value=lambda **_: types.SimpleNamespace(stdout="  -S SIZE[K|M|G]"),
+    )
+    monkeypatch.setattr(name="state", target=main, value=state)
+    monkeypatch.setattr(name="stages", target=main, value=dict)
+    with pytest.raises(KeyboardInterrupt):
+        main.root()
+    assert main.SESSION.boot0_marker is None
+
+
+def test_the_session_takes_the_marker_after_the_first_probe(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    main.ERASED.parent.mkdir(exist_ok=True, parents=True)
+    main.ERASED.touch()
+    states = iter([main.State.BOOTED])
+
+    def state() -> main.State:
+        found = next(states, None)
+        if found is None:
+            raise KeyboardInterrupt
+        return found
+
+    monkeypatch.setattr(
+        name="run",
+        target=main,
+        value=lambda **_: types.SimpleNamespace(stdout="  -S SIZE[K|M|G]"),
+    )
+    monkeypatch.setattr(name="state", target=main, value=state)
+    monkeypatch.setattr(name="stages", target=main, value=dict)
+    monkeypatch.setattr(name="sleep", target=main.time, value=lambda _: None)
+    monkeypatch.setattr(
+        name="target", target=main.ARGUMENTS, value=main.AMONET_BISCUIT_V1_1_0_BBOE
+    )
+    with pytest.raises(KeyboardInterrupt):
+        main.root()
+    assert main.SESSION.boot0_marker == main.ERASED
+    assert not main.ERASED.exists()
 
 
 @pytest.mark.parametrize(

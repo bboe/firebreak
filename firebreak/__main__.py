@@ -1115,10 +1115,13 @@ def emos_stage() -> None:
 
 
 def erase_by_fastboot() -> str:
-    for arguments in (["fastboot", "erase", "boot0"], ["fastboot", "reboot"]):
-        result = run(arguments=arguments, timeout=60)
-        if result.returncode != 0:
-            return f"{' '.join(arguments)} failed:\n{result.stdout}"
+    erased = run(arguments=["fastboot", "erase", "boot0"], timeout=60)
+    if erased.returncode != 0:
+        ERASED.unlink(missing_ok=True)
+        return f"fastboot erase boot0 failed:\n{erased.stdout}"
+    rebooted = run(arguments=["fastboot", "reboot"], timeout=60)
+    if rebooted.returncode != 0:
+        return f"fastboot reboot failed:\n{rebooted.stdout}"
     return ""
 
 
@@ -1864,6 +1867,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             DOWNLOADER.start()
         if current not in {State.NONE, State.STARTING, *TWRPS}:
             ERASED.unlink(missing_ok=True)
+        SESSION.boot0_marker = ERASED
         if current != State.NONE:
             SESSION.short = False
         if current == State.NONE and (ERASED.exists() or SESSION.short) and not resumed:

@@ -4,10 +4,14 @@ import io
 import sys
 import time
 import types
+from typing import TYPE_CHECKING
 
 import pytest
 
 from firebreak import ui
+
+if TYPE_CHECKING:
+    import pathlib
 
 URL = (
     "https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/"
@@ -99,6 +103,33 @@ def test_die_keeps_newlines_and_plain_without_color() -> None:
     with pytest.raises(expected_exception=SystemExit) as raised:
         ui._die(message="one\ntwo", prefix="")  # ruff: ignore[private-member-access]
     assert str(raised.value) == "one\ntwo"
+
+
+def test_die_says_nothing_of_boot0_without_its_marker(
+    *, tmp_path: pathlib.Path
+) -> None:
+    ui.SESSION.boot0_marker = tmp_path / "boot0-erased"
+    with pytest.raises(expected_exception=SystemExit) as raised:
+        ui._die(message="stopped", prefix="")  # ruff: ignore[private-member-access]
+    assert str(raised.value) == "stopped"
+    ui.SESSION.boot0_marker = None
+    (tmp_path / "boot0-erased").touch()
+    with pytest.raises(expected_exception=SystemExit) as raised:
+        ui._die(message="stopped", prefix="")  # ruff: ignore[private-member-access]
+    assert str(raised.value) == "stopped"
+
+
+def test_die_says_the_dot_cannot_start_while_boot0_is_empty(
+    *, tmp_path: pathlib.Path
+) -> None:
+    ui.SESSION.boot0_marker = tmp_path / "boot0-erased"
+    ui.SESSION.boot0_marker.touch()
+    with pytest.raises(expected_exception=SystemExit) as raised:
+        ui._die(message="stopped", prefix="")  # ruff: ignore[private-member-access]
+    first, _, note = str(raised.value).partition("\n\n")
+    assert first == "stopped"
+    assert " ".join(note.split()) == ui.BOOT0_EMPTY + "."
+    assert max(len(line) for line in note.split("\n")) <= 79
 
 
 def test_mark_falls_back_to_ascii(*, monkeypatch: pytest.MonkeyPatch) -> None:

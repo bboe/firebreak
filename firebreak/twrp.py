@@ -96,7 +96,6 @@ def clear_boot0() -> None:
     if read == "4096" and still_set:
         ERASED.unlink(missing_ok=True)
         restore_failed(
-            bootable=True,
             message="boot0's header did not clear, so a failure from here would brick"
             " rather than fall into the bootrom; nothing else was written",
         )
@@ -165,12 +164,7 @@ def read_sectors(*, count: int, start: int) -> bytes:
     return raw
 
 
-def restore_failed(*, bootable: bool = False, message: str) -> NoReturn:
-    if not bootable and ERASED.exists():
-        message = message.rstrip(".") + (
-            ". boot0 has no preloader until the last step, so the Dot will not"
-            " start at all until this run finishes"
-        )
+def restore_failed(*, message: str) -> NoReturn:
     _die(message=message)
 
 
