@@ -43,6 +43,7 @@ def test_asked_for_names_the_report_as_this_run_was_started(
     said = ui.asked_for()
     assert "run python3 firebreak.pyz --report and paste" in said
     assert "#support-device-unlocking in the EchoMuse Discord" in said
+    assert "python3 firebreak.pyz --write-test then tells" in said
 
 
 def test_clock() -> None:

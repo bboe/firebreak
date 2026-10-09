@@ -110,7 +110,9 @@ from firebreak.report import (
     labelled,
     masked,
     mmc_said,
+    node_held,
     node_names,
+    node_sizes,
     partition_rows,
     system_a_rows,
     system_record,
@@ -157,6 +159,7 @@ from firebreak.unlocks import (
     amonet_biscuit_v1_1_0_bboe,
     amonet_biscuit_v2_0_0,
 )
+from firebreak.write_test import EMMC_TARGET, MEBIBYTE, USB_TEST, emmc_leg, usb_leg
 
 AMONET_BISCUIT_V1_1_0 = amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0.name
 AMONET_BISCUIT_V1_1_0_BBOE = amonet_biscuit_v1_1_0_bboe.AMONET_BISCUIT_V1_1_0_BBOE.name
@@ -989,6 +992,14 @@ Run again with another target to move the Dot to it.""",
         " and writes no partition",
     )
     parser.add_argument(
+        "--write-test",
+        action="store_true",
+        help=f"write a known pattern over the Dot's {EMMC_TARGET} partition and"
+        " read it back, which tells a failing eMMC from a failing USB cable"
+        " because nothing crosses USB; it leaves a fresh empty filesystem there,"
+        " or says it could not",
+    )
+    parser.add_argument(
         "--short",
         action="store_true",
         help="for a Dot that shows no light and needs its test point shorted:"
@@ -1028,6 +1039,9 @@ Run again with another target to move the Dot to it.""",
     SESSION.short = options.short
     if options.report:
         report()
+        return
+    if options.write_test:
+        write_test()
         return
     root()
 
@@ -2483,6 +2497,57 @@ def system_image() -> tuple[list[pathlib.Path], str, int]:
 
 def unwritten() -> str:
     return "Only boot0 was erased." if ERASED.exists() else "Nothing was written."
+
+
+def write_test() -> None:
+    def line(label: str, value: object) -> None:
+        show(text=labelled(label=label, value=value))
+
+    def asked(*, command: str, timeout: float = 60) -> str:
+        try:
+            return masked(text=adb_shell(command=command, timeout=timeout))
+        except subprocess.TimeoutExpired:
+            return "<timed out>"
+
+    show(text=SUPPORT + "\n")
+    line("state", probed())
+    if not into_recovery(line=line):
+        show(text="\nThe test needs a recovery, so it stops here.")
+        return
+    toybox = asked(command="toybox dd --help >/dev/null 2>&1 && echo yes")
+    if toybox.split(sep="\n")[-1] == "yes":
+        SESSION.dd = "toybox dd"
+    line("dd on the Dot", SESSION.dd)
+    listing = whole(
+        marker=LISTING_OK, said=asked(command=f"ls -l {BY_NAME}/; echo {LISTING_OK}")
+    )
+    partitions = whole(
+        marker=PARTITIONS_OK,
+        said=asked(command=f"cat /proc/partitions; echo {PARTITIONS_OK}"),
+    )
+    try:
+        chunk = usb_leg(asked=asked, line=line)
+        if listing is None or partitions is None:
+            line(
+                "over the eMMC",
+                "skipped: the Dot's partition lists did not arrive whole",
+            )
+        else:
+            node = node_names(listing=listing).get(EMMC_TARGET, "")
+            sizes = node_sizes(partitions=partitions)
+            emmc_leg(
+                asked=asked,
+                blocks=sizes.get(node_held(target=node), 0) // MEBIBYTE,
+                chunk=chunk,
+                line=line,
+                node=node,
+            )
+    finally:
+        asked(command=f"rm -f {USB_TEST}")
+    show(text="\nwhat the kernel says about the eMMC")
+    for text in mmc_said(asked=asked):
+        show(text=text)
+    show(text="\n" + LEFT_IN_RECOVERY)
 
 
 if __name__ == "__main__":

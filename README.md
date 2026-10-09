@@ -102,6 +102,12 @@ starts the Dot's recovery, prints what the Dot, its eMMC and this computer are,
 and the Dot's partition table, and writes no partition. A Dot already in a
 recovery stays there, and the Dot is left in its recovery afterwards.
 
+`--write-test` then tells a failing eMMC from a failing cable. It pushes a
+pattern into the Dot's RAM, then has the Dot write it over its own `cache`
+partition and read it back, so nothing crosses USB. It erases `cache`, which
+holds nothing the Dot needs, and leaves an empty filesystem there, or says
+it could not.
+
 ## Licence
 
 firebreak uses the BSD 2-Clause licence, in [LICENSE.txt](LICENSE.txt). This

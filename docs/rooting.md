@@ -304,6 +304,67 @@ ring read white.
   run writes TWRP; when no adb recovery answers within 3 minutes, the report
   says that is the likely reason. The Dot is left
   in its recovery afterwards, and the report ends by saying so.
+- `--write-test` separates the card, the cable and the host, which a failed
+  install's md5 cannot. It writes one pattern over two paths that share no
+  hardware: into `/tmp`, which is RAM, for adb and the cable with no eMMC in
+  it; and from the Dot to its own `cache`, for the card with no USB in it.
+  The eMMC leg writes the file the USB leg verified, so both carry the same
+  bytes, and it is skipped when the USB leg proved nothing.
+- It writes over `cache`, which holds nothing the Dot needs, so a
+  part-written `system_a` stays as evidence. The two `amonet-biscuit-v1.1.0`
+  targets do not format `cache`, so the filesystem this test leaves is the
+  one the Dot boots with. The pattern is not zeros, because a card that
+  writes nothing passes a zero test. It is every byte value followed by a
+  word, so nothing a transport mangles goes unnoticed, and its odd length makes
+  a slice written at the wrong offset hash differently.
+- `cache` is formatted **first**, and small enough that its own blocks end well
+  before the pattern starts, so the writes stay raw, like the `/system` write
+  they stand in for, nothing is mounted while they land, and a run stopped part
+  way leaves a Dot that still boots. The layout is pinned rather than inherited,
+  because the boundary has to be an input: `-J size=4 -N 8192` with `-O
+  ^sparse_super,^resize_inode -E packed_meta_blocks=1` puts the primary
+  superblock, the group descriptors, the bitmaps, the inode tables and the
+  journal inside the first 6.11 MiB of a 784 MiB cache, measured, against a 16
+  MiB margin. `^sparse_super` also puts a backup superblock in every block
+  group, at 128, 256 and up to 768 MiB (mke2fs 1.47), and the pattern overwrites
+  those. The filesystem still mounts on its primary, and the last format writes
+  all of it again: a filesystem over all of `cache` but its last 1 MiB.
+- A write that does not answer in 30 minutes leaves `cache` as it is.
+  `dd` may still be writing on the Dot, and a format under it could leave a
+  filesystem that reads as fresh and is not. The one already there ends
+  before the pattern starts, so the Dot still boots, and a rerun formats it
+  first.
+- `e2fsck` will not catch it if that boundary is wrong. With the default
+  layout the journal is one extent at 12.33-28.33 MiB, and after overwriting
+  from 16 MiB `e2fsck -fn` passed all five passes on a filesystem missing
+  12.3 MiB of its 16 MiB journal: the journal's superblock survived, and its
+  body is not checked on a clean filesystem. A mount, a write, an unmount and
+  a second `e2fsck` are what prove a journal works.
+- A test that cannot run must not read as a card that failed. So the digest
+  comes back behind a marker, the writing `dd`'s errors are kept, and a
+  refused `umount`, a target that is not a block device and a format that did
+  not happen each say so: the read-back names the node it wrote, and a file in
+  TWRP's RAM `/dev` would match itself. The reverse holds too: a `dd` that
+  cannot write the card ends with a marker of its own, which blames the card.
+  Each skip says which of its four reasons it was. The whole command is one
+  line with no quotes, or Windows loses it.
+- Measured on bryce in TWRP 3.7.0_9-bboe2: 128 MiB over USB at 20 MiB/s, then
+  768 MiB written and read back at 18 MiB/s, both digests matching.
+
+### A cache with no filesystem
+
+- A Dot whose `cache` holds no filesystem roots fine and then cannot boot.
+  `fs_mgr_mount_all` fails in init's `on fs`, so `post-fs-data` and
+  `class_start main` never run: `zygote`, `netd` and `installd` have no
+  `init.svc.*` property at all, while every `class core` service is up. So the
+  Dot answers adb as root, `su` works, `/system` is mounted and read correctly
+  -- and `sys.boot_completed` never arrives. It reads like a bad `/system` or a
+  slow first boot. The reason is in dmesg, not logcat: `e2fsck: Bad magic
+  number in super-block`, then `fs_mgr: Failed to mount an un-encryptable or
+  wiped partition`, then `fs_mgr_mount_all returned unexpected error 255`.
+- `amonet-biscuit-v2.0.0` wipes cache and `stock` formats it. The two
+  `amonet-biscuit-v1.1.0` targets format userdata only, so a cache damaged
+  before a run survives it.
 
 ## The host
 

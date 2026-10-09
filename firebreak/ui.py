@@ -162,7 +162,8 @@ def asked_for() -> str:
         f"If it fails the same way, run {invocation(options=['--report'])} and"
         " paste what it prints in #support-device-unlocking in the EchoMuse"
         " Discord, https://discord.gg/vq3pub8Kp: it says what this Dot's eMMC"
-        " and partitions are."
+        f" and partitions are. {invocation(options=['--write-test'])} then tells"
+        " a failing card from a failing cable."
     )
 
 
