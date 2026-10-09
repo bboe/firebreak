@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import struct
 import uuid
 from typing import TYPE_CHECKING
@@ -8,7 +9,7 @@ import pytest
 
 from firebreak import plan
 from firebreak.android import gpt
-from firebreak.devices import BISCUIT
+from firebreak.devices import BISCUIT, STOCK_LAYOUT
 from firebreak.plugin import BOOT0, Device, ResetBcb, Unlock, Write
 from firebreak.unlocks.amonet_biscuit_v1_1_0 import AMONET_BISCUIT_V1_1_0
 from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import AMONET_BISCUIT_V1_1_0_BBOE
@@ -83,9 +84,9 @@ def amonet_writes(*, recovery: int) -> list[tuple[str, str | None, int, int]]:
     boot_a, boot_b, payload = 7199744, 7425024, 223207
     return [
         ("ClearBoot0Header", BOOT0, 0, 4096),
-        ("ShuffleGpt", "disk", 0, 17408),
-        ("ShuffleGpt", "disk", (BACKUP_ADDRESS - 32) * SECTOR, 16896),
-        ("ShuffleGpt", "userdata", 5046272 * SECTOR, 10 * SECTOR),
+        ("Repartition", "disk", 0, 17408),
+        ("Repartition", "disk", (BACKUP_ADDRESS - 32) * SECTOR, 16896),
+        ("Repartition", "userdata", 5046272 * SECTOR, 10 * SECTOR),
         ("ZeroRpmb", None, -1, -1),
         ("Write", "boot_a", boot_a * SECTOR, 512),
         ("Write", "boot_a", (boot_a + payload) * SECTOR, 14336),
@@ -161,6 +162,7 @@ def test_a_device_without_a_needed_feature_is_refused(*, source: pathlib.Path) -
     unlock = Unlock(
         device=Device(features=frozenset(), name="bare"),
         family="amonet",
+        layout=STOCK_LAYOUT,
         plan=(),
         requires=AMONET_BISCUIT_V1_1_0.requires,
         source=AMONET_BISCUIT_V1_1_0.source,
@@ -176,7 +178,7 @@ def test_a_half_shuffled_table_is_refused(*, source: pathlib.Path) -> None:
         for name, first, last in BISCUIT_SHUFFLED
         if name != "boot_b"
     )
-    with pytest.raises(ValueError, match="the last partition is boot_a"):
+    with pytest.raises(ValueError, match="has boot_a_x but not boot_b_x"):
         plan.resolve(
             raw=biscuit_table(layout=layout),
             source=source,
@@ -204,6 +206,7 @@ def test_a_step_that_cannot_resolve(
     unlock = Unlock(
         device=BISCUIT,
         family="amonet",
+        layout=STOCK_LAYOUT,
         plan=(step,),
         requires=frozenset(),
         source=AMONET_BISCUIT_V1_1_0.source,
@@ -212,6 +215,30 @@ def test_a_step_that_cannot_resolve(
     with pytest.raises(error, match=match):
         plan.resolve(
             raw=biscuit_table(layout=BISCUIT_STOCK), source=source, unlock=unlock
+        )
+
+
+def test_a_stock_sized_table_with_a_moved_partition_is_refused() -> None:
+    layout = tuple(
+        ("boot_a_x", first, last) if name == "boot_a" else (name, first, last)
+        for name, first, last in BISCUIT_STOCK
+    )
+    with pytest.raises(ValueError, match="has boot_a_x but not boot_b_x"):
+        plan.repartitioned(
+            layouts=BISCUIT.layouts,
+            raw=biscuit_table(layout=layout),
+            want=STOCK_LAYOUT,
+        )
+
+
+def test_a_table_in_no_layout_the_device_carries_is_refused(
+    *, source: pathlib.Path
+) -> None:
+    with pytest.raises(ValueError, match="with 15 partitions, is in no layout"):
+        plan.resolve(
+            raw=biscuit_table(layout=BISCUIT_STOCK[:-1]),
+            source=source,
+            unlock=AMONET_BISCUIT_V1_1_0,
         )
 
 
@@ -224,7 +251,10 @@ def test_a_table_that_is_not_intact_is_refused(*, source: pathlib.Path) -> None:
 
 @pytest.mark.parametrize(
     argnames="unlock",
-    argvalues=[AMONET_BISCUIT_V1_1_0, AMONET_BISCUIT_V1_1_0_BBOE],
+    argvalues=[
+        AMONET_BISCUIT_V1_1_0,
+        AMONET_BISCUIT_V1_1_0_BBOE,
+    ],
     ids=lambda unlock: unlock.name,
 )
 @pytest.mark.parametrize(
@@ -260,6 +290,22 @@ def test_no_plan_yet_has_a_recoverable_write_over_an_earlier_unrecoverable_one(
     ) == [("preloader", "patch")]
 
 
+def test_reverting_the_boot_moved_layout_gives_back_the_stock_table(
+    *, source: pathlib.Path
+) -> None:
+    stock = biscuit_table(layout=BISCUIT_STOCK)
+    shuffle = plan.resolve(raw=stock, source=source, unlock=AMONET_BISCUIT_V1_1_0)
+    raw, actions = plan.repartitioned(
+        layouts=BISCUIT.layouts, raw=shuffle[1].data, want=STOCK_LAYOUT
+    )
+    assert raw == stock
+    assert actions[1].data == gpt.rebuilt_gpt(entries=stock[1024:], raw=stock).backup
+    assert [(action.target, action.offset) for action in actions] == [
+        ("disk", 0),
+        ("disk", (BACKUP_ADDRESS - 32) * SECTOR),
+    ]
+
+
 def test_show(*, source: pathlib.Path) -> None:
     actions = plan.resolve(
         raw=biscuit_table(layout=BISCUIT_STOCK),
@@ -274,6 +320,31 @@ def test_show(*, source: pathlib.Path) -> None:
     assert plan.show(actions=(plan.Action(kind="Reboot", label="reboot"),)) == (
         f"  1. {'Reboot':<17} {'reboot':<36} {'':<22} {'':>13}"
     )
+
+
+def test_the_held_layout_is_reverted_before_the_wanted_one_is_applied() -> None:
+    seen: list[bytes] = []
+
+    @dataclasses.dataclass(frozen=True)
+    class Recorded:
+        name: str
+
+        def apply(self, *, raw: bytes) -> tuple[bytes, tuple[plan.Action, ...]]:
+            seen.append(raw)
+            return raw + b"+in", (plan.Action(kind="Repartition", label=self.name),)
+
+        def describes(self, *, raw: bytes) -> bool:
+            return raw == b"table" and self.name == "held"
+
+        def revert(self, *, raw: bytes) -> tuple[bytes, tuple[plan.Action, ...]]:
+            return raw + b"+out", (plan.Action(kind="Repartition", label=self.name),)
+
+    raw, actions = plan.repartitioned(
+        layouts=(Recorded(name="held"),), raw=b"table", want=Recorded(name="wanted")
+    )
+    assert [action.label for action in actions] == ["held", "wanted"]
+    assert seen == [b"table+out"]
+    assert raw == b"table+out+in"
 
 
 def test_v1_1_0_bboe_from_stock_matches_amonet(*, source: pathlib.Path) -> None:
@@ -312,12 +383,7 @@ def test_v1_1_0_from_a_shuffled_table_skips_the_shuffle(
         raw=shuffled.data, source=source, unlock=AMONET_BISCUIT_V1_1_0
     )
     want = amonet_writes(recovery=9000448)
-    assert described(actions=actions) == [
-        *want[:1],
-        ("ShuffleGpt", None, -1, 0),
-        *want[4:],
-    ]
-    assert actions[1].label == "the partition table already has room"
+    assert described(actions=actions) == [*want[:1], *want[4:]]
     assert actions[-2].image == source / "bin" / "twrp.img"
 
 

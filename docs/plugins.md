@@ -20,6 +20,10 @@ it out.
 slots, a boot0 and an RPMB. An unlock lists the features it requires, and
 resolution refuses a pairing that lacks one before anything is written.
 
+A device also lists the partition table layouts a Dot may carry: for biscuit,
+boot moved, the table amonet v1.1.0 makes, and stock. An unlock names the
+layout it needs: boot moved for v1.1.0 and its bboe variant.
+
 `firebreak/unlocks/` holds amonet v1.1.0 and its bboe variant. The plan is
 amonet's `modules/main.py` and then its `fastboot-step.sh`, step for step. The
 bboe variant swaps the recovery image for TWRP 3.7.0_9-bboe2, a download of its
@@ -30,7 +34,7 @@ own, which is why an unlock carries `files` beside its archive.
 | step | writes |
 | --- | --- |
 | `ClearBoot0Header` | `EMMC_BOOT` and zeros over boot0's first 8 sectors |
-| `ShuffleGpt` | amonet v1.1.0's own: both partition tables, and zeros over `userdata`'s first 10 sectors |
+| `Repartition` | whatever moves the table from the layout it is in to the unlock's: see [Layouts](#layouts) |
 | `ZeroRpmb` | the RPMB, which only the bootrom reaches |
 | `Write` | an image, at a sector offset into a partition or boot0 |
 | `FastbootFlash` | an image at a partition's start |
@@ -51,16 +55,39 @@ says so, and the chain does not support one yet.
 disk or in boot0, a length, and the bytes. It checks that every partition
 exists and that every image fits its partition.
 
-A step with a `resolved` method, a `TableStep`, rewrites the partition table:
-resolution hands it the table and carries on with the one it returns, so the
-writes after `ShuffleGpt` resolve against the new partitions.
+At `Repartition`, resolution asks the device's layouts, in its order, which
+one describes the table, and refuses a table none describes before anything is
+written. If that one is not the unlock's layout, it reverts it and applies the
+unlock's, and carries on with the table that gives, so the writes after it
+resolve against the new partitions. A table already in the unlock's layout
+gives no action. The step sits where amonet's own scripts change the table,
+because the order matters: v1.1.0 clears boot0's header first, so a stop after
+it reaches the bootrom.
 
-## The shuffle
+## Layouts
 
-amonet v1.1.0 keeps the stock `boot_a` and `boot_b` and boots from two new
-partitions at the end of `userdata`. The code is in
-`firebreak/unlocks/amonet_biscuit_v1_1_0.py`, and the bboe variant gets it
-through v1.1.0's plan:
+`firebreak/layouts.py` holds each layout and both ways across it, so the
+shuffle and its undo sit together. A layout's numbers are the device's:
+biscuit's is in `firebreak/devices.py`.
+
+Stock is the table the factory wrote, whatever Fire OS runs on it. Its layout
+describes any table with the device's stock partition count, 16 on biscuit,
+which is a check on the count alone. biscuit lists it after boot moved, so a
+half-moved table is refused before the count is read. No OTA
+writes the partition table: Fire OS 5.5.5.4's and Fire OS 6 4315's write
+system, boot, LK, TEE and the preloader, and the `payload.bin` of 4405,
+5041, 6302, 8142 and 8146 carries just those five. Every table read here
+came from one Dot, so a change between production runs is not ruled out.
+
+### Boot moved
+
+`BootMovedLayout` is the table amonet's `gpt.py` calls patched. amonet
+v1.1.0 keeps the stock `boot_a` and `boot_b` and boots from two new
+partitions at the end of `userdata`. The same code is in every amonet release
+read here, for biscuit, radar and crown, with the same alignment and sizes;
+only the targets differ, `boot` and `recovery` on crown. Of those releases,
+only biscuit's v1.1.0 applies it. biscuit's v2.0.0 and radar's v1.0.0 undo
+it, and radar's says an older release applied it. Applying it:
 
 - round `userdata`'s last sector down to `align`, then give up `sectors` for
   each target
@@ -69,11 +96,26 @@ through v1.1.0's plan:
 - rename each target to `<target>_x`, and each new partition to the target
 - write both tables, then zero `userdata`'s first 10 sectors
 
-A table that already has every `<target>_x` is left alone, so the step can run
-again. Against amonet's own `modify_step1`, `modify_step2` and `generate_gpt`
-with its GUIDs pinned, the tables are byte for byte the same on four stock
-tables, except the protective MBR: amonet writes a size of `0xFFFFFFFF`, and
-firebreak keeps the sector it read.
+A table with some `<target>_x` but not all is refused. Against amonet's own
+`modify_step1`, `modify_step2` and `generate_gpt` with its GUIDs pinned, the
+tables are byte for byte the same on four stock tables, except the protective
+MBR: amonet writes a size of `0xFFFFFFFF`, and firebreak keeps the sector it
+read.
+
+Reverting it, which amonet v2.0.0's `main.py` does before it writes:
+
+- drop the partitions after `userdata`, one per target, and end `userdata` at
+  the table's last usable sector
+- rename each `<target>_x` back to the target
+
+Where amonet's `unpatch` blanks the last two entries whatever they are, this
+refuses a table that does not end in `userdata` and the targets, or that lacks
+a `<target>_x`.
+
+Against amonet's own `unpatch` and `generate_gpt`, both tables are byte for
+byte the same on seven tables from one Dot: three shuffled on the Dot, and
+four stock ones shuffled first. The protective MBR differs as it does for the
+shuffle.
 
 ## The recovery executor
 
@@ -125,4 +167,5 @@ offers `firebreak/emmc.py`'s operations.
 
 `tests/test_plan.py` resolves both unlocks against biscuit's geometry, from a
 stock table and from a shuffled one. Every write must equal what amonet's
-scripts issue: kind, target, byte offset and length.
+scripts issue: kind, target, byte offset and length. Reverting the boot-moved
+layout after applying it must give back the stock table byte for byte.

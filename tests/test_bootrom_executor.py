@@ -389,7 +389,7 @@ def test_what_is_already_there_is_not_written(*, payload: FakePayload) -> None:
         offset=0,
         target="lk",
     )
-    nothing = Action(kind="ShuffleGpt", label="room", length=0)
+    nothing = Action(kind="Repartition", label="room", length=0)
     bootrom.execute(actions=(nothing, action), payload=payload)
     assert writes(payload) == []
 

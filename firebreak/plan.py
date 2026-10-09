@@ -7,6 +7,7 @@ from firebreak.android.gpt import (
     ENTRIES_SIZE,
     gpt_intact,
     partition_map,
+    used_entries,
 )
 from firebreak.cache import fetch
 from firebreak.plugin import (
@@ -14,8 +15,8 @@ from firebreak.plugin import (
     ClearBoot0Header,
     FastbootFlash,
     ForceFastboot,
+    Repartition,
     ResetBcb,
-    TableStep,
     Write,
     ZeroRpmb,
 )
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from firebreak.android.gpt import Partition
-    from firebreak.plugin import Step, Unlock
+    from firebreak.plugin import Layout, Step, Unlock
 
 BOOT0_HEADER = b"EMMC_BOOT"
 BOOT0_HEADER_BLOCKS = 8
@@ -135,6 +136,24 @@ def patched(
     )
 
 
+def repartitioned(
+    *, layouts: tuple[Layout, ...], raw: bytes, want: Layout
+) -> tuple[bytes, tuple[Action, ...]]:
+    held = next((layout for layout in layouts if layout.describes(raw=raw)), None)
+    if held is None:
+        count = len(used_entries(entries=raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE]))
+        message = (
+            f"the partition table, with {count} partitions, is in no layout this"
+            " device can carry"
+        )
+        raise ValueError(message)
+    if held == want:
+        return raw, ()
+    raw, reverted = held.revert(raw=raw)
+    raw, applied = want.apply(raw=raw)
+    return raw, (*reverted, *applied)
+
+
 def resolve(*, raw: bytes, source: pathlib.Path, unlock: Unlock) -> tuple[Action, ...]:
     unmet = unlock.unmet()
     if unmet:
@@ -147,8 +166,10 @@ def resolve(*, raw: bytes, source: pathlib.Path, unlock: Unlock) -> tuple[Action
         raise ValueError(message)
     actions = []
     for step in unlock.plan:
-        if isinstance(step, TableStep):
-            raw, made = step.resolved(raw=raw)
+        if isinstance(step, Repartition):
+            raw, made = repartitioned(
+                layouts=unlock.device.layouts, raw=raw, want=unlock.layout
+            )
             actions.extend(made)
         else:
             partitions = partition_map(entries=raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE])

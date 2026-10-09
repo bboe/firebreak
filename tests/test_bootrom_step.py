@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 ACTIONS = (
     Action(data=b"h", kind="ClearBoot0Header", label="clear", length=1, offset=0),
-    Action(kind="ShuffleGpt", label="already has room", length=0),
+    Action(kind="Repartition", label="already has room", length=0),
     Action(expect=b"AMZN", kind="ZeroRpmb", label="rpmb"),
     Action(
         data=b"p",

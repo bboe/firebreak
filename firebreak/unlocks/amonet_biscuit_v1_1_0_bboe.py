@@ -18,6 +18,7 @@ AMONET_BISCUIT_V1_1_0_BBOE = Unlock(
     device=AMONET_BISCUIT_V1_1_0.device,
     family=AMONET_BISCUIT_V1_1_0.family,
     files={"twrp": RECOVERY},
+    layout=AMONET_BISCUIT_V1_1_0.layout,
     plan=tuple(
         FastbootFlash(
             image="twrp", label="write TWRP " + TWRP_VERSION, target="recovery"

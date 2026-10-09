@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
-from typing import TYPE_CHECKING, Protocol, Union, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, Union
 
 if TYPE_CHECKING:
     from firebreak.cache import Download
@@ -20,6 +20,7 @@ class ClearBoot0Header:
 class Device:
     features: frozenset[Feature]
     name: str
+    layouts: tuple[Layout, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -41,10 +42,23 @@ class ForceFastboot:
     label: str = "force fastboot"
 
 
+class Layout(Protocol):
+    def apply(self, *, raw: bytes) -> tuple[bytes, tuple[Action, ...]]: ...
+
+    def describes(self, *, raw: bytes) -> bool: ...
+
+    def revert(self, *, raw: bytes) -> tuple[bytes, tuple[Action, ...]]: ...
+
+
 @dataclasses.dataclass(frozen=True)
 class Reboot:
     into: str | None = None
     label: str = "reboot"
+
+
+@dataclasses.dataclass(frozen=True)
+class Repartition:
+    label: str = "repartition"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -53,15 +67,11 @@ class ResetBcb:
     label: str = "reset the bootloader control block"
 
 
-@runtime_checkable
-class TableStep(Protocol):
-    def resolved(self, *, raw: bytes) -> tuple[bytes, tuple[Action, ...]]: ...
-
-
 @dataclasses.dataclass(frozen=True)
 class Unlock:
     device: Device
     family: str
+    layout: Layout
     plan: tuple[Step, ...]
     requires: frozenset[Feature]
     source: Download
@@ -96,8 +106,8 @@ Step = Union[
     FastbootFlash,
     ForceFastboot,
     Reboot,
+    Repartition,
     ResetBcb,
-    TableStep,
     Write,
     ZeroRpmb,
 ]

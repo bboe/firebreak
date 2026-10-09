@@ -362,7 +362,7 @@ def test_what_is_already_there_is_not_written(*, dot: FakeDot) -> None:
         offset=0,
         target="tee1",
     )
-    nothing = Action(kind="ShuffleGpt", label="room", length=0)
+    nothing = Action(kind="Repartition", label="room", length=0)
     recovery.execute(actions=(nothing, action))
     assert writes(dot) == []
 
