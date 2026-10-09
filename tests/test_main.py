@@ -439,6 +439,25 @@ def test_erasing_boot0_that_fails_leaves_no_marker(
     assert main.ERASED.exists()
 
 
+def test_probed_prints_an_unreadable_state_plain_and_masked(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    message = (
+        "\x1b[31mERROR: sgdisk did not print the Dot's table:\n"
+        "Disk identifier (GUID): 0FC63DAF-8483-4772-8E79-3D69D8477DE4\x1b[0m"
+    )
+
+    def state() -> main.State:
+        raise SystemExit(message)
+
+    monkeypatch.setattr(name="state", target=main, value=state)
+    assert main.probed() == (
+        "<unreadable: ERROR: sgdisk did not print the Dot's table:>"
+    )
+    monkeypatch.setattr(name="state", target=main, value=lambda: main.State.NONE)
+    assert main.probed() == main.State.NONE.value
+
+
 def test_target_names_are_the_unlocks_names() -> None:
     assert main.AMONET_BISCUIT_V1_1_0 == "amonet-biscuit-v1.1.0"
     assert main.AMONET_BISCUIT_V1_1_0_BBOE == "amonet-biscuit-v1.1.0-bboe"

@@ -19,6 +19,7 @@ import hashlib
 import http.client
 import os
 import pathlib
+import platform
 import re
 import shlex
 import shutil
@@ -101,9 +102,24 @@ from firebreak.mediatek.usbdl import (
 )
 from firebreak.plan import SECTOR_SIZE, TABLE_SECTORS, Action, resolve
 from firebreak.plugin import Repartition
+from firebreak.report import (
+    LEFT_IN_RECOVERY,
+    LISTING_OK,
+    PARTITIONS_OK,
+    dot_details,
+    labelled,
+    masked,
+    mmc_said,
+    node_names,
+    partition_rows,
+    system_a_rows,
+    system_record,
+    whole,
+)
 from firebreak.twrp import (
     CLEAR_BOOT0,
     DISK,
+    TABLE_OK,
     check_nodes,
     clear_boot0,
     partition_field,
@@ -121,13 +137,16 @@ from firebreak.ui import (
     MINUTE,
     PROGRESS,
     SESSION,
+    SUPPORT,
     ANSIColor,
     Kind,
     _die,
     again,
+    asked_for,
     clock,
     paint,
     passed,
+    program,
     say,
     show,
     status,
@@ -452,7 +471,7 @@ def amonet_lk(*, node: str) -> bool:
             _die(
                 message=f"{node} did not answer with an md5 of its first"
                 f" {local.stat().st_size} bytes: {held or 'nothing'}. Nothing"
-                " was written. " + again()
+                " was written. " + again() + " " + asked_for()
             )
     return False
 
@@ -963,6 +982,13 @@ Run again with another target to move the Dot to it.""",
         " time, and each state the Dot reaches",
     )
     parser.add_argument(
+        "--report",
+        action="store_true",
+        help="print what the Dot and this computer are, and the Dot's partition"
+        " table, for a support request; it starts the Dot's recovery to read them"
+        " and writes no partition",
+    )
+    parser.add_argument(
         "--short",
         action="store_true",
         help="for a Dot that shows no light and needs its test point shorted:"
@@ -1000,6 +1026,9 @@ Run again with another target to move the Dot to it.""",
     check_adb()
     move_old_caches()
     SESSION.short = options.short
+    if options.report:
+        report()
+        return
     root()
 
 
@@ -1381,6 +1410,106 @@ def install_magisk(*, magisk: pathlib.Path, work: pathlib.Path) -> None:
         _die(message="Magisk 17.3's files did not verify on the Dot")
 
 
+def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: ignore[complex-structure, too-many-return-statements, too-many-branches]
+    asked = False
+    waiting = ""
+    deadline = time.monotonic() + WAIT
+    while time.monotonic() < deadline:
+        if in_fastboot():
+            unlocked = getvar(name="unlock_status")
+            for name, value in (
+                ("product", getvar(name="product")),
+                ("unlock_status", unlocked),
+                ("lk_build_desc", getvar(name="lk_build_desc")),
+            ):
+                line("fastboot " + name, value or "<nothing>")
+            if not unlocked:
+                say(
+                    text="This Dot's fastboot did not say whether it is unlocked,"
+                    " so this stops rather than guess. Check the cable, and that no"
+                    " other program holds the Dot, then run it again."
+                )
+                return False
+            if unlocked.lower() != "true":
+                say(
+                    text="This Dot's bootloader is locked, so it holds no recovery"
+                    " to collect from and nothing here can give it one. Root it"
+                    " first: run firebreak again without --report, and follow"
+                    " what it asks."
+                )
+                return False
+            PROGRESS.begin(estimate="40 s", label="restarting the Dot in its recovery")
+            run(arguments=["fastboot", "oem", "reboot-recovery"], timeout=60)
+        else:
+            adb_state = ""
+            if usb_serial():
+                adb_state = run(arguments=["adb", "get-state"], timeout=30).stdout
+            adb_state = adb_state.strip()
+            if adb_state == "recovery":
+                if not adb_shell(command="getprop ro.twrp.version", timeout=30)[
+                    :1
+                ].isdigit():
+                    say(
+                        text="This Dot is in a recovery that is not TWRP, so it"
+                        " holds nothing to collect from. It is left as it is."
+                    )
+                    return False
+                if "mtp" in adb_shell(command="getprop sys.usb.config", timeout=30):
+                    PROGRESS.end()
+                    return True
+                if waiting != "twrp":
+                    waiting = "twrp"
+                    status(text="Waiting for TWRP to finish starting.")
+                time.sleep(2)
+                continue
+            if adb_state == "device":
+                if "uid=0" not in adb_shell(command="id; su -c id", timeout=30):
+                    say(
+                        text="This Dot runs Fire OS without root, so its recovery"
+                        " is Amazon's, which holds nothing to collect from. Root it"
+                        " first: run firebreak again without --report, and follow"
+                        " what it asks."
+                    )
+                    return False
+                PROGRESS.begin(
+                    estimate="40 s", label="restarting the Dot in its recovery"
+                )
+                run(arguments=["adb", "reboot", "recovery"], timeout=60)
+            else:
+                if not asked:
+                    asked = True
+                    say(
+                        text="The rest of this report comes from the Dot's recovery."
+                        " Start the Dot in fastboot mode and this goes on by itself. "
+                        + FASTBOOT_MODE
+                        + " A Dot already unlocked with amonet v2.0.0 has no"
+                        " fastboot: hold the + button instead while you plug it back"
+                        " in, which starts its TWRP. A Dot that shows nothing on USB"
+                        " is in its bootrom, and only a root run brings it back."
+                        " Ctrl-C stops this."
+                    )
+                if waiting != "fastboot":
+                    waiting = "fastboot"
+                    status(
+                        text="Waiting for the Dot in fastboot mode, with a green ring."
+                    )
+                time.sleep(2)
+                continue
+        try:
+            run(arguments=["adb", "wait-for-recovery"], timeout=180)
+        except subprocess.TimeoutExpired:
+            PROGRESS.halt()
+            say(
+                text="The Dot did not come back in a recovery that answers adb"
+                " within 3 minutes. It is most likely in Amazon's recovery, which a"
+                " root run replaces: run firebreak again without --report."
+            )
+            return False
+        time.sleep(5)
+    PROGRESS.halt()
+    return False
+
+
 def keep_trying(*, message: str) -> None:
     said = message + ". The run keeps trying."
     if not SESSION.short:
@@ -1523,6 +1652,14 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
     return State.EMOS if emos(action="find") == "1" else State.NONE
 
 
+def probed() -> str:
+    try:
+        return state().value
+    except SystemExit as stop:
+        plain = re.sub(pattern=r"\x1b\[[0-9;]*m", repl="", string=str(stop))
+        return "<unreadable: " + masked(text=plain).strip().split(sep="\n")[0] + ">"
+
+
 def read_recovery(*, size: int) -> bytes:
     return command(
         arguments=[
@@ -1578,6 +1715,56 @@ def replace_twrp() -> None:
             " running. " + again()
         )
     run(arguments=["adb", "reboot", "recovery"], check=True, timeout=60)
+
+
+def report() -> None:
+    def line(label: str, value: object) -> None:
+        show(text=labelled(label=label, value=value))
+
+    def asked(*, command: str, timeout: float = 60) -> str:
+        try:
+            said = adb_shell(command=command, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return "<timed out>"
+        return masked(text=said) or "<nothing>"
+
+    show(text=SUPPORT + "\n")
+    line("firebreak", " ".join(pathlib.Path(word).name for word in program()[1:]))
+    line("host", f"{sys.platform} ({os.name}), {platform.platform()}")
+    line("python", sys.version.split()[0])
+    said = run(arguments=["adb", "version"], timeout=30).stdout.split(sep="\n")
+    line("adb", ", ".join(part.strip() for part in said[:2] if part.strip()))
+    line("state", probed())
+    if not into_recovery(line=line):
+        show(text="\nThe report stops with what is above.")
+        return
+    line("state in recovery", probed())
+    for text in dot_details(asked=asked):
+        show(text=text)
+    held = CACHE / f"system-{FIREOS.sha256[:12]}" / "md5"
+    want, needs = system_record(text=held.read_text() if held.is_file() else "")
+    if needs:
+        line("system image", f"{needs} bytes, md5 {want}")
+    else:
+        line("system image", "not built yet, so its size is unknown")
+    partitions = whole(
+        marker=PARTITIONS_OK,
+        said=asked(command=f"cat /proc/partitions; echo {PARTITIONS_OK}"),
+    )
+    listing = whole(
+        marker=LISTING_OK, said=asked(command=f"ls -l {BY_NAME}/; echo {LISTING_OK}")
+    )
+    names = None if listing is None else node_names(listing=listing)
+    for label, value in system_a_rows(names=names, needs=needs, partitions=partitions):
+        line(label, value)
+    show(text="\npartition table, with each name's node and any other name for it")
+    printed = asked(command=f"sgdisk --print {DISK}; echo {TABLE_OK}", timeout=120)
+    for row in partition_rows(names=names, printed=printed):
+        show(text=row)
+    show(text="\nwhat the kernel says about the eMMC")
+    for text in mmc_said(asked=asked):
+        show(text=text)
+    show(text="\n" + LEFT_IN_RECOVERY)
 
 
 def restore(

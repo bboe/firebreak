@@ -269,6 +269,42 @@ ring read white.
   minute held Magisk's first `su`, the 2-second probes, and
   `hide_updater`'s `dumpsys package`.
 
+## Reporting a problem
+
+- An issue report used to carry the failing step and nothing about the Dot.
+  `--report` collects the host, the state, the build, the eMMC, the partition
+  table with each name's node, and the kernel's own mmc lines.
+- Only a recovery answers all of that, so it starts one. A Dot already in a
+  recovery is left alone: the one a failed run left is the safe place to be,
+  and a first version cost a reporter theirs.
+- `system_a` is the reason it exists. Fire OS 5's image is 805,257,216 bytes
+  against a 805,306,368-byte partition, so the write has 48 KiB of headroom
+  and nothing checks it. Build 8149's report showed only a mismatched md5.
+- Wear comes from sysfs where a part reports it, and the erase count only
+  from the kernel log, which reaches back about 3,000 seconds, so uptime is
+  printed beside it. `cid` and `serial` are left unread, and GUIDs and the
+  Dot's serial are masked: the run sets `ANDROID_SERIAL` to the Dot it picks,
+  and the mask reads it.
+- The kernel log's mmc lines are its last 60, and the card's first line is
+  read on its own, so a log that still reaches the boot says so even after
+  60 later lines.
+- Each answer the report parses into claims comes behind a marker of its own,
+  because adb cuts the tail: `sgdisk`'s table, `/proc/partitions`, the `by-name`
+  listing and the kernel log's two reads. One that does not arrive whole is
+  printed as it came, or not matched at all, rather than parsed into claims
+  about which names point nowhere. The other answers are printed as they came. A
+  failed system write discards the image's first slice and keeps the record of
+  its size, which is the number a report is run for.
+- The report reads the Dot's state without the root run's probe, which stops
+  on a partition table it cannot read: a damaged table is the case a report
+  is run for. Any recovery is left alone, and one that is not TWRP stops the
+  report rather than being restarted. A Dot that runs Fire OS without root
+  is not restarted either, because its recovery is Amazon's. An unlocked
+  fastboot is restarted into its recovery, which holds Amazon's until a root
+  run writes TWRP; when no adb recovery answers within 3 minutes, the report
+  says that is the likely reason. The Dot is left
+  in its recovery afterwards, and the report ends by saying so.
+
 ## The host
 
 - Python 3.9 or later, because stock macOS's `/usr/bin/python3` is 3.9.6. CI

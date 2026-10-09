@@ -11,7 +11,16 @@ import time
 from typing import BinaryIO
 
 from firebreak.cache import PYSERIAL, digest, fetch
-from firebreak.ui import ARGUMENTS, PROGRESS, SESSION, _die, clock, program, show
+from firebreak.ui import (
+    ARGUMENTS,
+    PROGRESS,
+    SESSION,
+    _die,
+    asked_for,
+    clock,
+    program,
+    show,
+)
 
 AS_ROOT = (
     "run this as your own user, not as root or with sudo: the downloads would"
@@ -251,7 +260,7 @@ def push_checked(*, local: pathlib.Path, remote: str | pathlib.PurePosixPath) ->
             )
     _die(
         message=f"{remote} did not arrive intact after {PUSH_TRIES} tries;"
-        f" the last: {said}"
+        f" the last: {said}. " + asked_for()
     )
 
 

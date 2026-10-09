@@ -35,6 +35,16 @@ def test_again(
     assert ui.again() == want
 
 
+def test_asked_for_names_the_report_as_this_run_was_started(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="argv", target=sys, value=["/home/me/firebreak.pyz"])
+    monkeypatch.setattr(name="executable", target=sys, value="/usr/bin/python3")
+    said = ui.asked_for()
+    assert "run python3 firebreak.pyz --report and paste" in said
+    assert "#support-device-unlocking in the EchoMuse Discord" in said
+
+
 def test_clock() -> None:
     assert time.strptime(ui.clock(), "%H:%M:%S")
 
@@ -130,6 +140,18 @@ def test_die_says_the_dot_cannot_start_while_boot0_is_empty(
     assert first == "stopped"
     assert " ".join(note.split()) == ui.BOOT0_EMPTY + "."
     assert max(len(line) for line in note.split("\n")) <= 79
+
+
+def test_invocation_names_uvx_for_a_uvx_run(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["/c/archive-v0/x/bin/firebreak"]
+    )
+    monkeypatch.setattr(name="prefix", target=sys, value="/c/uv/archive-v0/x")
+    assert ui.invocation(options=["--report"]) == (
+        "uvx --from git+https://github.com/bboe/firebreak firebreak --report"
+    )
+    monkeypatch.setattr(name="prefix", target=sys, value="/home/me/.venv")
+    assert ui.invocation(options=["--report"]) == "firebreak --report"
 
 
 def test_mark_falls_back_to_ascii(*, monkeypatch: pytest.MonkeyPatch) -> None:

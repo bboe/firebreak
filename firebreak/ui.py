@@ -21,6 +21,11 @@ BOOT0_EMPTY = (
 )
 MINUTE = 60
 SPINNER = "\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f"
+SUPPORT = (
+    "Please stop by #support-device-unlocking in the EchoMuse Discord,"
+    " https://discord.gg/vq3pub8Kp, and paste everything below."
+)
+UVX = ["uvx", "--from", "git+https://github.com/bboe/firebreak", "firebreak"]
 
 
 class ANSIColor(enum.Enum):
@@ -149,10 +154,16 @@ def _die(*, message: str, prefix: str = "ERROR: ") -> NoReturn:
 
 
 def again() -> str:
-    command = [pathlib.Path(word).name for word in program()]
-    if command[1:2] != ["-m"] and pathlib.Path(command[-1]).suffix != ".pyz":
-        command = command[1:]
-    return f"Run {shlex.join(split_command=[*command, *sys.argv[1:]])} again."
+    return f"Run {invocation(options=sys.argv[1:])} again."
+
+
+def asked_for() -> str:
+    return (
+        f"If it fails the same way, run {invocation(options=['--report'])} and"
+        " paste what it prints in #support-device-unlocking in the EchoMuse"
+        " Discord, https://discord.gg/vq3pub8Kp: it says what this Dot's eMMC"
+        " and partitions are."
+    )
 
 
 def clock() -> str:
@@ -165,6 +176,17 @@ def color(*, stream: TextIO) -> bool:
     if os.name == "nt" and "WT_SESSION" not in os.environ:
         return False
     return stream.isatty()
+
+
+def invocation(*, options: list[str]) -> str:
+    command = [pathlib.Path(word).name for word in program()]
+    if command[1:2] != ["-m"] and pathlib.Path(command[-1]).suffix != ".pyz":
+        command = command[1:]
+    if command == ["firebreak"] and any(
+        part.startswith("archive-v") for part in pathlib.Path(sys.prefix).parts
+    ):
+        command = UVX
+    return shlex.join(split_command=[*command, *options])
 
 
 def mark() -> str:

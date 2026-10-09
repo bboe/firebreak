@@ -17,7 +17,7 @@ from firebreak.host import (
     run,
     stream,
 )
-from firebreak.ui import PROGRESS, SESSION, _die, again, say
+from firebreak.ui import PROGRESS, SESSION, _die, again, asked_for, say
 
 if TYPE_CHECKING:
     import pathlib
@@ -59,6 +59,7 @@ SYSTEM_STREAM = (
 )
 SYSTEM_TIMEOUT = 1800
 TABLE_FIELDS = 6
+TABLE_OK = "table-ok"
 UNMOUNT = (
     'for m in $(grep "^/dev/block" /proc/mounts | cut -d" " -f2); do umount "$m";'
     ' done; echo "left:$(grep "^/dev/block" /proc/mounts | cut -d" " -f2'
@@ -123,10 +124,10 @@ def partition_field(*, name: str, number: int) -> str:
 
 
 def partition_table() -> str:
-    command = f"sgdisk --print {DISK}; echo table-ok"
+    command = f"sgdisk --print {DISK}; echo {TABLE_OK}"
     for attempt in range(PUSH_TRIES):
         said = adb_shell(command=command, timeout=30).split(sep="\n")
-        if said[-1] == "table-ok" and any(" userdata" in line for line in said):
+        if said[-1] == TABLE_OK and any(" userdata" in line for line in said):
             return "\n".join(said[:-1])
         if attempt + 1 < PUSH_TRIES:
             reconnect(remote=DISK)
@@ -393,5 +394,5 @@ def write_system(
         said += ". The cached image was discarded, so the next run rebuilds it"
     _die(
         message=f"{system} was not written intact after {PUSH_TRIES} tries;"
-        f" the last: {said}"
+        f" the last: {said}. " + asked_for()
     )

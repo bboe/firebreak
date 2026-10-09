@@ -93,6 +93,15 @@ driver](#windows).
    "Short … missed", unplug it and try again.
 5. Take the wire off when the script prints "The short may come off now".
 
+## Reporting a problem
+
+When a run fails, run it again with `--report`, then please stop by
+`#support-device-unlocking` in the
+[EchoMuse Discord](https://discord.gg/vq3pub8Kp) and paste what it prints. It
+starts the Dot's recovery, prints what the Dot, its eMMC and this computer are,
+and the Dot's partition table, and writes no partition. A Dot already in a
+recovery stays there, and the Dot is left in its recovery afterwards.
+
 ## Licence
 
 firebreak uses the BSD 2-Clause licence, in [LICENSE.txt](LICENSE.txt). This
