@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import gzip
 import hashlib
 import http.client
 import io
@@ -811,6 +812,29 @@ def test_graphical_browser_skips_a_text_browser(
         assert (cache.graphical_browser() is browser) is usable
 
 
+def test_gzip_intact(*, tmp_path: pathlib.Path) -> None:
+    whole = tmp_path / "whole.gz"
+    whole.write_bytes(gzip.compress(data=b"system" * 1000))
+    cut = tmp_path / "cut.gz"
+    cut.write_bytes(whole.read_bytes()[:-20])
+    garbled = tmp_path / "garbled.gz"
+    garbled.write_bytes(whole.read_bytes()[:-8] + b"\0" * 8)
+    assert cache.gzip_intact(path=whole)
+    assert not cache.gzip_intact(path=cut)
+    assert not cache.gzip_intact(path=garbled)
+    assert not cache.gzip_intact(path=tmp_path / "missing.gz")
+
+
+def test_gzip_member(*, tmp_path: pathlib.Path) -> None:
+    member = tmp_path / "member.gz"
+    member.write_bytes(gzip.compress(data=b"system"))
+    plain = tmp_path / "plain"
+    plain.write_bytes(b"system")
+    assert cache.gzip_member(path=member)
+    assert not cache.gzip_member(path=plain)
+    assert not cache.gzip_member(path=tmp_path / "missing.gz")
+
+
 def test_hold() -> None:
     lock = threading.Lock()
     with cache.hold(lock=lock):
@@ -925,6 +949,14 @@ def test_move_old_caches(*, cached: pathlib.Path) -> None:
     assert not old.exists()
 
 
+def test_portions_cut_at_the_slice_size(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(name="SYSTEM_SLICE_BYTES", target=cache, value=4)
+    cut = [b"".join(held) for held in cache.portions(chunks=iter([b"abc", b"defghij"]))]
+    assert cut == [b"abcd", b"efgh", b"ij"]
+    assert list(cache.portions(chunks=iter([b"abcd"]))) == [[b"abcd"]]
+    assert list(cache.portions(chunks=iter([]))) == []
+
+
 def test_pyserial_pin_matches_the_download() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     pinned = re.search(
@@ -990,6 +1022,28 @@ def test_served_skips_a_file_that_vanished(
     )
 
 
+def test_system_sliced(*, tmp_path: pathlib.Path) -> None:
+    (tmp_path / "md5").write_text("want 2 2\n")
+    for index in range(2):
+        cache.slice_path(directory=tmp_path, index=index).write_bytes(
+            gzip.compress(data=b"x")
+        )
+    assert cache.system_sliced(directory=tmp_path)
+    cache.slice_path(directory=tmp_path, index=1).write_bytes(b"not gzip")
+    assert not cache.system_sliced(directory=tmp_path)
+    cache.slice_path(directory=tmp_path, index=1).unlink()
+    assert not cache.system_sliced(directory=tmp_path)
+
+
+def test_system_sliced_refuses_another_layout(*, tmp_path: pathlib.Path) -> None:
+    (tmp_path / "system.img.gz").write_bytes(gzip.compress(data=b"x"))
+    assert not cache.system_sliced(directory=tmp_path)
+    assert cache.slice_path(directory=tmp_path, index=3).name == "system.03.gz"
+    for recorded in ("want 2\n", "want two 1\n", "want 2 one\n", "want 2 0\n"):
+        (tmp_path / "md5").write_text(recorded)
+        assert not cache.system_sliced(directory=tmp_path)
+
+
 def test_unpack(*, cached: pathlib.Path, tmp_path: pathlib.Path) -> None:
     source = tmp_path / "amonet.zip"
     with zipfile.ZipFile(file=source, mode="w") as archive:
@@ -1014,6 +1068,26 @@ def test_unpack_replaces_a_partial_extract(
     target = cache.unpack(download=item(directory="v9", source=source))
     assert sorted(path.name for path in target.rglob("*")) == ["bin", "lk.bin"]
     assert not (cached / "v9.part").exists()
+
+
+def test_write_slices(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    monkeypatch.setattr(name="SYSTEM_SLICE_BYTES", target=cache, value=4)
+    data = b"abcdefghij"
+    want, count = cache.write_slices(
+        chunks=iter([data[:3], data[3:]]), directory=tmp_path
+    )
+    assert (want, count) == (hashlib.md5(data, usedforsecurity=False).hexdigest(), 3)
+    joined = b"".join(
+        cache.slice_path(directory=tmp_path, index=index).read_bytes()
+        for index in range(count)
+    )
+    assert gzip.decompress(data=joined) == data
+    assert (
+        gzip.decompress(data=cache.slice_path(directory=tmp_path, index=2).read_bytes())
+        == b"ij"
+    )
 
 
 def waited(_: float) -> None:

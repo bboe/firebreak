@@ -54,6 +54,7 @@ def no_real_cache(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) ->
             monkeypatch.setattr(
                 name="ERASED", target=module, value=directory / "boot0-erased"
             )
+    monkeypatch.setattr(name="CACHE", target=twrp, value=directory)
     monkeypatch.setattr(name="ERASED", target=twrp, value=directory / "boot0-erased")
     monkeypatch.setenv(name="HOME", value=str(tmp_path / "real-home"))
     monkeypatch.setenv(name="USERPROFILE", value=str(tmp_path / "real-home"))

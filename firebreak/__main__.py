@@ -15,7 +15,6 @@ import argparse
 import contextlib
 import dataclasses
 import enum
-import gzip
 import hashlib
 import http.client
 import os
@@ -59,7 +58,10 @@ from firebreak.cache import (
     lock_for,
     move_old_caches,
     save,
+    slice_path,
+    system_sliced,
     unpack,
+    write_slices,
 )
 from firebreak.emmc import EmmcArea
 from firebreak.host import (
@@ -761,7 +763,6 @@ def build_system(*, target: pathlib.Path) -> None:
     part = CACHE / "system.part"
     shutil.rmtree(ignore_errors=True, path=part)
     part.mkdir()
-    checksum = hashlib.md5(usedforsecurity=False)
     fireos = fetch(download=FIREOS)
     with zipfile.ZipFile(file=fireos) as archive:
         words = archive.read(name="system.transfer.list").decode().split()
@@ -771,13 +772,11 @@ def build_system(*, target: pathlib.Path) -> None:
         blocks = int(commands["erase"].split(sep=",")[-1])
         bounds = [int(number) for number in commands["new"].split(sep=",")[1:]]
         ranges = [*zip(bounds[::2], bounds[1::2]), (blocks, blocks)]
-        image = part / "system.img.gz"
-        with archive.open(name="system.new.dat") as new_data:  # ruff: ignore[multiple-with-statements]
-            with gzip.open(compresslevel=6, filename=image, mode="wb") as compressed:
-                for chunk in system_chunks(new_data=new_data, ranges=ranges):
-                    checksum.update(chunk)
-                    compressed.write(chunk)
-    (part / "md5").write_text(data=f"{checksum.hexdigest()} {blocks}\n")
+        with archive.open(name="system.new.dat") as new_data:
+            want, slices = write_slices(
+                chunks=system_chunks(new_data=new_data, ranges=ranges), directory=part
+            )
+    (part / "md5").write_text(data=f"{want} {blocks} {slices}\n")
     for path in part.iterdir():
         with path.open(mode="rb+") as file:
             os.fsync(fd=file.fileno())
@@ -1260,8 +1259,8 @@ def install_fireos(*, reboot: bool = True, slot: str = "") -> None:
         if not adb_script(body=Shell.DATA.value, name="data.sh", work=work):
             _die(message="userdata did not format and mount")
         PROGRESS.begin(estimate="100 s", label="writing Fire OS 5.5.5.4's /system")
-        compressed, want, blocks = system_image()
-        write_system(blocks=blocks, image=compressed, system=system, want=want)
+        slices, want, blocks = system_image()
+        write_system(blocks=blocks, slices=slices, system=system, want=want)
         body = Shell.SYSTEM.value.format(hosts=" ".join(UPDATE_HOSTS), system=system)
         if not adb_script(body=body, name="system.sh", work=work):
             _die(message="patching /system failed")
@@ -2259,14 +2258,18 @@ def system_chunks(
         position = end
 
 
-def system_image() -> tuple[pathlib.Path, str, int]:
+def system_image() -> tuple[list[pathlib.Path], str, int]:
     target = CACHE / f"system-{FIREOS.sha256[:12]}"
     with hold(lock=SESSION.system_lock):
-        if not (target / "md5").is_file():
+        if not system_sliced(directory=target):
             shutil.rmtree(ignore_errors=True, path=target)
             build_system(target=target)
-    want, blocks = (target / "md5").read_text().split()
-    return target / "system.img.gz", want, int(blocks)
+    want, blocks, slices = (target / "md5").read_text().split()
+    return (
+        [slice_path(directory=target, index=index) for index in range(int(slices))],
+        want,
+        int(blocks),
+    )
 
 
 def unwritten() -> str:

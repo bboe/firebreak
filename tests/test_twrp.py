@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
+import os
 import subprocess
 import time
 from typing import TYPE_CHECKING
@@ -11,6 +13,7 @@ from firebreak import host, twrp
 
 if TYPE_CHECKING:
     import pathlib
+    from collections.abc import Callable
 
 TABLE = """\
 Number  Start (sector)    End (sector)  Size       Code  Name
@@ -21,10 +24,27 @@ table-ok"""
 
 class FakeAdb:
     def __init__(self) -> None:
-        self.answers: dict[str, list[str | tuple[int, str] | Exception]] = {}
+        self.answers: dict[
+            str, list[str | tuple[int, str] | Exception | Callable[[], str]]
+        ] = {}
         self.asked: list[list[str]] = []
         self.raw = b""
         self.sent: list[bytes] = []
+
+    def answer(self, *, words: list[str]) -> tuple[int, str]:
+        answer = next(
+            (
+                said.pop(0) if len(said) > 1 else said[0]
+                for key, said in self.answers.items()
+                if key in words[-1]
+            ),
+            "",
+        )
+        if isinstance(answer, Exception):
+            raise answer
+        if callable(answer):
+            answer = answer()
+        return answer if isinstance(answer, tuple) else (0, answer)
 
     def command(
         self, *, arguments: list[object], standard_input: object = None, **_: object
@@ -37,17 +57,7 @@ class FakeAdb:
             )
         if hasattr(standard_input, "read"):
             self.sent.append(standard_input.read())
-        answer = next(
-            (
-                said.pop(0) if len(said) > 1 else said[0]
-                for key, said in self.answers.items()
-                if key in words[-1]
-            ),
-            "",
-        )
-        if isinstance(answer, Exception):
-            raise answer
-        returncode, text = answer if isinstance(answer, tuple) else (0, answer)
+        returncode, text = self.answer(words=words)
         return subprocess.CompletedProcess(
             args=words, returncode=returncode, stdout=text.encode()
         )
@@ -55,14 +65,30 @@ class FakeAdb:
     def commands(self, *, holding: str) -> list[str]:
         return [words[-1] for words in self.asked if holding in words[-1]]
 
+    def stream(
+        self, *, arguments: list[str], pieces: list[pathlib.Path], **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        self.asked.append(arguments)
+        self.sent.append(b"".join(piece.read_bytes() for piece in pieces))
+        returncode, text = self.answer(words=arguments)
+        return subprocess.CompletedProcess(
+            args=arguments, returncode=returncode, stdout=text
+        )
+
 
 @pytest.fixture
 def adb(*, monkeypatch: pytest.MonkeyPatch) -> FakeAdb:
     fake = FakeAdb()
     for module in (host, twrp):
         monkeypatch.setattr(name="command", target=module, value=fake.command)
+    monkeypatch.setattr(name="stream", target=twrp, value=fake.stream)
     monkeypatch.setattr(name="sleep", target=time, value=lambda _: None)
     return fake
+
+
+@pytest.fixture
+def carried() -> None:
+    twrp.SESSION.carries = True
 
 
 @pytest.fixture
@@ -77,6 +103,14 @@ def image(*, tmp_path: pathlib.Path) -> pathlib.Path:
     path = tmp_path / "image.img"
     path.write_bytes(b"I" * 8192)
     return path
+
+
+@pytest.fixture
+def slices(*, tmp_path: pathlib.Path) -> list[pathlib.Path]:
+    paths = [tmp_path / "system.00.gz", tmp_path / "system.01.gz"]
+    for index, path in enumerate(paths):
+        path.write_bytes(gzip.compress(data=bytes([index]) * 64))
+    return paths
 
 
 def md5(*, data: bytes) -> str:
@@ -215,6 +249,56 @@ def test_a_short_sector_read_stops_it(*, adb: FakeAdb) -> None:
         twrp.read_sectors(count=2, start=0)
 
 
+def test_a_slice_marker_that_is_not_the_last_line_is_a_failure(
+    *, adb: FakeAdb, slices: list[pathlib.Path]
+) -> None:
+    adb.answers["gunzip"] = [twrp.SLICE_OK + "\ndd: write error"]
+    adb.answers["md5sum"] = [md5(data=slices[0].read_bytes())]
+    assert twrp.sliced_system(slices=slices, system="/s") == (
+        twrp.SLICE_OK + "\ndd: write error"
+    )
+
+
+def test_a_slice_that_arrived_but_does_not_unpack_is_discarded(
+    *, adb: FakeAdb, slices: list[pathlib.Path]
+) -> None:
+    twrp.SESSION.carries = False
+    adb.answers["echo ready"] = ["ready"]
+    adb.answers["gunzip"] = [twrp.GUNZIP_FAILED]
+    adb.answers["md5sum"] = [md5(data=slices[0].read_bytes())]
+    with pytest.raises(SystemExit, match="after 3 tries") as stopped:
+        twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
+    said = " ".join(str(stopped.value).split())
+    assert "system.00.gz arrived intact but did not unpack" in said
+    assert "next run rebuilds it" in said
+    assert not slices[0].exists()
+    assert slices[1].exists()
+    assert len(adb.commands(holding="gunzip")) == 1
+    assert adb.commands(holding="wait-for-recovery") == []
+
+
+def test_a_slice_that_exits_badly_says_what_it_printed(
+    *, adb: FakeAdb, slices: list[pathlib.Path]
+) -> None:
+    adb.answers["gunzip"] = [(9, "dd: /s: Read-only file system\n")]
+    adb.answers["md5sum"] = [md5(data=slices[0].read_bytes())]
+    assert (
+        twrp.sliced_system(slices=slices, system="/s")
+        == "dd: /s: Read-only file system"
+    )
+
+
+def test_a_slice_the_dot_says_nothing_about_is_a_failure(
+    *, adb: FakeAdb, slices: list[pathlib.Path]
+) -> None:
+    adb.answers["gunzip"] = [""]
+    adb.answers["md5sum"] = [md5(data=slices[0].read_bytes())]
+    assert (
+        twrp.sliced_system(slices=slices, system="/s")
+        == "the Dot said nothing about system.00.gz"
+    )
+
+
 def test_a_staged_write_lands_through_dd(*, adb: FakeAdb, image: pathlib.Path) -> None:
     adb.answers["md5sum"] = [md5(data=b"old"), md5(data=image.read_bytes())]
     adb.answers["of=" + twrp.DISK] = ["written"]
@@ -246,34 +330,119 @@ def test_a_staged_write_that_does_not_reach_the_dot_stops_it(
         twrp.write(estimate="5 s", label="table", path=image, sector=8)
 
 
-def test_a_system_image_that_never_finishes_keeps_the_cache(
-    *, adb: FakeAdb, image: pathlib.Path
+def test_a_stdin_probe_that_does_not_finish_takes_the_pieces_and_says_so(
+    *, adb: FakeAdb, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    (image.parent / "md5").write_text("old 2\n")
+    adb.answers["cat >"] = [subprocess.TimeoutExpired(cmd=["adb"], timeout=60)]
+    assert not twrp.stdin_carries()
+    assert "did not carry a 1 KiB probe" in capsys.readouterr().out
+    assert not list(twrp.CACHE.glob("stdin-probe*"))
+
+
+def test_a_stdin_probe_that_fails_takes_the_pieces_and_says_so(
+    *, adb: FakeAdb, capsys: pytest.CaptureFixture[str]
+) -> None:
+    adb.answers["cat >"] = [(1, "error: closed")]
+    adb.answers["md5sum"] = [lambda: md5(data=adb.sent[-1])]
+    assert not twrp.stdin_carries()
+    assert "did not carry a 1 KiB probe" in capsys.readouterr().out
+
+
+def test_a_stdin_that_carries_the_probe_streams(*, adb: FakeAdb) -> None:
+    adb.answers["md5sum"] = [lambda: md5(data=adb.sent[-1])]
+    assert twrp.stdin_carries()
+    assert twrp.stdin_carries()
+    assert len(adb.sent) == 1
+    assert adb.sent[0][:16] == b"\x1a" * 16
+    assert len(adb.sent[0]) == twrp.STDIN_PROBE_BYTES
+    assert not list(twrp.CACHE.glob("stdin-probe*"))
+
+
+def test_a_stdin_that_cuts_the_probe_takes_the_pieces_quietly(
+    *, adb: FakeAdb, capsys: pytest.CaptureFixture[str]
+) -> None:
+    adb.answers["md5sum"] = [md5(data=b"")]
+    assert not twrp.stdin_carries()
+    assert capsys.readouterr().out == ""
+
+
+@pytest.mark.usefixtures("carried")
+def test_a_stream_gunzip_cannot_read_is_named(
+    *, adb: FakeAdb, slices: list[pathlib.Path]
+) -> None:
+    adb.answers["echo ready"] = ["ready"]
+    adb.answers["gunzip"] = [twrp.GUNZIP_FAILED]
+    with pytest.raises(SystemExit, match="gunzip could not read"):
+        twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
+    assert slices[0].exists()
+
+
+@pytest.mark.usefixtures("carried")
+def test_a_stream_marker_that_is_not_the_last_line_is_a_failure(
+    *, adb: FakeAdb, slices: list[pathlib.Path]
+) -> None:
+    adb.answers["gunzip"] = [twrp.STREAM_OK + "\nnoise"]
+    assert twrp.streamed_system(slices=slices, system="/s") == (
+        twrp.STREAM_OK + "\nnoise"
+    )
+
+
+@pytest.mark.usefixtures("carried")
+def test_a_stream_that_fails_on_a_slice_bad_here_discards_it(
+    *, adb: FakeAdb, slices: list[pathlib.Path]
+) -> None:
+    slices[1].write_bytes(slices[1].read_bytes()[:-8] + b"\0" * 8)
+    adb.answers["echo ready"] = ["ready"]
+    adb.answers["gunzip"] = [twrp.GUNZIP_FAILED]
+    with pytest.raises(SystemExit, match="after 3 tries") as stopped:
+        twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
+    said = " ".join(str(stopped.value).split())
+    assert "system.01.gz did not unpack on this computer either" in said
+    assert slices[0].exists()
+    assert not slices[1].exists()
+    assert len(adb.commands(holding="gunzip")) == 1
+
+
+@pytest.mark.usefixtures("carried")
+def test_a_stream_the_dot_says_nothing_about_is_a_failure(
+    *, adb: FakeAdb, slices: list[pathlib.Path]
+) -> None:
+    adb.answers["echo ready"] = ["ready"]
+    adb.answers["gunzip"] = [""]
+    with pytest.raises(SystemExit, match="the Dot said nothing"):
+        twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
+
+
+@pytest.mark.usefixtures("carried")
+def test_a_system_image_that_never_finishes_keeps_the_cache(
+    *, adb: FakeAdb, slices: list[pathlib.Path]
+) -> None:
     adb.answers["echo ready"] = ["ready"]
     adb.answers["gunzip"] = [subprocess.TimeoutExpired(cmd=["adb"], timeout=600)]
     with pytest.raises(SystemExit, match="did not finish"):
-        twrp.write_system(blocks=2, image=image, system="/s", want="new")
-    assert (image.parent / "md5").exists()
+        twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
+    assert slices[0].exists()
 
 
+@pytest.mark.usefixtures("carried")
 def test_a_system_image_that_never_verifies_is_discarded(
-    *, adb: FakeAdb, image: pathlib.Path
+    *, adb: FakeAdb, slices: list[pathlib.Path]
 ) -> None:
-    (image.parent / "md5").write_text("old 2\n")
     adb.answers["echo ready"] = ["ready"]
+    adb.answers["gunzip"] = [twrp.STREAM_OK]
     adb.answers["md5sum"] = [md5(data=b"old")]
     with pytest.raises(SystemExit, match="cached image was discarded"):
-        twrp.write_system(blocks=2, image=image, system="/s", want="new")
-    assert not (image.parent / "md5").exists()
+        twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
+    assert not slices[0].exists()
 
 
+@pytest.mark.usefixtures("carried")
 def test_a_system_partition_left_mounted_stops_it(
-    *, adb: FakeAdb, image: pathlib.Path
+    *, adb: FakeAdb, slices: list[pathlib.Path]
 ) -> None:
     adb.answers["echo ready"] = ["umount: /system_root: busy"]
     with pytest.raises(SystemExit, match="stayed mounted"):
-        twrp.write_system(blocks=2, image=image, system="/s", want="new")
+        twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
     assert adb.sent == []
 
 
@@ -377,15 +546,86 @@ def test_nothing_mounted_goes_on(*, adb: FakeAdb) -> None:
     twrp.unmount()
 
 
+@pytest.mark.skipif(condition=os.name == "nt", reason="needs a POSIX shell")
+def test_the_system_commands_write_and_report_through_a_real_shell(
+    *, tmp_path: pathlib.Path
+) -> None:
+    target = tmp_path / "system"
+    data = bytes(range(256)) * 8192
+    stream = twrp.SYSTEM_STREAM.format(dd="dd", no_truncate="", system=target)
+    good = subprocess.run(
+        args=["sh", "-c", stream],
+        capture_output=True,
+        check=False,
+        input=gzip.compress(data=data[: 1 << 20]) + gzip.compress(data=data[1 << 20 :]),
+    )
+    assert good.stdout.decode().strip().split("\n")[-1] == twrp.STREAM_OK
+    assert target.read_bytes() == data
+    bad = subprocess.run(
+        args=["sh", "-c", stream],
+        capture_output=True,
+        check=False,
+        input=gzip.compress(data=data)[:1000],
+    )
+    assert bad.stdout.decode().strip().split("\n")[-1] == twrp.GUNZIP_FAILED
+    held = tmp_path / "slice.gz"
+    held.write_bytes(gzip.compress(data=b"S" * (1 << 20)))
+    piece = twrp.SYSTEM_SLICE.format(
+        dd="dd", held=held, no_truncate="", seek=1, system=target
+    )
+    sliced = subprocess.run(args=["sh", "-c", piece], capture_output=True, check=False)
+    assert sliced.stdout.decode().strip().split("\n")[-1] == twrp.SLICE_OK
+    assert target.read_bytes()[1 << 20 : 2 << 20] == b"S" * (1 << 20)
+    assert not held.exists()
+    unwritable = twrp.SYSTEM_STREAM.format(
+        dd="dd", no_truncate="", system=tmp_path / "missing" / "system"
+    )
+    failed = subprocess.run(
+        args=["sh", "-c", unwritable],
+        capture_output=True,
+        check=False,
+        input=gzip.compress(data=b"x"),
+    )
+    assert failed.returncode == 9
+
+
+def test_the_system_image_goes_in_slices_where_stdin_cuts_it(
+    *, adb: FakeAdb, slices: list[pathlib.Path]
+) -> None:
+    twrp.SESSION.carries = False
+    twrp.SESSION.dd = "toybox dd"
+    system = "/dev/block/platform/mtk-msdc.0/by-name/system_a"
+    adb.answers["echo ready"] = ["ready"]
+    adb.answers["gunzip"] = [twrp.SLICE_OK]
+    adb.answers["md5sum"] = [
+        md5(data=slices[0].read_bytes()),
+        md5(data=slices[1].read_bytes()),
+        md5(data=b"new"),
+    ]
+    twrp.write_system(
+        blocks=2, slices=slices, system=system, want=md5(data=b"new")[:32]
+    )
+    written = adb.commands(holding="gunzip")
+    assert [command.split(" seek=")[1].split(" ")[0] for command in written] == [
+        "0",
+        "128",
+    ]
+    assert all("conv=notrunc" in command for command in written)
+    assert adb.sent == []
+
+
+@pytest.mark.usefixtures("carried")
 def test_the_system_image_is_streamed_until_it_verifies(
-    *, adb: FakeAdb, image: pathlib.Path
+    *, adb: FakeAdb, slices: list[pathlib.Path]
 ) -> None:
     system = "/dev/block/platform/mtk-msdc.0/by-name/system_a"
     adb.answers["echo ready"] = ["ready"]
-    adb.answers["gunzip"] = [(1, "gzip: invalid magic"), (0, "")]
+    adb.answers["gunzip"] = [(1, "error: closed"), twrp.STREAM_OK]
     adb.answers["md5sum"] = [md5(data=b"old"), md5(data=b"new")]
-    twrp.write_system(blocks=2, image=image, system=system, want=md5(data=b"new")[:32])
-    assert adb.sent == [image.read_bytes()] * 3
+    twrp.write_system(
+        blocks=2, slices=slices, system=system, want=md5(data=b"new")[:32]
+    )
+    assert adb.sent == [b"".join(path.read_bytes() for path in slices)] * 3
     assert len(adb.commands(holding="wait-for-recovery")) == 2
     assert f"dd if={system} bs=4096 count=2" in adb.commands(holding="md5sum")[0]
 

@@ -5,6 +5,7 @@ import pathlib
 import shlex
 import subprocess
 import sys
+import time
 import types
 from typing import TYPE_CHECKING
 
@@ -418,6 +419,45 @@ def test_run() -> None:
 def test_run_replaces_bytes_that_are_not_utf_8() -> None:
     script = "import sys; sys.stdout.buffer.write(bytes([97, 255, 98]))"
     assert host.run(arguments=[sys.executable, "-c", script]).stdout == "a\ufffdb"
+
+
+def test_stream(*, tmp_path: pathlib.Path) -> None:
+    pieces = [tmp_path / "a", tmp_path / "b"]
+    pieces[0].write_bytes(b"\x1a" * 3)
+    pieces[1].write_bytes(b"\x00" * 4)
+    script = (
+        "import sys; data = sys.stdin.buffer.read();"
+        " sys.stdout.write(f'{len(data)} {data.count(26)}\\r\\n'); sys.exit(3)"
+    )
+    result = host.stream(
+        arguments=[sys.executable, "-c", script], pieces=pieces, timeout=30
+    )
+    assert (result.returncode, result.stdout) == (3, "7 3\n")
+
+
+def test_stream_that_stops_reading_is_killed_at_its_deadline(
+    *, tmp_path: pathlib.Path
+) -> None:
+    piece = tmp_path / "a"
+    piece.write_bytes(b"x" * (8 << 20))
+    script = "import time; time.sleep(30)"
+    started = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        host.stream(arguments=[sys.executable, "-c", script], pieces=[piece], timeout=1)
+    assert time.monotonic() - started < 10
+
+
+def test_stream_to_a_reader_that_left_reports_its_exit(
+    *, tmp_path: pathlib.Path
+) -> None:
+    piece = tmp_path / "a"
+    piece.write_bytes(b"x" * (8 << 20))
+    result = host.stream(
+        arguments=[sys.executable, "-c", "import sys; sys.exit(5)"],
+        pieces=[piece, piece],
+        timeout=30,
+    )
+    assert result.returncode == 5
 
 
 def test_usb_serial(*, monkeypatch: pytest.MonkeyPatch) -> None:

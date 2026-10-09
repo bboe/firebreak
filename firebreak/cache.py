@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import gzip
 import hashlib
 import http.client
 import os
@@ -15,20 +16,23 @@ import time
 import urllib.request
 import webbrowser
 import zipfile
+import zlib
 from typing import TYPE_CHECKING, BinaryIO, NoReturn
 from xml.parsers.expat import ExpatError
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Iterator
 
 from firebreak.ui import SESSION, ANSIColor, _die, again, passed, say, show, warn
 
 BROWSER_POLL_SECONDS = 2
 BROWSER_WAIT_SECONDS = 120
+GZIP_MAGIC = b"\x1f\x8b"
 LOCKS: dict[object, threading.Lock] = {}
 LOCKS_GUARD = threading.Lock()
 MEGA = 1e6
 PARTIAL_SUFFIXES = (".crdownload", ".download", ".part", ".tmp")
+SYSTEM_SLICE_BYTES = 128 << 20
 WHERE_FROMS = "com.apple.metadata:kMDItemWhereFroms"
 
 
@@ -335,6 +339,24 @@ def graphical_browser() -> webbrowser.BaseBrowser | None:
     return browser
 
 
+def gzip_intact(*, path: pathlib.Path) -> bool:
+    try:
+        with gzip.open(filename=path) as unpacked:
+            while unpacked.read(1 << 20):
+                pass
+    except (EOFError, OSError, zlib.error):
+        return False
+    return True
+
+
+def gzip_member(*, path: pathlib.Path) -> bool:
+    try:
+        with path.open(mode="rb") as file:
+            return file.read(len(GZIP_MAGIC)) == GZIP_MAGIC
+    except OSError:
+        return False
+
+
 @contextlib.contextmanager
 def hold(*, lock: threading.Lock) -> Generator[None, None, None]:
     while not lock.acquire(timeout=0.5):
@@ -461,6 +483,22 @@ def open_in_browser(*, directory: pathlib.Path, download: Download) -> None:
         )
 
 
+def portions(*, chunks: Iterator[bytes]) -> Iterator[list[bytes]]:
+    held: list[bytes] = []
+    size = 0
+    for chunk in chunks:
+        view = memoryview(chunk)
+        while view:
+            took = min(SYSTEM_SLICE_BYTES - size, len(view))
+            held.append(bytes(view[:took]))
+            view, size = view[took:], size + took
+            if size == SYSTEM_SLICE_BYTES:
+                yield held
+                held, size = [], 0
+    if held:
+        yield held
+
+
 def reraise(error: OSError) -> NoReturn:
     raise error
 
@@ -535,6 +573,26 @@ def served(
     return arrived
 
 
+def slice_path(*, directory: pathlib.Path, index: int) -> pathlib.Path:
+    return directory / f"system.{index:02d}.gz"
+
+
+def system_sliced(*, directory: pathlib.Path) -> bool:
+    try:
+        _, blocks, slices = (directory / "md5").read_text().split()
+    except (OSError, ValueError):
+        return False
+    return (
+        blocks.isdigit()
+        and slices.isdigit()
+        and int(slices) > 0
+        and all(
+            gzip_member(path=slice_path(directory=directory, index=index))
+            for index in range(int(slices))
+        )
+    )
+
+
 def trash_dir() -> pathlib.Path | None:
     return pathlib.Path.home() / ".Trash" if sys.platform == "darwin" else None
 
@@ -559,3 +617,17 @@ def walked(*, directory: pathlib.Path) -> list[tuple[str, pathlib.Path]]:
             path = pathlib.Path(root) / name
             entries.append((path.relative_to(directory).as_posix(), path))
     return entries
+
+
+def write_slices(
+    *, chunks: Iterator[bytes], directory: pathlib.Path
+) -> tuple[str, int]:
+    checksum = hashlib.md5(usedforsecurity=False)
+    count = 0
+    for count, portion in enumerate(portions(chunks=chunks), start=1):
+        path = slice_path(directory=directory, index=count - 1)
+        with gzip.open(compresslevel=6, filename=path, mode="wb") as compressed:
+            for chunk in portion:
+                checksum.update(chunk)
+                compressed.write(chunk)
+    return checksum.hexdigest(), count

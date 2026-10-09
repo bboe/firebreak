@@ -281,11 +281,15 @@ ring read white.
   trees unpacked from the two zips are not, and neither is the system image
   built from Fire OS's.
 - The system image's directory is named after the zip's hash, so a new zip
-  builds a new image. Its `md5` file is written last and synced with the image
-  before the directory is renamed into place, so the script trusts a directory
-  only when `md5` is in it, and rebuilds otherwise. If the md5 read back still
-  fails after the last try, the script deletes `md5` alone, which works even
-  when another process holds the image open.
+  builds a new image. Its `md5` file is written last and synced with the
+  slices before the directory is renamed into place. It names the image's
+  md5, its 4 KiB blocks and its slice count, and the script trusts a directory
+  only when all three are there and every slice starts with the gzip magic. It
+  rebuilds otherwise, so a directory from a firebreak that wrote one
+  `system.img.gz` is rebuilt, and one from overdub's `dot_firmware.py`, which
+  writes the same slices, is used as it is. If the md5 read back still fails
+  after the last try, the script deletes the first slice, which works even
+  when another process holds the rest open.
 - The run starts the downloads in a background thread at the first probe that
   does not find the Dot booted, rooted or starting. So they overlap the wait
   for a Dot and for the fastboot gesture. A Dot found rooted needs no download
@@ -333,6 +337,51 @@ ring read white.
   Wi-Fi, and fastboot and the bootrom are USB-only.
 - Windows 11's adb prints no `usb:` field, so there a line counts as USB unless
   its serial is `host:port` or `emulator-*`.
+
+### What adb shell carries
+
+- Binary from the host goes by `adb push`, binary from the Dot by
+  `adb exec-out`, and `adb shell` carries only text whose shape is checked.
+  The one exception is the `/system` write, which puts the image on `adb
+  shell`'s stdin where a probe has shown that this host's adb carries 1 KiB
+  holding 0x1a unchanged, and pushes it in pieces where it has not.
+- A Windows adb reads its own stdin in text mode, where 0x1a ends the file, so
+  `adb shell` truncates a stream there. Every other byte survives: NUL, CR, LF
+  and EOT all arrive. Fire OS 5's system image holds 1,421,626 of them and the
+  first is at offset 238, so 238 of 385,745,930 bytes reach the Dot and
+  `gunzip` writes 12.
+- Nothing reports it. A pipeline carries its last command's status, so `gunzip`
+  fails, `dd` exits 0, and the only symptom is an md5 that does not match --
+  which reads as a failing eMMC. On Fire OS 6, which has no `gunzip` at all,
+  the same stream also exited 0 having written nothing. So each such command
+  ends in a word of its own, `gunzip` touches a file when it fails, and `dd`'s
+  own status ends the pipeline. The word is what the host accepts: silence is
+  a failure, because `adb shell` can exit 0 whatever happened remotely, and a
+  `dd` that cannot write the card would otherwise read the same as a stream
+  that arrived.
+- `gunzip` reports a damaged gzip but not a missing one. toybox 0.7.6 exits 1
+  on a stream cut at 0x1a (`gzclose: Illegal seek`) and on a corrupted body
+  (`gzread: incorrect data check`), so the marker appears for both. On input
+  with no gzip magic it exits 0 and behaves like `cat`: 17,000 bytes in,
+  17,000 straight out, which `dd` would then write to the partition. So each
+  slice is checked for the gzip magic on the host before the cache is used.
+  A build that did not finish never reaches the cache: it is renamed into
+  place only after its `md5` file is written.
+- A slice that arrived intact, by its md5 on the Dot, and still did not unpack
+  can only be bad on the host. The sliced route deletes it and stops, so the
+  next run rebuilds the image rather than failing the same way. The stream
+  route cannot tell which slice failed, so it unpacks each on the host and
+  deletes the ones that fail there too.
+- Outbound is the same class. `adb shell` on Windows expands LF to CRLF, so the
+  partition table, its backup copy and `misc`'s boot control block come off
+  the Dot by `exec-out`, and each read checks its own length.
+- `exec-in` is not the way round it. It is binary-safe, but it returns before
+  the Dot has finished -- 4.7 MB still in flight at 16 MiB, complete and
+  identical 5 s later -- and reports no status at all: `exec-in 'exit 7'`
+  answers 0. On amonet v2.0.0's TWRP a pipeline through it either fails at once
+  or hangs with nothing started on the Dot.
+- Measured on one Dot from two hosts minutes apart, same recovery: Windows 11
+  with adb 36.0.1 against macOS with adb 37.0.0.
 
 ### Linux permissions
 
@@ -729,17 +778,40 @@ ring read white.
   the Dot unlocks and downgrades.
 - The built image matched `system_a` after a `twrp install` in every MiB that
   the root's own edits and ext4's mount metadata leave alone.
-- `adb shell` streams the gzip into `gunzip | dd` on the Dot, so transfer,
-  unpacking and writes overlap. `adb push` cannot feed a pipe.
-- TWRP 3.2.3 used `adb exec-in`: 65 s on macOS, 76 s on Windows 11. It
-  returned up to 10 s before `dd` ended.
-- This TWRP's `exec-in` drops unread input: 1 MiB arrived as 890,197 bytes.
-  Its `adb shell` carried 100 MB intact from macOS. This TWRP's `adb shell`
-  returns when `dd` ends, with `dd`'s status. Windows is untried.
+- It is built as 128 MiB slices, each its own gzip member, because a
+  concatenation of members is one stream to any decompressor. So one cache
+  serves both routes.
+- Where `adb shell` carries a stream, the slices go out back to back on its
+  stdin, `gunzip -c` reads them and `dd` writes the partition, which overlaps
+  the transfer with the write and needs no room on the Dot. Where it does not,
+  each slice is pushed to `/tmp` and unpacked at its own offset: 35 MB at a
+  time against a 240 MiB tmpfs, so nothing is staged on the eMMC.
+- The route is chosen by sending 1 KiB holding 0x1a and hashing it on the Dot,
+  not by naming an operating system. A probe that does not complete takes the
+  pieces, which need no stream, and says so; a probe that arrives cut takes
+  them without a word.
+- A Windows adb cannot carry it. Measured on bryce in amonet v2.0.0's TWRP,
+  from Windows 11 with adb 36.0.1: `gunzip` read 12 bytes and stopped with
+  `gzclose: Illegal seek`, having written 12 bytes, while macOS carried 64 MiB
+  through the same recovery minutes apart. `adb push` of the same bytes is
+  intact from both, at 21.5 MB/s, so the sync protocol is the one that crosses
+  hosts. [What adb shell carries](#what-adb-shell-carries) has the byte and
+  the counts.
+- The command's last line says `stream-ok`, `slice-ok` or `gunzip-failed`, and
+  a write is accepted on that line alone, not on silence or on the word
+  elsewhere in the output.
+- The stream's deadline covers the transfer, not only the wait after it: one
+  thread feeds the slices, another reads adb's output, and a stalled adb is
+  killed when the 30 minutes run out.
+- TWRP 3.2.3 used `adb exec-in`: 65 s on macOS, 76 s on Windows 11. It is
+  binary-safe but returns before the Dot has finished, with no status of its
+  own, so a read taken when it returns can differ from what lands.
 - On a Dot the gzip reaches `cat > /dev/null` in 17.5 s. Through `gunzip`,
   with the output discarded, it takes 36.4 to 39.3 s. So `gunzip` on the Dot
   is the limit. The whole stage, with the eMMC and the md5 read-back, took
-  80 s. With TWRP 3.2.3 it took about 77 s.
+  80 s while it streamed, and about 77 s with TWRP 3.2.3. Slicing costs
+  23.4 s against 15.9 s for 256 MiB. The sliced route took 108 s to 109 s
+  across a whole install from Windows 11.
 - The partition is then read back by md5: 12 s with 3.2.3.
 
 ## The boot image

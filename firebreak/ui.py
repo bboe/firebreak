@@ -105,6 +105,7 @@ class Progress:
 
 @dataclasses.dataclass
 class Session:
+    carries: bool | None = None
     dd: str = "dd"
     probing: bool = False
     serial_ready: bool | None = None

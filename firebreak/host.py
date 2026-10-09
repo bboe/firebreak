@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import pathlib
 import shlex
 import subprocess
 import sys
+import threading
 import time
 from typing import BinaryIO
 
@@ -298,6 +300,52 @@ def run(
     if check and result.returncode != 0:
         _die(message=f"{' '.join(map(str, arguments))} failed:\n{result.stdout}")
     return result
+
+
+def stream(
+    *, arguments: list[str], pieces: list[pathlib.Path], timeout: float
+) -> subprocess.CompletedProcess[str]:
+    loud = ARGUMENTS.verbose and not SESSION.probing
+    if loud:
+        show(text=f"{clock()} $ {' '.join(arguments)} < {len(pieces)} pieces")
+    with subprocess.Popen(
+        args=arguments,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+    ) as process:
+        said = bytearray()
+
+        def feed() -> None:
+            try:
+                for piece in pieces:
+                    process.stdin.write(piece.read_bytes())
+            except (OSError, ValueError):
+                pass
+            finally:
+                with contextlib.suppress(OSError, ValueError):
+                    process.stdin.close()
+
+        def drain() -> None:
+            said.extend(process.stdout.read())
+
+        threads = [threading.Thread(daemon=True, target=work) for work in (feed, drain)]
+        for thread in threads:
+            thread.start()
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            raise
+        for thread in threads:
+            thread.join()
+    if loud:
+        show(text=f"{clock()}   exit {process.returncode}")
+    return subprocess.CompletedProcess(
+        args=arguments,
+        returncode=process.returncode,
+        stdout=said.decode(encoding="utf-8", errors="replace").replace("\r", ""),
+    )
 
 
 def usb_serial() -> str | None:
