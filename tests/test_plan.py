@@ -13,6 +13,7 @@ from firebreak.devices import BISCUIT, STOCK_LAYOUT
 from firebreak.plugin import BOOT0, Device, ResetBcb, Unlock, Write
 from firebreak.unlocks.amonet_biscuit_v1_1_0 import AMONET_BISCUIT_V1_1_0
 from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import AMONET_BISCUIT_V1_1_0_BBOE
+from firebreak.unlocks.amonet_biscuit_v2_0_0 import AMONET_BISCUIT_V2_0_0
 
 if TYPE_CHECKING:
     import pathlib
@@ -57,10 +58,12 @@ BISCUIT_STOCK = (
     ("userdata", 5046272, 7651294),
 )
 IMAGES = {
+    "biscuit-kaeru.bin": 266640,
     "boot.hdr": 96,
     "boot.payload": 13888,
     "lk.bin": 372736,
     "preloader.img": 1048576,
+    "tee-payload.bin": 1107464,
     "twrp.img": 9000000,
     "tz.img": 2641920,
 }
@@ -78,6 +81,24 @@ def source(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> pathli
     twrp.write_bytes(b"T" * TWRP_SIZE)
     monkeypatch.setattr(name="fetch", target=plan, value=lambda **_: twrp)
     return root
+
+
+def amonet_v2_writes() -> list[tuple[str, str | None, int, int]]:
+    return [
+        ("Repartition", "disk", 0, 17408),
+        ("Repartition", "disk", (BACKUP_ADDRESS - 32) * SECTOR, 16896),
+        ("ZeroRpmb", None, -1, -1),
+        ("Write", "tee2", 81920 * SECTOR, 2641920),
+        ("Write", "lk_a", 32768 * SECTOR, 372736),
+        ("Write", "lk_b", 65536 * SECTOR, 372736),
+        ("Write", "expdb", 98304 * SECTOR, 266752),
+        ("Write", "tee1", 49152 * SECTOR, 1107968),
+        ("Write", BOOT0, 0, 1048576),
+        ("ForceFastboot", "misc", 118784 * SECTOR, 16),
+        ("Reboot", None, -1, -1),
+        ("FastbootFlash", "recovery", 229376 * SECTOR, 9000448),
+        ("Reboot", "recovery", -1, -1),
+    ]
 
 
 def amonet_writes(*, recovery: int) -> list[tuple[str, str | None, int, int]]:
@@ -254,6 +275,7 @@ def test_a_table_that_is_not_intact_is_refused(*, source: pathlib.Path) -> None:
     argvalues=[
         AMONET_BISCUIT_V1_1_0,
         AMONET_BISCUIT_V1_1_0_BBOE,
+        AMONET_BISCUIT_V2_0_0,
     ],
     ids=lambda unlock: unlock.name,
 )
@@ -395,3 +417,44 @@ def test_v1_1_0_from_stock_matches_amonet(*, source: pathlib.Path) -> None:
     )
     assert described(actions=actions) == amonet_writes(recovery=9000448)
     assert actions[17].image == source / "bin" / "twrp.img"
+
+
+def test_v2_0_0_from_a_shuffled_table_matches_amonet(*, source: pathlib.Path) -> None:
+    actions = plan.resolve(
+        raw=biscuit_table(layout=BISCUIT_SHUFFLED),
+        source=source,
+        unlock=AMONET_BISCUIT_V2_0_0,
+    )
+    assert described(actions=actions) == amonet_v2_writes()
+    restored = gpt.partition_map(entries=actions[0].data[2 * SECTOR :])
+    assert [
+        (name, part.first, part.first + part.sectors - 1)
+        for name, part in restored.items()
+    ] == list(BISCUIT_STOCK)
+    assert actions[1].data[16384:].startswith(b"EFI PART")
+    assert [action.unrecoverable for action in actions].count(True) == 1
+    assert actions[8].unrecoverable
+    assert actions[2].expect == b"AMZN"
+    assert actions[9].data == b"FASTBOOT_PLEASE\0"
+    assert actions[6].image == source / "bin" / "biscuit-kaeru.bin"
+    assert actions[7].image == source / "bin" / "tee-payload.bin"
+    assert actions[11].image == source / "bin" / "twrp.img"
+
+
+def test_v2_0_0_from_stock_leaves_the_table(*, source: pathlib.Path) -> None:
+    actions = plan.resolve(
+        raw=biscuit_table(layout=BISCUIT_STOCK),
+        source=source,
+        unlock=AMONET_BISCUIT_V2_0_0,
+    )
+    assert described(actions=actions) == amonet_v2_writes()[2:]
+
+
+def test_v2_0_0_undoes_v1_1_0s_shuffle_byte_for_byte(*, source: pathlib.Path) -> None:
+    stock = biscuit_table(layout=BISCUIT_STOCK)
+    shuffle = plan.resolve(raw=stock, source=source, unlock=AMONET_BISCUIT_V1_1_0)
+    actions = plan.resolve(
+        raw=shuffle[1].data, source=source, unlock=AMONET_BISCUIT_V2_0_0
+    )
+    assert actions[0].data == stock
+    assert actions[1].data == gpt.rebuilt_gpt(entries=stock[1024:], raw=stock).backup

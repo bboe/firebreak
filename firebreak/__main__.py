@@ -130,12 +130,17 @@ from firebreak.ui import (
     status,
     warn,
 )
-from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v1_1_0_bboe
+from firebreak.unlocks import (
+    amonet_biscuit_v1_1_0,
+    amonet_biscuit_v1_1_0_bboe,
+    amonet_biscuit_v2_0_0,
+)
 
 AMONET_BISCUIT_V1_1_0 = "amonet-biscuit-v1.1.0"
 AMONET_BISCUIT_V1_1_0_BBOE = AMONET_BISCUIT_V1_1_0 + "-bboe"
 AMONET_BISCUIT_V1_1_0_ZIP = amonet_biscuit_v1_1_0.SOURCE
 AMONET_BISCUIT_V2_0_0 = "amonet-biscuit-v2.0.0"
+AMONET_BISCUIT_V2_0_0_ZIP = amonet_biscuit_v2_0_0.SOURCE
 AMONET_V1_1_0_ALIGN = 0x400
 AMONET_V1_1_0_APPEND = 0x6E000
 AMONET_V1_1_0_BOOT_BLOCKS = 0x37000
@@ -177,13 +182,6 @@ FIREOS = Download(
 FTVDB = "https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/"
 LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
 MD5_DIGITS = 32
-MIRROR = "https://github.com/hkfuertes/amazon_device_biscuit/releases/download/none"
-AMONET_BISCUIT_V2_0_0_ZIP = Download(
-    directory="v2",
-    name="amonet-biscuit-v2.0.0.zip",
-    sha256="98297293701082bc7272efe077f941c56fc7b6e1f27ef6f2e93b6e4c6fc7b62d",
-    url=MIRROR + "/amonet-biscuit-v2.0.0.zip",
-)
 OPEN_GRACE = 1
 POKE_GONE_WAIT = 5
 POKE_WRITE_TIMEOUT = 1

@@ -22,12 +22,19 @@ resolution refuses a pairing that lacks one before anything is written.
 
 A device also lists the partition table layouts a Dot may carry: for biscuit,
 boot moved, the table amonet v1.1.0 makes, and stock. An unlock names the
-layout it needs: boot moved for v1.1.0 and its bboe variant.
+layout it needs: boot moved for v1.1.0 and its bboe variant, stock for v2.0.0.
 
-`firebreak/unlocks/` holds amonet v1.1.0 and its bboe variant. The plan is
-amonet's `modules/main.py` and then its `fastboot-step.sh`, step for step. The
-bboe variant swaps the recovery image for TWRP 3.7.0_9-bboe2, a download of its
-own, which is why an unlock carries `files` beside its archive.
+`firebreak/unlocks/` holds amonet v1.1.0, its bboe variant, and amonet v2.0.0.
+Each plan is amonet's `modules/main.py` and then its `fastboot-step.sh`, step
+for step. The bboe variant swaps the recovery image for TWRP 3.7.0_9-bboe2, a
+download of its own, which is why an unlock carries `files` beside its archive.
+
+v2.0.0's `main.py` has two branches its plan leaves out: `fixgpt`, a manual
+mode that writes its own table, and a run from the preloader, which leaves
+boot0 alone. firebreak reaches the bootrom, so the plan writes the preloader.
+
+No route carries out v2.0.0's plan yet. A Dot reaches amonet v2.0.0 through
+the fastbrick, or through v2.0.0's own zip from an amonet v1.1.0 TWRP.
 
 ## The steps
 
@@ -38,7 +45,7 @@ own, which is why an unlock carries `files` beside its archive.
 | `ZeroRpmb` | the RPMB, which only the bootrom reaches |
 | `Write` | an image, at a sector offset into a partition or boot0 |
 | `FastbootFlash` | an image at a partition's start |
-| `ForceFastboot` | `FASTBOOT_PLEASE` over the first bytes of `expdb` |
+| `ForceFastboot` | `FASTBOOT_PLEASE` over the first bytes of a partition: `expdb` for v1.1.0, `misc` for v2.0.0 |
 | `ResetBcb` | the 7-byte BCB at 0x160 in `misc`'s second sector |
 | `Reboot` | nothing |
 
@@ -165,7 +172,8 @@ offers `firebreak/emmc.py`'s operations.
 
 ## The guardrail
 
-`tests/test_plan.py` resolves both unlocks against biscuit's geometry, from a
+`tests/test_plan.py` resolves every unlock against biscuit's geometry, from a
 stock table and from a shuffled one. Every write must equal what amonet's
 scripts issue: kind, target, byte offset and length. Reverting the boot-moved
-layout after applying it must give back the stock table byte for byte.
+layout after applying it, and v2.0.0's repartition of a v1.1.0 table, must
+each give back the stock table byte for byte.
