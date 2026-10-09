@@ -31,7 +31,7 @@ import threading
 import time
 import urllib.request
 import zipfile
-from typing import IO, TYPE_CHECKING, NoReturn
+from typing import IO, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -98,6 +98,21 @@ from firebreak.mediatek.usbdl import (
     mediatek_ports,
 )
 from firebreak.plan import TABLE_SECTORS, resolve
+from firebreak.twrp import (
+    CLEAR_BOOT0,
+    DISK,
+    check_nodes,
+    clear_boot0,
+    partition_field,
+    partition_table,
+    partitions,
+    read_sectors,
+    restore_failed,
+    unmount,
+    wait_for_twrp,
+    write,
+    write_system,
+)
 from firebreak.ui import (
     ARGUMENTS,
     MINUTE,
@@ -148,7 +163,6 @@ CHAIN_PARTS = (
     "tee2",
 )
 CHAIN_TEE = ("tee2", "tee1")
-DISK = "/dev/block/mmcblk0"
 EMOS_DEVICE_ID = (0x1949, 0x2007)
 FASTBOOT_MODE = (
     "Unplug the USB cable, press and hold the action button (the one with a dot),"
@@ -161,7 +175,6 @@ FIREOS = Download(
     "update-kindle-csm_biscuit-272.6.8.0_user_680767620.bin",
 )
 FTVDB = "https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/"
-HEAD_CHECK = 1 << 20
 LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
 MD5_DIGITS = 32
 MIRROR = "https://github.com/hkfuertes/amazon_device_biscuit/releases/download/none"
@@ -177,7 +190,6 @@ POKE_WRITE_TIMEOUT = 1
 REPLUG_WAIT = 600
 SHORT_WAIT = 5
 STOCK_STEPS = 16
-TABLE_FIELDS = 6
 TWRP = amonet_biscuit_v1_1_0_bboe.RECOVERY
 TWRP_SKIPS = frozenset({"ForceFastboot", "Reboot", "ZeroRpmb"})
 TWRP_VERSION = amonet_biscuit_v1_1_0_bboe.TWRP_VERSION
@@ -276,16 +288,6 @@ class Shell(enum.Enum):
         "echo 1 > /sys/block/mmcblk0boot0/force_ro; sync; "
         "echo 3 > /proc/sys/vm/drop_caches"
     )
-    CLEAR_BOOT0 = (
-        "d=dd; toybox dd --help >/dev/null 2>&1 && d='toybox dd'; "
-        "echo 0 > /sys/block/mmcblk0boot0/force_ro; "
-        "$d if=/dev/zero of=/dev/block/mmcblk0boot0 bs=4096 count=1 2>/dev/null; "
-        "echo 1 > /sys/block/mmcblk0boot0/force_ro; sync; "
-        "echo 3 > /proc/sys/vm/drop_caches; "
-        'echo "$($d if=/dev/block/mmcblk0boot0 bs=4096 count=1 2>/dev/null | wc -c)'
-        " $($d if=/dev/block/mmcblk0boot0 bs=4096 count=1 2>/dev/null"
-        " | tr -d '\\0' | wc -c)\""
-    )
     DATA = f"""\
 set -e
 umount /sdcard /data 2>/dev/null || true
@@ -294,7 +296,6 @@ mke2fs -q -t ext4 -b 4096 "$d" $(( $(blockdev --getsize64 "$d") / 4096 - 256 ))
 mount -t ext4 "$d" /data
 mountpoint -q /data
 """
-    FLUSH = "sync && echo 3 > /proc/sys/vm/drop_caches && echo flushed"
     MAGISK = """\
 set -e
 mountpoint -q /data
@@ -302,11 +303,6 @@ cd /; cpio -idu < /tmp/magisk.cpio 2>/dev/null
 chmod 700 /data/adb; chmod -R 755 /data/adb/magisk; chmod 600 /data/adb/magisk.db
 sync
 """
-    NODES = (
-        "b=; for p in {pairs}; do n=${{p%:*}}; s=${{p#*:}};"
-        ' g=$([ -b "$n" ] && blockdev --getsize64 "$n" || echo no);'
-        ' [ "$g" = "$s" ] || b="$b $n=$g"; done; echo "$b nodes-ok"'
-    )
     SYSTEM = """\
 set -e
 m=/tmp/fireos-system
@@ -326,11 +322,6 @@ sync; umount $m
         "m=; for t in sgdisk mke2fs blockdev md5sum; do"
         ' command -v "$t" >/dev/null 2>&1 || which "$t" >/dev/null 2>&1'
         ' || m="$m $t"; done; echo "tools:$m"'
-    )
-    UNMOUNT = (
-        'for m in $(grep "^/dev/block" /proc/mounts | cut -d" " -f2); do umount "$m";'
-        ' done; echo "left:$(grep "^/dev/block" /proc/mounts | cut -d" " -f2'
-        ' | tr "\\n" " ")"'
     )
     WRITE = (
         "dd if={source} of={target} bs=1048576 2>/dev/null;"
@@ -872,28 +863,6 @@ def check_emmc(*, live: Emmc) -> None:
     )
 
 
-def check_nodes(*, want: dict[str, int]) -> str:
-    command = Shell.NODES.value.format(
-        pairs=" ".join(f"{node}:{size}" for node, size in want.items())
-    )
-    for attempt in range(PUSH_TRIES):
-        said = adb_shell(command=command, timeout=60).split(sep="\n")[-1]
-        if said.endswith("nodes-ok"):
-            read = [token.partition("=") for token in said[: -len("nodes-ok")].split()]
-            if all(node in want for node, _, _ in read):
-                return ", ".join(
-                    f"{node} reads {got}, not {want[node]} bytes"
-                    for node, _, got in read
-                )
-        if attempt + 1 < PUSH_TRIES:
-            reconnect(remote=DISK)
-    _die(
-        message="the Dot did not answer which of its partitions are block"
-        f" devices: {said!r}. " + again()
-    )
-    return ""
-
-
 def child_emos(*, action: str, want: str) -> int:
     import serial  # ruff: ignore[import-outside-top-level]
     from serial.tools import list_ports  # ruff: ignore[import-outside-top-level]
@@ -935,24 +904,6 @@ def child_main(*, arguments: list[str], name: str) -> int:
     if sys.path[0] == str(pathlib.Path.cwd()):
         del sys.path[0]
     return {"emos": child_emos}[name](action=arguments[0], want=arguments[1])
-
-
-def clear_boot0() -> None:
-    answer = adb_shell(command=Shell.CLEAR_BOOT0.value).split(sep="\n")[-1].split()
-    if answer == ["4096", "0"]:
-        return
-    read, *still_set = answer or [""]
-    if read == "4096" and still_set:
-        ERASED.unlink(missing_ok=True)
-        restore_failed(
-            bootable=True,
-            message="boot0's header did not clear, so a failure from here would brick"
-            " rather than fall into the bootrom; nothing else was written",
-        )
-    restore_failed(
-        message="boot0 did not read back, so whether its header cleared is unknown;"
-        " nothing else was written"
-    )
 
 
 def cli() -> None:
@@ -1239,7 +1190,7 @@ def install_amonet_v2_0_0() -> None:
     remote = DOT_TEMPORARY_DIRECTORY / AMONET_BISCUIT_V2_0_0_ZIP.name
     push_checked(local=zip_path, remote=remote)
     ERASED.touch()
-    answer = adb_shell(command=Shell.CLEAR_BOOT0.value, timeout=60).split()
+    answer = adb_shell(command=CLEAR_BOOT0, timeout=60).split()
     if answer[-2:] != ["4096", "0"]:
         if answer[-2:-1] == ["4096"]:
             ERASED.unlink(missing_ok=True)
@@ -1271,7 +1222,8 @@ def install_fireos(*, reboot: bool = True, slot: str = "") -> None:
         if not adb_script(body=Shell.DATA.value, name="data.sh", work=work):
             _die(message="userdata did not format and mount")
         PROGRESS.begin(estimate="100 s", label="writing Fire OS 5.5.5.4's /system")
-        write_system(system=system)
+        compressed, want, blocks = system_image()
+        write_system(blocks=blocks, image=compressed, system=system, want=want)
         body = Shell.SYSTEM.value.format(hosts=" ".join(UPDATE_HOSTS), system=system)
         if not adb_script(body=body, name="system.sh", work=work):
             _die(message="patching /system failed")
@@ -1418,46 +1370,6 @@ def open_serial_port(*, name: str, write_timeout: float) -> serial.Serial:
     )
 
 
-def partition_field(*, name: str, number: int) -> str:
-    command = f"sgdisk --info={number} {DISK}; echo field-ok"
-    for attempt in range(PUSH_TRIES):
-        output = adb_shell(command=command, timeout=30)
-        if output.split(sep="\n")[-1] == "field-ok":
-            for line in output.split(sep="\n"):
-                if line.startswith(name + ":"):
-                    return (
-                        line.split(maxsplit=1, sep=":")[1].strip().strip("'").split()[0]
-                    )
-            _die(message=f"sgdisk --info={number} printed no {name}:\n{output}")
-        if attempt + 1 < PUSH_TRIES:
-            reconnect(remote=DISK)
-    _die(message=f"sgdisk --info={number} did not answer in full. " + again())
-    return ""
-
-
-def partition_table() -> str:
-    command = f"sgdisk --print {DISK}; echo table-ok"
-    for attempt in range(PUSH_TRIES):
-        said = adb_shell(command=command, timeout=30).split(sep="\n")
-        if said[-1] == "table-ok" and any(" userdata" in line for line in said):
-            return "\n".join(said[:-1])
-        if attempt + 1 < PUSH_TRIES:
-            reconnect(remote=DISK)
-    _die(message="sgdisk did not print the Dot's partition table:\n" + "\n".join(said))
-    return ""
-
-
-def partitions() -> dict[str, tuple[int, int, int]]:
-    found = {}
-    for line in partition_table().split(sep="\n"):
-        field = line.split()
-        if len(field) >= TABLE_FIELDS and all(value.isdigit() for value in field[:3]):
-            found[field[-1]] = (int(field[0]), int(field[1]), int(field[2]))
-    if "userdata" not in found:
-        _die(message="no userdata in the Dot's partition table")
-    return found
-
-
 def poke_live_payload() -> None:
     poked = []
     for name in sorted(mediatek_ports()):
@@ -1595,25 +1507,6 @@ def read_recovery(*, size: int) -> bytes:
     ).stdout
 
 
-def read_sectors(*, count: int, start: int) -> bytes:
-    raw = command(
-        arguments=[
-            "adb",
-            "exec-out",
-            f"{SESSION.dd} if={DISK} bs=512 skip={start} count={count} 2>/dev/null",
-        ],
-        standard_input=subprocess.DEVNULL,
-        standard_output=subprocess.PIPE,
-        timeout=60,
-    ).stdout
-    if len(raw) != count * 512:
-        _die(
-            message=f"read {len(raw)} bytes of the Dot's partition table,"
-            f" not {count * 512}"
-        )
-    return raw
-
-
 def reboot_recovery(*, label: str) -> None:
     run(arguments=["adb", "reboot", "recovery"], check=True, timeout=60)
     PROGRESS.begin(estimate="40 s", label=label)
@@ -1747,15 +1640,6 @@ def restore(
     PROGRESS.begin(estimate="90 s", label=f"waiting for stock {build} to start")
     with contextlib.suppress(subprocess.TimeoutExpired):
         run(arguments=["adb", "shell", "-n", "reboot"], timeout=60)
-
-
-def restore_failed(*, bootable: bool = False, message: str) -> NoReturn:
-    if not bootable and ERASED.exists():
-        message = message.rstrip(".") + (
-            ". boot0 has no preloader until the last step, so the Dot will not"
-            " start at all until this run finishes"
-        )
-    _die(message=message)
 
 
 def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
@@ -2337,139 +2221,8 @@ def system_image() -> tuple[pathlib.Path, str, int]:
     return target / "system.img.gz", want, int(blocks)
 
 
-def unmount(*, started: bool = False) -> None:
-    left = adb_shell(command=Shell.UNMOUNT.value).split(sep="\n")[-1]
-    if left.startswith("left:"):
-        if not left[len("left:") :].strip():
-            return
-        message = "still mounted: " + left[len("left:") :].strip()
-    else:
-        message = "the Dot did not answer what is mounted: " + left
-    if started:
-        restore_failed(message=message + "; do not reboot")
-    _die(message=message + "; nothing was written")
-
-
 def unwritten() -> str:
     return "Only boot0 was erased." if ERASED.exists() else "Nothing was written."
-
-
-def wait_for_twrp() -> None:
-    time.sleep(15)
-    try:
-        run(arguments=["adb", "wait-for-recovery"], timeout=300)
-    except subprocess.TimeoutExpired:
-        _die(message="the Dot did not reach recovery (TWRP) within 5 minutes")
-    deadline = time.monotonic() + 30
-    while not adb_shell(command="getprop ro.twrp.version", timeout=30)[
-        :1
-    ].isdigit() or "mtp" not in adb_shell(command="getprop sys.usb.config"):
-        if time.monotonic() > deadline:
-            _die(message="TWRP did not finish starting within 30 seconds")
-        time.sleep(1)
-
-
-def write(
-    *,
-    estimate: str,
-    label: str,
-    number: int | None = None,
-    path: pathlib.Path,
-    sector: int,
-) -> None:
-    size = path.stat().st_size
-    if sector % 8 == 0 and size % 4096 == 0:
-        block_size, offset, count = 4096, sector // 8, size // 4096
-    else:
-        block_size, offset, count = 512, sector, size // 512
-    verify = (
-        f"{SESSION.dd} if={DISK} bs={block_size} skip={offset} count={count}"
-        " 2>/dev/null | md5sum"
-    )
-    want = digest(kind="md5", path=path)
-    head = min(size, HEAD_CHECK)
-    PROGRESS.begin(estimate=estimate, label=label)
-    same_head = head == size or not md5_mismatch(
-        command=f"{SESSION.dd} if={DISK} bs={block_size} skip={offset}"
-        f" count={head // block_size} 2>/dev/null | md5sum",
-        want=digest(kind="md5", limit=head, path=path),
-    )
-    if same_head and not md5_mismatch(command=verify, want=want):
-        PROGRESS.end(skipped=True)
-        return
-    if number is not None:
-        start = adb_shell(command=f"cat /sys/class/block/mmcblk0p{number}/start")
-        if start.split(sep="\n")[-1].strip() != str(sector):
-            restore_failed(
-                message=f"{DISK}p{number} starts at {start or 'nothing'}, not {sector},"
-                " so the running partition table is not the one this expects"
-            )
-        pushed = run(arguments=["adb", "push", path, f"{DISK}p{number}"], timeout=1800)
-        if pushed.returncode != 0:
-            restore_failed(message=f"{label} failed; do not reboot:\n{pushed.stdout}")
-    else:
-        staged = DOT_TEMPORARY_DIRECTORY / path.name
-        pushed = run(arguments=["adb", "push", path, staged], timeout=120)
-        if pushed.returncode != 0:
-            restore_failed(
-                message=f"{label} did not reach the Dot; do not reboot:"
-                f"\n{pushed.stdout}"
-            )
-        no_truncate = " conv=notrunc" if SESSION.dd == "toybox dd" else ""
-        done = adb_shell(
-            command=f"{SESSION.dd} if={staged} of={DISK} bs={block_size} seek={offset}"
-            f"{no_truncate} && rm -f {staged} && echo written"
-        )
-        if done.split(sep="\n")[-1] != "written":
-            restore_failed(message=f"{label} failed; do not reboot:\n{done}")
-    if adb_shell(command=Shell.FLUSH.value).split(sep="\n")[-1] != "flushed":
-        restore_failed(message=label + " could not be flushed; do not reboot")
-    wrong = md5_mismatch(command=verify, want=want)
-    if wrong:
-        restore_failed(message=f"{label} did not verify{wrong}; do not reboot")
-    PROGRESS.end()
-
-
-def write_system(*, system: str) -> None:
-    image, want, blocks = system_image()
-    ready = adb_shell(
-        command="umount /system_root /tmp/fireos-system 2>/dev/null;"
-        f' d=$(readlink -f {system}); [ -b "$d" ]'
-        f' && ! grep -q -e "^$d " -e "^{system} " /proc/mounts && echo ready'
-    )
-    if ready.split(sep="\n")[-1] != "ready":
-        _die(message=f"{system} is not a block device, or it stayed mounted")
-    stream = f"gunzip -c | dd of={system} bs=1048576 2>/dev/null"
-    read_back = (
-        "sync; echo 3 > /proc/sys/vm/drop_caches;"
-        f" dd if={system} bs=4096 count={blocks} 2>/dev/null | md5sum"
-    )
-    for attempt in range(PUSH_TRIES):
-        if attempt:
-            reconnect(remote=system)
-        try:  # ruff: ignore[too-many-statements-in-try-clause]
-            with image.open(mode="rb") as file:
-                result = run(
-                    arguments=["adb", "shell", stream], standard_input=file, timeout=600
-                )
-            if result.returncode != 0:
-                said = result.stdout or f"it exited with {result.returncode}"
-                continue
-            if adb_shell(command=read_back, timeout=300).split(sep=" ")[0] == want:
-                return
-            said = "its md5 read back did not match"
-        except subprocess.TimeoutExpired as error:
-            said = (
-                f"{' '.join(map(str, error.cmd))} did not finish in"
-                f" {error.timeout:.0f} seconds"
-            )
-    if said == "its md5 read back did not match":
-        (image.parent / "md5").unlink(missing_ok=True)
-        said += ". The cached image was discarded, so the next run rebuilds it"
-    _die(
-        message=f"{system} was not written intact after {PUSH_TRIES} tries;"
-        f" the last: {said}"
-    )
 
 
 if __name__ == "__main__":

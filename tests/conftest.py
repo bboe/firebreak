@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import cache, ui
+from firebreak import cache, twrp, ui
 from firebreak.mediatek import gcpu, usbdl
 
 if TYPE_CHECKING:
@@ -54,6 +54,7 @@ def no_real_cache(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) ->
             monkeypatch.setattr(
                 name="ERASED", target=module, value=directory / "boot0-erased"
             )
+    monkeypatch.setattr(name="ERASED", target=twrp, value=directory / "boot0-erased")
     monkeypatch.setenv(name="HOME", value=str(tmp_path / "real-home"))
     monkeypatch.setenv(name="USERPROFILE", value=str(tmp_path / "real-home"))
     monkeypatch.setattr(name="get", target=cache.webbrowser, value=real_browser)
