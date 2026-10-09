@@ -132,6 +132,54 @@ def install(
     return checked
 
 
+def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    answers = {"lk_build_desc": main.LK.FIREOS6.value, "unlock_status": "true"}
+    monkeypatch.setattr(name="unpack", target=main, value=lambda **_: tmp_path)
+    monkeypatch.setattr(name="pyserial_wheel", target=main, value=lambda: None)
+    monkeypatch.setattr(
+        name="getvar", target=main, value=lambda **o: answers[o["name"]]
+    )
+    monkeypatch.setattr(name="bootrom_step", target=main, value=lambda **_: True)
+    monkeypatch.setattr(
+        name="amonet_v2_0_0_payload", target=main, value=lambda: tmp_path
+    )
+    monkeypatch.setattr(name="amonet_v1_1_0_recovery", target=main, value=lambda: False)
+    assert main.downgrade() is False
+
+
+def test_a_fastboot_that_never_says_whether_it_is_unlocked_stops_cleanly(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[str] = []
+    monkeypatch.setattr(
+        name="getvar", target=main, value=lambda **o: asked.append(o["name"]) or ""
+    )
+    monkeypatch.setattr(name="sleep", target=main.time, value=lambda _: None)
+    monkeypatch.setattr(
+        name="run", target=main, value=lambda **_: pytest.fail("flashed")
+    )
+    with pytest.raises(SystemExit, match="did not say whether it is unlocked"):
+        main.amonet_v1_1_0_recovery()
+    assert asked == ["unlock_status"] * main.PUSH_TRIES
+
+
+def test_a_locked_fastboot_is_left_for_its_own_stage(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran: list[list[object]] = []
+    monkeypatch.setattr(name="getvar", target=main, value=lambda **_: "false")
+    monkeypatch.setattr(
+        name="run",
+        target=main,
+        value=lambda **options: ran.append(options["arguments"]),
+    )
+    assert main.amonet_v1_1_0_recovery() is False
+    assert ran == []
+    assert "locked fastboot" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize(
     argnames="error",
     argvalues=[FileNotFoundError, KeyError, ValueError],
@@ -155,6 +203,98 @@ def test_a_plan_that_does_not_resolve_stops_before_anything_is_written(
     with pytest.raises(SystemExit, match="does not fit this Dot: biscuit has no"):
         main.amonet_v1_1_0_chain()
     assert not main.ERASED.exists()
+
+
+def test_a_stage_that_returns_false_counts_none_of_its_passes(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran: list[str] = []
+    states = iter([
+        main.State.AMONET_V2_0_0_FASTBOOT,
+        main.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+    ])
+
+    def state() -> main.State:
+        found = next(states, None)
+        if found is None:
+            raise KeyboardInterrupt
+        return found
+
+    table = {
+        main.State.AMONET_V2_0_0_FASTBOOT: main.Stage(
+            passes=frozenset({main.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE}),
+            run=lambda: ran.append("downgrade") is not None,
+            steps=1,
+            then=None,
+        ),
+        main.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: main.Stage(
+            run=lambda: ran.append("chain"), steps=1, then=None
+        ),
+    }
+    monkeypatch.setattr(
+        name="run",
+        target=main,
+        value=lambda **_: types.SimpleNamespace(stdout="  -S SIZE[K|M|G]"),
+    )
+    monkeypatch.setattr(name="state", target=main, value=state)
+    monkeypatch.setattr(name="stages", target=main, value=lambda: table)
+    monkeypatch.setattr(name="prefetch", target=main, value=lambda: None)
+    monkeypatch.setattr(
+        name="DOWNLOADER", target=main, value=types.SimpleNamespace(ident=1)
+    )
+    monkeypatch.setattr(name="sleep", target=main.time, value=lambda _: None)
+    monkeypatch.setattr(
+        name="target", target=main.ARGUMENTS, value=main.AMONET_BISCUIT_V1_1_0_BBOE
+    )
+    with pytest.raises(KeyboardInterrupt):
+        main.root()
+    assert ran == ["downgrade", "chain"]
+
+
+def test_a_stage_that_returns_nothing_counts_its_passes(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran: list[str] = []
+    states = iter([
+        main.State.AMONET_V2_0_0_FASTBOOT,
+        main.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+    ])
+
+    def state() -> main.State:
+        found = next(states, None)
+        if found is None:
+            raise KeyboardInterrupt
+        return found
+
+    table = {
+        main.State.AMONET_V2_0_0_FASTBOOT: main.Stage(
+            passes=frozenset({main.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE}),
+            run=lambda: ran.append("restore"),
+            steps=1,
+            then=None,
+        ),
+        main.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: main.Stage(
+            run=lambda: ran.append("again"), steps=1, then=None
+        ),
+    }
+    monkeypatch.setattr(
+        name="run",
+        target=main,
+        value=lambda **_: types.SimpleNamespace(stdout="  -S SIZE[K|M|G]"),
+    )
+    monkeypatch.setattr(name="state", target=main, value=state)
+    monkeypatch.setattr(name="stages", target=main, value=lambda: table)
+    monkeypatch.setattr(name="prefetch", target=main, value=lambda: None)
+    monkeypatch.setattr(
+        name="DOWNLOADER", target=main, value=types.SimpleNamespace(ident=1)
+    )
+    monkeypatch.setattr(name="sleep", target=main.time, value=lambda _: None)
+    monkeypatch.setattr(
+        name="target", target=main.ARGUMENTS, value=main.AMONET_BISCUIT_V1_1_0_BBOE
+    )
+    with pytest.raises(KeyboardInterrupt):
+        main.root()
+    assert ran == ["restore"]
 
 
 def test_a_stale_marker_says_nothing_before_the_dot_is_seen(
@@ -259,6 +399,26 @@ def test_amonet_v2_0_0_that_does_not_fit_writes_nothing(
     said = " ".join(str(stopped.value).split())
     assert "Nothing was written." in said
     assert "boot0 may hold no preloader" not in said
+
+
+def test_an_unlocked_fastboot_takes_v1_1_0_to_its_recovery(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    ran: list[list[object]] = []
+    monkeypatch.setattr(name="getvar", target=main, value=lambda **_: "true")
+    monkeypatch.setattr(name="unpack", target=main, value=lambda **_: tmp_path)
+    monkeypatch.setattr(name="fetch", target=main, value=lambda **_: tmp_path / "twrp")
+    monkeypatch.setattr(
+        name="run",
+        target=main,
+        value=lambda **options: ran.append(options["arguments"]),
+    )
+    assert main.amonet_v1_1_0_recovery() is True
+    assert [words[1:4] for words in ran] == [
+        ["-S", "256M", "flash"],
+        ["-S", "256M", "flash"],
+        ["oem", "reboot-recovery"],
+    ]
 
 
 def test_erasing_boot0_that_fails_leaves_no_marker(

@@ -332,7 +332,7 @@ sync; umount $m
 
 @dataclasses.dataclass(frozen=True)
 class Stage:
-    run: Callable[[], None]
+    run: Callable[[], bool | None]
     steps: int
     then: State | None
     passes: frozenset[State] = frozenset()
@@ -550,7 +550,24 @@ def amonet_v1_1_0_chain() -> None:
     PROGRESS.begin(estimate="4 min", label="waiting for rooted Fire OS 5 to boot")
 
 
-def amonet_v1_1_0_recovery() -> None:
+def amonet_v1_1_0_recovery() -> bool:
+    unlocked = ""
+    for _ in range(PUSH_TRIES):
+        unlocked = getvar(name="unlock_status").lower()
+        if unlocked in {"true", "false"}:
+            break
+        time.sleep(1)
+    if unlocked == "false":
+        PROGRESS.note(
+            message="The Dot came back in its own locked fastboot rather than"
+            " amonet's, which accepts nothing this needs. This run unlocks it again"
+            " and goes on from v2.0.0's recovery."
+        )
+        return False
+    if unlocked != "true":
+        _die(
+            message="the Dot's fastboot did not say whether it is unlocked. " + again()
+        )
     amonet = unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
     twrp = fetch(download=TWRP)
     PROGRESS.begin(estimate="30 s", label=f"waiting for TWRP {TWRP_VERSION}")
@@ -571,6 +588,7 @@ def amonet_v1_1_0_recovery() -> None:
         directory=amonet,
         timeout=60,
     )
+    return True
 
 
 def amonet_v2_0_0_payload() -> pathlib.Path:
@@ -998,7 +1016,7 @@ def countdown() -> None:
     print()
 
 
-def downgrade() -> None:
+def downgrade() -> bool:
     amonet = unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
     wheel = pyserial_wheel()
     if getvar(name="unlock_status").lower() != "true":
@@ -1020,7 +1038,7 @@ def downgrade() -> None:
         payload=amonet_v2_0_0_payload(),
         wheel=wheel,
     )
-    amonet_v1_1_0_recovery()
+    return amonet_v1_1_0_recovery()
 
 
 def download(*, build: str) -> pathlib.Path:
@@ -2044,8 +2062,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         if stage:
             left = remaining(start=current, table=table)
             PROGRESS.steps = 0 if left is None else PROGRESS.step + left
-            stage.run()
-            done.update(stage.passes)
+            if stage.run() is not False:
+                done.update(stage.passes)
         seen = None
 
 
