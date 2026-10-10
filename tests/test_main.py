@@ -237,128 +237,172 @@ def test_an_unlocked_fastboot_takes_v1_1_0_to_its_recovery(
     ]
 
 
-@pytest.mark.parametrize(
-    argnames=("target", "states", "keywords"),
-    argvalues=[
-        (
-            main.AMONET_BISCUIT_V2_0_0,
-            (
-                main.State.AMONET_V1_1_0_TWRP,
-                main.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
-                main.State.AMONET_V1_1_0_BBOE_TWRP,
+def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    state = main.State
+    to_twrp = (main.reboot, {"label": "waiting for recovery"})
+    to_v2_0_0_twrp = (main.reboot, {"label": "waiting for v2.0.0 recovery to start"})
+    shared = {
+        state.AMONET_V1_1_0_FASTBOOT: (
+            main.amonet_v1_1_0_recovery,
+            1,
+            state.AMONET_V1_1_0_BBOE_TWRP,
+            frozenset(),
+        ),
+        state.EMOS: (main.emos_stage, 1, None, frozenset()),
+        state.STOCK_FASTBOOT: (
+            main.fastbrick,
+            2,
+            state.AMONET_V2_0_0_TWRP,
+            frozenset(),
+        ),
+        state.STOCK_FIREOS5_FASTBOOT: (
+            main.fastbrick,
+            2,
+            state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+            frozenset(),
+        ),
+    }
+    reboots = {
+        state.AMONET_V2_0_0_BOOTED: (
+            to_v2_0_0_twrp,
+            1,
+            state.AMONET_V2_0_0_TWRP,
+            frozenset(),
+        ),
+        state.BOOTED: (to_twrp, 1, None, frozenset()),
+        state.ROOTED: (to_twrp, 1, state.AMONET_V1_1_0_TWRP, frozenset()),
+        state.ROOTED_AMONET_V1_1_0: (
+            to_twrp,
+            1,
+            state.AMONET_V1_1_0_TWRP,
+            frozenset(),
+        ),
+        state.ROOTED_AMONET_V1_1_0_BBOE: (
+            to_twrp,
+            1,
+            state.AMONET_V1_1_0_BBOE_TWRP,
+            frozenset(),
+        ),
+    }
+    install = (
+        main.recovery.carry_out,
+        {
+            "after": to_v2_0_0_twrp,
+            "guard": main.amonet_chain,
+            "unlock": main.amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0,
+            "zero": ("misc",),
+        },
+    )
+    routes = {
+        "amonet-biscuit-v2.0.0": shared
+        | {
+            state.AMONET_V1_1_0_BBOE_TWRP: (
+                install,
+                12,
+                state.AMONET_V2_0_0_TWRP,
+                frozenset(),
             ),
+            state.AMONET_V1_1_0_TWRP: (
+                install,
+                12,
+                state.AMONET_V2_0_0_TWRP,
+                frozenset(),
+            ),
+            state.AMONET_V2_0_0_TWRP: (
+                main.install_fireos6,
+                5,
+                state.AMONET_V2_0_0_BOOTED,
+                frozenset(),
+            ),
+            state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: (
+                install,
+                12,
+                state.AMONET_V2_0_0_TWRP,
+                frozenset(),
+            ),
+        }
+        | {rooted: reboots[rooted] for rooted in main.ROOTED},
+        "stock": shared
+        | dict.fromkeys(
+            main.TWRPS, (main.restore_stage, 16, state.STOCK_BOOTED, main.TWRPS)
+        )
+        | reboots,
+    }
+    for name in ("amonet-biscuit-v1.1.0", "amonet-biscuit-v1.1.0-bboe"):
+        goal = main.TARGETS[name].goal
+        chain = (
+            main.recovery.carry_out,
             {
                 "after": (
                     main.reboot,
-                    {"label": "waiting for v2.0.0 recovery to start"},
+                    {
+                        "estimate": "4 min",
+                        "into": "",
+                        "label": "waiting for rooted Fire OS 5 to boot",
+                    },
+                ),
+                "before_preloader": (
+                    main.install_fireos,
+                    {"reboot": False, "slot": "_a"},
                 ),
                 "guard": main.amonet_chain,
-                "unlock": main.amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0,
-                "zero": ("misc",),
+                "unlock": main.TARGETS[name].unlock,
             },
-        ),
-        *(
-            (
-                unlock.name,
-                (
-                    main.State.AMONET_V2_0_0_TWRP,
-                    main.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
-                ),
-                {
-                    "after": (
-                        main.reboot,
-                        {
-                            "estimate": "4 min",
-                            "into": "",
-                            "label": "waiting for rooted Fire OS 5 to boot",
-                        },
-                    ),
-                    "before_preloader": (
-                        main.install_fireos,
-                        {"reboot": False, "slot": "_a"},
-                    ),
-                    "guard": main.amonet_chain,
-                    "unlock": unlock,
-                },
-            )
-            for unlock in (
-                main.amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0,
-                main.amonet_biscuit_v1_1_0_bboe.AMONET_BISCUIT_V1_1_0_BBOE,
-            )
-        ),
-    ],
-    ids=["v2.0.0", "v1.1.0", "v1.1.0-bboe"],
-)
-def test_each_twrp_stage_carries_out_its_unlock(
-    *,
-    keywords: dict[str, object],
-    monkeypatch: pytest.MonkeyPatch,
-    states: tuple[main.State, ...],
-    target: str,
-) -> None:
-    monkeypatch.setattr(
-        name="target", target=main.ARGUMENTS, value=main.TARGETS[target]
-    )
-    table = main.stages()
-    for state in states:
-        assert described(value=table[state].run) == (
-            main.recovery.carry_out,
-            keywords,
         )
-
-
-@pytest.mark.parametrize(
-    argnames=("target", "stages"),
-    argvalues=[
-        (
-            main.AMONET_BISCUIT_V2_0_0,
-            {
-                main.State.AMONET_V1_1_0_TWRP: (12, main.State.AMONET_V2_0_0_TWRP),
-                main.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: (
-                    12,
-                    main.State.AMONET_V2_0_0_TWRP,
+        routes[name] = (
+            shared
+            | {
+                state.AMONET_V1_1_0_BBOE_TWRP: (
+                    main.install_fireos,
+                    5,
+                    state.ROOTED_AMONET_V1_1_0_BBOE,
+                    frozenset(),
                 ),
-                main.State.AMONET_V1_1_0_BBOE_TWRP: (
-                    12,
-                    main.State.AMONET_V2_0_0_TWRP,
+                state.AMONET_V1_1_0_TWRP: (
+                    main.replace_twrp,
+                    1,
+                    state.AMONET_V1_1_0_BBOE_TWRP,
+                    frozenset(),
                 ),
-            },
-        ),
-        *(
-            (
-                target,
-                {
-                    main.State.AMONET_V2_0_0_TWRP: (
-                        3,
-                        main.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
-                    ),
-                    main.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: (17, goal),
-                },
+                state.AMONET_V2_0_0_BOOTED: reboots[state.AMONET_V2_0_0_BOOTED],
+                state.AMONET_V2_0_0_FASTBOOT: (
+                    main.downgrade,
+                    2,
+                    state.AMONET_V1_1_0_BBOE_TWRP,
+                    frozenset({
+                        state.AMONET_V1_1_0_FASTBOOT,
+                        state.AMONET_V2_0_0_FASTBOOT,
+                        state.AMONET_V2_0_0_TWRP,
+                        state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+                    }),
+                ),
+                state.AMONET_V2_0_0_TWRP: (
+                    chain,
+                    3,
+                    state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+                    frozenset(),
+                ),
+                state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: (chain, 17, goal, frozenset()),
+            }
+            | {
+                rooted: (main.swap_twrp, 1, goal, frozenset())
+                for rooted in main.ROOTED - {goal}
+            }
+        )
+    assert set(routes) == set(main.TARGETS)
+    for name, route in routes.items():
+        monkeypatch.setattr(
+            name="target", target=main.ARGUMENTS, value=main.TARGETS[name]
+        )
+        assert {
+            current: (
+                described(value=stage.run),
+                stage.steps,
+                stage.then,
+                stage.passes,
             )
-            for target, goal in (
-                (main.AMONET_BISCUIT_V1_1_0, main.State.ROOTED_AMONET_V1_1_0),
-                (
-                    main.AMONET_BISCUIT_V1_1_0_BBOE,
-                    main.State.ROOTED_AMONET_V1_1_0_BBOE,
-                ),
-            )
-        ),
-    ],
-    ids=["v2.0.0", "v1.1.0", "v1.1.0-bboe"],
-)
-def test_each_twrp_stage_counts_its_steps_and_goes_on(
-    *,
-    monkeypatch: pytest.MonkeyPatch,
-    stages: dict[object, tuple[int, object]],
-    target: str,
-) -> None:
-    monkeypatch.setattr(
-        name="target", target=main.ARGUMENTS, value=main.TARGETS[target]
-    )
-    table = main.stages()
-    assert {state: (table[state].steps, table[state].then) for state in stages} == (
-        stages
-    )
+            for current, stage in main.stages().items()
+        } == route, name
 
 
 def test_erasing_boot0_that_fails_leaves_no_marker(
@@ -377,16 +421,6 @@ def test_erasing_boot0_that_fails_leaves_no_marker(
     main.ERASED.touch()
     assert main.erase_by_fastboot().startswith("fastboot reboot failed")
     assert main.ERASED.exists()
-
-
-def test_only_a_fire_os_5_target_leaves_v2_0_0s_fastboot_by_a_stage(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    for target in main.TARGETS.values():
-        monkeypatch.setattr(name="target", target=main.ARGUMENTS, value=target)
-        assert (main.State.AMONET_V2_0_0_FASTBOOT in main.stages()) == (
-            not isinstance(target.installs, main.FireOs6)
-        )
 
 
 def test_probed_prints_an_unreadable_state_plain_and_masked(

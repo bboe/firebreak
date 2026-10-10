@@ -1060,6 +1060,73 @@ def fastbrick() -> None:
     )
 
 
+def fireos5_stages() -> dict[State, Stage]:
+    downgrades = frozenset({
+        State.AMONET_V2_0_0_TWRP,
+        State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+        State.AMONET_V1_1_0_FASTBOOT,
+        State.AMONET_V2_0_0_FASTBOOT,
+    })
+    goal = ARGUMENTS.target.goal
+    chain = functools.partial(
+        recovery.carry_out,
+        after=functools.partial(
+            reboot,
+            estimate="4 min",
+            into="",
+            label="waiting for rooted Fire OS 5 to boot",
+        ),
+        before_preloader=functools.partial(install_fireos, reboot=False, slot="_a"),
+        guard=amonet_chain,
+        unlock=ARGUMENTS.target.unlock,
+    )
+    return {
+        State.AMONET_V1_1_0_TWRP: Stage(
+            run=replace_twrp, steps=1, then=State.AMONET_V1_1_0_BBOE_TWRP
+        ),
+        State.AMONET_V2_0_0_TWRP: Stage(
+            run=chain,
+            steps=3,
+            then=State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+        ),
+        State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(run=chain, steps=17, then=goal),
+        State.AMONET_V1_1_0_BBOE_TWRP: Stage(
+            run=install_fireos, steps=5, then=State.ROOTED_AMONET_V1_1_0_BBOE
+        ),
+        State.AMONET_V2_0_0_BOOTED: reboot_stages()[State.AMONET_V2_0_0_BOOTED],
+        State.AMONET_V2_0_0_FASTBOOT: Stage(
+            passes=downgrades,
+            run=downgrade,
+            steps=2,
+            then=State.AMONET_V1_1_0_BBOE_TWRP,
+        ),
+    } | {rooted: Stage(run=swap_twrp, steps=1, then=goal) for rooted in ROOTED - {goal}}
+
+
+def fireos6_stages() -> dict[State, Stage]:
+    install = functools.partial(
+        recovery.carry_out,
+        after=functools.partial(reboot, label="waiting for v2.0.0 recovery to start"),
+        guard=amonet_chain,
+        unlock=amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0,
+        zero=("misc",),
+    )
+    return {
+        State.AMONET_V1_1_0_TWRP: Stage(
+            run=install, steps=12, then=State.AMONET_V2_0_0_TWRP
+        ),
+        State.AMONET_V2_0_0_TWRP: Stage(
+            run=install_fireos6, steps=5, then=State.AMONET_V2_0_0_BOOTED
+        ),
+        State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(
+            run=install, steps=12, then=State.AMONET_V2_0_0_TWRP
+        ),
+        State.AMONET_V1_1_0_BBOE_TWRP: Stage(
+            run=install, steps=12, then=State.AMONET_V2_0_0_TWRP
+        ),
+    } | {state: stage for state, stage in reboot_stages().items() if state in ROOTED}
+
+
 def hide_updater() -> None:
     def hidden() -> bool:
         output = adb_shell(command=f"su -c 'dumpsys package {UPDATER}'", timeout=60)
@@ -1456,6 +1523,25 @@ def read_recovery(*, size: int) -> bytes:
     ).stdout
 
 
+def reboot_stages() -> dict[State, Stage]:
+    to_twrp = functools.partial(reboot, label="waiting for recovery")
+    return {
+        State.AMONET_V2_0_0_BOOTED: Stage(
+            run=functools.partial(reboot, label="waiting for v2.0.0 recovery to start"),
+            steps=1,
+            then=State.AMONET_V2_0_0_TWRP,
+        ),
+        State.BOOTED: Stage(run=to_twrp, steps=1, then=None),
+        State.ROOTED: Stage(run=to_twrp, steps=1, then=State.AMONET_V1_1_0_TWRP),
+        State.ROOTED_AMONET_V1_1_0_BBOE: Stage(
+            run=to_twrp, steps=1, then=State.AMONET_V1_1_0_BBOE_TWRP
+        ),
+        State.ROOTED_AMONET_V1_1_0: Stage(
+            run=to_twrp, steps=1, then=State.AMONET_V1_1_0_TWRP
+        ),
+    }
+
+
 def remaining(*, start: State, table: dict[State, Stage]) -> int | None:
     total = 0
     for _ in range(len(table) + 1):
@@ -1775,6 +1861,18 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
         restore_failed(message="stopped part way. Do not reboot. " + again())
 
 
+def restore_stages() -> dict[State, Stage]:
+    return {
+        twrp: Stage(
+            passes=TWRPS,
+            run=restore_stage,
+            steps=STOCK_STEPS,
+            then=State.STOCK_BOOTED,
+        )
+        for twrp in TWRPS
+    } | reboot_stages()
+
+
 def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
     usage = run(arguments=["fastboot", "--help"], timeout=30).stdout
     if not any(line.split()[:1] == ["-S"] for line in usage.splitlines()):
@@ -2021,12 +2119,6 @@ def short_hint() -> str:
 
 
 def stages() -> dict[State, Stage]:
-    downgrades = frozenset({
-        State.AMONET_V2_0_0_TWRP,
-        State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
-        State.AMONET_V1_1_0_FASTBOOT,
-        State.AMONET_V2_0_0_FASTBOOT,
-    })
     table = {
         State.EMOS: Stage(run=emos_stage, steps=1, then=None),
         State.STOCK_FIREOS5_FASTBOOT: Stage(
@@ -2039,129 +2131,11 @@ def stages() -> dict[State, Stage]:
             run=amonet_v1_1_0_recovery, steps=1, then=State.AMONET_V1_1_0_BBOE_TWRP
         ),
     }
-    to_twrp = "waiting for recovery"
-    install = functools.partial(
-        recovery.carry_out,
-        after=functools.partial(reboot, label="waiting for v2.0.0 recovery to start"),
-        guard=amonet_chain,
-        unlock=amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0,
-        zero=("misc",),
-    )
     if ARGUMENTS.target.unlock is None:
-        return (
-            table
-            | {
-                twrp: Stage(
-                    passes=TWRPS,
-                    run=restore_stage,
-                    steps=STOCK_STEPS,
-                    then=State.STOCK_BOOTED,
-                )
-                for twrp in TWRPS
-            }
-            | {
-                State.BOOTED: Stage(
-                    run=lambda: reboot(label=to_twrp), steps=1, then=None
-                ),
-                State.ROOTED: Stage(
-                    run=lambda: reboot(label=to_twrp),
-                    steps=1,
-                    then=State.AMONET_V1_1_0_TWRP,
-                ),
-                State.ROOTED_AMONET_V1_1_0_BBOE: Stage(
-                    run=lambda: reboot(label=to_twrp),
-                    steps=1,
-                    then=State.AMONET_V1_1_0_BBOE_TWRP,
-                ),
-                State.ROOTED_AMONET_V1_1_0: Stage(
-                    run=lambda: reboot(label=to_twrp),
-                    steps=1,
-                    then=State.AMONET_V1_1_0_TWRP,
-                ),
-                State.AMONET_V2_0_0_BOOTED: Stage(
-                    run=lambda: reboot(label="waiting for v2.0.0 recovery to start"),
-                    steps=1,
-                    then=State.AMONET_V2_0_0_TWRP,
-                ),
-            }
-        )
+        return table | restore_stages()
     if isinstance(ARGUMENTS.target.installs, FireOs6):
-        return table | {
-            State.AMONET_V1_1_0_TWRP: Stage(
-                run=install, steps=12, then=State.AMONET_V2_0_0_TWRP
-            ),
-            State.AMONET_V2_0_0_TWRP: Stage(
-                run=install_fireos6, steps=5, then=State.AMONET_V2_0_0_BOOTED
-            ),
-            State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(
-                run=install, steps=12, then=State.AMONET_V2_0_0_TWRP
-            ),
-            State.AMONET_V1_1_0_BBOE_TWRP: Stage(
-                run=install, steps=12, then=State.AMONET_V2_0_0_TWRP
-            ),
-            State.ROOTED: Stage(
-                run=lambda: reboot(label=to_twrp),
-                steps=1,
-                then=State.AMONET_V1_1_0_TWRP,
-            ),
-            State.ROOTED_AMONET_V1_1_0_BBOE: Stage(
-                run=lambda: reboot(label=to_twrp),
-                steps=1,
-                then=State.AMONET_V1_1_0_BBOE_TWRP,
-            ),
-            State.ROOTED_AMONET_V1_1_0: Stage(
-                run=lambda: reboot(label=to_twrp),
-                steps=1,
-                then=State.AMONET_V1_1_0_TWRP,
-            ),
-        }
-    goal = ARGUMENTS.target.goal
-    chain = functools.partial(
-        recovery.carry_out,
-        after=functools.partial(
-            reboot,
-            estimate="4 min",
-            into="",
-            label="waiting for rooted Fire OS 5 to boot",
-        ),
-        before_preloader=functools.partial(install_fireos, reboot=False, slot="_a"),
-        guard=amonet_chain,
-        unlock=ARGUMENTS.target.unlock,
-    )
-    return (
-        table
-        | {
-            State.AMONET_V1_1_0_TWRP: Stage(
-                run=replace_twrp, steps=1, then=State.AMONET_V1_1_0_BBOE_TWRP
-            ),
-            State.AMONET_V2_0_0_TWRP: Stage(
-                run=chain,
-                steps=3,
-                then=State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
-            ),
-            State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(
-                run=chain, steps=17, then=goal
-            ),
-            State.AMONET_V1_1_0_BBOE_TWRP: Stage(
-                run=install_fireos, steps=5, then=State.ROOTED_AMONET_V1_1_0_BBOE
-            ),
-            State.AMONET_V2_0_0_BOOTED: Stage(
-                run=lambda: reboot(label="waiting for v2.0.0 recovery to start"),
-                steps=1,
-                then=State.AMONET_V2_0_0_TWRP,
-            ),
-            State.AMONET_V2_0_0_FASTBOOT: Stage(
-                passes=downgrades,
-                run=downgrade,
-                steps=2,
-                then=State.AMONET_V1_1_0_BBOE_TWRP,
-            ),
-        }
-        | {
-            rooted: Stage(run=swap_twrp, steps=1, then=goal)
-            for rooted in ROOTED - {goal}
-        }
-    )
+        return table | fireos6_stages()
+    return table | fireos5_stages()
 
 
 def state() -> State:
