@@ -146,7 +146,9 @@ def test_a_stage_that_returns_false_counts_none_of_its_passes(
     )
     monkeypatch.setattr(name="sleep", target=main.time, value=lambda _: None)
     monkeypatch.setattr(
-        name="target", target=main.ARGUMENTS, value=main.AMONET_BISCUIT_V1_1_0_BBOE
+        name="target",
+        target=main.ARGUMENTS,
+        value=main.TARGETS[main.AMONET_BISCUIT_V1_1_0_BBOE],
     )
     with pytest.raises(KeyboardInterrupt):
         main.root()
@@ -192,7 +194,9 @@ def test_a_stage_that_returns_nothing_counts_its_passes(
     )
     monkeypatch.setattr(name="sleep", target=main.time, value=lambda _: None)
     monkeypatch.setattr(
-        name="target", target=main.ARGUMENTS, value=main.AMONET_BISCUIT_V1_1_0_BBOE
+        name="target",
+        target=main.ARGUMENTS,
+        value=main.TARGETS[main.AMONET_BISCUIT_V1_1_0_BBOE],
     )
     with pytest.raises(KeyboardInterrupt):
         main.root()
@@ -292,7 +296,9 @@ def test_each_twrp_stage_carries_out_its_unlock(
     states: tuple[main.State, ...],
     target: str,
 ) -> None:
-    monkeypatch.setattr(name="target", target=main.ARGUMENTS, value=target)
+    monkeypatch.setattr(
+        name="target", target=main.ARGUMENTS, value=main.TARGETS[target]
+    )
     table = main.stages()
     for state in states:
         assert described(value=table[state].run) == (
@@ -346,7 +352,9 @@ def test_each_twrp_stage_counts_its_steps_and_goes_on(
     stages: dict[object, tuple[int, object]],
     target: str,
 ) -> None:
-    monkeypatch.setattr(name="target", target=main.ARGUMENTS, value=target)
+    monkeypatch.setattr(
+        name="target", target=main.ARGUMENTS, value=main.TARGETS[target]
+    )
     table = main.stages()
     assert {state: (table[state].steps, table[state].then) for state in stages} == (
         stages
@@ -369,6 +377,16 @@ def test_erasing_boot0_that_fails_leaves_no_marker(
     main.ERASED.touch()
     assert main.erase_by_fastboot().startswith("fastboot reboot failed")
     assert main.ERASED.exists()
+
+
+def test_only_a_fire_os_5_target_leaves_v2_0_0s_fastboot_by_a_stage(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for target in main.TARGETS.values():
+        monkeypatch.setattr(name="target", target=main.ARGUMENTS, value=target)
+        assert (main.State.AMONET_V2_0_0_FASTBOOT in main.stages()) == (
+            not isinstance(target.installs, main.FireOs6)
+        )
 
 
 def test_probed_prints_an_unreadable_state_plain_and_masked(
@@ -484,7 +502,9 @@ def test_the_session_takes_the_marker_after_the_first_probe(
     monkeypatch.setattr(name="stages", target=main, value=dict)
     monkeypatch.setattr(name="sleep", target=main.time, value=lambda _: None)
     monkeypatch.setattr(
-        name="target", target=main.ARGUMENTS, value=main.AMONET_BISCUIT_V1_1_0_BBOE
+        name="target",
+        target=main.ARGUMENTS,
+        value=main.TARGETS[main.AMONET_BISCUIT_V1_1_0_BBOE],
     )
     with pytest.raises(KeyboardInterrupt):
         main.root()

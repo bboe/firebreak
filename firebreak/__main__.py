@@ -68,6 +68,7 @@ from firebreak.cache import (
     unpack,
     write_slices,
 )
+from firebreak.devices import State
 from firebreak.emmc import EmmcArea
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
@@ -105,6 +106,7 @@ from firebreak.mediatek.usbdl import (
     mediatek_ports,
 )
 from firebreak.plan import TABLE_SECTORS, Action, resolve
+from firebreak.plugin import FireOs6
 from firebreak.report import (
     LEFT_IN_RECOVERY,
     LISTING_OK,
@@ -160,6 +162,7 @@ from firebreak.unlocks import (
     amonet_biscuit_v1_1_0_bboe,
     amonet_biscuit_v2_0_0,
 )
+from firebreak.unlocks.targets import FIREOS, TARGETS
 from firebreak.write_test import EMMC_TARGET, MEBIBYTE, USB_TEST, emmc_leg, usb_leg
 
 AMONET_BISCUIT_V1_1_0 = amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0.name
@@ -167,7 +170,6 @@ AMONET_BISCUIT_V1_1_0_BBOE = amonet_biscuit_v1_1_0_bboe.AMONET_BISCUIT_V1_1_0_BB
 AMONET_BISCUIT_V1_1_0_ZIP = amonet_biscuit_v1_1_0.SOURCE
 AMONET_BISCUIT_V2_0_0 = amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0.name
 AMONET_BISCUIT_V2_0_0_ZIP = amonet_biscuit_v2_0_0.SOURCE
-AMONET_V2_0_0_FIREOS_BUILD = "8146"
 BOOTLOADER_CONTROL_BLOCK = b"\0ABB\x01\x8f\0"
 BOOTLOADER_CONTROL_BLOCK_OFFSET = 0x360
 BOOTROM_STEP_TIMEOUT = 30 * MINUTE
@@ -186,12 +188,6 @@ FASTBOOT_MODE = (
     "Unplug the USB cable, press and hold the action button (the one with a dot),"
     " plug the cable back in, and let go when the light ring turns green."
 )
-FIREOS = Download(
-    name="update-kindle-csm_biscuit-272.6.8.0_user_680767620.bin",
-    sha256="6ababc517529938f0d1e836c3410a91df19683ae62d7fca9e2ca57320d5d2faa",
-    url="https://d1s31zyz7dcc2d.cloudfront.net/47a1457e0802980eb32f63cd3ce355c0/"
-    "update-kindle-csm_biscuit-272.6.8.0_user_680767620.bin",
-)
 FTVDB = "https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/"
 LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
 MD5_DIGITS = 32
@@ -199,9 +195,16 @@ OPEN_GRACE = 1
 POKE_GONE_WAIT = 5
 POKE_WRITE_TIMEOUT = 1
 REPLUG_WAIT = 600
+ROOTED = {State.ROOTED, State.ROOTED_AMONET_V1_1_0_BBOE, State.ROOTED_AMONET_V1_1_0}
 SHORT_WAIT = 5
 STOCK_STEPS = 16
 TWRP = amonet_biscuit_v1_1_0_bboe.RECOVERY
+TWRPS = frozenset({
+    State.AMONET_V1_1_0_TWRP,
+    State.AMONET_V2_0_0_TWRP,
+    State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+    State.AMONET_V1_1_0_BBOE_TWRP,
+})
 TWRP_VERSION = amonet_biscuit_v1_1_0_bboe.TWRP_VERSION
 TWRP_VERSIONS = ("3.2.", "3.7.")
 UPDATER = "com.amazon.device.software.ota"
@@ -345,41 +348,6 @@ class Stage:
     steps: int
     then: State | None
     passes: frozenset[State] = frozenset()
-
-
-class State(enum.Enum):
-    AMONET_V1_1_0_BBOE_TWRP = "amonet-v1.1.0-bboe-twrp"
-    AMONET_V1_1_0_FASTBOOT = "amonet-v1.1.0-fastboot"
-    AMONET_V1_1_0_TWRP = "amonet-v1.1.0-twrp"
-    AMONET_V2_0_0_BOOTED = "amonet-v2.0.0-booted"
-    AMONET_V2_0_0_FASTBOOT = "amonet-v2.0.0-fastboot"
-    AMONET_V2_0_0_TWRP = "amonet-v2.0.0-twrp"
-    AMONET_V2_0_0_TWRP_V1_1_0_TABLE = "amonet-v2.0.0-twrp-v1.1.0-table"
-    BOOTED = "booted"
-    EMOS = "emos"
-    NONE = "none"
-    ROOTED = "rooted"
-    ROOTED_AMONET_V1_1_0 = "rooted-amonet-v1.1.0"
-    ROOTED_AMONET_V1_1_0_BBOE = "rooted-amonet-v1.1.0-bboe"
-    STARTING = "starting"
-    STOCK_BOOTED = "stock-booted"
-    STOCK_FASTBOOT = "stock-fastboot"
-    STOCK_FIREOS5_FASTBOOT = "stock-fireos5-fastboot"
-
-
-GOALS = {
-    "stock": State.STOCK_BOOTED,
-    AMONET_BISCUIT_V1_1_0: State.ROOTED_AMONET_V1_1_0,
-    AMONET_BISCUIT_V1_1_0_BBOE: State.ROOTED_AMONET_V1_1_0_BBOE,
-    AMONET_BISCUIT_V2_0_0: State.AMONET_V2_0_0_BOOTED,
-}
-ROOTED = {State.ROOTED, State.ROOTED_AMONET_V1_1_0_BBOE, State.ROOTED_AMONET_V1_1_0}
-TWRPS = frozenset({
-    State.AMONET_V1_1_0_TWRP,
-    State.AMONET_V2_0_0_TWRP,
-    State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
-    State.AMONET_V1_1_0_BBOE_TWRP,
-})
 
 
 @dataclasses.dataclass(frozen=True)
@@ -676,22 +644,25 @@ def bootrom_step(
     return True
 
 
-def build_system(*, target: pathlib.Path) -> None:
+def build_system(*, package: Download, target: pathlib.Path) -> None:
     part = CACHE / "system.part"
     shutil.rmtree(ignore_errors=True, path=part)
     part.mkdir()
-    fireos = fetch(download=FIREOS)
+    fireos = fetch(download=package)
     with zipfile.ZipFile(file=fireos) as archive:
         words = archive.read(name="system.transfer.list").decode().split()
         commands = dict(zip(words[4::2], words[5::2]))
         if words[0] != "3" or set(commands) != {"erase", "new"}:
-            _die(message=f"{FIREOS.name} has a transfer list this does not read")
+            _die(message=f"{package.name} has a transfer list this does not read")
         blocks = int(commands["erase"].split(sep=",")[-1])
         bounds = [int(number) for number in commands["new"].split(sep=",")[1:]]
         ranges = [*zip(bounds[::2], bounds[1::2]), (blocks, blocks)]
         with archive.open(name="system.new.dat") as new_data:
             want, slices = write_slices(
-                chunks=system_chunks(new_data=new_data, ranges=ranges), directory=part
+                chunks=system_chunks(
+                    name=package.name, new_data=new_data, ranges=ranges
+                ),
+                directory=part,
             )
     (part / "md5").write_text(data=f"{want} {blocks} {slices}\n")
     for path in part.iterdir():
@@ -803,6 +774,7 @@ def child_main(*, arguments: list[str], name: str) -> int:
 
 
 def cli() -> None:
+    installs = TARGETS[AMONET_BISCUIT_V2_0_0].installs
     parser = argparse.ArgumentParser(
         description=__doc__,
         epilog=f"""targets:
@@ -811,7 +783,7 @@ def cli() -> None:
   {AMONET_BISCUIT_V1_1_0}
       the same, with amonet v1.1.0's own TWRP 3.2.3.
   {AMONET_BISCUIT_V2_0_0}
-      amonet v2.0.0's own procedure: Fire OS 6 {AMONET_V2_0_0_FIREOS_BUILD}
+      amonet v2.0.0's own procedure: Fire OS 6 {installs.build}
       with boot-root.zip's root adb.
   stock BUILD
       Amazon's Fire OS 6 BUILD, which erases the whole Dot.
@@ -848,7 +820,7 @@ Run again with another target to move the Dot to it.""",
     )
     parser.add_argument(
         "target",
-        choices=tuple(GOALS),
+        choices=tuple(TARGETS),
         default=AMONET_BISCUIT_V1_1_0_BBOE,
         help="the target, one of those listed below",
         metavar="TARGET",
@@ -863,13 +835,14 @@ Run again with another target to move the Dot to it.""",
         nargs="?",
     )
     options = parser.parse_intermixed_args()
-    if (options.target == "stock") != (options.build is not None):
+    target = TARGETS[options.target]
+    if (target.installs == FireOs6(build=None)) != (options.build is not None):
         parser.error(
             message="stock takes a BUILD, and no other target does: "
             + ", ".join(sorted(BUILDS))
         )
     ARGUMENTS.build = options.build or ""
-    ARGUMENTS.target = options.target
+    ARGUMENTS.target = target
     ARGUMENTS.verbose = options.verbose
     for tool in ("adb", "fastboot"):
         if not shutil.which(cmd=tool):
@@ -1105,7 +1078,7 @@ def hide_updater() -> None:
 
 
 def install_fireos(*, reboot: bool = True, slot: str = "") -> None:
-    fireos = fetch(download=FIREOS)
+    fireos = fetch(download=ARGUMENTS.target.installs.package)
     magisk = fetch(download=MAGISK)
     slot = slot or adb_shell(command="getprop ro.boot.slot_suffix", timeout=30)
     if slot not in {"_a", "_b"}:
@@ -1117,7 +1090,7 @@ def install_fireos(*, reboot: bool = True, slot: str = "") -> None:
         if not adb_script(body=Shell.DATA.value, name="data.sh", work=work):
             _die(message="userdata did not format and mount")
         PROGRESS.begin(estimate="100 s", label="writing Fire OS 5.5.5.4's /system")
-        slices, want, blocks = system_image()
+        slices, want, blocks = system_image(package=ARGUMENTS.target.installs.package)
         write_system(blocks=blocks, slices=slices, system=system, want=want)
         body = Shell.SYSTEM.value.format(hosts=" ".join(UPDATE_HOSTS), system=system)
         if not adb_script(body=body, name="system.sh", work=work):
@@ -1158,7 +1131,8 @@ def install_fireos(*, reboot: bool = True, slot: str = "") -> None:
 
 def install_fireos6() -> None:
     amonet_chain()
-    update_file = download(build=AMONET_V2_0_0_FIREOS_BUILD)
+    build = ARGUMENTS.target.installs.build
+    update_file = download(build=build)
     zip_path = fetch(download=BOOT_ROOT)
     if "boot_a_x" in partition_table():
         _die(
@@ -1171,7 +1145,7 @@ def install_fireos6() -> None:
     for index, slot in enumerate(iterable=("first", "second")):
         PROGRESS.begin(
             estimate="2 min",
-            label=f"installing Fire OS 6 {AMONET_V2_0_0_FIREOS_BUILD}, {slot} slot",
+            label=f"installing Fire OS 6 {build}, {slot} slot",
         )
         if index:
             run(arguments=["adb", "reboot", "recovery"], check=True, timeout=60)
@@ -1182,7 +1156,7 @@ def install_fireos6() -> None:
         after = adb_shell(command="bcbtool get_active", timeout=30)
         if {before, after} != {"a", "b"}:
             _die(
-                message=f"installing Fire OS 6 {AMONET_V2_0_0_FIREOS_BUILD} left the"
+                message=f"installing Fire OS 6 {build} left the"
                 f" active slot {after!r}, where it was {before!r}. " + again()
             )
     PROGRESS.begin(estimate="10 s", label="installing boot-root")
@@ -1381,7 +1355,7 @@ def poke_live_payload() -> None:
 
 def prebuild() -> None:
     with contextlib.suppress(Exception, SystemExit):
-        system_image()
+        system_image(package=ARGUMENTS.target.installs.package)
 
 
 def predownload() -> None:
@@ -1396,14 +1370,15 @@ def prefetch() -> None:
     if DOWNLOADER.is_alive() and threading.current_thread() is threading.main_thread():
         show(text="Finishing the downloads.")
     unpack(download=AMONET_BISCUIT_V2_0_0_ZIP)
-    if ARGUMENTS.target in {"stock", AMONET_BISCUIT_V2_0_0}:
-        build = ARGUMENTS.build or AMONET_V2_0_0_FIREOS_BUILD
+    installs = ARGUMENTS.target.installs
+    if isinstance(installs, FireOs6):
+        build = ARGUMENTS.build or installs.build
         with hold(lock=lock_for(key=build)):
             download(build=build)
         return
     unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
     pyserial_wheel()
-    fetch(download=FIREOS)
+    fetch(download=installs.package)
     fetch(download=MAGISK)
     fetch(download=TWRP)
     threading.Thread(daemon=True, target=prebuild).start()
@@ -1484,7 +1459,7 @@ def read_recovery(*, size: int) -> bytes:
 def remaining(*, start: State, table: dict[State, Stage]) -> int | None:
     total = 0
     for _ in range(len(table) + 1):
-        if start == GOALS[ARGUMENTS.target]:
+        if start == ARGUMENTS.target.goal:
             return total
         stage = table.get(start)
         if stage is None or stage.then is None:
@@ -1809,6 +1784,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         )
     done: set[State] = set()
     table = stages()
+    target = ARGUMENTS.target
     guided = False
     resumed = False
     seen = None
@@ -1817,19 +1793,16 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
     while True:
         current = state()
         installed = (
-            ARGUMENTS.target == AMONET_BISCUIT_V2_0_0
+            target.goal == State.AMONET_V2_0_0_BOOTED
             and State.AMONET_V2_0_0_TWRP in done
         )
-        restored = ARGUMENTS.target == "stock" and bool(done & TWRPS)
-        gesture = (
-            ARGUMENTS.target in {"stock", AMONET_BISCUIT_V2_0_0}
-            and current == State.AMONET_V2_0_0_FASTBOOT
-        )
+        restored = target.unlock is None and bool(done & TWRPS)
+        gesture = current == State.AMONET_V2_0_0_FASTBOOT and current not in table
         if (
             DOWNLOADER.ident is None
             and current not in {State.BOOTED, State.STARTING, *ROOTED}
             and not (
-                ARGUMENTS.target == "stock"
+                target.unlock is None
                 and current in {State.STOCK_BOOTED, State.STOCK_FASTBOOT}
             )
         ):
@@ -1840,7 +1813,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         if current != State.NONE:
             SESSION.short = False
         if current == State.NONE and (ERASED.exists() or SESSION.short) and not resumed:
-            if ARGUMENTS.target == AMONET_BISCUIT_V2_0_0:
+            if target.goal == State.AMONET_V2_0_0_BOOTED:
                 fetch(download=BOOT_ROOT)
             prefetch()
             resumed = True
@@ -1885,12 +1858,12 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             if (
                 current == State.BOOTED
                 and not PROGRESS.open
-                and ARGUMENTS.target != "stock"
+                and target.unlock is not None
             ):
                 show(text="The Dot is starting Fire OS. Waiting for it to finish.")
             elif current == State.STOCK_BOOTED and installed:
                 deadline = time.monotonic() + MINUTE
-            elif current == State.STOCK_BOOTED and ARGUMENTS.target != "stock":
+            elif current == State.STOCK_BOOTED and target.unlock is not None:
                 guided = True
                 say(
                     text="This Dot appears to be unmodified. To unlock and root it,"
@@ -1914,7 +1887,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             elif (
                 current == State.AMONET_V2_0_0_BOOTED
                 and current not in done
-                and ARGUMENTS.target != AMONET_BISCUIT_V2_0_0
+                and current != target.goal
             ):
                 say(
                     text="This Dot runs rooted Fire OS 6 on amonet v2.0.0."
@@ -1930,15 +1903,12 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     + FASTBOOT_MODE
                     + " Ctrl-C stops the script."
                 )
-        if (
-            ARGUMENTS.target == AMONET_BISCUIT_V2_0_0
-            and current == State.AMONET_V2_0_0_BOOTED
-        ):
+        if current == State.AMONET_V2_0_0_BOOTED == target.goal:
             version = adb_shell(command="getprop ro.build.version.name")
             warn(text=f"The Dot is rooted: {version}, with root adb.")
             cache_note()
             return
-        if ARGUMENTS.target == "stock" and current in {
+        if target.unlock is None and current in {
             State.STOCK_BOOTED,
             State.STOCK_FASTBOOT,
         }:
@@ -1958,7 +1928,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 )
             cache_note()
             return
-        if current == GOALS[ARGUMENTS.target]:
+        if current == target.goal:
             hide_updater()
             version = adb_shell(command="getprop ro.build.version.name")
             selinux = adb_shell(command="getenforce")
@@ -1972,7 +1942,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             gesture
             or current in done
             or current in {State.NONE, State.STOCK_BOOTED, State.STARTING}
-            or (current == State.BOOTED and ARGUMENTS.target != "stock")
+            or (current == State.BOOTED and target.unlock is not None)
         ):
             waits = {State.NONE} if installed else {State.NONE, State.STOCK_BOOTED}
             if restored:
@@ -2000,12 +1970,9 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             time.sleep(2)
             continue
         if not done:
-            if ARGUMENTS.target == AMONET_BISCUIT_V2_0_0:
+            if target.goal == State.AMONET_V2_0_0_BOOTED:
                 fetch(download=BOOT_ROOT)
-            if (
-                ARGUMENTS.target in {"stock", AMONET_BISCUIT_V2_0_0}
-                or current not in ROOTED
-            ):
+            if isinstance(target.installs, FireOs6) or current not in ROOTED:
                 prefetch()
             warn(text="Keep the Dot plugged in until firebreak finishes.")
         done.add(current)
@@ -2080,7 +2047,7 @@ def stages() -> dict[State, Stage]:
         unlock=amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0,
         zero=("misc",),
     )
-    if ARGUMENTS.target == "stock":
+    if ARGUMENTS.target.unlock is None:
         return (
             table
             | {
@@ -2118,7 +2085,7 @@ def stages() -> dict[State, Stage]:
                 ),
             }
         )
-    if ARGUMENTS.target == AMONET_BISCUIT_V2_0_0:
+    if isinstance(ARGUMENTS.target.installs, FireOs6):
         return table | {
             State.AMONET_V1_1_0_TWRP: Stage(
                 run=install, steps=12, then=State.AMONET_V2_0_0_TWRP
@@ -2148,7 +2115,7 @@ def stages() -> dict[State, Stage]:
                 then=State.AMONET_V1_1_0_TWRP,
             ),
         }
-    goal = GOALS[ARGUMENTS.target]
+    goal = ARGUMENTS.target.goal
     chain = functools.partial(
         recovery.carry_out,
         after=functools.partial(
@@ -2159,13 +2126,7 @@ def stages() -> dict[State, Stage]:
         ),
         before_preloader=functools.partial(install_fireos, reboot=False, slot="_a"),
         guard=amonet_chain,
-        unlock={
-            unlock.name: unlock
-            for unlock in (
-                amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0,
-                amonet_biscuit_v1_1_0_bboe.AMONET_BISCUIT_V1_1_0_BBOE,
-            )
-        }[ARGUMENTS.target],
+        unlock=ARGUMENTS.target.unlock,
     )
     return (
         table
@@ -2219,7 +2180,7 @@ def swap_twrp() -> None:
         unpack(download=AMONET_BISCUIT_V1_1_0_ZIP) / "bin" / "twrp.img",
         "TWRP 3.2.3",
     )
-    if ARGUMENTS.target == AMONET_BISCUIT_V1_1_0_BBOE:
+    if ARGUMENTS.target.goal == State.ROOTED_AMONET_V1_1_0_BBOE:
         image, label = fetch(download=TWRP), f"TWRP {TWRP_VERSION}"
     PROGRESS.begin(estimate="10 s", label=f"writing {label} to recovery")
     remote = "/data/local/tmp/recovery.img"
@@ -2237,7 +2198,7 @@ def swap_twrp() -> None:
 
 
 def system_chunks(
-    *, new_data: IO[bytes], ranges: list[tuple[int, int]]
+    *, name: str, new_data: IO[bytes], ranges: list[tuple[int, int]]
 ) -> Iterator[bytes]:
     position = 0
     for start, end in ranges:
@@ -2247,17 +2208,17 @@ def system_chunks(
             length = min(1 << 20, end * 4096 - offset)
             chunk = new_data.read(length)
             if len(chunk) != length:
-                _die(message=f"{FIREOS.name}'s system.new.dat is short")
+                _die(message=f"{name}'s system.new.dat is short")
             yield chunk
         position = end
 
 
-def system_image() -> tuple[list[pathlib.Path], str, int]:
-    target = CACHE / f"system-{FIREOS.sha256[:12]}"
+def system_image(*, package: Download) -> tuple[list[pathlib.Path], str, int]:
+    target = CACHE / f"system-{package.sha256[:12]}"
     with hold(lock=SESSION.system_lock):
         if not system_sliced(directory=target):
             shutil.rmtree(ignore_errors=True, path=target)
-            build_system(target=target)
+            build_system(package=package, target=target)
     want, blocks, slices = (target / "md5").read_text().split()
     return (
         [slice_path(directory=target, index=index) for index in range(int(slices))],

@@ -29,6 +29,14 @@ Each plan is amonet's `modules/main.py` and then its `fastboot-step.sh`, step
 for step. The bboe variant swaps the recovery image for TWRP 3.7.0_9-bboe2, a
 download of its own, which is why an unlock carries `files` beside its archive.
 
+A **target** is what a run ends on: its goal state, the OS it installs, and its
+unlock, which stock has none of. A Fire OS 6 target names a build from Amazon's
+updates, which TWRP installs as it is; stock's build is the one named on the
+command line. A Fire OS 5 target names its update package, from which firebreak
+builds a system image to write with dd, with Magisk beside it.
+`firebreak/unlocks/targets.py` holds biscuit's four. Their goal states are
+biscuit's, in `firebreak/devices.py`.
+
 v2.0.0's `main.py` has two branches its plan leaves out: `fixgpt`, a manual
 mode that writes its own table, and a run from the preloader, which leaves
 boot0 alone. firebreak reaches the bootrom, so the plan writes the preloader.

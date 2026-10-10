@@ -37,6 +37,16 @@ class Feature(enum.Enum):
 
 
 @dataclasses.dataclass(frozen=True)
+class FireOs5:
+    package: Download
+
+
+@dataclasses.dataclass(frozen=True)
+class FireOs6:
+    build: str | None
+
+
+@dataclasses.dataclass(frozen=True)
 class ForceFastboot:
     target: str
     label: str = "force fastboot"
@@ -65,6 +75,14 @@ class Repartition:
 class ResetBcb:
     target: str
     label: str = "reset the bootloader control block"
+
+
+@dataclasses.dataclass(frozen=True)
+class Target:
+    goal: enum.Enum
+    installs: FireOs5 | FireOs6
+    name: str
+    unlock: Unlock | None
 
 
 @dataclasses.dataclass(frozen=True)
