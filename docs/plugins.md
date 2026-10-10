@@ -130,6 +130,9 @@ shuffle.
 ## The recovery executor
 
 `firebreak/recovery.py` carries out a plan's actions with `dd` under TWRP.
+Its `carry_out` is the TWRP route in `docs/rooting.md`. The caller passes what
+is not the plan's: the check that the Dot is amonet's, the step before the
+preloader, the partitions to zero, and the reboot after.
 
 - It refuses the whole plan before writing if a step has nothing it can write,
   such as `ZeroRpmb` or `Reboot`. The caller drops the steps its route does
@@ -137,9 +140,10 @@ shuffle.
 - A partition is written through its own `mmcblk0pN`, at an offset into it, and
   each node must be a block device of the size its table entry gives. boot0 is
   unlocked for its write and locked again. A target outside every partition,
-  such as the backup table, goes to `mmcblk0` at its absolute offset. TWRP's
-  toolbox `dd` cannot reach past 2 GiB there, and nothing refuses such a target
-  up front: the run stops at its first read. The TWRP route has none.
+  such as the backup table, goes to `mmcblk0` at its absolute offset.
+  `toybox dd` reaches it. A TWRP with only toolbox `dd` cannot reach past
+  2 GiB, and nothing refuses such a target up front: the run stops at its
+  first read.
 - A region that already holds its bytes is skipped. A write smaller than a
   sector is read, patched, and written back whole.
 - Every write is staged, pushed, written and read back. A read counts only

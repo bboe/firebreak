@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import os
 import re
@@ -7,15 +8,34 @@ import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
+from test_gpt import OTHERS
+from test_gpt import raw as gpt_raw
 
 from firebreak import plan, recovery
-from firebreak.android.gpt import Partition
+from firebreak.android.gpt import Partition, partition_map
 from firebreak.plan import Action
 from firebreak.plugin import BOOT0
+from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_0
 
 if TYPE_CHECKING:
     import pathlib
 
+ACTIONS = (
+    Action(data=b"h", kind="ClearBoot0Header", label="clear", length=1, offset=0),
+    Action(kind="ZeroRpmb", label="rpmb"),
+    Action(data=b"l", kind="Write", label="lk", length=1, offset=0),
+    Action(kind="ForceFastboot", label="fastboot"),
+    Action(
+        data=b"p",
+        kind="Write",
+        label="preloader",
+        length=1,
+        offset=0,
+        unrecoverable=True,
+    ),
+    Action(kind="Reboot", label="reboot"),
+    Action(data=b"t", kind="FastbootFlash", label="twrp", length=1, offset=0),
+)
 DD = re.compile(
     r"\$d if=(?P<source>\S+)(?: of=(?P<target>\S+))? bs=512"
     r" (?:skip|seek)=(?P<first>\d+)(?: count=(?P<count>\d+))?"
@@ -26,6 +46,46 @@ MD5SUM = (
 )
 MISC = Partition(first=2, number=8, sectors=4)
 MISC_NODE = recovery.DISK + "p8"
+TABLE = gpt_raw(names=[*OTHERS, "misc", "userdata"])
+
+LIVE = partition_map(entries=TABLE[1024:])
+LK_WRITE = Action(
+    data=b"l",
+    kind="Write",
+    label="lk",
+    length=1,
+    offset=LIVE["part3"].first * 512,
+    partition=LIVE["part3"],
+    target="part3",
+)
+TABLE_WRITES = (
+    Action(data=b"p", kind="Repartition", label="table", length=1, offset=0),
+    Action(data=b"b", kind="Repartition", label="table", length=1, offset=9999 * 512),
+    Action(
+        data=b"w",
+        kind="Repartition",
+        label="wipe userdata",
+        length=1,
+        offset=LIVE["userdata"].first * 512,
+        partition=LIVE["userdata"],
+        target="userdata",
+    ),
+)
+V2_ACTIONS = (
+    Action(kind="ZeroRpmb", label="rpmb"),
+    Action(data=b"l", kind="Write", label="lk", length=1, offset=0),
+    Action(
+        data=b"p",
+        kind="Write",
+        label="preloader",
+        length=1,
+        offset=0,
+        unrecoverable=True,
+    ),
+    Action(kind="ForceFastboot", label="fastboot"),
+    Action(kind="Reboot", label="reboot"),
+    Action(data=b"t", kind="FastbootFlash", label="twrp", length=1, offset=0),
+)
 
 
 class FakeDot:
@@ -96,6 +156,64 @@ def dot(*, monkeypatch: pytest.MonkeyPatch) -> FakeDot:
     return fake
 
 
+def carry(
+    *,
+    actions: tuple[Action, ...],
+    boot0: str = "4096 0",
+    calls: list[tuple],
+    monkeypatch: pytest.MonkeyPatch,
+    wrong: str = "",
+) -> list[Action]:
+    checked: list[Action] = []
+    recovery.ERASED.parent.mkdir(exist_ok=True, parents=True)
+
+    def record(name: str) -> object:
+        def called(**options: object) -> None:
+            done = options.pop("actions", ())
+            if name == "check":
+                checked.extend(done)
+            labels = tuple(action.label for action in done)
+            calls.append((name, labels, recovery.ERASED.exists(), options))
+
+        return called
+
+    def shell(**_: object) -> str:
+        calls.append(("boot0", recovery.ERASED.exists()))
+        return boot0
+
+    def nodes(*, want: dict[str, int]) -> str:
+        calls.append(("nodes", tuple(sorted(want.items()))))
+        return wrong
+
+    for name in ("check", "execute", "reboot", "run"):
+        monkeypatch.setattr(name=name, target=recovery, value=record(name))
+    monkeypatch.setattr(name="adb_shell", target=recovery, value=shell)
+    monkeypatch.setattr(name="reaches", target=recovery, value=lambda **_: True)
+    monkeypatch.setattr(name="check_nodes", target=recovery, value=nodes)
+    monkeypatch.setattr(name="read_sectors", target=recovery, value=lambda **_: TABLE)
+    monkeypatch.setattr(name="resolve", target=recovery, value=lambda **_: actions)
+    monkeypatch.setattr(name="unpack", target=recovery, value=lambda **_: None)
+    return checked
+
+
+def carry_v1(*, calls: list[tuple]) -> bool:
+    return recovery.carry_out(
+        after=lambda: calls.append(("after", recovery.ERASED.exists())),
+        before_preloader=lambda: calls.append(("install", recovery.ERASED.exists())),
+        guard=lambda: calls.append(("guard",)),
+        unlock=amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0,
+    )
+
+
+def carry_v2(*, calls: list[tuple]) -> bool:
+    return recovery.carry_out(
+        after=lambda: calls.append(("after", recovery.ERASED.exists())),
+        guard=lambda: calls.append(("guard",)),
+        unlock=amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0,
+        zero=("misc",),
+    )
+
+
 def shell(*, command: str, tmp_path: pathlib.Path) -> str:
     tools = tmp_path / "tools"
     tools.mkdir(exist_ok=True)
@@ -155,6 +273,23 @@ def test_a_hash_needs_every_record(*, tmp_path: pathlib.Path) -> None:
         command=recovery.HASH.format(count=2, first=3, node=disk), tmp_path=tmp_path
     ).split()
     assert said[-1] != "whole"
+
+
+def test_a_kernel_that_holds_another_table_restarts_recovery_and_writes_nothing(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple] = []
+    carry(
+        actions=(LK_WRITE, *V2_ACTIONS),
+        calls=calls,
+        monkeypatch=monkeypatch,
+        wrong="/dev/block/mmcblk0p4 reads no, not 51200 bytes",
+    )
+    with pytest.raises(SystemExit, match="does not hold the table that is on the disk"):
+        carry_v2(calls=calls)
+    assert [call[0] for call in calls] == ["guard", "nodes", "run"]
+    assert calls[-1][3]["arguments"] == ["adb", "reboot", "recovery"]
+    assert not recovery.ERASED.exists()
 
 
 def test_a_node_that_is_not_a_block_device_stops_it(*, dot: FakeDot) -> None:
@@ -233,6 +368,26 @@ def test_a_patch_read_that_fails_stops_it(
     assert writes(dot) == []
 
 
+@pytest.mark.parametrize(
+    argnames="error",
+    argvalues=[FileNotFoundError, KeyError, ValueError],
+    ids=["missing-image", "missing-partition", "bad-table"],
+)
+def test_a_plan_that_does_not_resolve_stops_before_anything_is_written(
+    *, error: type[Exception], monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    def unresolvable(**_: object) -> None:
+        message = "biscuit has no lk_c partition"
+        raise error(message)
+
+    monkeypatch.setattr(name="read_sectors", target=recovery, value=lambda **_: b"")
+    monkeypatch.setattr(name="resolve", target=recovery, value=unresolvable)
+    monkeypatch.setattr(name="unpack", target=recovery, value=lambda **_: tmp_path)
+    with pytest.raises(SystemExit, match="does not fit this Dot: biscuit has no"):
+        carry_v1(calls=[])
+    assert not recovery.ERASED.exists()
+
+
 def test_a_read_that_never_completes_stops_it(*, dot: FakeDot) -> None:
     dot.short = recovery.PUSH_TRIES
     action = Action(
@@ -241,6 +396,38 @@ def test_a_read_that_never_completes_stops_it(*, dot: FakeDot) -> None:
     with pytest.raises(SystemExit, match="did not answer"):
         recovery.execute(actions=(action,))
     assert writes(dot) == []
+
+
+@pytest.mark.parametrize(
+    argnames=("said", "reached"),
+    argvalues=[
+        ("reaches", True),
+        ("toybox: noise\nreaches", True),
+        ("reaches\ndd: Invalid argument", False),
+        ("dd: Invalid argument", False),
+        ("", False),
+    ],
+)
+def test_a_sector_is_reached_only_when_dd_reads_it_whole(
+    *, monkeypatch: pytest.MonkeyPatch, reached: bool, said: str
+) -> None:
+    asked: list[tuple[str, float]] = []
+    monkeypatch.setattr(
+        name="adb_shell",
+        target=recovery,
+        value=lambda *, command, timeout: asked.append((command, timeout)) or said,
+    )
+    assert recovery.reaches(first=7651295) is reached
+    ((command, timeout),) = asked
+    assert timeout == 60
+    assert command.startswith(recovery.DD)
+    assert (
+        f"[ -b {recovery.DISK} ] && $d if={recovery.DISK} bs=512 skip=7651295"
+        " count=1 2>"
+    ) in command
+    assert command.endswith(
+        f"grep -q '^1+0 records in' {recovery.DD_LOG} && echo reaches"
+    )
 
 
 def test_a_short_read_never_matches(*, dot: FakeDot) -> None:
@@ -256,6 +443,55 @@ def test_a_short_read_never_matches(*, dot: FakeDot) -> None:
     recovery.execute(actions=(action,))
     assert dot.reconnects == 1
     assert writes(dot) == []
+
+
+def test_a_table_that_goes_in_alone_is_refused_when_dd_cannot_reach_it(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple] = []
+    asked: list[int] = []
+    moved = dataclasses.replace(
+        LK_WRITE,
+        partition=dataclasses.replace(LIVE["part3"], first=LIVE["part3"].first + 1),
+    )
+    carry(
+        actions=(*TABLE_WRITES, moved, *ACTIONS),
+        calls=calls,
+        monkeypatch=monkeypatch,
+    )
+    monkeypatch.setattr(
+        name="reaches",
+        target=recovery,
+        value=lambda *, first: asked.append(first) and False,
+    )
+    with pytest.raises(SystemExit, match="cannot read sector 9999") as stopped:
+        carry_v1(calls=calls)
+    assert "Nothing was written." in " ".join(str(stopped.value).split())
+    assert asked == [9999]
+    assert [call[0] for call in calls] == ["guard"]
+
+
+def test_a_table_whose_backup_copy_dd_cannot_reach_writes_nothing(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple] = []
+    asked: list[int] = []
+    carry(
+        actions=(*TABLE_WRITES[:2], LK_WRITE, *V2_ACTIONS),
+        calls=calls,
+        monkeypatch=monkeypatch,
+    )
+    monkeypatch.setattr(
+        name="reaches",
+        target=recovery,
+        value=lambda *, first: asked.append(first) and False,
+    )
+    with pytest.raises(SystemExit, match="cannot read sector 9999") as stopped:
+        carry_v2(calls=calls)
+    assert "Nothing was written." in " ".join(str(stopped.value).split())
+    assert asked == [9999]
+    assert [call[0] for call in calls] == ["guard"]
+    assert not recovery.ERASED.exists()
 
 
 @pytest.mark.parametrize(argnames="exit_status", argvalues=[0, 1])
@@ -297,6 +533,145 @@ def test_a_write_that_does_not_land_stops_it(*, dot: FakeDot) -> None:
     with pytest.raises(SystemExit, match="did not read back"):
         recovery.execute(actions=(action,))
     assert dot.media[recovery.DISK][:512] == b"\x11" * 512
+
+
+def test_amonet_v1_1_0_clears_boot0_then_writes_the_preloader_last(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple] = []
+    carry(
+        actions=(*ACTIONS, LK_WRITE),
+        calls=calls,
+        monkeypatch=monkeypatch,
+    )
+    assert carry_v1(calls=calls) is True
+    assert calls == [
+        ("guard",),
+        ("nodes", ((f"{recovery.DISK}p4", LIVE["part3"].size),)),
+        ("check", ("lk", "preloader", "twrp", "lk"), False, {}),
+        ("boot0", True),
+        ("execute", ("lk", "twrp", "lk"), True, {}),
+        ("install", True),
+        ("execute", ("preloader",), True, {}),
+        ("after", False),
+    ]
+
+
+@pytest.mark.parametrize(argnames="field", argvalues=["first", "number", "sectors"])
+def test_amonet_v1_1_0_writes_a_table_that_moves_its_targets_alone(
+    *, field: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple] = []
+    partition = LIVE["part3"]
+    moved = dataclasses.replace(
+        LK_WRITE,
+        partition=dataclasses.replace(
+            partition, **{field: getattr(partition, field) + 1}
+        ),
+    )
+    carry(
+        actions=(*TABLE_WRITES, moved, *ACTIONS),
+        calls=calls,
+        monkeypatch=monkeypatch,
+    )
+    assert carry_v1(calls=calls) is False
+    assert calls == [
+        ("guard",),
+        ("execute", ("table", "table"), False, {}),
+        (
+            "reboot",
+            (),
+            False,
+            {"label": "waiting for recovery to read the new table"},
+        ),
+    ]
+
+
+def test_amonet_v2_0_0_clears_boot0_then_writes_the_table_backup_first(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple] = []
+    checked = carry(
+        actions=(*TABLE_WRITES[:2], LK_WRITE, *V2_ACTIONS),
+        calls=calls,
+        monkeypatch=monkeypatch,
+    )
+    assert carry_v2(calls=calls) is True
+    assert calls == [
+        ("guard",),
+        (
+            "nodes",
+            (
+                (f"{recovery.DISK}p14", LIVE["misc"].size),
+                (f"{recovery.DISK}p4", LIVE["part3"].size),
+            ),
+        ),
+        (
+            "check",
+            ("table", "table", "lk", "lk", "preloader", "twrp", "zero misc"),
+            False,
+            {},
+        ),
+        ("boot0", True),
+        (
+            "execute",
+            ("table", "table", "lk", "lk", "twrp", "zero misc"),
+            True,
+            {},
+        ),
+        ("execute", ("preloader",), True, {}),
+        ("after", False),
+    ]
+    assert [action.offset for action in checked[:2]] == [9999 * 512, 0]
+    wipe, misc = checked[-1], LIVE["misc"]
+    assert (wipe.offset, wipe.length, wipe.partition) == (
+        misc.first * 512,
+        misc.size,
+        misc,
+    )
+    assert wipe.data == bytes(misc.size)
+
+
+@pytest.mark.parametrize(
+    argnames=("boot0", "marked"),
+    argvalues=[("4096 12", False), ("0 0", True), ("12 0", True), ("", True)],
+    ids=["still-set", "nothing-read", "short-read", "no-answer"],
+)
+def test_amonet_v2_0_0_stops_before_the_table_if_boot0_does_not_clear(
+    *, boot0: str, marked: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple] = []
+    carry(
+        actions=(*TABLE_WRITES[:2], *V2_ACTIONS),
+        boot0=boot0,
+        calls=calls,
+        monkeypatch=monkeypatch,
+    )
+    with pytest.raises(SystemExit, match="did not read back as cleared"):
+        carry_v2(calls=calls)
+    assert "execute" not in [call[0] for call in calls]
+    assert recovery.ERASED.exists() is marked
+
+
+def test_amonet_v2_0_0_that_does_not_fit_writes_nothing(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    def unresolvable(**_: object) -> None:
+        raise ValueError(("the partition table is in no layout",))
+
+    monkeypatch.setattr(name="read_sectors", target=recovery, value=lambda **_: b"")
+    monkeypatch.setattr(name="resolve", target=recovery, value=unresolvable)
+    monkeypatch.setattr(name="unpack", target=recovery, value=lambda **_: tmp_path)
+    monkeypatch.setattr(
+        name="adb_shell",
+        target=recovery,
+        value=lambda **_: pytest.fail("boot0 changed"),
+    )
+    with pytest.raises(SystemExit, match="does not fit this Dot") as stopped:
+        carry_v2(calls=[])
+    said = " ".join(str(stopped.value).split())
+    assert "Nothing was written." in said
+    assert "boot0 may hold no preloader" not in said
 
 
 def test_an_action_with_nothing_to_write_is_refused() -> None:

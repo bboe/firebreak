@@ -7,7 +7,8 @@ import subprocess
 import tempfile
 from typing import TYPE_CHECKING
 
-from firebreak.cache import CACHE
+from firebreak.android.gpt import ENTRIES_SIZE, partition_map
+from firebreak.cache import CACHE, ERASED, unpack
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
     PUSH_TRIES,
@@ -15,13 +16,17 @@ from firebreak.host import (
     command,
     push_checked,
     reconnect,
+    run,
 )
-from firebreak.plan import SECTOR_SIZE, whole_sectors
-from firebreak.plugin import BOOT0
+from firebreak.plan import SECTOR_SIZE, TABLE_SECTORS, Action, resolve, whole_sectors
+from firebreak.plugin import BOOT0, ClearBoot0Header, Repartition
+from firebreak.twrp import CLEAR_BOOT0, check_nodes, read_sectors, reboot
 from firebreak.ui import PROGRESS, _die, again
 
 if TYPE_CHECKING:
-    from firebreak.plan import Action
+    from collections.abc import Callable
+
+    from firebreak.plugin import Unlock
 
 BOOT0_NODE = "/dev/block/mmcblk0boot0"
 DD = (
@@ -37,15 +42,120 @@ HASH = (
 )
 MD5_DIGITS = 32
 NODE = "[ -b {node} ] && echo block $(blockdev --getsize64 {node})"
+REACH = (
+    DD + "[ -b {node} ] && $d if={node} bs=512 skip={first} count=1"
+    f" 2>{DD_LOG} >/dev/null; grep -q '^1+0 records in' {DD_LOG} && echo reaches"
+)
 READ = (
     DD + "[ -b {node} ] && $d if={node} bs=512 skip={first} count={count} 2>/dev/null"
 )
+TWRP_SKIPS = frozenset({"ForceFastboot", "Reboot", "ZeroRpmb"})
 WRITE = (
     DD + "[ -b {node} ] || exit 1; {unlock}$d if={source} of={node} bs=512"
     f" seek={{first}}$n 2>{DD_LOG}; s=$?; {{relock}}rm -f {{source}}; sync;"
     " echo 3 > /proc/sys/vm/drop_caches; [ $s = 0 ]"
     f" && grep -q '^{{count}}+0 records out' {DD_LOG} && echo written"
 )
+
+
+def carry_out(
+    *,
+    after: Callable[[], None],
+    before_preloader: Callable[[], None] = lambda: None,
+    guard: Callable[[], None],
+    unlock: Unlock,
+    zero: tuple[str, ...] = (),
+) -> bool:
+    guard()
+    raw = read_sectors(count=TABLE_SECTORS, start=0)
+    try:
+        resolved = resolve(
+            raw=raw, source=unpack(download=unlock.source), unlock=unlock
+        )
+    except (FileNotFoundError, KeyError, ValueError) as error:
+        _die(
+            message=f"{unlock.name} does not fit this Dot: {error.args[0]}. Nothing was"
+            " written. " + again()
+        )
+    live = partition_map(entries=raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE])
+    table = tuple(
+        sorted(
+            (
+                action
+                for action in resolved
+                if action.kind == Repartition.__name__ and action.partition is None
+            ),
+            key=lambda action: -action.offset,
+        )
+    )
+    writes = (
+        *(
+            action
+            for action in resolved
+            if action.kind
+            not in {*TWRP_SKIPS, ClearBoot0Header.__name__, Repartition.__name__}
+        ),
+        *(
+            Action(
+                data=bytes(live[name].size),
+                kind="Write",
+                label=f"zero {name}",
+                length=live[name].size,
+                offset=live[name].first * SECTOR_SIZE,
+                partition=live[name],
+                source="zeros",
+                target=name,
+            )
+            for name in zero
+        ),
+    )
+    if table and not reaches(first=table[0].offset // SECTOR_SIZE):
+        _die(
+            message=f"this TWRP's dd cannot read sector"
+            f" {table[0].offset // SECTOR_SIZE}, where {unlock.name}'s backup"
+            " partition table goes. Nothing was written. " + again()
+        )
+    if table and any(
+        action.partition is not None and live.get(action.target) != action.partition
+        for action in writes
+    ):
+        execute(actions=table)
+        reboot(label="waiting for recovery to read the new table")
+        return False
+    wrong = check_nodes(
+        want={
+            f"{DISK}p{action.partition.number}": action.partition.size
+            for action in writes
+            if action.partition is not None
+        }
+    )
+    if wrong:
+        run(arguments=["adb", "reboot", "recovery"], check=False, timeout=60)
+        _die(
+            message="the kernel does not hold the table that is on the disk:"
+            f" {wrong}. A write by that name could land in RAM and verify"
+            " against itself, so the Dot is restarting into recovery. " + again()
+        )
+    check(actions=(*table, *writes))
+    PROGRESS.begin(estimate="5 s", label="clear the preloader header (boot0)")
+    ERASED.touch()
+    answer = adb_shell(command=CLEAR_BOOT0, timeout=60).split()
+    if answer[-2:] != ["4096", "0"]:
+        if answer[-2:-1] == ["4096"]:
+            ERASED.unlink(missing_ok=True)
+        _die(
+            message=f"boot0's header did not read back as cleared, so {unlock.name}"
+            " was not written. " + again()
+        )
+    PROGRESS.end()
+    execute(
+        actions=(*table, *(action for action in writes if not action.unrecoverable))
+    )
+    before_preloader()
+    execute(actions=tuple(action for action in writes if action.unrecoverable))
+    ERASED.unlink(missing_ok=True)
+    after()
+    return True
 
 
 def check(*, actions: tuple[Action, ...]) -> tuple[Action, ...]:
@@ -111,6 +221,11 @@ def place(*, action: Action) -> tuple[str, int]:
         f"{DISK}p{action.partition.number}",
         action.offset - action.partition.first * SECTOR_SIZE,
     )
+
+
+def reaches(*, first: int) -> bool:
+    said = adb_shell(command=REACH.format(first=first, node=DISK), timeout=60)
+    return said.split(sep="\n")[-1] == "reaches"
 
 
 def read(*, count: int, first: int, node: str) -> str:

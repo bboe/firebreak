@@ -106,23 +106,6 @@ def clear_boot0() -> None:
     )
 
 
-def partition_field(*, name: str, number: int) -> str:
-    command = f"sgdisk --info={number} {DISK}; echo field-ok"
-    for attempt in range(PUSH_TRIES):
-        output = adb_shell(command=command, timeout=30)
-        if output.split(sep="\n")[-1] == "field-ok":
-            for line in output.split(sep="\n"):
-                if line.startswith(name + ":"):
-                    return (
-                        line.split(maxsplit=1, sep=":")[1].strip().strip("'").split()[0]
-                    )
-            _die(message=f"sgdisk --info={number} printed no {name}:\n{output}")
-        if attempt + 1 < PUSH_TRIES:
-            reconnect(remote=DISK)
-    _die(message=f"sgdisk --info={number} did not answer in full. " + again())
-    return ""
-
-
 def partition_table() -> str:
     command = f"sgdisk --print {DISK}; echo {TABLE_OK}"
     for attempt in range(PUSH_TRIES):
@@ -163,6 +146,11 @@ def read_sectors(*, count: int, start: int) -> bytes:
             f" not {count * 512}"
         )
     return raw
+
+
+def reboot(*, estimate: str = "40 s", into: str = "recovery", label: str) -> None:
+    run(arguments=["adb", "reboot", *([into] if into else [])], check=True, timeout=60)
+    PROGRESS.begin(estimate=estimate, label=label)
 
 
 def restore_failed(*, message: str) -> NoReturn:

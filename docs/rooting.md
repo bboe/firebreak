@@ -620,14 +620,10 @@ ring read white.
   bootrom, and the resume writes amonet v1.1.0 and goes on from its TWRP. A
   stock table under amonet v1.1.0's LK would not boot, so nothing is
   written before the clear.
-- Then the table goes back to stock through `sgdisk`, as the zip's
-  `restore_gpt` does, because the backup table sits past the 2 GiB that
-  TWRP's toolbox `dd` reaches. `sgdisk` must leave `userdata` ending at the
-  last usable sector with its GUIDs kept, and each `<target>_x` renamed
-  back. The run then resolves the plan again, against the table `sgdisk`
-  left, and stops unless that gives the writes it checked before the clear.
-  Only `userdata` and the two appended partitions change, so every
-  partition the plan writes keeps its node, and no reboot comes between.
+- Then the table goes back to stock, as the zip's `restore_gpt` does, by
+  the TWRP route below. Only `userdata` and the two appended partitions
+  change, so every partition the plan writes keeps its node, and no reboot
+  comes between.
 - Then the TEE, both LKs, kaeru, the TEE payload and v2.0.0's TWRP are
   written and read back; `misc` is zeroed, as the zip does; and the
   preloader is written last. The plan's RPMB zero, `FASTBOOT_PLEASE` and
@@ -674,8 +670,57 @@ ring read white.
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.
-- Not run: the plan from TWRP 3.2.3, the plan on amonet v1.1.0's partition
-  table in v2.0.0's TWRP, and `--short` to amonet v2.0.0.
+- Not run: the plan on amonet v1.1.0's partition table in v2.0.0's TWRP, and
+  `--short` to amonet v2.0.0.
+
+## The TWRP route
+
+Both installs from an amonet TWRP are one route: amonet v2.0.0's plan from
+either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
+
+- The plan resolves against the table on the disk, less the steps TWRP does
+  another way: the RPMB, forcing fastboot, the reboots, and boot0's header,
+  which the route clears itself. It writes zeros there, as the v2.0.0 install
+  and the stock restore did; amonet v1.1.0's plan writes `EMMC_BOOT` and then
+  zeros, and either leaves the bootrom no preloader. A table that does not fit
+  is refused with nothing written.
+- When the plan's table moves a partition it writes, the table goes in alone
+  and the Dot restarts into recovery, because `BLKRRPART` is `EBUSY` while
+  TWRP is up. The next run finds the table in place and writes the rest.
+  Otherwise every partition the plan writes must be a block device of the size
+  the table gives, or the Dot restarts into recovery with nothing written:
+  a kernel holding another table would put a write by name in RAM.
+- Then boot0's header is cleared, with `boot0-erased` set, then the table, the
+  writes, the route's own step, and the preloader last. amonet v1.1.0's step
+  is Fire OS 5.5.5.4; amonet v2.0.0's is zeroing `misc`, as its zip does.
+- The table is the layout's own bytes, both copies, written by `dd` and read
+  back like the rest. The backup copy goes first, so a stop between the two
+  leaves the old primary in front and the next run writes whichever copy
+  differs.
+- The backup copy lies at block 7651295 of `mmcblk0`; every other write goes
+  to a partition's own node, near its start. bboe2's and v2.0.0's TWRPs carry
+  a `dd` that answers `EINVAL` past block 4194304 beside `toybox dd`, which
+  reaches it, and the writes take `toybox dd` where it exists. TWRP 3.2.3 has
+  no toybox, and its `dd`, busybox's, reaches it. `losetup -o` reads 0 bytes
+  there. So before anything is written, the route reads that block with the
+  `dd` it writes with, and refuses a table it cannot reach.
+- The layout also wipes `userdata`'s first blocks. This route leaves that out:
+  amonet v1.1.0's step formats `userdata`, and amonet v2.0.0's installs wipe
+  it.
+- Measured on a Dot at TWRP 3.7.0_9-bboe2: `toybox dd` wrote the backup copy
+  back over itself at block 7651295, 33 records out, and `sgdisk --verify`
+  passed. `sgdisk --load-backup` of a layout's two copies, onto a loop device
+  the size of the disk, gave both back byte for byte, but it adds a tool the
+  route does not need. Its exit status proves nothing: on a file over 2 GiB it
+  read the size wrong, did not write the backup copy, and exited 0.
+- Measured on a Dot, 2026-10-10, each run from where the last ended:
+  rooted-amonet-v1.1.0-bboe to `amonet-biscuit-v2.0.0` in 4 min 54 s, then
+  `amonet-biscuit-v1.1.0` in 7 min 47 s, then `amonet-biscuit-v2.0.0` from
+  TWRP 3.2.3 in 5 min 17 s, then `amonet-biscuit-v1.1.0-bboe` in 7 min 48 s.
+  Each table copy took under 1 s. On all three TWRPs the backup copy went in
+  as 33 records and read back whole, and the Dot booted rooted at the end.
+  The same four runs on another Dot from Windows, with `/system` in slices,
+  took 4 min 51 s, 8 min 17 s, 5 min 14 s and 8 min 16 s.
 
 ## Writing amonet v1.1.0 from v2.0.0's TWRP
 
@@ -689,20 +734,17 @@ ring read white.
   and the bootrom step it replaces verified the zero where this route assumes
   it. RPMB is not readable from TWRP, so nothing checks it at run time. A wrong
   assumption here is the one failure on this page that costs the eMMC short.
-- The table goes first, then a reboot, then boot0's header, then the rest, and
-  the preloader last. `BLKRRPART` is `EBUSY` while TWRP is up, so the appended
-  partitions need that reboot, and clearing boot0 before it would land there.
-- `sgdisk` writes the table, because it writes both GPT copies. Everything
-  else goes to a partition node: `dd` answers `EINVAL` past block 4194304, and
-  `boot_a` (7199744), `boot_b` (7425024) and the backup GPT (7651295) are all
-  above it. `losetup -o` reads 0 bytes there too.
+- The table goes first, then a reboot, then the rest by the TWRP route above.
+  Clearing boot0 before that reboot would land there.
 - The chain is amonet v1.1.0's plugin plan (`docs/plugins.md`), less the steps
   this route does another way: the RPMB, forcing fastboot, and the reboots. A
   region that already holds its bytes is skipped, so a rerun resumes where the
-  last one stopped. Measured from stock 8146: a run stopped during the first
-  LK write, and the rerun skipped boot0's header, the four boot writes and
-  `tee1`, wrote the rest, and the Dot booted rooted. It skipped the BCB too,
-  which the stock install had already written.
+  last one stopped. Measured from stock 8146, on the route this one replaced: a
+  run stopped during the first LK write, and the rerun skipped the four boot
+  writes and `tee1`, wrote the rest, and the Dot booted rooted. It skipped the
+  BCB too, which the stock install had already written. That route skipped
+  boot0's header as well; this one clears it again on every run that writes past
+  the table.
 - `ERASED` is set only after the plan resolves and every node checks out, so
   those stops leave the next run on its usual path. A stop between that and
   the boot0 clear leaves it set with boot0 intact, which costs the next run a
@@ -711,8 +753,9 @@ ring read white.
   `stock` path does; the `dd` on the path refuses `conv`, and does not truncate
   at a `seek` without it.
 - Each target is checked as a block device, at the length its table entry
-  gives, before anything is written, boot0 included. `dd` to a name that is not
-  one writes a file in RAM `/dev` that reads back and matches.
+  gives, before anything is written, boot0 included. A table that goes in alone
+  is the exception: the run after its reboot checks them. `dd` to a name that
+  is not one writes a file in RAM `/dev` that reads back and matches.
 - The by-name bootloader nodes are decoys on both TWRPs, so the chain names
   `mmcblk0pN`. bboe2 repoints by-name `boot_a` at `boot_a_x` and v2.0.0's TWRP
   does not, so the boot image names `boot<slot>_x`.
@@ -726,17 +769,17 @@ ring read white.
   amonet TWRP left in `recovery`, v2.0.0's and 3.7.0_9-bboe2's:
   `fastboot reboot recovery` answers `OKAY` and then nothing appears on USB for
   90 s, in any mode. A locked LK refuses an unsigned recovery.
-- `amonet_v1_1_0_append`, `amonet_v1_1_0_chain` and `install_fireos6` still hash
-  `lk_a` against amonet's `lk.bin`, amonet v2.0.0's then amonet v1.1.0's, and
-  refuse the rest, so a chain write needs proof the Dot is amonet's rather than
-  a build string it shares with stock. amonet v1.1.0's LK passes, so a
-  part-written chain still resumes. When `lk_a` matches neither, `lk_b` is
-  read too: the chain writes `lk_a` first, so a run stopped inside that write
-  leaves `lk_a` torn and `lk_b` as it was. Both routes into the chain leave
-  amonet v2.0.0's LK in both slots: its installer writes both, and so does the
-  fastbrick, measured on a Dot read the moment its TWRP came up from stock.
-  Every stock LK is 241664 or 245760 bytes, against 359744 and 372368, so none
-  can match. The check is defence in depth, not a fix for a reachable failure.
+- The TWRP route and `install_fireos6` still hash `lk_a` against amonet's
+  `lk.bin`, amonet v2.0.0's then amonet v1.1.0's, and refuse the rest, so a
+  chain write needs proof the Dot is amonet's rather than a build string it
+  shares with stock. amonet v1.1.0's LK passes, so a part-written chain still
+  resumes. When `lk_a` matches neither, `lk_b` is read too: the chain writes
+  `lk_a` first, so a run stopped inside that write leaves `lk_a` torn and `lk_b`
+  as it was. Both routes into the chain leave amonet v2.0.0's LK in both slots:
+  its installer writes both, and so does the fastbrick, measured on a Dot read
+  the moment its TWRP came up from stock. Every stock LK is 241664 or 245760
+  bytes, against 359744 and 372368, so none can match. The check is defence in
+  depth, not a fix for a reachable failure.
 - The probe waits for `mtp` on every TWRP, not only amonet v1.1.0's. adb
   answers first, and the switch to `mtp,adb` re-enumerates USB, so a stage
   starting in that window reads truncated output with exit 255. So each

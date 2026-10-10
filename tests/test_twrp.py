@@ -176,34 +176,6 @@ def test_a_mount_left_behind_stops_it(
     assert said in " ".join(str(stopped.value).split())
 
 
-def test_a_partition_field_is_read_from_sgdisk(*, adb: FakeAdb) -> None:
-    adb.answers["sgdisk --info=12"] = [
-        (
-            "Partition GUID code: 0FC63DAF-8483 (Linux filesystem)\n"
-            "Partition unique GUID: 'ABCD-1234'\nfield-ok"
-        )
-    ]
-    assert twrp.partition_field(name="Partition GUID code", number=12) == (
-        "0FC63DAF-8483"
-    )
-    assert twrp.partition_field(name="Partition unique GUID", number=12) == (
-        "ABCD-1234"
-    )
-
-
-def test_a_partition_field_sgdisk_does_not_print_stops_it(*, adb: FakeAdb) -> None:
-    adb.answers["sgdisk --info=12"] = ["First sector: 65536\nfield-ok"]
-    with pytest.raises(SystemExit, match="printed no Partition GUID code"):
-        twrp.partition_field(name="Partition GUID code", number=12)
-
-
-def test_a_partition_field_that_never_arrives_whole_stops_it(*, adb: FakeAdb) -> None:
-    adb.answers["sgdisk --info=12"] = ["Partition GUID code: 0FC6"]
-    with pytest.raises(SystemExit, match="did not answer in full"):
-        twrp.partition_field(name="Partition GUID code", number=12)
-    assert len(adb.commands(holding="sgdisk")) == twrp.PUSH_TRIES
-
-
 def test_a_partition_table_cut_short_is_read_again(*, adb: FakeAdb) -> None:
     adb.answers["sgdisk --print"] = [TABLE[:40], TABLE]
     assert twrp.partition_table() == TABLE.removesuffix("\ntable-ok")
@@ -235,6 +207,32 @@ def test_a_partition_table_without_userdata_is_read_again(*, adb: FakeAdb) -> No
     adb.answers["sgdisk --print"] = ["Number  Start\ntable-ok", TABLE]
     assert twrp.partition_table() == TABLE.removesuffix("\ntable-ok")
     assert len(adb.commands(holding="wait-for-recovery")) == 1
+
+
+@pytest.mark.parametrize(
+    argnames=("options", "arguments", "estimate"),
+    argvalues=[
+        ({}, ["adb", "reboot", "recovery"], "40 s"),
+        ({"estimate": "4 min", "into": ""}, ["adb", "reboot"], "4 min"),
+    ],
+    ids=["recovery", "system"],
+)
+def test_a_reboot_waits_where_it_was_sent(
+    *,
+    arguments: list[str],
+    estimate: str,
+    monkeypatch: pytest.MonkeyPatch,
+    options: dict[str, str],
+) -> None:
+    ran: list[dict[str, object]] = []
+    begun: list[dict[str, object]] = []
+    monkeypatch.setattr(name="run", target=twrp, value=lambda **o: ran.append(o))
+    monkeypatch.setattr(
+        name="begin", target=twrp.PROGRESS, value=lambda **o: begun.append(o)
+    )
+    twrp.reboot(label="waiting", **options)
+    assert ran == [{"arguments": arguments, "check": True, "timeout": 60}]
+    assert begun == [{"estimate": estimate, "label": "waiting"}]
 
 
 def test_a_sector_read_returns_whole_sectors(*, adb: FakeAdb) -> None:
