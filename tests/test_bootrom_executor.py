@@ -190,6 +190,49 @@ def test_a_lost_switch_to_boot0_stops_before_the_write(*, payload: FakePayload) 
     assert writes(payload) == []
 
 
+def test_a_patch_already_there_is_not_written(*, payload: FakePayload) -> None:
+    action = Action(
+        data=b"\x11" * 600,
+        kind="Write",
+        label="same",
+        length=600,
+        offset=2 * 512 + 100,
+        target="lk",
+    )
+    bootrom.execute(actions=(action,), payload=payload)
+    assert payload.asked == ["switch 0", "read 0:0", "read 0:2+2"]
+
+
+def test_a_patch_is_read_once_before_it_is_written(*, payload: FakePayload) -> None:
+    action = Action(
+        data=b"FASTBOOT_PLEASE\0",
+        kind="ForceFastboot",
+        label="fastboot",
+        length=16,
+        offset=2 * 512,
+        target="misc",
+    )
+    bootrom.execute(actions=(action,), payload=payload)
+    assert reads(payload) == ["read 0:0", "read 0:2+1", "read 0:2+1"]
+    assert payload.blocks[0, 2] == b"FASTBOOT_PLEASE\0" + FILL[16:]
+
+
+def test_a_patch_that_differs_past_its_first_sector_is_written(
+    *, payload: FakePayload
+) -> None:
+    action = Action(
+        data=b"\x11" * 500 + b"y" * 100,
+        kind="Write",
+        label="w",
+        length=600,
+        offset=2 * 512 + 100,
+        target="lk",
+    )
+    bootrom.execute(actions=(action,), payload=payload)
+    assert "write 0:2+2" in payload.asked
+    assert payload.blocks[0, 3] == b"\x11" * 88 + b"y" * 100 + b"\x11" * 324
+
+
 def test_a_reboot_is_asked_of_the_payload(*, payload: FakePayload) -> None:
     bootrom.execute(actions=(Action(kind="Reboot", label="reboot"),), payload=payload)
     assert payload.asked == ["reboot"]

@@ -318,6 +318,22 @@ def test_a_partition_whose_node_has_another_size_stops_it(*, dot: FakeDot) -> No
     assert writes(dot) == []
 
 
+def test_a_patch_already_there_is_not_written(*, dot: FakeDot) -> None:
+    action = Action(
+        data=b"\x22" * 600,
+        kind="Write",
+        label="same",
+        length=600,
+        offset=2 * 512 + 100,
+        partition=MISC,
+        target="misc",
+    )
+    recovery.execute(actions=(action,))
+    assert [
+        asked for asked in dot.asked if "| md5sum" in asked or " of=" in asked
+    ] == []
+
+
 def test_a_patch_at_the_start_of_a_partition_keeps_the_rest_of_its_sector(
     *, dot: FakeDot
 ) -> None:
@@ -333,6 +349,24 @@ def test_a_patch_at_the_start_of_a_partition_keeps_the_rest_of_its_sector(
     recovery.execute(actions=(action,))
     assert dot.media[MISC_NODE][:512] == b"FASTBOOT_PLEASE\0" + b"\x22" * 496
     assert "bs=512 seek=0" in writes(dot)[0]
+
+
+def test_a_patch_is_read_once_before_it_is_written(*, dot: FakeDot) -> None:
+    action = Action(
+        data=b"FASTBOOT_PLEASE\0",
+        kind="ForceFastboot",
+        label="fastboot",
+        length=16,
+        offset=2 * 512,
+        partition=MISC,
+        target="misc",
+    )
+    recovery.execute(actions=(action,))
+    assert [
+        "read" if "| md5sum" in asked else "write"
+        for asked in dot.asked
+        if "| md5sum" in asked or " of=" in asked
+    ] == ["write", "read"]
 
 
 def test_a_patch_read_that_comes_back_short_stops_it(
@@ -366,6 +400,21 @@ def test_a_patch_read_that_fails_stops_it(
     with pytest.raises(SystemExit, match="could not be read"):
         recovery.execute(actions=(action,))
     assert writes(dot) == []
+
+
+def test_a_patch_that_differs_past_its_first_sector_is_written(*, dot: FakeDot) -> None:
+    action = Action(
+        data=b"\x22" * 500 + b"y" * 100,
+        kind="Write",
+        label="w",
+        length=600,
+        offset=2 * 512 + 100,
+        partition=MISC,
+        target="misc",
+    )
+    recovery.execute(actions=(action,))
+    assert len(writes(dot)) == 1
+    assert dot.media[MISC_NODE][600:700] == b"y" * 100
 
 
 @pytest.mark.parametrize(

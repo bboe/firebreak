@@ -58,10 +58,12 @@ def execute_one(*, action: Action, payload: Emmc) -> bool:
         return False
     partition, offset = place(action=action)
     switch(partition=partition, payload=payload)
-    first, data = whole_sectors(
+    first, data, held = whole_sectors(
         action=action, offset=offset, read=functools.partial(read, payload=payload)
     )
-    if read(count=len(data) // SECTOR_SIZE, first=first, payload=payload) == data:
+    if held is None:
+        held = read(count=len(data) // SECTOR_SIZE, first=first, payload=payload)
+    if held == data:
         return True
     write(data=data, first=first, partition=partition, payload=payload)
     return False

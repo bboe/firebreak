@@ -192,14 +192,18 @@ def execute(*, actions: tuple[Action, ...]) -> None:
         for index, action in enumerate(writes):
             PROGRESS.begin(label=action.label)
             node, offset = place(action=action)
-            first, data = whole_sectors(
+            first, data, held = whole_sectors(
                 action=action,
                 offset=offset,
                 read=functools.partial(read_raw, node=node),
             )
-            if read(count=len(data) // SECTOR_SIZE, first=first, node=node) == md5(
-                data=data
-            ):
+            same = (
+                held == data
+                if held is not None
+                else read(count=len(data) // SECTOR_SIZE, first=first, node=node)
+                == md5(data=data)
+            )
+            if same:
                 PROGRESS.end(skipped=True)
                 continue
             staged = pathlib.Path(temporary) / f"{index}.img"

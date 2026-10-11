@@ -200,14 +200,14 @@ def show(*, actions: tuple[Action, ...]) -> str:
 
 def whole_sectors(
     *, action: Action, offset: int, read: Callable[..., bytes]
-) -> tuple[int, bytes]:
+) -> tuple[int, bytes, bytes | None]:
     data = contents(action=action)
     first, lead = divmod(offset, SECTOR_SIZE)
     if not lead and not len(data) % SECTOR_SIZE:
-        return first, data
+        return first, data, None
     count = -(-(lead + len(data)) // SECTOR_SIZE)
     block = read(count=count, first=first)
-    return first, block[:lead] + data + block[lead + len(data) :]
+    return first, block[:lead] + data + block[lead + len(data) :], block
 
 
 def written(

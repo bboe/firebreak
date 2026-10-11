@@ -488,9 +488,8 @@ stock fastboot, all 12 Dots at once and then three at a time.
   command. Both read `0x10210800` twice in a row. No access was refused.
 - Every payload write carries the same bytes in the same order, except the
   partition table. firebreak also reads each region before it writes it, and
-  reads it back after. It uses `0x1004` and `0x1003` throughout, and reads the
-  patched block of `expdb` and of `misc` twice before it writes it. amonet
-  reads single blocks and zeroes `userdata`'s first 10 blocks with `0x1001`.
+  reads it back after. It uses `0x1004` and `0x1003` throughout. amonet reads
+  single blocks and zeroes `userdata`'s first 10 blocks with `0x1001`.
 - Neither tool sends `0x5002` or `0x5003`. No payload halted.
 - v1-bboe and v1 tables differ in 3 ways from no light. amonet writes its own
   protective MBR, with `0xffffffff` sectors; firebreak keeps LBA 0. amonet
