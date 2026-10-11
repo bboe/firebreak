@@ -1,10 +1,44 @@
 from __future__ import annotations
 
+import struct
+import uuid
+import zlib
+
 import pytest
 from test_gpt import DISK, LAST_USABLE, OTHERS, raw
 
 from firebreak import layouts
 from firebreak.android import gpt
+
+
+def test_a_boot_moved_layout_derives_its_identifiers_from_the_disk() -> None:
+    layout = layouts.BootMovedLayout(
+        align=16, sectors=100, targets=("boot_a", "boot_b")
+    )
+    primaries = []
+    for disk in (
+        uuid.UUID("00112233-4455-6677-8899-aabbccddeeff"),
+        uuid.UUID("ffeeddcc-bbaa-9988-7766-554433221100"),
+    ):
+        original = bytearray(raw(names=[*OTHERS, "boot_a", "boot_b", "userdata"]))
+        original[512 + 56 : 512 + 72] = disk.bytes_le
+        original[512 + 16 : 512 + 20] = bytes(4)
+        original[512 + 16 : 512 + 20] = struct.pack(
+            "<I", zlib.crc32(original[512 : 512 + 92])
+        )
+        primary, actions = layout.apply(raw=bytes(original))
+        assert layout.apply(raw=bytes(original)) == (primary, actions)
+        entries = primary[1024 : 1024 + gpt.ENTRIES_SIZE]
+        identifiers = {
+            gpt.entry_name(entry=entry): entry[16:32]
+            for entry in gpt.used_entries(entries=entries)
+        }
+        assert {name: identifiers[name] for name in ("boot_a", "boot_b")} == {
+            name: uuid.uuid5(name=name, namespace=disk).bytes_le
+            for name in ("boot_a", "boot_b")
+        }
+        primaries.append(primary)
+    assert primaries[0] != primaries[1]
 
 
 def test_a_layout_with_only_some_targets_moved_is_refused() -> None:

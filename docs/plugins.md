@@ -109,8 +109,8 @@ it, and radar's says an older release applied it. Applying it:
 
 - round `userdata`'s last sector down to `align`, then give up `sectors` for
   each target
-- add one partition per target there, a copy of `userdata`'s entry with a new
-  unique GUID
+- add one partition per target there, a copy of `userdata`'s entry with a
+  unique GUID derived from the disk GUID and the target's name
 - rename each target to `<target>_x`, and each new partition to the target
 - write both tables, then zero `userdata`'s first 10 sectors
 

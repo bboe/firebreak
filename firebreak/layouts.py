@@ -34,7 +34,15 @@ class BootMovedLayout:
     def apply(self, *, raw: bytes) -> tuple[bytes, tuple[Action, ...]]:
         table = shuffled_gpt(
             align=self.align,
-            identifiers={target: uuid.uuid4().bytes_le for target in self.targets},
+            identifiers={
+                target: uuid.uuid5(
+                    name=target,
+                    namespace=uuid.UUID(
+                        bytes_le=raw[SECTOR_SIZE + 56 : SECTOR_SIZE + 72]
+                    ),
+                ).bytes_le
+                for target in self.targets
+            },
             raw=raw,
             sectors=self.sectors,
         )
