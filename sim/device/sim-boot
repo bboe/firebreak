@@ -1,0 +1,312 @@
+#!/usr/bin/python3
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import pathlib
+import shutil
+import struct
+import subprocess
+import sys
+
+BY_NAME = pathlib.Path("/dev/block/platform/mtk-msdc.0/by-name")
+DISK = pathlib.Path("/sim/disk")
+FLAVOURS = pathlib.Path("/sim/flavours")
+MOUNT = pathlib.Path("/sim/mnt")
+RUN = pathlib.Path("/sim/run")
+SECTOR = 512
+SIDE_DEVICES = ("boot0", "boot1", "rpmb")
+TEMPORARY = pathlib.Path("/tmp")  # ruff: ignore[hardcoded-temp-file]
+
+
+def boot() -> None:
+    for number in range(96):
+        path = pathlib.Path(f"/dev/loop{number}")
+        if not path.exists():
+            os.mknod(path, 0o660 | 0o060000, os.makedev(7, number))
+    unmount_all()
+    detach()
+    shutil.rmtree("/dev/block", ignore_errors=True)
+    BY_NAME.mkdir(parents=True)
+    partitions = ["major minor  #blocks  name", ""]
+    disk = DISK / "mmcblk0.img"
+    node(minor=loop(path=disk), name="mmcblk0")
+    partitions.append(f" 179        0 {disk.stat().st_size // 1024:>10} mmcblk0")
+    starts = {}
+    for number, name, first, sectors in table():
+        node(
+            minor=loop(offset=first * SECTOR, path=disk, size=sectors * SECTOR),
+            name=f"mmcblk0p{number}",
+        )
+        (BY_NAME / name).symlink_to(f"/dev/block/mmcblk0p{number}")
+        partitions.append(
+            f" 179 {number:>8} {sectors * SECTOR // 1024:>10} mmcblk0p{number}"
+        )
+        starts[number] = (first, sectors)
+    for minor, side in zip((96, 64, 32), ("rpmb", "boot1", "boot0")):
+        path = DISK / f"{side}.img"
+        node(minor=loop(path=path), name=f"mmcblk0{side}")
+        partitions.append(
+            f" 179 {minor:>8} {path.stat().st_size // 1024:>10} mmcblk0{side}"
+        )
+    listing = RUN / "partitions"
+    listing.write_text("\n".join(partitions) + "\n", encoding="utf-8")
+    call(arguments=["mount", "--bind", str(listing), "/proc/partitions"])
+    call(arguments=["mount", "-t", "tmpfs", "tmpfs", "/sys/block"])
+    for side in ("boot0", "boot1"):
+        folder = pathlib.Path(f"/sys/block/mmcblk0{side}")
+        folder.mkdir()
+        (folder / "force_ro").write_text("1\n", encoding="utf-8")
+        (folder / "size").write_text(
+            f"{(DISK / f'{side}.img').stat().st_size // SECTOR}\n", encoding="utf-8"
+        )
+    call(arguments=["mount", "-t", "tmpfs", "tmpfs", "/sys/class/block"])
+    for number, (first, sectors) in starts.items():
+        folder = pathlib.Path(f"/sys/class/block/mmcblk0p{number}")
+        folder.mkdir()
+        (folder / "start").write_text(f"{first}\n", encoding="utf-8")
+        (folder / "size").write_text(f"{sectors}\n", encoding="utf-8")
+    for leftover in TEMPORARY.iterdir():
+        if leftover.is_dir() and not leftover.is_symlink():
+            shutil.rmtree(leftover, ignore_errors=True)
+        else:
+            leftover.unlink(missing_ok=True)
+    (RUN / "request").unlink(missing_ok=True)
+
+
+def call(*, arguments: list[str]) -> str:
+    return subprocess.run(
+        arguments, capture_output=True, check=True, text=True
+    ).stdout.strip()
+
+
+def detach() -> None:
+    held = RUN / "loops"
+    if held.exists():
+        for loop in held.read_text(encoding="utf-8").split():
+            quiet(arguments=["losetup", "-d", loop])
+    held.write_text("", encoding="utf-8")
+
+
+def enter(*, spec: dict) -> None:
+    props = dict(spec["props"])
+    (RUN / "props").write_text(
+        "".join(f"{key}={value}\n" for key, value in props.items()), encoding="utf-8"
+    )
+    current = pathlib.Path("/sim/path")
+    current.unlink(missing_ok=True)
+    current.symlink_to(FLAVOURS / spec["flavour"])
+    for folder in spec.get("folders", ()):
+        pathlib.Path(folder).mkdir(exist_ok=True, parents=True)
+
+
+def facts(*, spec: dict) -> dict:
+    names = {name: number for number, name, _, _ in table()}
+    result: dict = {"prefixes": {}, "table": sorted(names)}
+    for name, sizes in spec["prefixes"].items():
+        path = (
+            pathlib.Path(f"/dev/block/mmcblk0{name}")
+            if name in SIDE_DEVICES
+            else BY_NAME / name
+        )
+        if path.exists():
+            result["prefixes"][name] = {
+                str(size): prefix(path=path, size=size) for size in sizes
+            }
+    with pathlib.Path("/dev/block/mmcblk0boot0").open("rb") as boot0:
+        result["boot0_empty"] = boot0.read(SECTOR) == bytes(SECTOR)
+    for name in ("misc", "expdb"):
+        path = BY_NAME / name
+        if path.exists():
+            with path.open("rb") as file:
+                result[f"{name}_fastboot"] = file.read(15) == b"FASTBOOT_PLEASE"
+    for slot in ("a", "b"):
+        path = BY_NAME / f"system_{slot}"
+        result[f"system_{slot}"] = (
+            mounted_read(
+                path=path,
+                wanted={
+                    "build": "build.prop",
+                    "flags": "etc/init.fosflags.sh",
+                },
+            )
+            if path.exists()
+            else None
+        )
+        result[f"root_adb_{slot}"] = (RUN / f"root-adb-{slot}").exists()
+    result["magisk"] = False
+    MOUNT.mkdir(exist_ok=True)
+    if not subprocess.run(
+        ["mount", "-o", "ro", "-t", "ext4", str(BY_NAME / "userdata"), str(MOUNT)],
+        capture_output=True,
+        check=False,
+    ).returncode:
+        result["magisk"] = (MOUNT / "adb" / "magisk.db").exists()
+        quiet(arguments=["umount", str(MOUNT)])
+    result["active"] = (RUN / "active").read_text(encoding="utf-8").strip()
+    return result
+
+
+def loop(*, offset: int = 0, path: pathlib.Path, size: int = 0) -> int:
+    arguments = ["losetup", "-f", "--show"]
+    if offset:
+        arguments += ["-o", str(offset)]
+    if size:
+        arguments += ["--sizelimit", str(size)]
+    device = call(arguments=[*arguments, str(path)])
+    with (RUN / "loops").open("a") as held:
+        held.write(device + "\n")
+    return int(device.removeprefix("/dev/loop"))
+
+
+def main() -> None:
+    RUN.mkdir(exist_ok=True, parents=True)
+    action = sys.argv[1]
+    if action == "boot":
+        boot()
+    elif action == "facts":
+        print(json.dumps(facts(spec=json.loads(sys.argv[2]))))
+    elif action == "snapshot":
+        snapshot()
+    elif action == "enter":
+        enter(spec=json.loads(sys.argv[2]))
+
+
+def md5(*, data: bytes) -> str:
+    return hashlib.md5(data, usedforsecurity=False).hexdigest()
+
+
+def mounted_read(
+    *, path: pathlib.Path, wanted: dict[str, str]
+) -> dict[str, str] | None:
+    MOUNT.mkdir(exist_ok=True)
+    if subprocess.run(
+        ["mount", "-o", "ro", "-t", "ext4", str(path), str(MOUNT)],
+        capture_output=True,
+        check=False,
+    ).returncode:
+        return None
+    try:
+        found = {}
+        for key, relative in wanted.items():
+            target = MOUNT / relative
+            found[key] = target.read_text(errors="replace") if target.is_file() else ""
+        return found
+    finally:
+        quiet(arguments=["umount", str(MOUNT)])
+
+
+def node(*, minor: int, name: str) -> None:
+    path = pathlib.Path("/dev/block") / name
+    path.unlink(missing_ok=True)
+    os.mknod(path, 0o600 | 0o060000, os.makedev(7, minor))
+
+
+def prefix(*, path: pathlib.Path, size: int) -> str:
+    with path.open("rb") as file:
+        return md5(data=file.read(size))
+
+
+def quiet(*, arguments: list[str]) -> None:
+    subprocess.run(arguments, capture_output=True, check=False)
+
+
+def snapshot() -> None:
+    entries = []
+    with (DISK / "mmcblk0.img").open("rb") as disk:
+        disk.seek(SECTOR)
+        header = disk.read(SECTOR)
+        entries_at, count, size = struct.unpack("<QII", header[72:88])
+        disk.seek(entries_at * SECTOR)
+        raw = disk.read(count * size)
+    for index in range(count):
+        entry = raw[index * size : (index + 1) * size]
+        if entry[:16] == bytes(16):
+            continue
+        first, last, attributes = struct.unpack("<QQQ", entry[32:56])
+        name = entry[56:128].decode("utf-16le").rstrip("\0")
+        print(
+            f"table {index + 1} {name} {first}-{last} type={entry[:16].hex()}"
+            f" attributes={attributes:x}"
+        )
+        entries.append(f"guid {index + 1} {name} {entry[16:32].hex()}")
+    print("\n".join(entries))
+    MOUNT.mkdir(exist_ok=True)
+    nodes = sorted(BY_NAME.iterdir()) + [
+        pathlib.Path(f"/dev/block/mmcblk0{side}") for side in ("boot0", "boot1", "rpmb")
+    ]
+    for path in nodes:
+        with path.open("rb") as file:
+            file.seek(1080)
+            magic = file.read(2)
+        if (
+            magic == b"\x53\xef"
+            and not subprocess.run(
+                ["mount", "-o", "ro", "-t", "ext4", str(path), str(MOUNT)],
+                capture_output=True,
+                check=False,
+            ).returncode
+        ):
+            try:
+                digest, lines = tree(path=MOUNT)
+            finally:
+                quiet(arguments=["umount", str(MOUNT)])
+            print(f"part {path.name} ext4 {digest} files={len(lines)}")
+            for line in lines:
+                print(f"file {path.name} {line}")
+        else:
+            with path.open("rb") as file:
+                print(f"part {path.name} raw {md5(data=file.read())}")
+
+
+def table() -> list[tuple[int, str, int, int]]:
+    with (DISK / "mmcblk0.img").open("rb") as disk:
+        disk.seek(SECTOR)
+        header = disk.read(SECTOR)
+        entries_at, count, size = struct.unpack("<QII", header[72:88])
+        disk.seek(entries_at * SECTOR)
+        raw = disk.read(count * size)
+    found = []
+    for index in range(count):
+        entry = raw[index * size : (index + 1) * size]
+        if entry[:16] == bytes(16):
+            continue
+        first, last = struct.unpack("<QQ", entry[32:48])
+        name = entry[56:128].decode("utf-16le").rstrip("\0")
+        found.append((index + 1, name, first, last - first + 1))
+    return found
+
+
+def tree(*, path: pathlib.Path) -> tuple[str, list[str]]:
+    lines = []
+    for item in sorted(path.rglob("*")):
+        relative = item.relative_to(path)
+        if relative.parts[0] == "lost+found":
+            continue
+        status = item.lstat()
+        if item.is_symlink():
+            detail = "-> " + str(item.readlink())
+        elif item.is_file():
+            detail = md5(data=item.read_bytes())
+        else:
+            detail = "dir"
+        lines.append(
+            f"{relative} {status.st_mode:o} {status.st_uid}:{status.st_gid} {detail}"
+        )
+    return md5(data="\n".join(lines).encode()), lines
+
+
+def unmount_all() -> None:
+    mounted = pathlib.Path("/proc/mounts").read_text(encoding="utf-8").splitlines()
+    targets = [
+        line.split()[1]
+        for line in mounted
+        if line.split()[0].startswith(("/dev/block", "/dev/loop"))
+        or line.split()[1] in {"/proc/partitions", "/sys/block", "/sys/class/block"}
+    ]
+    for target in reversed(targets):
+        quiet(arguments=["umount", "-l", target])
+
+
+main()

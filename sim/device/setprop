@@ -1,0 +1,16 @@
+#!/usr/bin/python3
+import pathlib
+import sys
+
+PROPS = pathlib.Path("/sim/run/props")
+WITH_VALUE = 3
+
+props = {}
+if PROPS.exists():
+    for line in PROPS.read_text(encoding="utf-8").splitlines():
+        key, _, value = line.partition("=")
+        props[key] = value
+props[sys.argv[1]] = sys.argv[2] if len(sys.argv) >= WITH_VALUE else ""
+PROPS.write_text(
+    "".join(f"{key}={value}\n" for key, value in props.items()), encoding="utf-8"
+)

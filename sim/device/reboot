@@ -1,0 +1,6 @@
+#!/bin/sh
+into=system
+for word in "$@"; do
+    case "$word" in -*) ;; *) into=$word ;; esac
+done
+echo "$into" > /sim/run/request

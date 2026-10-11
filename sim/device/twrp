@@ -1,0 +1,104 @@
+#!/usr/bin/python3
+import os
+import pathlib
+import subprocess
+import sys
+import tempfile
+import zipfile
+
+AMONET_IMAGE = "amonet/bin/lk.bin"
+BY_NAME = pathlib.Path("/dev/block/platform/mtk-msdc.0/by-name")
+RUN = pathlib.Path("/sim/run")
+UPDATER = "META-INF/com/google/android/update-binary"
+WITH_TARGET = 3
+
+
+def install(*, path: str) -> int:
+    print(f"Installing zip file '{path}'")
+    try:
+        archive = zipfile.ZipFile(path)
+    except (OSError, zipfile.BadZipFile):
+        print("Invalid zip file format!")
+        return 1
+    names = set(archive.namelist())
+    if {AMONET_IMAGE, UPDATER} <= names:
+        return update(binary=archive.read(UPDATER), path=path)
+    active = (RUN / "active").read_text(encoding="utf-8").strip()
+    if "META-INF/com/android/metadata" in names:
+        metadata = dict(
+            line.partition("=")[::2]
+            for line in archive
+            .read("META-INF/com/android/metadata")
+            .decode()
+            .splitlines()
+        )
+        build = metadata.get("post-build", "unknown")
+        slot = "b" if active == "a" else "a"
+        with tempfile.TemporaryDirectory() as folder:
+            prop = pathlib.Path(folder) / "build.prop"
+            prop.write_text(
+                f"ro.build.version.name=Fire OS 6 ({build})\n"
+                f"ro.build.fingerprint={build}\n",
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [
+                    "mke2fs",
+                    "-q",
+                    "-F",
+                    "-t",
+                    "ext4",
+                    "-d",
+                    folder,
+                    str(BY_NAME / f"system_{slot}"),
+                ],
+                capture_output=True,
+                check=True,
+            )
+        (RUN / f"root-adb-{slot}").unlink(missing_ok=True)
+        (RUN / "active").write_text(slot + "\n", encoding="utf-8")
+        print("Installing update...")
+    else:
+        (RUN / f"root-adb-{active}").touch()
+        print("Installing boot-root...")
+    print("Done processing script file")
+    return 0
+
+
+def main() -> int:
+    if len(sys.argv) == WITH_TARGET and sys.argv[1] == "install":
+        return install(path=sys.argv[2])
+    if len(sys.argv) == WITH_TARGET and sys.argv[1] == "wipe":
+        return wipe(part=sys.argv[2])
+    print("usage: twrp install <zip> | wipe <partition>", file=sys.stderr)
+    return 1
+
+
+def update(*, binary: bytes, path: str) -> int:
+    with tempfile.TemporaryDirectory() as folder:
+        script = pathlib.Path(folder) / "update-binary"
+        script.write_bytes(binary)
+        (pathlib.Path(folder) / "unzip").symlink_to("/usr/bin/busybox")
+        environment = dict(os.environ, PATH=f"{folder}:{os.environ['PATH']}")
+        ran = subprocess.run(
+            ["/bin/sh", str(script), "3", "1", path],
+            check=False,
+            env=environment,
+            stderr=subprocess.DEVNULL,
+        )
+    print("Done processing script file" if ran.returncode == 0 else "Updater failed")
+    return ran.returncode
+
+
+def wipe(*, part: str) -> int:
+    name = {"data": "userdata"}.get(part, part)
+    subprocess.run(
+        ["mke2fs", "-q", "-F", "-t", "ext4", str(BY_NAME / name)],
+        capture_output=True,
+        check=True,
+    )
+    print(f"Wiping {part}... Done.")
+    return 0
+
+
+sys.exit(main())
