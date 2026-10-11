@@ -1,0 +1,658 @@
+#!/usr/bin/python3
+from __future__ import annotations
+
+import contextlib
+import fcntl
+import hashlib
+import json
+import os
+import pathlib
+import shutil
+import signal
+import stat
+import struct
+import subprocess
+import sys
+import time
+
+BOOT_LAYOUT = b"BRLYT"
+BY_NAME = pathlib.Path("/dev/block/platform/mtk-msdc.0/by-name")
+DECOYS = {
+    "lk_a": 1048576,
+    "lk_b": 1048576,
+    "preloader": 4194304,
+    "tee": 5242880,
+    "tee1": 5242880,
+    "tee2": 5242880,
+}
+DECOY_ROOM = "64m"
+DEVICES = pathlib.Path("/dev")
+DISK = pathlib.Path("/sim/disk")
+EMMC_BOOT = b"EMMC_BOOT"
+FLAVOURS = pathlib.Path("/sim/flavours")
+FOLDERS = {
+    pathlib.Path("/data/local/tmp"): (2000, 0o771),
+    pathlib.Path("/sdcard"): (2000, 0o777),
+}
+HOLDER_SECONDS = 5
+LEFTOVER_SECONDS = 5
+LOOP_CONTROL = "/dev/loop-control"
+LOOP_CTL_GET_FREE = 0x4C82  # _IO('L', 0x82)
+LOOP_MAJOR = 7
+LOOP_TRIES = 50
+MOUNT = pathlib.Path("/sim/mnt")
+NULLED = ("lk_a", "lk_b", "tee1", "tee2")
+PATH = pathlib.Path("/sim/path")
+PROTECTED = ("boot0", "boot1")
+RUN = pathlib.Path("/sim/run")
+HOLDER = RUN / "holder"
+HOLDER_LOG = RUN / "holder.log"
+HOLDER_READY = RUN / "holder.ready"
+LOOPS = RUN / "loops"
+REQUEST = RUN / "request"
+SECTOR = 512
+SIDE_DEVICES = ("boot0", "boot1", "rpmb")
+SIM_BOOT = ["/usr/bin/python3", "/sim/bin/sim-boot"]
+SLOTS = ("a", "b")
+SYSFS = "/sys/block"
+SYSFS_LOG = RUN / "sysfs.log"
+SYSFS_SECONDS = 5
+TEMPORARY = pathlib.Path("/tmp")  # ruff: ignore[hardcoded-temp-file]
+DECOY_FOLDER = TEMPORARY / "ota-decoy"
+
+
+def act() -> None:
+    action = sys.argv[1]
+    if action == "boot":
+        boot()
+    elif action == "detach":
+        detach()
+    elif action == "enter":
+        enter(spec=json.loads(sys.argv[2]))
+    elif action == "facts":
+        holding()
+        print(json.dumps(facts(spec=json.loads(sys.argv[2]))))
+    elif action == "snapshot":
+        holding()
+        snapshot()
+
+
+def attached(*, device: str) -> list[str]:
+    return subprocess.run(
+        ["losetup", "-n", "-O", "BACK-INO,OFFSET,SIZELIMIT", "-l", device],
+        capture_output=True,
+        check=False,
+        text=True,
+    ).stdout.split()
+
+
+def boot() -> None:
+    kill_leftovers()
+    unmount_all()
+    detach()
+    remove_block_nodes()
+    BY_NAME.mkdir(parents=True)
+    partitions = ["major minor  #blocks  name", ""]
+    disk = DISK / "mmcblk0.img"
+    node(minor=loop(path=disk), name="mmcblk0")
+    partitions.append(f" 179        0 {disk.stat().st_size // 1024:>10} mmcblk0")
+    starts = {}
+    for number, name, first, sectors in table():
+        node(
+            minor=loop(offset=first * SECTOR, path=disk, size=sectors * SECTOR),
+            name=f"mmcblk0p{number}",
+        )
+        (BY_NAME / name).symlink_to(f"/dev/block/mmcblk0p{number}")
+        partitions.append(
+            f" 179 {number:>8} {sectors * SECTOR // 1024:>10} mmcblk0p{number}"
+        )
+        starts[number] = (first, sectors)
+    for minor, side in zip((96, 64, 32), ("rpmb", "boot1", "boot0")):
+        path = DISK / f"{side}.img"
+        node(minor=loop(path=path, protected=side in PROTECTED), name=f"mmcblk0{side}")
+        partitions.append(
+            f" 179 {minor:>8} {path.stat().st_size // 1024:>10} mmcblk0{side}"
+        )
+    hold()
+    listing = RUN / "partitions"
+    listing.write_text("\n".join(partitions) + "\n", encoding="utf-8")
+    call(arguments=["mount", "--bind", str(listing), "/proc/partitions"])
+    mount_sysfs()
+    call(arguments=["mount", "-t", "tmpfs", "tmpfs", "/sys/class/block"])
+    for number, (first, sectors) in starts.items():
+        folder = pathlib.Path(f"/sys/class/block/mmcblk0p{number}")
+        folder.mkdir()
+        (folder / "start").write_text(f"{first}\n", encoding="utf-8")
+        (folder / "size").write_text(f"{sectors}\n", encoding="utf-8")
+    for leftover in TEMPORARY.iterdir():
+        if leftover.is_dir() and not leftover.is_symlink():
+            shutil.rmtree(leftover, ignore_errors=True)
+        else:
+            leftover.unlink(missing_ok=True)
+    REQUEST.write_text("", encoding="utf-8")
+    REQUEST.chmod(0o666)
+
+
+def call(*, arguments: list[str]) -> str:
+    return subprocess.run(
+        arguments, capture_output=True, check=True, text=True
+    ).stdout.strip()
+
+
+def command_line(*, pid: int) -> list[str]:
+    try:
+        raw = pathlib.Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return []
+    return raw.decode(errors="replace").split("\0")[:-1]
+
+
+def detach() -> None:
+    records = (
+        [line.split() for line in LOOPS.read_text(encoding="utf-8").splitlines()]
+        if LOOPS.exists()
+        else []
+    )
+    for device, *_ in records:
+        if not pathlib.Path(device).exists():
+            number = int(device.removeprefix("/dev/loop"))
+            os.mknod(device, 0o660 | stat.S_IFBLK, os.makedev(LOOP_MAJOR, number))
+    ours = [
+        (device, backing)
+        for device, *backing in records
+        if attached(device=device) == backing
+    ]
+    for device, _ in ours:
+        quiet(arguments=["blockdev", "--setrw", device])
+    if HOLDER.exists():
+        pid = int(HOLDER.read_text(encoding="utf-8"))
+        if "/sim/bin/sim-hold" in command_line(pid=pid):
+            with contextlib.suppress(OSError):
+                os.kill(pid, signal.SIGTERM)
+            wait_gone(pid=pid, seconds=HOLDER_SECONDS)
+        HOLDER.unlink()
+    failed = [
+        " ".join([device, *backing])
+        for device, backing in ours
+        if attached(device=device) == backing
+        and subprocess.run(
+            ["losetup", "-d", device], capture_output=True, check=False
+        ).returncode
+    ]
+    LOOPS.write_text("".join(f"{line}\n" for line in failed), encoding="utf-8")
+    if failed:
+        message = f"could not detach {len(failed)} loops: {failed}"
+        raise OSError(message)
+
+
+def enter(*, spec: dict) -> None:
+    props = RUN / "props"
+    props.write_text(
+        "".join(f"{key}={value}\n" for key, value in spec["props"].items()),
+        encoding="utf-8",
+    )
+    props.chmod(0o666)
+    shutil.rmtree(PATH, ignore_errors=True)
+    shutil.copytree(FLAVOURS / spec["flavour"], PATH, symlinks=True)
+    if spec["props"].get("sim.su") == "1":
+        (PATH / "su").symlink_to("/opt/dot/su")
+    for folder, (group, mode) in FOLDERS.items():
+        folder.mkdir(exist_ok=True, parents=True)
+        os.chown(folder, 0, group if spec["uid"] else 0)
+        folder.chmod(mode if spec["uid"] else 0o755)
+    if spec.get("twrp") == "v1":
+        null_bootloaders()
+    elif spec.get("twrp") in {"bboe", "v2"}:
+        if spec["twrp"] == "bboe":
+            point_boot_at_fire_os()
+        make_decoys()
+
+
+def facts(*, spec: dict) -> dict:
+    names = {name: number for number, name, _, _ in table()}
+    result: dict = {"prefixes": {}, "table": sorted(names)}
+    for name, sizes in spec["prefixes"].items():
+        path = (
+            pathlib.Path(f"/dev/block/mmcblk0{name}")
+            if name in SIDE_DEVICES
+            else BY_NAME / name
+        )
+        if path.exists():
+            result["prefixes"][name] = {
+                str(size): prefix(path=path, size=size) for size in sizes
+            }
+    with pathlib.Path("/dev/block/mmcblk0boot0").open("rb") as boot0:
+        head = boot0.read(2 * SECTOR)
+    result["preloader"] = head.startswith(EMMC_BOOT) and head[SECTOR:].startswith(
+        BOOT_LAYOUT
+    )
+    for name in ("misc", "expdb"):
+        path = BY_NAME / name
+        if path.exists():
+            with path.open("rb") as file:
+                result[f"{name}_fastboot"] = file.read(15) == b"FASTBOOT_PLEASE"
+    for slot in ("a", "b"):
+        path = BY_NAME / f"system_{slot}"
+        result[f"system_{slot}"] = (
+            mounted_read(
+                path=path,
+                wanted={
+                    "build": "build.prop",
+                    "flags": "etc/init.fosflags.sh",
+                },
+            )
+            if path.exists()
+            else None
+        )
+        result[f"root_adb_{slot}"] = (RUN / f"root-adb-{slot}").exists()
+    result["magisk"] = False
+    MOUNT.mkdir(exist_ok=True)
+    if not subprocess.run(
+        ["mount", "-o", "ro", "-t", "ext4", str(BY_NAME / "userdata"), str(MOUNT)],
+        capture_output=True,
+        check=False,
+    ).returncode:
+        result["magisk"] = (MOUNT / "adb" / "magisk.db").exists()
+        quiet(arguments=["umount", str(MOUNT)])
+    result["active"] = (RUN / "active").read_text(encoding="utf-8").strip()
+    return result
+
+
+def hold() -> None:
+    HOLDER_READY.unlink(missing_ok=True)
+    devices = [
+        line.split()[0] for line in LOOPS.read_text(encoding="utf-8").splitlines()
+    ]
+    with HOLDER_LOG.open("a", encoding="utf-8") as log:
+        holder = subprocess.Popen(
+            ["/sim/bin/sim-hold", str(HOLDER_READY), *devices],
+            start_new_session=True,
+            stderr=log,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+        )
+    HOLDER.write_text(str(holder.pid), encoding="utf-8")
+    deadline = time.monotonic() + HOLDER_SECONDS
+    while not (
+        HOLDER_READY.exists()
+        and HOLDER_READY.read_text(encoding="utf-8").strip() == str(len(devices))
+    ):
+        if holder.poll() is not None or time.monotonic() > deadline:
+            message = (
+                f"sim-hold did not hold {len(devices)} loops:"
+                f" {log_tail(path=HOLDER_LOG)}"
+            )
+            raise OSError(message)
+        time.sleep(0.05)
+
+
+def holding() -> None:
+    pid = int(HOLDER.read_text(encoding="utf-8")) if HOLDER.exists() else 0
+    state = ""
+    with contextlib.suppress(OSError, IndexError):
+        state = (
+            pathlib
+            .Path(f"/proc/{pid}/stat")
+            .read_text(encoding="utf-8")
+            .rsplit(")", 1)[1]
+            .split()[0]
+        )
+    if (
+        not pid
+        or state in {"", "Z"}
+        or "/sim/bin/sim-hold" not in command_line(pid=pid)
+    ):
+        message = f"sim-hold is not running: {log_tail(path=HOLDER_LOG)}"
+        raise OSError(message)
+
+
+def kill_leftovers() -> None:
+    spared = {1, os.getpid()}
+    children = [
+        (status[19], pid) for pid, status in processes().items() if status[1] == "1"
+    ]
+    if children:
+        spared.add(min(children, key=lambda child: int(child[0]))[1])
+    holder = int(HOLDER.read_text(encoding="utf-8")) if HOLDER.exists() else 0
+    words = command_line(pid=holder)
+    if "/sim/bin/sim-hold" in words and str(HOLDER_READY) in words:
+        spared.add(holder)
+    victims = []
+    for pid in processes():
+        words = command_line(pid=pid)
+        if pid in spared or not words or words[: len(SIM_BOOT)] == SIM_BOOT:
+            continue
+        with contextlib.suppress(OSError):
+            os.kill(pid, signal.SIGKILL)
+            victims.append(pid)
+    for pid in victims:
+        wait_gone(pid=pid, seconds=LEFTOVER_SECONDS)
+
+
+def link(*, path: pathlib.Path, target: pathlib.Path | str) -> None:
+    path.unlink(missing_ok=True)
+    path.symlink_to(target)
+
+
+def log_tail(*, path: pathlib.Path) -> str:
+    with contextlib.suppress(OSError):
+        return path.read_text(encoding="utf-8", errors="replace")[-2000:].strip()
+    return ""
+
+
+def loop(
+    *, offset: int = 0, path: pathlib.Path, protected: bool = False, size: int = 0
+) -> int:
+    arguments = ["losetup"]
+    if offset:
+        arguments += ["-o", str(offset)]
+    if size:
+        arguments += ["--sizelimit", str(size)]
+    backing = [str(path.stat().st_ino), str(offset), str(size)]
+    failures = []
+    for _ in range(LOOP_TRIES):
+        with pathlib.Path(LOOP_CONTROL).open("rb") as control:
+            number = fcntl.ioctl(control, LOOP_CTL_GET_FREE)
+        device = f"/dev/loop{number}"
+        if not pathlib.Path(device).exists():
+            os.mknod(device, 0o660 | stat.S_IFBLK, os.makedev(LOOP_MAJOR, number))
+        tried = subprocess.run(
+            [*arguments, device, str(path)], capture_output=True, check=False, text=True
+        )
+        if tried.returncode == 0:
+            break
+        failures.append(tried.stderr.strip())
+    else:
+        message = f"no loop device took {path}: {failures[-3:]}"
+        raise OSError(message)
+    found = attached(device=device)
+    if found != backing:
+        if found[:1] == backing[:1]:
+            release(device=device)
+        message = f"{device} is not {path} at {offset}+{size}: {found}"
+        raise OSError(message)
+    try:
+        call(arguments=["blockdev", "--setro" if protected else "--setrw", device])
+    except subprocess.CalledProcessError:
+        if attached(device=device) == backing:
+            release(device=device)
+        raise
+    with LOOPS.open("a", encoding="utf-8") as held:
+        held.write(" ".join([device, *backing]) + "\n")
+    return number
+
+
+def main() -> None:
+    RUN.mkdir(exist_ok=True, parents=True)
+    with (RUN / "lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        act()
+
+
+def make_decoys() -> None:
+    DECOY_FOLDER.mkdir(exist_ok=True)
+    call(
+        arguments=[
+            "mount",
+            "-t",
+            "tmpfs",
+            "-o",
+            f"size={DECOY_ROOM}",
+            "tmpfs",
+            str(DECOY_FOLDER),
+        ]
+    )
+    for part, size in DECOYS.items():
+        named = BY_NAME / part
+        if named.is_block_device():
+            link(path=BY_NAME / f"{part}_real", target=named.resolve())
+        decoy = DECOY_FOLDER / part
+        with decoy.open("wb") as file:
+            file.truncate(size)
+        link(path=named, target=decoy)
+
+
+def md5(*, data: bytes) -> str:
+    return hashlib.md5(data, usedforsecurity=False).hexdigest()
+
+
+def mount_sysfs() -> None:
+    call(arguments=["mount", "-t", "tmpfs", "-o", "size=1m", "tmpfs", SYSFS])
+    with SYSFS_LOG.open("a", encoding="utf-8") as log:
+        server = subprocess.Popen(
+            [
+                "/sim/bin/sim-sysfs",
+                SYSFS,
+                *(
+                    str((DISK / f"{side}.img").stat().st_size // SECTOR)
+                    for side in PROTECTED
+                ),
+            ],
+            start_new_session=True,
+            stderr=log,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+        )
+    deadline = time.monotonic() + SYSFS_SECONDS
+    while not (
+        top_mount(target=SYSFS).startswith("fuse")
+        and pathlib.Path(f"{SYSFS}/mmcblk0boot0/force_ro").exists()
+    ):
+        if server.poll() is not None or time.monotonic() > deadline:
+            message = f"{SYSFS} did not mount: {log_tail(path=SYSFS_LOG)}"
+            raise OSError(message)
+        time.sleep(0.05)
+
+
+def mounted_read(
+    *, path: pathlib.Path, wanted: dict[str, str]
+) -> dict[str, str] | None:
+    MOUNT.mkdir(exist_ok=True)
+    if subprocess.run(
+        ["mount", "-o", "ro", "-t", "ext4", str(path), str(MOUNT)],
+        capture_output=True,
+        check=False,
+    ).returncode:
+        return None
+    try:
+        found = {}
+        for key, relative in wanted.items():
+            target = MOUNT / relative
+            found[key] = target.read_text(errors="replace") if target.is_file() else ""
+        return found
+    finally:
+        quiet(arguments=["umount", str(MOUNT)])
+
+
+def node(*, minor: int, name: str) -> None:
+    path = pathlib.Path("/dev/block") / name
+    path.unlink(missing_ok=True)
+    os.mknod(path, 0o600 | stat.S_IFBLK, os.makedev(LOOP_MAJOR, minor))
+
+
+def null_bootloaders() -> None:
+    for slot in SLOTS:
+        named = BY_NAME / f"boot_{slot}"
+        amonet = named.resolve()
+        link(path=named, target=(BY_NAME / f"boot_{slot}_x").resolve())
+        link(path=BY_NAME / f"boot_{slot}_amonet", target=amonet)
+    for part in NULLED:
+        named = BY_NAME / part
+        link(path=BY_NAME / f"{part}_real", target=named.resolve())
+        link(path=named, target="/dev/null")
+
+
+def point_boot_at_fire_os() -> None:
+    for slot in SLOTS:
+        named = BY_NAME / f"boot_{slot}"
+        fire_os = BY_NAME / f"boot_{slot}_x"
+        if (
+            fire_os.is_block_device()
+            and named.is_block_device()
+            and fire_os.resolve() != named.resolve()
+        ):
+            amonet = named.resolve()
+            link(path=named, target=fire_os.resolve())
+            link(path=BY_NAME / f"boot_{slot}_amonet", target=amonet)
+
+
+def prefix(*, path: pathlib.Path, size: int) -> str:
+    with path.open("rb") as file:
+        return md5(data=file.read(size))
+
+
+def processes() -> dict[int, list[str]]:
+    found = {}
+    for entry in pathlib.Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        with contextlib.suppress(OSError, IndexError):
+            fields = (entry / "stat").read_text(encoding="utf-8").rsplit(")", 1)[1]
+            found[int(entry.name)] = fields.split()
+    return found
+
+
+def quiet(*, arguments: list[str]) -> None:
+    subprocess.run(arguments, capture_output=True, check=False)
+
+
+def release(*, device: str) -> None:
+    quiet(arguments=["blockdev", "--setrw", device])
+    quiet(arguments=["losetup", "-d", device])
+
+
+def remove_block_nodes() -> None:
+    shutil.rmtree("/dev/block", ignore_errors=True)
+    for folder, _, names in os.walk(DEVICES):
+        for name in names:
+            path = pathlib.Path(folder) / name
+            with contextlib.suppress(OSError):
+                if stat.S_ISBLK(path.lstat().st_mode):
+                    path.unlink()
+
+
+def snapshot() -> None:
+    entries = []
+    with (DISK / "mmcblk0.img").open("rb") as disk:
+        disk.seek(SECTOR)
+        header = disk.read(SECTOR)
+        entries_at, count, size = struct.unpack("<QII", header[72:88])
+        disk.seek(entries_at * SECTOR)
+        raw = disk.read(count * size)
+    for index in range(count):
+        entry = raw[index * size : (index + 1) * size]
+        if entry[:16] == bytes(16):
+            continue
+        first, last, attributes = struct.unpack("<QQQ", entry[32:56])
+        name = entry[56:128].decode("utf-16le").rstrip("\0")
+        print(
+            f"table {index + 1} {name} {first}-{last} type={entry[:16].hex()}"
+            f" attributes={attributes:x}"
+        )
+        entries.append(f"guid {index + 1} {name} {entry[16:32].hex()}")
+    print("\n".join(entries))
+    MOUNT.mkdir(exist_ok=True)
+    nodes = sorted(BY_NAME.iterdir()) + [
+        pathlib.Path(f"/dev/block/mmcblk0{side}") for side in ("boot0", "boot1", "rpmb")
+    ]
+    for path in nodes:
+        if not path.exists():
+            print(f"part {path.name} missing")
+            continue
+        with path.open("rb") as file:
+            file.seek(1080)
+            magic = file.read(2)
+        if (
+            magic == b"\x53\xef"
+            and not subprocess.run(
+                ["mount", "-o", "ro", "-t", "ext4", str(path), str(MOUNT)],
+                capture_output=True,
+                check=False,
+            ).returncode
+        ):
+            try:
+                digest, lines = tree(path=MOUNT)
+            finally:
+                quiet(arguments=["umount", str(MOUNT)])
+            print(f"part {path.name} ext4 {digest} files={len(lines)}")
+            for line in lines:
+                print(f"file {path.name} {line}")
+        else:
+            with path.open("rb") as file:
+                print(f"part {path.name} raw {md5(data=file.read())}")
+
+
+def table() -> list[tuple[int, str, int, int]]:
+    with (DISK / "mmcblk0.img").open("rb") as disk:
+        disk.seek(SECTOR)
+        header = disk.read(SECTOR)
+        entries_at, count, size = struct.unpack("<QII", header[72:88])
+        disk.seek(entries_at * SECTOR)
+        raw = disk.read(count * size)
+    found = []
+    for index in range(count):
+        entry = raw[index * size : (index + 1) * size]
+        if entry[:16] == bytes(16):
+            continue
+        first, last = struct.unpack("<QQ", entry[32:48])
+        name = entry[56:128].decode("utf-16le").rstrip("\0")
+        found.append((index + 1, name, first, last - first + 1))
+    return found
+
+
+def top_mount(*, target: str) -> str:
+    kind = ""
+    for line in (
+        pathlib.Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines()
+    ):
+        fields = line.split()
+        if fields[4] == target:
+            kind = fields[fields.index("-") + 1]
+    return kind
+
+
+def tree(*, path: pathlib.Path) -> tuple[str, list[str]]:
+    lines = []
+    for item in sorted(path.rglob("*")):
+        relative = item.relative_to(path)
+        if relative.parts[0] == "lost+found":
+            continue
+        status = item.lstat()
+        if item.is_symlink():
+            detail = "-> " + str(item.readlink())
+        elif item.is_file():
+            detail = md5(data=item.read_bytes())
+        else:
+            detail = "dir"
+        lines.append(
+            f"{relative} {status.st_mode:o} {status.st_uid}:{status.st_gid} {detail}"
+        )
+    return md5(data="\n".join(lines).encode()), lines
+
+
+def unmount_all() -> None:
+    mounted = pathlib.Path("/proc/mounts").read_text(encoding="utf-8").splitlines()
+    targets = [
+        line.split()[1]
+        for line in mounted
+        if line.split()[0].startswith(("/dev/block", "/dev/loop"))
+        or line.split()[1] in {"/proc/partitions", SYSFS, "/sys/class/block"}
+        or line.split()[1].startswith(f"{TEMPORARY}/")
+    ]
+    for target in reversed(targets):
+        quiet(arguments=["umount", "-l", target])
+
+
+def wait_gone(*, pid: int, seconds: float) -> None:
+    status = pathlib.Path(f"/proc/{pid}/stat")
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            if status.read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0] == "Z":
+                return
+        except OSError:
+            return
+        time.sleep(0.05)
+
+
+main()

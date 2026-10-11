@@ -1,0 +1,8 @@
+#!/bin/sh
+if [ "$1" = package ] && [ -n "$2" ]; then
+    hidden=false
+    [ -f "/sim/run/hidden-$2" ] && hidden=true
+    echo "Packages:"
+    echo "  Package [$2] (5f1c2b0):"
+    echo "    User 0: installed=true hidden=$hidden stopped=false notLaunched=false enabled=0"
+fi

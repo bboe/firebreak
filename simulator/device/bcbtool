@@ -1,0 +1,6 @@
+#!/bin/sh
+case "$1" in
+    get_active) cat /sim/run/active ;;
+    set_active) echo "$2" > /sim/run/active ;;
+    *) echo "usage: bcbtool get_active|set_active a|b" >&2; exit 1 ;;
+esac

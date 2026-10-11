@@ -1,0 +1,39 @@
+#!/usr/bin/python3
+import os
+import pathlib
+import sys
+
+PROPS = pathlib.Path("/sim/run/props")
+REBOOT_PROPERTY = "sys.powerctl"
+REQUEST = pathlib.Path("/sim/run/request")
+SHELL_PROPERTIES = (
+    "debug.",
+    "log.",
+    "service.adb.root",
+    "service.adb.tcp.port",
+    REBOOT_PROPERTY,
+)
+SHELL_UID = 2000
+WITH_VALUE = 3
+
+if len(sys.argv) < WITH_VALUE:
+    print("usage: setprop <key> <value>", file=sys.stderr)
+    sys.exit(1)
+key, value = sys.argv[1], sys.argv[2]
+props = {}
+if PROPS.exists():
+    for line in PROPS.read_text(encoding="utf-8").splitlines():
+        name, _, said = line.partition("=")
+        props[name] = said
+allowed = os.getuid() != SHELL_UID or key.startswith(SHELL_PROPERTIES)
+if not allowed or (key.startswith("ro.") and key in props):
+    sys.exit(0)
+if key == REBOOT_PROPERTY:
+    verb, _, into = value.partition(",")
+    if verb == "reboot":
+        REQUEST.write_text((into or "system") + "\n", encoding="utf-8")
+    sys.exit(0)
+props[key] = value
+PROPS.write_text(
+    "".join(f"{name}={said}\n" for name, said in props.items()), encoding="utf-8"
+)

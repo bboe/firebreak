@@ -1,0 +1,12 @@
+/bin/mksh sh
+/opt/dot/gzip gzip
+/opt/dot/toybox acpi base64 basename blockdev bzcat cal cat chcon chgrp chmod chown chroot cksum clear cmp comm cp cpio cut date df dirname dmesg dos2unix du echo egrep env expand expr fallocate false fdisk fgrep find flock free grep groups head hostname hwclock id ifconfig inotifyd insmod ionice iorenice kill killall ln load_policy logname losetup ls lsmod lsof lsusb md5sum mkdir mknod mkswap mktemp modinfo more mount mountpoint mv netstat nice nl nohup od paste patch pgrep pidof pkill pmap printenv printf ps pwd readlink realpath renice restorecon rm rmdir rmmod route runcon sed seq setenforce setsid sha1sum sleep sort split stat strings swapoff swapon sync sysctl tac tail tar taskset tee time timeout top touch tr true truncate tty ulimit umount uname uniq unix2dos uptime usleep vmstat wc which whoami xargs xxd yes
+/sim/bin/dumpsys dumpsys
+/sim/bin/getenforce getenforce
+/sim/bin/getprop getprop
+/sim/bin/pm pm
+/sim/bin/reboot reboot
+/sim/bin/setprop setprop
+/sim/bin/toolbox getevent log start stop
+/sim/bin/toolbox-dd dd
+- iftop ioctl nandread newfs_msdos prlimit sendevent toolbox toybox

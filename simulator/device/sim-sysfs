@@ -1,0 +1,89 @@
+#!/usr/bin/python3
+from __future__ import annotations
+
+import errno
+import re
+import stat
+import subprocess
+import sys
+
+import fusepy as fuse
+
+FILE_SIZE = 4096
+NUMBER = re.compile(r"0[xX][0-9a-fA-F]+|0[0-7]*|[1-9][0-9]*")
+SIDES = ("boot0", "boot1")
+
+
+class Sysfs(fuse.Operations):
+    def __init__(self, *, sizes: dict[str, int]) -> None:
+        self.files = {f"/mmcblk0{side}/size": f"{sizes[side]}\n" for side in SIDES}
+
+    def getattr(self, path: str, *_: object) -> dict:
+        if path == "/" or path in {f"/mmcblk0{side}" for side in SIDES}:
+            return {"st_mode": stat.S_IFDIR | 0o755, "st_nlink": 2}
+        if path.endswith("/force_ro") and path.removesuffix("/force_ro") in {
+            f"/mmcblk0{side}" for side in SIDES
+        }:
+            return {
+                "st_mode": stat.S_IFREG | 0o644,
+                "st_nlink": 1,
+                "st_size": FILE_SIZE,
+            }
+        if path not in self.files:
+            raise fuse.FuseOSError(errno.ENOENT)
+        return {"st_mode": stat.S_IFREG | 0o444, "st_nlink": 1, "st_size": FILE_SIZE}
+
+    def read(self, path: str, size: int, offset: int, *_: object) -> bytes:
+        if path.endswith("/force_ro"):
+            node = "/dev/block" + path.removesuffix("/force_ro")
+            said = subprocess.run(
+                ["blockdev", "--getro", node],
+                capture_output=True,
+                check=True,
+                text=True,
+            ).stdout.strip()
+            return f"{said}\n".encode()[offset : offset + size]
+        return self.files[path].encode()[offset : offset + size]
+
+    def readdir(self, path: str, *_: object) -> list[str]:  # ruff: ignore[no-self-use]
+        if path == "/":
+            return [".", "..", *(f"mmcblk0{side}" for side in SIDES)]
+        return [".", "..", "force_ro", "size"]
+
+    def truncate(self, path: str, length: int, fh: int | None = None) -> None:
+        pass
+
+    def write(self, path: str, data: bytes, *_: object) -> int:  # ruff: ignore[no-self-use]
+        if not path.endswith("/force_ro"):
+            raise fuse.FuseOSError(errno.EACCES)
+        value = simple_strtoul(text=data.decode(errors="replace"))
+        if value is None:
+            raise fuse.FuseOSError(errno.EINVAL)
+        node = "/dev/block" + path.removesuffix("/force_ro")
+        subprocess.run(
+            ["blockdev", "--setro" if value else "--setrw", node], check=True
+        )
+        return len(data)
+
+
+def simple_strtoul(*, text: str) -> int | None:
+    found = NUMBER.match(text)
+    if found is None:
+        return None
+    word = found.group()
+    if word[:2].lower() == "0x":
+        return int(word, 16)
+    if word.startswith("0"):
+        return int(word, 8)
+    return int(word)
+
+
+fuse.FUSE(
+    Sysfs(sizes=dict(zip(SIDES, map(int, sys.argv[2:4])))),
+    sys.argv[1],
+    allow_other=True,
+    default_permissions=True,
+    direct_io=True,
+    foreground=True,
+    nonempty=True,
+)

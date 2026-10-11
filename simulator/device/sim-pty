@@ -1,0 +1,55 @@
+#!/usr/bin/python3
+import contextlib
+import os
+import pty
+import select
+import signal
+import sys
+
+CHUNK = 65536
+HELD = 1 << 20
+POLL_MILLISECONDS = 50
+
+
+def hang_up(*, master: int, pid: int) -> None:
+    with contextlib.suppress(OSError):
+        os.killpg(pid, signal.SIGHUP)
+    os.close(master)
+    os.waitpid(pid, 0)
+
+
+def relay(*, master: int, pid: int) -> None:
+    os.set_blocking(master, False)
+    pending = b""
+    poller = select.poll()
+    while os.waitpid(pid, os.WNOHANG)[0] != pid:
+        poller.register(0, select.POLLIN if len(pending) < HELD else 0)
+        poller.register(master, select.POLLIN | (select.POLLOUT if pending else 0))
+        events = dict(poller.poll(POLL_MILLISECONDS))
+        if events.get(master, 0) & select.POLLIN:
+            with contextlib.suppress(OSError):
+                os.write(1, os.read(master, CHUNK))
+        if pending and events.get(master, 0) & select.POLLOUT:
+            with contextlib.suppress(BlockingIOError):
+                pending = pending[os.write(master, pending) :]
+        if events.get(0, 0) & select.POLLIN:
+            data = os.read(0, CHUNK)
+            if not data:
+                hang_up(master=master, pid=pid)
+                return
+            pending += data
+        elif events.get(0, 0) & (select.POLLHUP | select.POLLERR):
+            hang_up(master=master, pid=pid)
+            return
+    with contextlib.suppress(OSError):
+        data = os.read(master, CHUNK)
+        while data:
+            os.write(1, data)
+            data = os.read(master, CHUNK)
+
+
+child, terminal = pty.fork()
+if child == 0:
+    os.execv("/sim/path/sh", ["sh", "-c", sys.argv[1]])  # ruff: ignore[start-process-with-no-shell]
+relay(master=terminal, pid=child)
+sys.exit(0)

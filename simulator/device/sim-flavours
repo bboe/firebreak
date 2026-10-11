@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+busybox=$(/opt/dot/busybox --list)
+toybox=$(/opt/dot/toybox)
+for manifest in /sim/manifests/*; do
+    flavour=/sim/flavours/${manifest##*/}
+    mkdir -p "$flavour"
+    : > "$flavour.missing"
+    while read -r path names; do
+        for name in $names; do
+            case $path in
+                -) provided= ;;
+                */busybox) provided="$busybox busybox" ;;
+                */toybox) provided="$toybox toybox" ;;
+                *) provided=$name ;;
+            esac
+            if printf '%s\n' $provided | grep -qxF -- "$name"; then
+                ln -s "$path" "$flavour/$name"
+            else
+                echo "$name" >> "$flavour.missing"
+            fi
+        done
+    done < "$manifest"
+done

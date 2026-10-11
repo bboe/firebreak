@@ -1,0 +1,19 @@
+/bin/bash bash
+/bin/mksh sh
+/opt/dot/pigz pigz unpigz
+/opt/dot/toybox acpi arp base64 basename blkid blockdev bzcat cal cat chattr chcon chgrp chmod chown chroot cksum clear cmp comm cp cpio cut date df diff dirname dmesg dos2unix du echo egrep env expand expr fallocate false fgrep find flock fmt free freeramdisk fsfreeze fstype ftpget ftpput getenforce grep groups gunzip gzip head help hostname hwclock id ifconfig inotifyd insmod install ionice iorenice iotop kill killall ln load_policy logname losetup ls lsattr lsmod lsof lspci lsusb makedevs md5sum mkdir mkfifo mknod mkswap mktemp modinfo more mount mountpoint mv nbd-client nc netcat netstat nice nl nohup nproc od partprobe paste patch pgrep pidof pivot_root pkill pmap printenv printf ps pwd pwdx readahead readlink realpath renice reset restorecon rev rfkill rm rmdir rmmod route runcon sed seq setenforce setsid sha1sum sha224sum sha256sum sha384sum sha512sum sleep sort split stat strings stty swapoff swapon sync sysctl tac tail tar taskset tee telnet test time timeout top touch toybox tr traceroute traceroute6 true truncate tty tunctl ulimit umount uname uniq unix2dos uptime usleep vconfig vmstat watch wc which whoami xargs xxd yes zcat
+/sim/bin/bcbtool bcbtool
+/sim/bin/getprop getprop
+/sim/bin/reboot reboot
+/sim/bin/setprop setprop
+/sim/bin/toolbox getevent start stop
+/sim/bin/toolbox-dd dd
+/sim/bin/twrp twrp
+/usr/bin/original-awk awk
+/usr/bin/unzip unzip
+/usr/sbin/e2fsck e2fsck
+/usr/sbin/mke2fs mke2fs
+/usr/sbin/resize2fs resize2fs
+/usr/sbin/sgdisk sgdisk
+/usr/sbin/tune2fs tune2fs
+- adbd amzn_bcbtool bash_twrp-timestamp bcbfix bootctl bu charger dump_image e2fsck-data.sh e2fsdroid erase_image exfat-fuse fatlabel ffs-adb.sh flash_image fsck.exfat fsck.f2fs fsck.fat ld.config.txt led-anim.sh led-common.sh led-status.sh led.sh linker listxattr mkexfatfs mkfs.f2fs mkfs.fat nano nano_twrp-timestamp newfs_msdos openaes permissive.sh recovery resetprop simg2img sload.f2fs slot-symlinks.sh teamwin toolbox tzdata_twrp-timestamp ueventd update_engine_sideload watchdogd

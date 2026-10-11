@@ -1,0 +1,6 @@
+#!/bin/sh
+into=
+for word in "$@"; do
+    case "$word" in -*) ;; *) into=$word ;; esac
+done
+exec /sim/bin/setprop sys.powerctl "reboot,$into"

@@ -1,0 +1,107 @@
+#!/usr/bin/python3
+from __future__ import annotations
+
+import hashlib
+import os
+import pathlib
+import sys
+import time
+
+CHUNK = 4096
+ROW = 16
+
+
+def getevent(*, arguments: list[str]) -> int:
+    del arguments
+    while True:
+        time.sleep(3600)
+
+
+def hd(*, arguments: list[str]) -> int:  # ruff: ignore[complex-structure]
+    options = {"b": -1, "c": 0, "r": 0}
+    words = list(arguments)
+    while words and words[0].startswith("-") and len(words[0]) > 1:
+        flag = words.pop(0)
+        if flag[1] not in options:
+            print(f"hd: invalid option -{flag[1]}", file=sys.stderr)
+            return 1
+        value = flag[2:] or (words.pop(0) if words else "")
+        options[flag[1]] = int(value, 0)
+    base, count = options["b"], options["c"]
+    if len(words) != 1:
+        print("Usage: hd [-b base] [-c count] [-r delay] file", file=sys.stderr)
+        return 1
+    try:
+        descriptor = os.open(words[0], os.O_RDONLY)
+    except OSError as error:
+        print(f"could not open {words[0]}, {error.strerror}", file=sys.stderr)
+        return 1
+    position = 0
+    if base >= 0:
+        os.lseek(descriptor, base, os.SEEK_SET)
+        position = base
+    total = 0
+    while True:
+        length = CHUNK
+        if count > 0 and base + count - position < length:
+            length = base + count - position
+        data = os.read(descriptor, length)
+        if not data:
+            break
+        line = 0
+        for index, byte in enumerate(data):
+            if index % ROW == 0:
+                sys.stdout.write(f"{position + index:08x}: ")
+            line += byte
+            total += byte
+            sys.stdout.write(f"{byte:02x} ")
+            if index % ROW == ROW - 1 or index == len(data) - 1:
+                sys.stdout.write(f"s {line:x}\n")
+                line = 0
+        position += len(data)
+        if position == base + count:
+            break
+    sys.stdout.write(f"sum {total:x}\n")
+    return 0
+
+
+def md5(*, arguments: list[str]) -> int:
+    if not arguments:
+        print("md5 file ...", file=sys.stderr)
+        return 255
+    status = 0
+    for path in arguments:
+        try:
+            descriptor = os.open(path, os.O_RDONLY)
+        except OSError as error:
+            print(f"could not open {path}, {error.strerror}", file=sys.stderr)
+            status = 1
+            continue
+        digest = hashlib.md5(usedforsecurity=False)
+        try:
+            while data := os.read(descriptor, CHUNK):
+                digest.update(data)
+        except OSError as error:
+            print(f"could not read {path}, {error.strerror}", file=sys.stderr)
+            status = 1
+            continue
+        finally:
+            os.close(descriptor)
+        print(f"{digest.hexdigest()}  {path}")
+    return status
+
+
+def quiet(*, arguments: list[str]) -> int:
+    del arguments
+    return 0
+
+
+COMMANDS = {
+    "getevent": getevent,
+    "hd": hd,
+    "log": quiet,
+    "md5": md5,
+    "start": quiet,
+    "stop": quiet,
+}
+sys.exit(COMMANDS[pathlib.Path(sys.argv[0]).name](arguments=sys.argv[1:]))

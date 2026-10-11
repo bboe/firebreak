@@ -1,0 +1,12 @@
+#!/bin/sh
+output=
+for operand in "$@"; do
+    case $operand in
+        conv=*) echo "dd: conv option disabled" >&2; exit 1 ;;
+        of=*) output=${operand#of=} ;;
+    esac
+done
+if [ -b "$output" ]; then
+    exec /opt/dot/toybox dd "$@" conv=notrunc
+fi
+exec /opt/dot/toybox dd "$@"

@@ -1,0 +1,18 @@
+/bin/mksh sh
+/opt/dot/busybox busybox
+/opt/dot/gzip gzip
+/opt/dot/toybox cat chcon chmod chown clear cmp cp date df dmesg du getsebool grep ifconfig iftop insmod ioctl ionice kill ln load_policy ls lsmod lsof mkdir mknod mkswap mount mv nandread netstat newfs_msdos nohup notify printenv prlimit ps readlink renice restorecon rm rmdir rmmod route runcon schedtop sendevent setenforce setsebool sleep smd swapoff swapon sync top touch umount uptime vmstat watchprops wipe
+/sim/bin/dumpsys dumpsys
+/sim/bin/getenforce getenforce
+/sim/bin/getprop getprop
+/sim/bin/id id
+/sim/bin/pm pm
+/sim/bin/reboot reboot
+/sim/bin/setprop setprop
+/sim/bin/toolbox getevent hd log md5 start stop
+/sim/bin/toolbox-dd dd
+/usr/sbin/e2fsck e2fsck
+/usr/sbin/mke2fs mke2fs
+/usr/sbin/resize2fs resize2fs
+/usr/sbin/tune2fs tune2fs
+- toolbox

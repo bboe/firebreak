@@ -1,0 +1,9 @@
+#!/usr/bin/python3
+import os
+import pathlib
+import signal
+import sys
+
+held = [os.open(path, os.O_RDONLY) for path in sys.argv[2:]]
+pathlib.Path(sys.argv[1]).write_text(f"{len(held)}\n", encoding="utf-8")
+signal.pause()

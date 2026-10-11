@@ -1,0 +1,48 @@
+#!/usr/bin/python3
+from __future__ import annotations
+
+import os
+import struct
+import sys
+from typing import BinaryIO
+
+AREAS = ("mmcblk0", "boot0", "boot1", "rpmb")
+BLOCK = 512
+HEADER = struct.Struct(">cBQI")
+
+
+def exactly(*, length: int, stream: BinaryIO) -> bytes:
+    data = b""
+    while len(data) < length:
+        piece = stream.read(length - len(data))
+        if not piece:
+            return data
+        data += piece
+    return data
+
+
+def main() -> None:
+    source, sink = sys.stdin.buffer, sys.stdout.buffer
+    files = [os.open(f"/sim/disk/{area}.img", os.O_RDWR) for area in AREAS]
+    while True:
+        header = exactly(length=HEADER.size, stream=source)
+        if len(header) < HEADER.size:
+            return
+        operation, area, first, count = HEADER.unpack(header)
+        size = os.fstat(files[area]).st_size
+        inside = (first + count) * BLOCK <= size
+        if operation == b"r":
+            data = b""
+            if inside:
+                data = os.pread(files[area], count * BLOCK, first * BLOCK)
+            sink.write((b"k" if inside else b"e") + data.ljust(count * BLOCK, b"\0"))
+        elif operation == b"w":
+            data = exactly(length=count * BLOCK, stream=source)
+            if inside:
+                os.pwrite(files[area], data, first * BLOCK)
+                os.fsync(files[area])
+            sink.write(b"k" if inside else b"e")
+        sink.flush()
+
+
+main()

@@ -1,0 +1,8 @@
+#!/bin/sh
+if [ "$1" = hide ] && [ -n "$2" ]; then
+    touch "/sim/run/hidden-$2"
+    echo "Package $2 new hidden state: true"
+    exit 0
+fi
+echo "Error: unknown command '$1'" >&2
+exit 1

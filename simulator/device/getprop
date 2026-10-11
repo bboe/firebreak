@@ -1,0 +1,17 @@
+#!/usr/bin/python3
+import pathlib
+import sys
+
+PROPS = pathlib.Path("/sim/run/props")
+WITH_DEFAULT = 3
+
+props = {}
+if PROPS.exists():
+    for line in PROPS.read_text(encoding="utf-8").splitlines():
+        key, _, value = line.partition("=")
+        props[key] = value
+if len(sys.argv) > 1:
+    print(props.get(sys.argv[1], sys.argv[2] if len(sys.argv) >= WITH_DEFAULT else ""))
+else:
+    for key in sorted(props):
+        print(f"[{key}]: [{props[key]}]")

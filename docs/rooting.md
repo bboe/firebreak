@@ -191,6 +191,8 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 
 ## Recording a run
 
+- [The simulator](simulator.md) runs firebreak and dot_firmware.py against a
+  simulated Dot, and records every command for a diff.
 - `--verbose` prints each `adb` and `fastboot` command and its exit status
   with the time, and each state the run sees. The 2-second polls are not
   printed.

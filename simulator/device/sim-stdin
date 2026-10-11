@@ -1,0 +1,56 @@
+#!/usr/bin/python3
+import contextlib
+import hashlib
+import os
+import select
+import subprocess
+import sys
+
+CHUNK = 1 << 20
+SIGNALLED = 128
+
+
+def main() -> int:
+    marker = sys.argv[1]
+    process = subprocess.Popen(sys.argv[2:], stdin=subprocess.PIPE)
+    sink = process.stdin.fileno()
+    os.set_blocking(sink, False)
+    watcher = os.pidfd_open(process.pid)
+    digest = hashlib.md5(usedforsecurity=False)
+    received = 0
+    pending = b""
+    ended = broken = False
+    while True:
+        poller = select.poll()
+        poller.register(watcher, select.POLLIN)
+        if not (ended or pending):
+            poller.register(0, select.POLLIN)
+        if pending:
+            poller.register(sink, select.POLLOUT)
+        events = dict(poller.poll())
+        if events.get(watcher):
+            break
+        if events.get(0):
+            data = os.read(0, CHUNK)
+            received += len(data)
+            digest.update(data)
+            ended = not data
+            pending = b"" if broken else data
+        if pending and events.get(sink):
+            try:
+                pending = pending[os.write(sink, pending) :]
+            except BlockingIOError:
+                pass
+            except BrokenPipeError:
+                pending = b""
+                broken = True
+        if ended and not pending and not process.stdin.closed:
+            with contextlib.suppress(OSError):
+                process.stdin.close()
+    status = process.wait()
+    with contextlib.suppress(OSError):
+        os.write(1, f"{marker} {received} {digest.hexdigest()}\n".encode())
+    return SIGNALLED - status if status < 0 else status
+
+
+sys.exit(main())
