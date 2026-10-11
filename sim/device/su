@@ -1,0 +1,10 @@
+#!/bin/sh
+if [ "$(getprop sim.su)" != 1 ]; then
+    echo "/system/bin/sh: su: not found" >&2
+    exit 127
+fi
+if [ "$1" = -c ]; then
+    shift
+    SIM_UID=0 exec sh -c "$*"
+fi
+SIM_UID=0 exec sh

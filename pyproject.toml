@@ -51,6 +51,7 @@ ignore = [
 select = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
+"sim/*" = ["implicit-namespace-package"]
 "tests/*" = [
     "assert",
     "boolean-type-hint-positional-argument",
