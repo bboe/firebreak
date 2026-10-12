@@ -84,6 +84,14 @@ BUILDS = {
         number="13222531716",
         sha256="90832e86498c5e803974c30359aea71c1129757be0ddc59d831a94b27f81487f",
     ),
+    "8149": Build(
+        date="2026-09-29",
+        ftvdb_version="6574-1",
+        md5="a01de630f6d943dddc9b751ae74bbb52",
+        ns="NS65741",
+        number="13222532484",
+        sha256="4e00fc6d6e2bcf5146e502c7d14e67d2ab47b43c3dcca4e1e9439d24730a6c0b",
+    ),
 }
 
 

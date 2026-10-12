@@ -6,6 +6,7 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `stock 8149`: Fire OS 6574.1 from 2026-09-29.
 - The notice of a newer firebreak says how to upgrade, on a line of its own:
   the latest release's `firebreak.pyz` for a pyz, and `uvx firebreak@latest`
   for any other run.
