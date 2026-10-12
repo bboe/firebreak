@@ -5,12 +5,12 @@ requires = ["hatchling"]
 [project]
 dependencies = ["pyserial==3.5", "update_checker==1.0.1"]
 description = "Root an Echo Dot (2nd Generation), move it between amonet targets, or return it to stock"
+dynamic = ["version"]
 license = "BSD-2-Clause"
 license-files = ["LICENSE.txt"]
 name = "firebreak"
 readme = "README.md"
 requires-python = ">=3.9"
-version = "0.1.0"
 
 [project.scripts]
 firebreak = "firebreak.__main__:main"
@@ -29,6 +29,9 @@ show_missing = true
 omit = ["*/firebreak/__main__.py"]
 parallel = true
 source_pkgs = ["firebreak"]
+
+[tool.hatch.version]
+path = "firebreak/__init__.py"
 
 [tool.ruff]
 preview = true

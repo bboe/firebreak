@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import importlib.metadata
 import pathlib
-import re
 import subprocess
 import sys
 import zipfile
@@ -64,10 +64,5 @@ def test_the_pyz_imports_its_update_checker() -> None:
     assert said.stdout == "True 1.0.1\n"
 
 
-def test_the_version_matches_pyproject() -> None:
-    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    version = re.search(
-        flags=re.MULTILINE, pattern=r'^version = "([^"]+)"$', string=pyproject
-    )
-    assert version, "pyproject.toml has no version"
-    assert version[1] == __version__
+def test_the_wheel_takes_its_version_from_the_package() -> None:
+    assert importlib.metadata.version("firebreak") == __version__

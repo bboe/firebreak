@@ -453,8 +453,8 @@ ring read white.
   `update_checker*` from there. The bundled version is the pin, and a test
   checks the pyz holds it and no pyserial.
 - The pyz has no `dist-info` for firebreak, so firebreak's version is
-  `__version__` in `firebreak/__init__.py`. A test checks it equals
-  `version` in `pyproject.toml`.
+  `__version__` in `firebreak/__init__.py`. hatchling reads the package's
+  version from there too, and a test checks the installed one equals it.
 - The one child left is emOS's, `python -m firebreak _child emos`, with the pyz
   or `site-packages` on its `PYTHONPATH`. A path to re-run would not do: the
   wheel's Windows launcher is an `.exe`.
