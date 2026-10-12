@@ -2,6 +2,14 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+- `--verbose` and `--report` name a rooted Fire OS 5 by its unlock:
+  `amonet-v1.1.0-booted` and `amonet-v1.1.0-bboe-booted`, not
+  `rooted-amonet-v1.1.0` and `rooted-amonet-v1.1.0-bboe`.
+
 ## 0.1.0 - 2026-10-11
 
 First release.
