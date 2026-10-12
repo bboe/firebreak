@@ -460,6 +460,20 @@ def test_stream_to_a_reader_that_left_reports_its_exit(
     assert result.returncode == 5
 
 
+def test_the_docs_hold_the_same_udev_rules() -> None:
+    docs = pathlib.Path(__file__).parent.parent / "docs" / "rooting.md"
+    written = [
+        line.strip()
+        for line in docs.read_text(encoding="utf-8").splitlines()
+        if line.strip().startswith("SUBSYSTEM==")
+    ]
+    printed = [
+        line for line in host.NO_ACCESS.splitlines() if line.startswith("SUBSYSTEM==")
+    ]
+    assert written == printed
+    assert any('ATTR{idProduct}=="201c"' in line for line in printed)
+
+
 def test_usb_serial(*, monkeypatch: pytest.MonkeyPatch) -> None:
     head = "List of devices attached\n"
     monkeypatch.setenv(name="ANDROID_SERIAL", value="old")

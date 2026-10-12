@@ -522,7 +522,10 @@ ring read white.
 - adb, fastboot and the bootrom's serial port need the Dot's USB devices open
   to the user. Ubuntu's `android-sdk-platform-tools-common` and
   android-udev-rules, which LineageOS points to, list other Lab126 products
-  but not a booted Dot, `1949:0110`. Other guides for this Dot use `sudo`.
+  but not a booted Fire OS 5, `1949:0110`. Fire OS 6 is MediaTek's
+  `0e8d:201c`, which Ubuntu's package marks as an adb device and a
+  distribution without it leaves to root. Other guides for this Dot use
+  `sudo`.
   These rules, in `/etc/udev/rules.d/51-echo-dot.rules`, cover every state,
   the serial port included:
 
@@ -532,13 +535,15 @@ ring read white.
   SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="d001", MODE="0660", GROUP="plugdev", TAG+="uaccess"
   SUBSYSTEM=="usb", ATTR{idVendor}=="0bb4", ATTR{idProduct}=="0c01", MODE="0660", GROUP="plugdev", TAG+="uaccess"
   SUBSYSTEM=="usb", ATTR{idVendor}=="0e8d", ATTR{idProduct}=="0003", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+  SUBSYSTEM=="usb", ATTR{idVendor}=="0e8d", ATTR{idProduct}=="201c", MODE="0660", GROUP="plugdev", TAG+="uaccess"
   SUBSYSTEM=="tty", ATTRS{idVendor}=="0e8d", ATTRS{idProduct}=="0003", MODE="0660", GROUP="plugdev", TAG+="uaccess"
   SUBSYSTEM=="tty", ATTRS{idVendor}=="1949", ATTRS{idProduct}=="2007", MODE="0660", GROUP="plugdev", TAG+="uaccess"
   ```
 
   Then `sudo udevadm trigger`. A rooted Fire OS 5 is `1949:0110` (adb alone, set
   in its boot image; the `mtp,adb` Fire OS 5 otherwise runs is `1949:0112`),
-  TWRP `18d1:d001` and `18d1:4ee2`, fastboot `0bb4:0c01`, the bootrom
+  a rooted Fire OS 6 8146 `0e8d:201c` (adb alone, one interface), TWRP
+  `18d1:d001` and `18d1:4ee2`, fastboot `0bb4:0c01`, the bootrom
   `0e8d:0003`, and emOS's serial console `1949:2007`. The `usb` line for `1949`
   covers emOS's USB device but not its `/dev/ttyACM*` node, which is `dialout`'s
   without the `tty` line.
@@ -858,8 +863,8 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
 - No other mode needs a hand-installed driver. On a Windows machine that rooted
   a Dot, the driver store held only MediaTek's and Amazon's
   `FireDevicesUsbDeviceClass`, which serves amonet fastboot (`0bb4:0c01`) and
-  can come through Windows Update. Windows bound adb (`1949:0110`, by its
-  interface class through its own `winusb.inf`) and
+  can come through Windows Update. Windows bound adb (`1949:0110` and Fire
+  OS 6's `0e8d:201c`, by its interface class through its own `winusb.inf`) and
   v1.1.0's TWRP (`18d1:4ee2`) itself. TWRP 3.7.0_9-bboeN is untried on
   Windows. macOS and Linux need no driver.
 - A port that will not open is named once and retried: udev or a modem
