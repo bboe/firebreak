@@ -19,7 +19,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 | amonet-v1.1.0-fastboot | `unlock_status` is `true`, and `lk_build_desc` is `f379dba-20170906_000423` | amonet v1.1.0 TEE and TWRP 3.7.0_9-bboe2, then recovery |
 | amonet-v1.1.0-twrp | recovery, amonet v1.1.0's `lk_build_desc`, another `ro.twrp.version`, `mtp` in `sys.usb.config` | writes TWRP 3.7.0_9-bboe2 to `recovery`, reboots into it |
 | amonet-v1.1.0-bboe-twrp | recovery, amonet v1.1.0's `lk_build_desc`, `ro.twrp.version` 3.7.0_9-bboe2, `mtp` in `sys.usb.config` | Fire OS 5.5.5.4, boot and /system patches, Magisk 17.3 |
-| rooted-amonet-v1.1.0-bboe, rooted-amonet-v1.1.0, rooted | `sys.boot_completed` is 1 and `su -c id` answers uid 0; `recovery` hashes as TWRP 3.7.0_9-bboe2, as v1.1.0's TWRP 3.2.3, or as neither | the target's state: hides the updater and checks it; another: writes the target's TWRP to `recovery` |
+| amonet-v1.1.0-bboe-booted, amonet-v1.1.0-booted, rooted | `sys.boot_completed` is 1 and `su -c id` answers uid 0; `recovery` hashes as TWRP 3.7.0_9-bboe2, as v1.1.0's TWRP 3.2.3, or as neither | the target's state: hides the updater and checks it; another: writes the target's TWRP to `recovery` |
 
 - A probe can land part way through a boot. TWRP answers adb before it sets
   `ro.twrp.version`, and while USB drops for MTP, `adb shell` answers with
@@ -584,8 +584,8 @@ ring read white.
 
 | target | ends in | stops at |
 | --- | --- | --- |
-| `amonet-biscuit-v1.1.0-bboe`, the default | amonet v1.1.0, TWRP 3.7.0_9-bboe2, rooted Fire OS 5.5.5.4 | rooted-amonet-v1.1.0-bboe |
-| `amonet-biscuit-v1.1.0` | the same, with v1.1.0's own TWRP 3.2.3 | rooted-amonet-v1.1.0 |
+| `amonet-biscuit-v1.1.0-bboe`, the default | amonet v1.1.0, TWRP 3.7.0_9-bboe2, rooted Fire OS 5.5.5.4 | amonet-v1.1.0-bboe-booted |
+| `amonet-biscuit-v1.1.0` | the same, with v1.1.0's own TWRP 3.2.3 | amonet-v1.1.0-booted |
 | `amonet-biscuit-v2.0.0` | amonet v2.0.0's TWRP, Fire OS 6 8146 in both slots, `boot-root.zip` | amonet-v2.0.0-booted |
 | `stock BUILD` | Amazon's Fire OS 6 `BUILD`, the whole Dot erased | stock-booted |
 
@@ -687,13 +687,13 @@ ring read white.
 
 | from | to | took |
 | --- | --- | --- |
-| rooted-amonet-v1.1.0-bboe | amonet-biscuit-v1.1.0 | 9 s |
-| rooted-amonet-v1.1.0 | amonet-biscuit-v1.1.0-bboe | 9 s |
-| rooted-amonet-v1.1.0-bboe | amonet-biscuit-v2.0.0 | 5 min 11 s, on 2026-10-09, by the plan: recovery 28 s, boot0 under 1 s, the table 1 s, the writes 5 s with TWRP 3 s of it, the preloader under 1 s, recovery 19 s, the wipes 4 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s. The zip took 5 min 22 s, its install 19 s and its reboot 19 s |
+| amonet-v1.1.0-bboe-booted | amonet-biscuit-v1.1.0 | 9 s |
+| amonet-v1.1.0-booted | amonet-biscuit-v1.1.0-bboe | 9 s |
+| amonet-v1.1.0-bboe-booted | amonet-biscuit-v2.0.0 | 5 min 11 s, on 2026-10-09, by the plan: recovery 28 s, boot0 under 1 s, the table 1 s, the writes 5 s with TWRP 3 s of it, the preloader under 1 s, recovery 19 s, the wipes 4 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s. The zip took 5 min 22 s, its install 19 s and its reboot 19 s |
 | amonet-v2.0.0-booted | amonet-biscuit-v1.1.0 | 8 min 28 s through the bootrom, which this starting state no longer uses, kept to compare against: recovery 19 s, the downgrade 43 s, TWRP 27 s, the install 86 s, Fire OS 5's first boot 321 s, TWRP 3.2.3 7 s |
 | amonet-v2.0.0-booted | amonet-biscuit-v1.1.0-bboe | 7 min 42 s, with no bootrom: recovery 19 s, the table 1 s, recovery 19 s, boot0 under 1 s, the chain 6 s, `misc` under 1 s, userdata 4 s, `/system` 79 s, the boot image 3 s, Magisk 1 s, the preloader under 1 s, Fire OS 5's first boot 321 s |
 | stock-fastboot | amonet-biscuit-v1.1.0-bboe | 8 min 3 s, with no bootrom: the fastbrick, then the same route as from amonet-v2.0.0-booted |
-| rooted-amonet-v1.1.0-bboe | stock 8146 | 3 min 11 s: recovery 30 s, `system_a` 81 s, the rest under 7 s each, stock's first boot 32 s |
+| amonet-v1.1.0-bboe-booted | stock 8146 | 3 min 11 s: recovery 30 s, `system_a` 81 s, the rest under 7 s each, stock's first boot 32 s |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.
@@ -741,7 +741,7 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   route does not need. Its exit status proves nothing: on a file over 2 GiB it
   read the size wrong, did not write the backup copy, and exited 0.
 - Measured on a Dot, 2026-10-10, each run from where the last ended:
-  rooted-amonet-v1.1.0-bboe to `amonet-biscuit-v2.0.0` in 4 min 54 s, then
+  amonet-v1.1.0-bboe-booted to `amonet-biscuit-v2.0.0` in 4 min 54 s, then
   `amonet-biscuit-v1.1.0` in 7 min 47 s, then `amonet-biscuit-v2.0.0` from
   TWRP 3.2.3 in 5 min 17 s, then `amonet-biscuit-v1.1.0-bboe` in 7 min 48 s.
   Each table copy took under 1 s. On all three TWRPs the backup copy went in
@@ -796,7 +796,7 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   amonet TWRP left in `recovery`, v2.0.0's and 3.7.0_9-bboe2's:
   `fastboot reboot recovery` answers `OKAY` and then nothing appears on USB for
   90 s, in any mode. A locked LK refuses an unsigned recovery.
-- The TWRP route and `install_fireos6` still hash `lk_a` against amonet's
+- The TWRP route and `stage_install_fireos6` still hash `lk_a` against amonet's
   `lk.bin`, amonet v2.0.0's then amonet v1.1.0's, and refuse the rest, so a
   chain write needs proof the Dot is amonet's rather than a build string it
   shares with stock. amonet v1.1.0's LK passes, so a part-written chain still
@@ -1140,13 +1140,13 @@ fastbrick, and in any TWRP the restore runs.
   Invalid argument`. So the one write with `seek` passes `conv=notrunc` to
   `toybox dd`.
 - Measured on a Dot, 2026-10-04, before `stock` was a target: `stock 8146` from
-  rooted-amonet-v1.1.0, through v1.1.0's TWRP 3.2.3, in 6 min 9 s; from
+  amonet-v1.1.0-booted, through v1.1.0's TWRP 3.2.3, in 6 min 9 s; from
   amonet-v2.0.0-booted, through v2.0.0's TWRP, in 2 min 59 s; from
-  rooted-amonet-v1.1.0-bboe in 1 min 52 s. Each was rooted again after the
+  amonet-v1.1.0-bboe-booted in 1 min 52 s. Each was rooted again after the
   fastboot gesture: to `amonet-biscuit-v2.0.0` in 7 steps,
   `amonet-biscuit-v1.1.0` in 10, `amonet-biscuit-v1.1.0-bboe` in 9, as the
   table counts.
-- As the target: from rooted-amonet-v1.1.0-bboe in 3 min 11 s, `[1/17]` to
+- As the target: from amonet-v1.1.0-bboe-booted in 3 min 11 s, `[1/17]` to
   `[17/17]`, ending when stock started, and 4315 in 4 min 9 s, which rooted
   back in 9 min 8 s. Run again on the stock Dot, it reported nothing to restore
   and downloaded nothing.

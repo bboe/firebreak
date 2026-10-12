@@ -17,7 +17,9 @@ BISCUIT = Device(
 
 
 class State(enum.Enum):
+    AMONET_V1_1_0_BBOE_BOOTED = "amonet-v1.1.0-bboe-booted"
     AMONET_V1_1_0_BBOE_TWRP = "amonet-v1.1.0-bboe-twrp"
+    AMONET_V1_1_0_BOOTED = "amonet-v1.1.0-booted"
     AMONET_V1_1_0_FASTBOOT = "amonet-v1.1.0-fastboot"
     AMONET_V1_1_0_TWRP = "amonet-v1.1.0-twrp"
     AMONET_V2_0_0_BOOTED = "amonet-v2.0.0-booted"
@@ -28,8 +30,6 @@ class State(enum.Enum):
     EMOS = "emos"
     NONE = "none"
     ROOTED = "rooted"
-    ROOTED_AMONET_V1_1_0 = "rooted-amonet-v1.1.0"
-    ROOTED_AMONET_V1_1_0_BBOE = "rooted-amonet-v1.1.0-bboe"
     STARTING = "starting"
     STOCK_BOOTED = "stock-booted"
     STOCK_FASTBOOT = "stock-fastboot"

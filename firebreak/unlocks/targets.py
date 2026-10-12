@@ -23,13 +23,13 @@ TARGETS = {
             unlock=None,
         ),
         Target(
-            goal=State.ROOTED_AMONET_V1_1_0,
+            goal=State.AMONET_V1_1_0_BOOTED,
             installs=FireOs5(package=FIREOS),
             name=AMONET_BISCUIT_V1_1_0.name,
             unlock=AMONET_BISCUIT_V1_1_0,
         ),
         Target(
-            goal=State.ROOTED_AMONET_V1_1_0_BBOE,
+            goal=State.AMONET_V1_1_0_BBOE_BOOTED,
             installs=FireOs5(package=FIREOS),
             name=AMONET_BISCUIT_V1_1_0_BBOE.name,
             unlock=AMONET_BISCUIT_V1_1_0_BBOE,

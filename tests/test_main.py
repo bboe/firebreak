@@ -88,8 +88,10 @@ def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
     monkeypatch.setattr(
         name="amonet_v2_0_0_payload", target=main, value=lambda: tmp_path
     )
-    monkeypatch.setattr(name="amonet_v1_1_0_recovery", target=main, value=lambda: False)
-    assert main.downgrade() is False
+    monkeypatch.setattr(
+        name="stage_amonet_v1_1_0_recovery", target=main, value=lambda: False
+    )
+    assert main.stage_downgrade() is False
 
 
 def test_a_failing_update_check_is_silent(
@@ -115,7 +117,7 @@ def test_a_fastboot_that_never_says_whether_it_is_unlocked_stops_cleanly(
         name="run", target=main, value=lambda **_: pytest.fail("flashed")
     )
     with pytest.raises(main.FatalError, match="did not say whether it is unlocked"):
-        main.amonet_v1_1_0_recovery()
+        main.stage_amonet_v1_1_0_recovery()
     assert asked == ["unlock_status"] * main.PUSH_TRIES
 
 
@@ -129,7 +131,7 @@ def test_a_locked_fastboot_is_left_for_its_own_stage(
         target=main,
         value=lambda **options: ran.append(options["arguments"]),
     )
-    assert main.amonet_v1_1_0_recovery() is False
+    assert main.stage_amonet_v1_1_0_recovery() is False
     assert ran == []
     assert "locked fastboot" in capsys.readouterr().out
 
@@ -345,7 +347,7 @@ def test_an_unlocked_fastboot_takes_v1_1_0_to_its_recovery(
         target=main,
         value=lambda **options: ran.append(options["arguments"]),
     )
-    assert main.amonet_v1_1_0_recovery() is True
+    assert main.stage_amonet_v1_1_0_recovery() is True
     assert [words[1:4] for words in ran] == [
         ["-S", "256M", "flash"],
         ["-S", "256M", "flash"],
@@ -359,20 +361,20 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
     to_v2_0_0_twrp = (main.reboot, {"label": "waiting for v2.0.0 recovery to start"})
     shared = {
         state.AMONET_V1_1_0_FASTBOOT: (
-            main.amonet_v1_1_0_recovery,
+            main.stage_amonet_v1_1_0_recovery,
             1,
             state.AMONET_V1_1_0_BBOE_TWRP,
             frozenset(),
         ),
-        state.EMOS: (main.emos_stage, 1, None, frozenset()),
+        state.EMOS: (main.stage_emos, 1, None, frozenset()),
         state.STOCK_FASTBOOT: (
-            main.fastbrick,
+            main.stage_fastbrick,
             2,
             state.AMONET_V2_0_0_TWRP,
             frozenset(),
         ),
         state.STOCK_FIREOS5_FASTBOOT: (
-            main.fastbrick,
+            main.stage_fastbrick,
             2,
             state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
             frozenset(),
@@ -387,13 +389,13 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
         ),
         state.BOOTED: (to_twrp, 1, None, frozenset()),
         state.ROOTED: (to_twrp, 1, state.AMONET_V1_1_0_TWRP, frozenset()),
-        state.ROOTED_AMONET_V1_1_0: (
+        state.AMONET_V1_1_0_BOOTED: (
             to_twrp,
             1,
             state.AMONET_V1_1_0_TWRP,
             frozenset(),
         ),
-        state.ROOTED_AMONET_V1_1_0_BBOE: (
+        state.AMONET_V1_1_0_BBOE_BOOTED: (
             to_twrp,
             1,
             state.AMONET_V1_1_0_BBOE_TWRP,
@@ -425,7 +427,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
                 frozenset(),
             ),
             state.AMONET_V2_0_0_TWRP: (
-                main.install_fireos6,
+                main.stage_install_fireos6,
                 5,
                 state.AMONET_V2_0_0_BOOTED,
                 frozenset(),
@@ -437,10 +439,10 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
                 frozenset(),
             ),
         }
-        | {rooted: reboots[rooted] for rooted in main.ROOTED},
+        | {rooted: reboots[rooted] for rooted in main.FIREOS5_ROOTED},
         "stock": shared
         | dict.fromkeys(
-            main.TWRPS, (main.restore_stage, 16, state.STOCK_BOOTED, main.TWRPS)
+            main.TWRPS, (main.stage_restore, 16, state.STOCK_BOOTED, main.TWRPS)
         )
         | reboots,
     }
@@ -458,7 +460,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
                     },
                 ),
                 "before_preloader": (
-                    main.install_fireos,
+                    main.stage_install_fireos,
                     {"reboot": False, "slot": "_a"},
                 ),
                 "guard": main.amonet_chain,
@@ -469,20 +471,20 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             shared
             | {
                 state.AMONET_V1_1_0_BBOE_TWRP: (
-                    main.install_fireos,
+                    main.stage_install_fireos,
                     5,
-                    state.ROOTED_AMONET_V1_1_0_BBOE,
+                    state.AMONET_V1_1_0_BBOE_BOOTED,
                     frozenset(),
                 ),
                 state.AMONET_V1_1_0_TWRP: (
-                    main.replace_twrp,
+                    main.stage_replace_twrp,
                     1,
                     state.AMONET_V1_1_0_BBOE_TWRP,
                     frozenset(),
                 ),
                 state.AMONET_V2_0_0_BOOTED: reboots[state.AMONET_V2_0_0_BOOTED],
                 state.AMONET_V2_0_0_FASTBOOT: (
-                    main.downgrade,
+                    main.stage_downgrade,
                     2,
                     state.AMONET_V1_1_0_BBOE_TWRP,
                     frozenset({
@@ -501,8 +503,8 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
                 state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: (chain, 17, goal, frozenset()),
             }
             | {
-                rooted: (main.swap_twrp, 1, goal, frozenset())
-                for rooted in main.ROOTED - {goal}
+                rooted: (main.stage_swap_twrp, 1, goal, frozenset())
+                for rooted in main.FIREOS5_ROOTED - {goal}
             }
         )
     assert set(routes) == set(main.TARGETS)

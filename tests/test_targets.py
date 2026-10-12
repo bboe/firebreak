@@ -14,12 +14,12 @@ def test_each_target_names_its_goal_its_install_and_its_unlock() -> None:
         for name, target in TARGETS.items()
     } == {
         "amonet-biscuit-v1.1.0": (
-            State.ROOTED_AMONET_V1_1_0,
+            State.AMONET_V1_1_0_BOOTED,
             FireOs5(package=FIREOS),
             AMONET_BISCUIT_V1_1_0,
         ),
         "amonet-biscuit-v1.1.0-bboe": (
-            State.ROOTED_AMONET_V1_1_0_BBOE,
+            State.AMONET_V1_1_0_BBOE_BOOTED,
             FireOs5(package=FIREOS),
             AMONET_BISCUIT_V1_1_0_BBOE,
         ),
