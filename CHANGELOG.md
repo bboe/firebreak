@@ -2,7 +2,7 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
-## Unreleased
+## 0.2.0 - 2026-10-12
 
 ### Added
 
@@ -14,8 +14,10 @@ This project adheres to [Semantic Versioning](https://semver.org).
 ### Changed
 
 - `stock` without a build installs 8149. Before, it stopped with an error.
-- `--verbose` and `--report` name a rooted Fire OS 5 by its unlock:
-  `amonet-v1.1.0-booted` and `amonet-v1.1.0-bboe-booted`, not
+- The notice of a newer firebreak goes to stdout with the rest of the run,
+  not to stderr.
+- `--verbose`, `--report` and `--write-test` name a rooted Fire OS 5 by its
+  unlock: `amonet-v1.1.0-booted` and `amonet-v1.1.0-bboe-booted`, not
   `rooted-amonet-v1.1.0` and `rooted-amonet-v1.1.0-bboe`.
 
 ## 0.1.0 - 2026-10-11
