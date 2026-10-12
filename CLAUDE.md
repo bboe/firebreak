@@ -21,8 +21,8 @@ uvx --with tox-uv tox -e build,floor   # macOS only: pytest and coverage on Appl
 - Python 3.9 or later. There are two dependencies, each pinned exactly. pyserial
   is pinned to the version a pyz run downloads. update_checker tells a run that
   PyPI has a newer firebreak; the pyz bundles it. Everything else is the
-  standard library. Users run it with `uvx` from this repository until the first
-  release, which adds `firebreak.pyz` and the PyPI wheel.
+  standard library. Users run it with `uvx firebreak@latest` from PyPI, or as
+  `firebreak.pyz` from a GitHub release.
 - A release is a `v` tag matching `version` in `pyproject.toml`, which must
   equal `__version__` in `firebreak/__init__.py`. `release.yml` publishes the
   wheel to PyPI by trusted publishing and attaches the pyz to a GitHub release.

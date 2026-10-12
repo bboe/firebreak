@@ -14,8 +14,13 @@ Dot. A stopped run picks up where it left off.
 ## Run it
 
 It needs `adb` and `fastboot` from Android platform-tools, and
-[uv](https://docs.astral.sh/uv/), which runs firebreak from this repository and
-fetches a Python for it when needed.
+[uv](https://docs.astral.sh/uv/), which runs firebreak from PyPI and fetches a
+Python for it when needed. Each
+[release](https://github.com/bboe/firebreak/releases) also has `firebreak.pyz`,
+which runs as `python3 firebreak.pyz` on Python 3.9 or later.
+
+`uvx firebreak@latest` asks PyPI for the newest release on each run. Without a
+network it fails, and `uvx firebreak` runs the copy uv already has.
 
 ### macOS
 
@@ -24,8 +29,8 @@ These commands use [Homebrew](https://brew.sh). Without it, download Google's
 
 ```sh
 brew install --cask android-platform-tools uv
-uvx --from git+https://github.com/bboe/firebreak firebreak              # amonet-biscuit-v1.1.0-bboe
-uvx --from git+https://github.com/bboe/firebreak firebreak stock 8146   # or 4315, 4405, 5041, 6302, 8138, 8142
+uvx firebreak@latest              # amonet-biscuit-v1.1.0-bboe
+uvx firebreak@latest stock 8146   # or 4315, 4405, 5041, 6302, 8138, 8142
 ```
 
 ### Linux
@@ -35,7 +40,7 @@ These commands are for Debian and Ubuntu. Run firebreak without `sudo`.
 ```sh
 sudo apt install adb fastboot curl
 curl -LsSf https://astral.sh/uv/install.sh | sh
-uvx --from git+https://github.com/bboe/firebreak firebreak
+uvx firebreak@latest
 ```
 
 ### Windows
@@ -45,7 +50,7 @@ Run these in PowerShell. Open a new terminal after the installs.
 ```powershell
 winget install Google.PlatformTools
 winget install astral-sh.uv
-uvx --from git+https://github.com/bboe/firebreak firebreak
+uvx firebreak@latest
 ```
 
 The bootrom step also needs MediaTek's VCOM driver. It runs for `--short`, for a
@@ -68,7 +73,7 @@ It has x86 and x64 builds only, so Windows on ARM cannot run the bootrom step.
 - From stock, the script asks for the fastboot gesture.
 - Do not set up a stock Dot in the Alexa app before you unlock it. On Wi-Fi it
   can update to a build the script does not support.
-- [docs/rooting.md](docs/rooting.md) says why each step is there.
+- [docs/rooting.md][rooting] says why each step is there.
 
 ## `--short`
 
@@ -85,8 +90,7 @@ driver](#windows).
    between R60 and C52 beside the eMMC ([where that is on the
    board](https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/)). Do not
    use C52, which is a capacitor.
-3. With the Dot unplugged, run
-   `uvx --from git+https://github.com/bboe/firebreak firebreak --short`.
+3. With the Dot unplugged, run `uvx firebreak@latest --short`.
 4. When the script prints "Short the Dot's test point and plug it in", hold a
    wire from that passive to the shield frame beside it, which is ground, and
    plug the Dot in. A Dot plugged in before that message can go unseen. On
@@ -110,6 +114,9 @@ it could not.
 
 ## Licence
 
-firebreak uses the BSD 2-Clause licence, in [LICENSE.txt](LICENSE.txt). This
+firebreak uses the BSD 2-Clause licence, in [LICENSE.txt][licence]. This
 repository contains no Amazon code, and firebreak is not affiliated with,
 endorsed by, or supported by Amazon.
+
+[licence]: https://github.com/bboe/firebreak/blob/main/LICENSE.txt
+[rooting]: https://github.com/bboe/firebreak/blob/main/docs/rooting.md

@@ -25,7 +25,7 @@ SUPPORT = (
     "Please stop by #support-device-unlocking in the EchoMuse Discord,"
     " https://discord.gg/vq3pub8Kp, and paste everything below."
 )
-UVX = ["uvx", "--from", "git+https://github.com/bboe/firebreak", "firebreak"]
+UVX = ["uvx", "firebreak@latest"]
 
 
 class ANSIColor(enum.Enum):

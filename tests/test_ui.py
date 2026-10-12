@@ -148,9 +148,7 @@ def test_invocation_names_uvx_for_a_uvx_run(*, monkeypatch: pytest.MonkeyPatch) 
         name="argv", target=sys, value=["/c/archive-v0/x/bin/firebreak"]
     )
     monkeypatch.setattr(name="prefix", target=sys, value="/c/uv/archive-v0/x")
-    assert ui.invocation(options=["--report"]) == (
-        "uvx --from git+https://github.com/bboe/firebreak firebreak --report"
-    )
+    assert ui.invocation(options=["--report"]) == "uvx firebreak@latest --report"
     monkeypatch.setattr(name="prefix", target=sys, value="/home/me/.venv")
     assert ui.invocation(options=["--report"]) == "firebreak --report"
 
