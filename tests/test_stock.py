@@ -253,6 +253,7 @@ def test_the_stock_stage_builds_its_images_from_the_dot(
     assert misc[0x360:0x367] == b"\0ABB\x01\x8f\0"
     assert len(misc) == PARTITIONS["misc"].size
     assert (work / "current-gpt-G000.bin").read_bytes() == RAW
+    assert (work / "boot0.img").read_bytes() == PRELOADER
     assert stock.SESSION.dd == "toybox dd"
     out = capsys.readouterr().out
     assert "stock partition table built from this Dot's own" in out
@@ -295,6 +296,17 @@ def test_the_stock_stage_keeps_the_first_table_it_saved(
     stock.stage_restore()
     assert saved.read_bytes() == b"first"
     assert twrp
+
+
+def test_the_stock_stage_pads_the_preloader_to_a_larger_boot0(
+    *, adb: FakeAdb, tmp_path: pathlib.Path, twrp: list[dict[str, object]]
+) -> None:
+    del tmp_path
+    adb.answers["mmcblk0boot0/size"] = [str(4 * BOOT0_SECTORS)]
+    stock.stage_restore()
+    boot0 = (stock.CACHE / "stock-8146" / "boot0.img").read_bytes()
+    assert boot0 == PRELOADER + bytes(3 * len(PRELOADER))
+    assert len(twrp) == 1
 
 
 def test_the_stock_stage_reads_the_backup_table_when_the_primary_is_damaged(
@@ -351,7 +363,7 @@ def test_the_stock_stage_waits_for_twrp_to_finish_starting(
         ("for t in sgdisk", "tools: sgdisk", "this TWRP has no sgdisk"),
         ("ro.product.device", "crown", "TWRP reports the device 'crown'"),
         ("echo block", "", "is not a block device"),
-        ("mmcblk0boot0/size", "4", r"preloader\.img is not the size of boot0"),
+        ("mmcblk0boot0/size", "4", r"preloader\.img does not fit boot0 \(4 sectors\)"),
         ("blockdev --getsize64", "", "could not read the Dot's disk size"),
     ],
 )
@@ -378,7 +390,7 @@ def written(*, tmp_path: pathlib.Path) -> dict[str, pathlib.Path]:
         files[name] = tmp_path / name
     for name in ("misc", "system", "tee"):
         files[name] = tmp_path / name
-    (tmp_path / "preloader.img").write_bytes(PRELOADER)
+    (tmp_path / "boot0.img").write_bytes(PRELOADER)
     return files
 
 

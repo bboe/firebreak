@@ -216,7 +216,7 @@ def restore(
         )
 
     PROGRESS.begin(estimate="5 s", label="write preloader to boot0")
-    preloader = work / "preloader.img"
+    preloader = work / "boot0.img"
     staged = DOT_TEMPORARY_DIRECTORY / "pl.img"
     if run(arguments=["adb", "push", preloader, staged], timeout=120).returncode != 0:
         restore_failed(message="the preloader did not reach the Dot; do not reboot")
@@ -326,13 +326,10 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
             " preloader would be written to a file and read back from it"
         )
     boot0 = adb_shell(command="cat /sys/block/mmcblk0boot0/size")
-    if (
-        not boot0.isdigit()
-        or (work / "preloader.img").stat().st_size != int(boot0) * 512
-    ):
-        raise FatalError(
-            message=f"preloader.img is not the size of boot0 ({boot0} sectors)"
-        )
+    preloader = (work / "preloader.img").read_bytes()
+    if not boot0.isdigit() or len(preloader) > int(boot0) * 512:
+        raise FatalError(message=f"preloader.img does not fit boot0 ({boot0} sectors)")
+    (work / "boot0.img").write_bytes(data=preloader.ljust(int(boot0) * 512, b"\0"))
     passed(message="stock partition table built from this Dot's own")
     warn(
         text="About to overwrite this Dot's bootloaders, system and data with"

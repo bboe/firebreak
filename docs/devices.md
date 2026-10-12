@@ -52,3 +52,17 @@ reports them as `antirback_pl_version`, `antirback_tee_version` and
 - LK: the 16 bits after `LK` in the LK's signature trailer, high byte first.
 - A stock 8146 Dot read `0x0005`, `0x0102` and `0x0001`.
 - PL rose from 3 to 5 after 5.5.0.3. TEE and LK are the same in every OTA.
+
+### eMMC chips
+
+Read as root from `/sys/block/mmcblk0/device/` (`name`, `manfid`, `date`)
+and from each boot area's `size`, in 512-byte sectors.
+
+| chip | maker | date | boot0, boot1 | Dots |
+| --- | --- | --- | --- | --- |
+| `P1J94M` | Micron (`0xfe`) | 08/2016 | 1 MiB each | 2 |
+| `FJ25AB` | Samsung (`0x15`) | 03/2017 | 4 MiB each | 1 |
+
+- Every stock `preloader.img` is 1 MiB, so boot0 can be larger than it. The
+  stock restore pads the preloader with zeros to boot0's size.
+- The same `/system` write took 79 s on `P1J94M` and 41 s on `FJ25AB`.

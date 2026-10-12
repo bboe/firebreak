@@ -2,6 +2,14 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Fixed
+
+- `stock` works on a Dot whose boot0 is larger than the stock preloader. It
+  stopped with `preloader.img is not the size of boot0` on a Dot with a 4 MiB
+  boot0.
+
 ## 0.2.0 - 2026-10-12
 
 ### Added

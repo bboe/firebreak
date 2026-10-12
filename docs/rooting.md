@@ -1232,6 +1232,8 @@ fastbrick, and in any TWRP the restore runs.
 - boot is padded with zeros to the size of `boot_a`, which both slots share, so
   no byte of amonet's boot image survives and the read-back covers the whole
   partition.
+- The preloader is padded the same way, to boot0's size, which depends on the
+  eMMC chip. [devices.md](devices.md#emmc-chips) has the sizes.
 - TWRP answers `ro.product.device` only because amonet's TWRP sets it in its
   `default.prop`; a recovery ramdisk has no reason to carry it otherwise.
 - A push and its read-back address different block devices, whose page caches
