@@ -10,6 +10,10 @@ BOOT_MOVED_LAYOUT = BootMovedLayout(
     align=0x400, sectors=0x37000, targets=("boot_a", "boot_b")
 )
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
+FASTBOOT_MODE = (
+    "Unplug the USB cable, press and hold the action button (the one with a dot),"
+    " plug the cable back in, and let go when the light ring turns green."
+)
 LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
 STOCK_LAYOUT = StockLayout(partitions=16)
 BISCUIT = Device(

@@ -26,6 +26,7 @@ SUPPORT = (
     " https://discord.gg/vq3pub8Kp, and paste everything below."
 )
 UVX = ["uvx", "firebreak@latest"]
+WAIT = 600
 
 
 class ANSIColor(enum.Enum):
