@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import functools
 import hashlib
+import sys
 import types
 from typing import TYPE_CHECKING
 
 import pytest
+import update_checker
 
 from firebreak import __main__ as main
 
@@ -59,6 +61,20 @@ def guard(
     return read
 
 
+def test_a_child_does_not_check_for_an_update(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "_child", "emos", "find", "any"]
+    )
+    monkeypatch.setattr(name="child_main", target=main, value=lambda **_: 0)
+    monkeypatch.setattr(
+        name="check_for_update", target=main, value=lambda: pytest.fail("checked")
+    )
+    with pytest.raises(SystemExit, match="0"):
+        main.main()
+
+
 def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
@@ -74,6 +90,17 @@ def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
     )
     monkeypatch.setattr(name="amonet_v1_1_0_recovery", target=main, value=lambda: False)
     assert main.downgrade() is False
+
+
+def test_a_failing_update_check_is_silent(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def failed(**_: str) -> None:
+        raise RuntimeError
+
+    monkeypatch.setattr(name="update_check", target=update_checker, value=failed)
+    main.check_for_update()
+    assert capsys.readouterr() == ("", "")
 
 
 def test_a_fastboot_that_never_says_whether_it_is_unlocked_stops_cleanly(
@@ -105,6 +132,69 @@ def test_a_locked_fastboot_is_left_for_its_own_stage(
     assert main.amonet_v1_1_0_recovery() is False
     assert ran == []
     assert "locked fastboot" in capsys.readouterr().out
+
+
+def test_a_refused_user_stops_before_the_update_check(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak"])
+    monkeypatch.setattr(name="which", target=main.shutil, value=lambda **_: "adb")
+    monkeypatch.setattr(name="check_user", target=main, value=lambda: sys.exit(1))
+    monkeypatch.setattr(
+        name="check_for_update", target=main, value=lambda: pytest.fail("checked")
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
+
+
+def test_a_report_names_the_firebreak_version(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    shown: list[str] = []
+    monkeypatch.setattr(
+        name="show", target=main, value=lambda **said: shown.append(said["text"])
+    )
+    monkeypatch.setattr(
+        name="run", target=main, value=lambda **_: types.SimpleNamespace(stdout="")
+    )
+    monkeypatch.setattr(name="probed", target=main, value=lambda: "none")
+    monkeypatch.setattr(name="into_recovery", target=main, value=lambda **_: False)
+    main.report()
+    assert main.labelled(label="firebreak version", value=main.__version__) in shown
+
+
+def test_a_run_checks_for_an_update_once(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    checked: list[dict[str, str]] = []
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak"])
+    monkeypatch.setattr(name="which", target=main.shutil, value=lambda **_: "adb")
+    monkeypatch.setattr(name="check_user", target=main, value=lambda: None)
+    monkeypatch.setattr(name="check_adb", target=main, value=lambda: sys.exit(1))
+    monkeypatch.setattr(
+        name="update_check",
+        target=update_checker,
+        value=lambda **options: checked.append(options),
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert checked == [
+        {"package_name": "firebreak", "package_version": main.__version__}
+    ]
+
+
+def test_a_run_with_no_update_check_does_not_check(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "--no-update-check"]
+    )
+    monkeypatch.setattr(name="which", target=main.shutil, value=lambda **_: "adb")
+    monkeypatch.setattr(name="check_user", target=main, value=lambda: None)
+    monkeypatch.setattr(name="check_adb", target=main, value=lambda: sys.exit(1))
+    monkeypatch.setattr(
+        name="check_for_update", target=main, value=lambda: pytest.fail("checked")
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
 
 
 def test_a_stage_that_returns_false_counts_none_of_its_passes(

@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 
     from firebreak.emmc import Emmc
 
-from firebreak import bootrom, recovery
+from firebreak import __version__, bootrom, recovery
 from firebreak.amonet.biscuit_v2_0_0 import Client
 from firebreak.amonet.payload import NotReadyError, Payload, start_payload
 from firebreak.android.bootimg import boot_image, cpio, magisk_db, magisk_files
@@ -730,6 +730,15 @@ def check_emmc(*, live: Emmc) -> None:
     )
 
 
+def check_for_update() -> None:
+    with contextlib.suppress(Exception):
+        import update_checker  # ruff: ignore[import-outside-top-level]
+
+        update_checker.update_check(
+            package_name="firebreak", package_version=__version__
+        )
+
+
 def child_emos(*, action: str, want: str) -> int:
     import serial  # ruff: ignore[import-outside-top-level]
     from serial.tools import list_ports  # ruff: ignore[import-outside-top-level]
@@ -819,6 +828,11 @@ Run again with another target to move the Dot to it.""",
         " wait for its bootrom, say when the short may come off, then go on",
     )
     parser.add_argument(
+        "--no-update-check",
+        action="store_true",
+        help="do not ask PyPI whether a newer firebreak exists",
+    )
+    parser.add_argument(
         "target",
         choices=tuple(TARGETS),
         default=AMONET_BISCUIT_V1_1_0_BBOE,
@@ -848,6 +862,8 @@ Run again with another target to move the Dot to it.""",
         if not shutil.which(cmd=tool):
             _die(message=tool + " not found: install Android platform-tools")
     check_user()
+    if not options.no_update_check:
+        check_for_update()
     check_adb()
     move_old_caches()
     SESSION.short = options.short
@@ -1594,6 +1610,7 @@ def report() -> None:
 
     show(text=SUPPORT + "\n")
     line("firebreak", " ".join(pathlib.Path(word).name for word in program()[1:]))
+    line("firebreak version", __version__)
     line("host", f"{sys.platform} ({os.name}), {platform.platform()}")
     line("python", sys.version.split()[0])
     said = run(arguments=["adb", "version"], timeout=30).stdout.split(sep="\n")

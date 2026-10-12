@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import pathlib
+import re
 import subprocess
 import sys
+import zipfile
 
 import pytest
 
-ZIPAPP = pathlib.Path(__file__).resolve().parent.parent / "build" / "firebreak.pyz"
+from firebreak import __version__
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+ZIPAPP = ROOT / "build" / "firebreak.pyz"
 
 
 @pytest.mark.parametrize(
@@ -39,3 +44,35 @@ def test_only_stock_takes_a_build(*, arguments: list[str]) -> None:
     )
     assert finished.returncode == 2
     assert "stock takes a BUILD, and no other target does" in finished.stderr
+
+
+def test_the_pyz_holds_the_pinned_update_checker() -> None:
+    with zipfile.ZipFile(file=ZIPAPP) as archive:
+        names = set(archive.namelist())
+    assert "update_checker/core.py" in names
+    assert "update_checker-1.0.1.dist-info/licenses/LICENSE.txt" in names
+    assert not any(name.startswith("serial") for name in names)
+
+
+def test_the_pyz_imports_its_update_checker() -> None:
+    script = (
+        "import sys; sys.path.insert(0, sys.argv[1]); import update_checker;"
+        " print(update_checker.__file__.startswith(sys.argv[1]),"
+        " update_checker.__version__)"
+    )
+    said = subprocess.run(
+        [sys.executable, "-I", "-S", "-c", script, str(ZIPAPP)],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    assert said.stdout == "True 1.0.1\n"
+
+
+def test_the_version_matches_pyproject() -> None:
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    version = re.search(
+        flags=re.MULTILINE, pattern=r'^version = "([^"]+)"$', string=pyproject
+    )
+    assert version, "pyproject.toml has no version"
+    assert version[1] == __version__

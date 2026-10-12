@@ -3,7 +3,7 @@ build-backend = "hatchling.build"
 requires = ["hatchling"]
 
 [project]
-dependencies = ["pyserial==3.5"]
+dependencies = ["pyserial==3.5", "update_checker==1.0.1"]
 description = "Root an Echo Dot (2nd Generation), move it between amonet targets, or return it to stock"
 license = "BSD-2-Clause"
 license-files = ["LICENSE.txt"]
@@ -77,9 +77,19 @@ commands = [
     ["rm", "-rf", "build", "dist"],
     ["uv", "build", "--quiet"],
     [
+        "uv",
+        "pip",
+        "install",
+        "--quiet",
+        "--requirements",
+        "pyproject.toml",
+        "--target",
+        "build/bundle",
+    ],
+    [
         "python",
         "-c",
-        "import pathlib, zipapp; pathlib.Path('build').mkdir(); zipapp.create_archive('.', 'build/firebreak.pyz', '/usr/bin/env python3', 'firebreak.__main__:main', lambda p: p.parts[0] == 'firebreak' and '__pycache__' not in p.parts, True)",
+        "import shutil, zipapp; shutil.copytree('firebreak', 'build/bundle/firebreak', ignore=shutil.ignore_patterns('__pycache__')); zipapp.create_archive('build/bundle', 'build/firebreak.pyz', '/usr/bin/env python3', 'firebreak.__main__:main', lambda p: p.parts[0].startswith(('firebreak', 'update_checker')) and '__pycache__' not in p.parts, True)",
     ],
 ]
 skip_install = true

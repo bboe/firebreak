@@ -18,13 +18,14 @@ uvx --with tox-uv tox -e build,floor   # macOS only: pytest and coverage on Appl
 
 ## Rules
 
-- Python 3.9 or later. pyserial is the one dependency, pinned to the version a
-  pyz run downloads; everything else is the standard library. Users run it with
-  `uvx` from this repository until the first release, which adds `firebreak.pyz`
-  and the PyPI wheel.
-- A release is a `v` tag matching `version` in `pyproject.toml`. `release.yml`
-  publishes the wheel to PyPI by trusted publishing and attaches the pyz to a
-  GitHub release.
+- Python 3.9 or later. There are two dependencies, each pinned exactly. pyserial
+  is pinned to the version a pyz run downloads. update_checker tells a run that
+  PyPI has a newer firebreak; the pyz bundles it. Everything else is the
+  standard library. Users run it with `uvx` from this repository until the first
+  release, which adds `firebreak.pyz` and the PyPI wheel.
+- A release is a `v` tag matching `version` in `pyproject.toml`, which must
+  equal `__version__` in `firebreak/__init__.py`. `release.yml` publishes the
+  wheel to PyPI by trusted publishing and attaches the pyz to a GitHub release.
 - The floor is Apple's `/usr/bin/python3`, 3.9.6, not the newest 3.9. Later 3.9
   releases added APIs it lacks. `tests/test_python_floor.py` fails on any
   import, or any attribute reached through a module's name, that 3.9.6 lacks,

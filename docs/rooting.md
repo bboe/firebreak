@@ -274,8 +274,10 @@ ring read white.
 ## Reporting a problem
 
 - An issue report used to carry the failing step and nothing about the Dot.
-  `--report` collects the host, the state, the build, the eMMC, the partition
-  table with each name's node, and the kernel's own mmc lines.
+  `--report` collects firebreak's version, the host, the state, the build,
+  the eMMC, the partition table with each name's node, and the kernel's own
+  mmc lines. The version matters because `uvx firebreak@latest` can run a
+  newer firebreak than the run that failed.
 - Only a recovery answers all of that, so it starts one. A Dot already in a
   recovery is left alone: the one a failed run left is the safe place to be,
   and a first version cost a reporter theirs.
@@ -427,10 +429,28 @@ ring read white.
   install declares as a dependency, pinned to the same version the download
   holds. A test reads the pin out of `pyproject.toml` and checks it names that
   wheel, so the two cannot drift.
-- A pyz carries no dependencies, so the run fetches the pinned pure wheel from
+- A pyz carries no pyserial, so the run fetches the pinned pure wheel from
   PyPI when the host has none and imports pyserial from that zip: on this
   process's `sys.path` for the bootrom, on the emOS child's `PYTHONPATH`. A
   host with pyserial fetches nothing.
+- A run asks PyPI once whether a newer firebreak exists, through
+  update_checker, after it refuses root and before it starts adb, so a root
+  run cannot leave a root-owned `~/.cache`. It prints a line on stderr only
+  when one does, and keeps each answer for an hour. `--no-update-check` skips
+  it. A child never checks.
+- Each request has a 1 s timeout: with PyPI unreachable through a dead proxy,
+  a run that stopped at the adb check took 1.2 s. The timeout does not cover
+  DNS: with a resolver that never answers, the same run took 8.8 s. A failed
+  check is also kept for an hour. The check catches every exception, so it
+  cannot stop a run.
+- The pyz bundles update_checker: its 2 modules and its `dist-info`, which
+  holds the BSD-2-Clause notice. The build installs the pinned dependencies
+  from `pyproject.toml` into `build/bundle` and zips `firebreak` and
+  `update_checker*` from there. The bundled version is the pin, and a test
+  checks the pyz holds it and no pyserial.
+- The pyz has no `dist-info` for firebreak, so firebreak's version is
+  `__version__` in `firebreak/__init__.py`. A test checks it equals
+  `version` in `pyproject.toml`.
 - The one child left is emOS's, `python -m firebreak _child emos`, with the pyz
   or `site-packages` on its `PYTHONPATH`. A path to re-run would not do: the
   wheel's Windows launcher is an `.exe`.
