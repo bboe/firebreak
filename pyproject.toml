@@ -16,6 +16,7 @@ version = "0.1.0"
 firebreak = "firebreak.__main__:main"
 
 [project.urls]
+Changelog = "https://github.com/bboe/firebreak/blob/main/CHANGELOG.md"
 Source = "https://github.com/bboe/firebreak"
 
 [tool.coverage.paths]

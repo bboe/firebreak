@@ -26,6 +26,7 @@ uvx --with tox-uv tox -e build,floor   # macOS only: pytest and coverage on Appl
 - A release is a `v` tag matching `version` in `pyproject.toml`, which must
   equal `__version__` in `firebreak/__init__.py`. `release.yml` publishes the
   wheel to PyPI by trusted publishing and attaches the pyz to a GitHub release.
+  Each release adds its dated section to `CHANGELOG.md` first.
 - The floor is Apple's `/usr/bin/python3`, 3.9.6, not the newest 3.9. Later 3.9
   releases added APIs it lacks. `tests/test_python_floor.py` fails on any
   import, or any attribute reached through a module's name, that 3.9.6 lacks,
