@@ -17,11 +17,9 @@ import dataclasses
 import enum
 import functools
 import hashlib
-import http.client
 import os
 import pathlib
 import platform
-import re
 import shlex
 import shutil
 import stat
@@ -30,7 +28,6 @@ import sys
 import tempfile
 import threading
 import time
-import urllib.request
 import zipfile
 from typing import IO, TYPE_CHECKING
 
@@ -41,16 +38,10 @@ if TYPE_CHECKING:
 
     from firebreak.emmc import Emmc
 
-from firebreak import __version__, bootrom, recovery
+from firebreak import __version__, bootrom, recovery, updates
 from firebreak.amonet.biscuit_v2_0_0 import Client
 from firebreak.amonet.payload import NotReadyError, Payload, start_payload
 from firebreak.android.bootimg import boot_image, cpio, magisk_db, magisk_files
-from firebreak.android.gpt import (
-    Partition,
-    gpt_intact,
-    stock_gpt,
-)
-from firebreak.android.ota import extract
 from firebreak.cache import (
     CACHE,
     ERASED,
@@ -62,7 +53,6 @@ from firebreak.cache import (
     hold,
     lock_for,
     move_old_caches,
-    save,
     slice_path,
     system_sliced,
     unpack,
@@ -80,7 +70,6 @@ from firebreak.host import (
     check_user,
     getvar,
     in_fastboot,
-    md5_mismatch,
     no_port_help,
     push_checked,
     pyserial_wheel,
@@ -118,18 +107,14 @@ from firebreak.report import (
     system_record,
     whole,
 )
+from firebreak.stock import STOCK_STEPS, stage_restore
 from firebreak.twrp import (
     DISK,
     TABLE_OK,
-    clear_boot0,
     partition_table,
     partitions,
-    read_sectors,
     reboot,
-    restore_failed,
-    unmount,
     wait_for_twrp,
-    write,
     write_system,
 )
 from firebreak.ui import (
@@ -166,8 +151,6 @@ AMONET_BISCUIT_V1_1_0_BBOE = amonet_biscuit_v1_1_0_bboe.AMONET_BISCUIT_V1_1_0_BB
 AMONET_BISCUIT_V1_1_0_ZIP = amonet_biscuit_v1_1_0.SOURCE
 AMONET_BISCUIT_V2_0_0 = amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0.name
 AMONET_BISCUIT_V2_0_0_ZIP = amonet_biscuit_v2_0_0.SOURCE
-BOOTLOADER_CONTROL_BLOCK = b"\0ABB\x01\x8f\0"
-BOOTLOADER_CONTROL_BLOCK_OFFSET = 0x360
 BOOTROM_STEP_TIMEOUT = 30 * MINUTE
 BOOTROM_WRITE_TIMEOUT = 30
 BOOT_ROOT = Download(
@@ -177,7 +160,6 @@ BOOT_ROOT = Download(
     size=473633,
     url="https://xdaforums.com/attachments/boot-root-zip.6388001/",
 )
-CHAIN_TEE = ("tee2", "tee1")
 FASTBOOT_MODE = (
     "Unplug the USB cable, press and hold the action button (the one with a dot),"
     " plug the cable back in, and let go when the light ring turns green."
@@ -187,14 +169,12 @@ FIREOS5_ROOTED = {
     State.AMONET_V1_1_0_BBOE_BOOTED,
     State.AMONET_V1_1_0_BOOTED,
 }
-FTVDB = "https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/"
 MD5_DIGITS = 32
 OPEN_GRACE = 1
 POKE_GONE_WAIT = 5
 POKE_WRITE_TIMEOUT = 1
 REPLUG_WAIT = 600
 SHORT_WAIT = 5
-STOCK_STEPS = 16
 TWRP = amonet_biscuit_v1_1_0_bboe.RECOVERY
 TWRPS = frozenset({
     State.AMONET_V1_1_0_TWRP,
@@ -203,7 +183,6 @@ TWRPS = frozenset({
     State.AMONET_V1_1_0_BBOE_TWRP,
 })
 TWRP_VERSION = amonet_biscuit_v1_1_0_bboe.TWRP_VERSION
-TWRP_VERSIONS = ("3.2.", "3.7.")
 UPDATER = "com.amazon.device.software.ota"
 UPDATE_HOSTS = (
     "updates.amazon.com",
@@ -214,84 +193,7 @@ UPDATE_HOSTS = (
 WAIT = 600
 
 
-@dataclasses.dataclass(frozen=True)
-class Build:
-    date: str
-    ftvdb_version: str
-    md5: str
-    ns: str
-    number: str
-    sha256: str
-
-
-BUILDS = {
-    "4315": Build(
-        date="2023-11-20",
-        ftvdb_version="6-5-5-5",
-        md5="03c7c4dc338a93635dda0f5e1cd4e451",
-        ns="NS6555",
-        number="8087722874",
-        sha256="c1ca33efd975cb8491ea9438eff95af559c632dd7ca75ff3b73facacce5f758a",
-    ),
-    "4405": Build(
-        date="2023-01-21",
-        ftvdb_version="6-5-5-6",
-        md5="570f3f6b28f94323e01e95561c87887f",
-        ns="NS6556",
-        number="8289072516",
-        sha256="6839b0a1e5c4f6aa57f89ea7ca67c85aa69f8fe32e5ddc252764b0d96be5bf69",
-    ),
-    "5041": Build(
-        date="2023-04-06",
-        ftvdb_version="6-5-0-5",
-        md5="1a25d21e0363158fe0c14cb4d41b843e",
-        ns="NS6505",
-        number="8960323972",
-        sha256="80d98d3b57bc654d435b384f096dea46edd2b86e9f8adaaf91a7b0c3001e9716",
-    ),
-    "6302": Build(
-        date="2025-04-13",
-        ftvdb_version="6-4-6-6",
-        md5="62da0c58f8c3e5c8094f302346da754f",
-        ns="NS6466",
-        number="11712110212",
-        sha256="6d395345b1d1db373f9d714172c2ac5de4b5dd3e52d1ed1c3f37c2f007537667",
-    ),
-    "8138": Build(
-        date="2026-08-31",
-        ftvdb_version="6574-1",
-        md5="723886117a7a4a8a543c2ec955dcd54e",
-        ns="NS65741",
-        number="13222529668",
-        sha256="d2a61dd2af1d322e9ecfb4643670fbe416bc2442410f1aebe9748e2438f6d55f",
-    ),
-    "8142": Build(
-        date="2026-09-09",
-        ftvdb_version="6574-1",
-        md5="ead2ea9a9ca2fa1c708381a07c605356",
-        ns="NS65741",
-        number="13222530692",
-        sha256="ed4ddb01cd53e38751bb6274ad1a8255043e0795843d6ac2d44cc2803b2179a0",
-    ),
-    "8146": Build(
-        date="2026-09-17",
-        ftvdb_version="6574-1",
-        md5="8ca06ee4ef2806c974d2944b7fadd543",
-        ns="NS65741",
-        number="13222531716",
-        sha256="90832e86498c5e803974c30359aea71c1129757be0ddc59d831a94b27f81487f",
-    ),
-}
-
-
 class Shell(enum.Enum):
-    BOOT0 = (
-        "d=dd; toybox dd --help >/dev/null 2>&1 && d='toybox dd'; "
-        "echo 0 > /sys/block/mmcblk0boot0/force_ro; "
-        "$d if={source} of=/dev/block/mmcblk0boot0 bs=1048576 2>/dev/null; "
-        "echo 1 > /sys/block/mmcblk0boot0/force_ro; sync; "
-        "echo 3 > /proc/sys/vm/drop_caches"
-    )
     DATA = f"""\
 set -e
 umount /sdcard /data 2>/dev/null || true
@@ -322,11 +224,6 @@ grep -q 'if true; then' "$f"
 grep -q '^ *unset_adb_persistent_property$' "$f" && exit 1
 sync; umount $m
 """
-    TOOLS = (
-        "m=; for t in sgdisk mke2fs blockdev md5sum; do"
-        ' command -v "$t" >/dev/null 2>&1 || which "$t" >/dev/null 2>&1'
-        ' || m="$m $t"; done; echo "tools:$m"'
-    )
     WRITE = (
         "dd if={source} of={target} bs=1048576 2>/dev/null;"
         " sync; echo 3 > /proc/sys/vm/drop_caches"
@@ -339,48 +236,6 @@ class Stage:
     steps: int
     then: State | None
     passes: frozenset[State] = frozenset()
-
-
-@dataclasses.dataclass(frozen=True)
-class Step:
-    estimate: str
-    image: str
-    label: str
-    partition: str
-
-
-WRITES = (
-    Step(
-        estimate="4 min",
-        image="system",
-        label="write the system image to system_a",
-        partition="system_a",
-    ),
-    Step(
-        estimate="4 min",
-        image="system",
-        label="write the system image to system_b",
-        partition="system_b",
-    ),
-    Step(
-        estimate="10 s",
-        image="boot",
-        label="write boot image to boot_a",
-        partition="boot_a",
-    ),
-    Step(
-        estimate="10 s",
-        image="boot",
-        label="write boot image to boot_b",
-        partition="boot_b",
-    ),
-    Step(
-        estimate="5 s",
-        image="misc",
-        label="write misc, slot a marked good",
-        partition="misc",
-    ),
-)
 
 
 def amonet_chain() -> None:
@@ -625,46 +480,6 @@ def build_system(*, package: Download, target: pathlib.Path) -> None:
     part.replace(target=target)
 
 
-def chain_writes() -> tuple[Step, ...]:
-    live = (
-        "lk_b" if adb_shell(command="getprop ro.boot.slot_suffix") == "_b" else "lk_a"
-    )
-    spare = "lk_a" if live == "lk_b" else "lk_b"
-    first, last = CHAIN_TEE
-    return (
-        Step(
-            estimate="5 s",
-            image="lk",
-            label=f"write LK image to {spare} (spare slot)",
-            partition=spare,
-        ),
-        Step(
-            estimate="5 s",
-            image="tee",
-            label=f"write TEE image to {first} (backup)",
-            partition=first,
-        ),
-        Step(
-            estimate="5 s",
-            image="expdb",
-            label="zero expdb (amonet kaeru payload)",
-            partition="expdb",
-        ),
-        Step(
-            estimate="5 s",
-            image="lk",
-            label=f"write LK image to {live} (live slot)",
-            partition=live,
-        ),
-        Step(
-            estimate="5 s",
-            image="tee",
-            label=f"write TEE image to {last} (primary)",
-            partition=last,
-        ),
-    )
-
-
 def check_emmc(*, live: Emmc) -> None:
     try:
         live.switch_partition(partition=EmmcArea.USER)
@@ -759,9 +574,9 @@ Run again with another target to move the Dot to it.""",
     )
     parser.add_argument(
         "build",
-        choices=sorted(BUILDS),
+        choices=sorted(updates.BUILDS),
         help="with stock, and only with stock: the build to install, one of "
-        + ", ".join(sorted(BUILDS)),
+        + ", ".join(sorted(updates.BUILDS)),
         metavar="BUILD",
         nargs="?",
     )
@@ -770,7 +585,7 @@ Run again with another target to move the Dot to it.""",
     if (target.installs == FireOs6(build=None)) != (options.build is not None):
         parser.error(
             message="stock takes a BUILD, and no other target does: "
-            + ", ".join(sorted(BUILDS))
+            + ", ".join(sorted(updates.BUILDS))
         )
     ARGUMENTS.build = options.build or ""
     ARGUMENTS.target = target
@@ -806,58 +621,6 @@ def countdown() -> None:
         time.sleep(1)
     status(text=text.format(""))
     print()
-
-
-def download(*, build: str) -> pathlib.Path:
-    build_details = BUILDS[build]
-    CACHE.mkdir(exist_ok=True, parents=True)
-    update = (
-        CACHE / f"update-kindle-biscuit_puffin-{build_details.ns}_user_{build}"
-        f"_{build_details.number.zfill(13)}.bin"
-    )
-    if update in SESSION.verified:
-        return update
-    if (
-        not update.is_file()
-        or digest(kind="sha256", path=update) != build_details.sha256
-    ):
-        page = (
-            f"{FTVDB}{build_details.md5}-{build_details.number}-fire-os-{build_details.ftvdb_version}-{build_details.ns.lower()}"
-            f"-{build}-{build_details.date}/"
-        )
-        request = urllib.request.Request(
-            headers={"User-Agent": "Mozilla/5.0"}, url=page
-        )
-        try:  # ruff: ignore[too-many-statements-in-try-clause]
-            with urllib.request.urlopen(timeout=60, url=request) as response:
-                links = re.findall(
-                    pattern=r'https://[^"<> ]+\.bin',
-                    string=response.read().decode(errors="replace"),
-                )
-            if not links:
-                raise FatalError(message="no download link on " + page)
-            part = CACHE / (update.name + ".part")
-            response = urllib.request.urlopen(timeout=60, url=links[0])
-            with response, part.open(mode="wb") as part_file:
-                done, total = save(
-                    destination=part_file,
-                    label=f"downloading OTA {build}",
-                    response=response,
-                )
-        except (OSError, http.client.HTTPException) as error:
-            raise FatalError(message=f"the download failed: {error!r}") from error
-        if total and done != total:
-            raise FatalError(
-                message=f"the download stopped after {done} of {total} bytes. "
-                + again()
-            )
-        part.replace(target=update)
-    if digest(kind="sha256", path=update) != build_details.sha256:
-        raise FatalError(message=f"{update} does not hash to {build_details.sha256}")
-    SESSION.verified.add(update)
-    if threading.current_thread() is threading.main_thread():
-        passed(message=f"OTA {build} verified")
-    return update
 
 
 def erase_by_fastboot() -> str:
@@ -1194,7 +957,7 @@ def prefetch() -> None:
     if isinstance(installs, FireOs6):
         build = ARGUMENTS.build or installs.build
         with hold(lock=lock_for(key=build)):
-            download(build=build)
+            updates.download(build=build)
         return
     unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
     pyserial_wheel()
@@ -1285,97 +1048,6 @@ def report() -> None:
     for text in mmc_said(asked=asked):
         show(text=text)
     show(text="\n" + LEFT_IN_RECOVERY)
-
-
-def restore(
-    *,
-    backup_sector: int,
-    build: str,
-    files: dict[str, pathlib.Path],
-    parts: dict[str, Partition],
-    work: pathlib.Path,
-) -> None:
-    unmount()
-
-    PROGRESS.begin(estimate="5 s", label="clear the preloader header (boot0)")
-    ERASED.touch()
-    clear_boot0()
-    PROGRESS.end()
-
-    for step in WRITES:
-        write(
-            estimate=step.estimate,
-            label=step.label,
-            number=parts[step.partition].number,
-            path=files[step.image],
-            sector=parts[step.partition].first,
-        )
-    write(
-        estimate="5 s",
-        label="write the stock table (backup)",
-        path=files["gpt-backup.bin"],
-        sector=backup_sector,
-    )
-    write(
-        estimate="5 s",
-        label="write the stock table (primary)",
-        path=files["gpt-primary.bin"],
-        sector=0,
-    )
-
-    PROGRESS.begin(estimate="30 s", label="format cache and userdata")
-    if "No problems found" not in adb_shell(command="sgdisk --verify " + DISK):
-        restore_failed(message="sgdisk does not accept the new table; do not reboot")
-    unmount(started=True)
-    adb_shell(command="blockdev --rereadpt " + DISK)
-    if adb_shell(command='grep -c "mmcblk0p1[78]$" /proc/partitions') != "0":
-        restore_failed(
-            message="the kernel still sees amonet's partitions; do not reboot,"
-            " reread the table first"
-        )
-    userdata, cache = parts["userdata"], parts["cache"]
-    kibibytes = userdata.size // 1024
-    if not adb_shell(
-        command=f'grep " {kibibytes} mmcblk0p{userdata.number}$" /proc/partitions'
-    ):
-        restore_failed(message="userdata is not its stock size; do not reboot")
-    output = adb_shell(
-        command=f"mke2fs -q -t ext4 {DISK}p{cache.number}"
-        f" && mke2fs -q -t ext4 {DISK}p{userdata.number} && echo formatted"
-    )
-    if output.split(sep="\n")[-1] != "formatted":
-        restore_failed(message="cache and userdata did not format; do not reboot")
-    PROGRESS.end()
-
-    for step in chain_writes():
-        write(
-            estimate=step.estimate,
-            label=step.label,
-            number=parts[step.partition].number,
-            path=files[step.image],
-            sector=parts[step.partition].first,
-        )
-
-    PROGRESS.begin(estimate="5 s", label="write preloader to boot0")
-    preloader = work / "preloader.img"
-    staged = DOT_TEMPORARY_DIRECTORY / "pl.img"
-    if run(arguments=["adb", "push", preloader, staged], timeout=120).returncode != 0:
-        restore_failed(message="the preloader did not reach the Dot; do not reboot")
-    adb_shell(command=Shell.BOOT0.value.format(source=staged))
-    wrong = md5_mismatch(
-        command="md5sum /dev/block/mmcblk0boot0",
-        want=digest(kind="md5", path=preloader),
-    )
-    if wrong:
-        restore_failed(
-            message=f"boot0 does not match the {build} preloader{wrong}; do not reboot"
-        )
-    ERASED.unlink(missing_ok=True)
-    PROGRESS.end()
-
-    PROGRESS.begin(estimate="90 s", label=f"waiting for stock {build} to start")
-    with contextlib.suppress(subprocess.TimeoutExpired):
-        run(arguments=["adb", "shell", "-n", "reboot"], timeout=60)
 
 
 def restore_stages() -> dict[State, Stage]:
@@ -1782,7 +1454,7 @@ def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
 def stage_install_fireos6() -> None:
     amonet_chain()
     build = ARGUMENTS.target.installs.build
-    update_file = download(build=build)
+    update_file = updates.download(build=build)
     zip_path = fetch(download=BOOT_ROOT)
     if "boot_a_x" in partition_table():
         raise FatalError(
@@ -1843,151 +1515,6 @@ def stage_replace_twrp() -> None:
             " running. " + again()
         )
     run(arguments=["adb", "reboot", "recovery"], check=True, timeout=60)
-
-
-def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
-    build = ARGUMENTS.build
-    work = CACHE / ("stock-" + build)
-    work.mkdir(exist_ok=True, parents=True)
-    extract(update=download(build=build), work=work)
-    deadline = time.monotonic() + 30
-    version = ""
-    while not version or "mtp" not in adb_shell(command="getprop sys.usb.config"):
-        if time.monotonic() > deadline:
-            raise FatalError(message="TWRP did not finish starting within 30 seconds")
-        time.sleep(1)
-        version = adb_shell(command="getprop ro.twrp.version")
-        if not version[:1].isdigit():
-            version = ""
-        elif not version.startswith(TWRP_VERSIONS):
-            raise FatalError(
-                message="this needs a TWRP for this Dot: v1.1.0's 3.2.3,"
-                f" v2.0.0's 3.7.0, or the {TWRP_VERSION} that firebreak"
-                " installs"
-            )
-    if (
-        adb_shell(command="toybox dd --help >/dev/null 2>&1 && echo yes").split(
-            sep="\n"
-        )[-1]
-        == "yes"
-    ):
-        SESSION.dd = "toybox dd"
-    tools = adb_shell(command=Shell.TOOLS.value).split(sep="\n")[-1]
-    if not tools.startswith("tools:"):
-        raise FatalError(message="the Dot did not answer which tools it has: " + tools)
-    if tools != "tools:":
-        raise FatalError(message="this TWRP has no" + tools[len("tools:") :])
-    device = adb_shell(command="getprop ro.product.device")
-    if device != "biscuit":
-        raise FatalError(
-            message="this is not an Echo Dot (2nd Gen): TWRP reports the"
-            f" device {device!r}"
-        )
-
-    raw = read_sectors(count=34, start=0)
-    if not gpt_intact(entries=raw[1024:], header=raw[512:1024]):
-        size = adb_shell(command=f"blockdev --getsize64 {DISK}")
-        if not size.isdigit():
-            raise FatalError(message="could not read the Dot's disk size")
-        tail = read_sectors(count=33, start=int(size) // 512 - 33)
-        raw = raw[:512] + tail[-512:] + tail[:-512]
-        show(text="the primary partition table is damaged; using the backup")
-    saved = work / f"current-gpt-{os.environ['ANDROID_SERIAL']}.bin"
-    if not saved.exists():
-        saved.write_bytes(data=raw)
-    table = stock_gpt(raw=raw)
-    files = {}
-    for name, data in (
-        ("gpt-primary.bin", table.primary),
-        ("gpt-backup.bin", table.backup),
-    ):
-        files[name] = work / name
-        files[name].write_bytes(data=data)
-    boot = work / "boot.img"
-    boot_size = table.partitions["boot_a"].size
-    files["boot"] = work / "boot16.img"
-    files["boot"].write_bytes(data=boot.read_bytes().ljust(boot_size, b"\0"))
-    files["expdb"] = work / "expdb.zero"
-    files["expdb"].write_bytes(data=b"\0" * table.partitions["expdb"].size)
-    misc = bytearray(table.partitions["misc"].size)
-    misc[
-        BOOTLOADER_CONTROL_BLOCK_OFFSET : BOOTLOADER_CONTROL_BLOCK_OFFSET
-        + len(BOOTLOADER_CONTROL_BLOCK)
-    ] = BOOTLOADER_CONTROL_BLOCK
-    files["misc"] = work / "misc.img"
-    files["misc"].write_bytes(data=misc)
-    for image in ("system", "tee", "lk"):
-        files[image] = work / (image + ".img")
-    for step in (*WRITES, *chain_writes()):
-        if files[step.image].stat().st_size > table.partitions[step.partition].size:
-            raise FatalError(
-                message=f"{files[step.image].name} does not fit {step.partition}"
-            )
-    if (
-        adb_shell(command="[ -b /dev/block/mmcblk0boot0 ] && echo block").split(
-            sep="\n"
-        )[-1]
-        != "block"
-    ):
-        raise FatalError(
-            message="/dev/block/mmcblk0boot0 is not a block device, so the"
-            " preloader would be written to a file and read back from it"
-        )
-    boot0 = adb_shell(command="cat /sys/block/mmcblk0boot0/size")
-    if (
-        not boot0.isdigit()
-        or (work / "preloader.img").stat().st_size != int(boot0) * 512
-    ):
-        raise FatalError(
-            message=f"preloader.img is not the size of boot0 ({boot0} sectors)"
-        )
-    passed(message="stock partition table built from this Dot's own")
-    warn(
-        text="About to overwrite this Dot's bootloaders, system and data with"
-        f" stock {build}."
-    )
-    warn(text="Root is gone afterwards; firebreak puts it back.")
-    try:
-        for left in range(10, 0, -1):
-            show(
-                end="",
-                flush=True,
-                kind=Kind.WARN,
-                text="\r"
-                + paint(
-                    code=ANSIColor.YELLOW,
-                    text=f"Starting in {left:2d} s. Ctrl-C cancels.",
-                ),
-            )
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print()
-        raise FatalError(message="stopped; nothing was written", prefix="") from None
-    show(
-        kind=Kind.WARN,
-        text="\r"
-        + paint(code=ANSIColor.YELLOW, text="Starting now.                     "),
-    )
-
-    try:
-        restore(
-            backup_sector=table.backup_sector,
-            build=build,
-            files=files,
-            parts=table.partitions,
-            work=work,
-        )
-    except subprocess.TimeoutExpired as error:
-        restore_failed(
-            message=f"{' '.join(map(str, error.cmd))} did not finish in"
-            f" {error.timeout:.0f} seconds. Do not reboot. " + again()
-        )
-    except KeyboardInterrupt:
-        if PROGRESS.step == PROGRESS.steps:
-            raise FatalError(
-                message=f"stopped; stock {build} is in place", prefix=""
-            ) from None
-        restore_failed(message="stopped part way. Do not reboot. " + again())
 
 
 def stage_swap_twrp() -> None:
