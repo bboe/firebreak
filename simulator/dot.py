@@ -37,6 +37,11 @@ if TYPE_CHECKING:
     from hashlib import _Hash as Hash
     from typing import BinaryIO
 
+try:
+    from firebreak_sim_ports import busy
+except ImportError:
+    busy = contextlib.nullcontext
+
 ADB_DEVICE_MODES = frozenset({"device", "recovery", "unauthorized"})
 ADB_PAIRED_FLAGS = frozenset({"-H", "-P", "-s", "-t"})
 ADB_FLAGS = frozenset({"-d", "-e"}) | ADB_PAIRED_FLAGS
@@ -109,6 +114,7 @@ WAIT_FOR_ANY = frozenset({"any", "usb-device"})
 WORK = pathlib.Path(
     os.environ.get("FIREBREAK_SIM") or pathlib.Path.home() / ".cache" / "firebreak-sim"
 )
+CLOCK = WORK / "clock.json"
 STATE = WORK / "state.json"
 TRACE = WORK / "trace.jsonl"
 
@@ -238,6 +244,7 @@ def create(*, cache: pathlib.Path, runner: int, start: str) -> None:
         raise SystemExit(message)
     destroy()
     WORK.mkdir(exist_ok=True, parents=True)
+    CLOCK.unlink(missing_ok=True)
     TRACE.unlink(missing_ok=True)
     docker(arguments=["build", "-q", "-t", IMAGE, str(HERE)], capture_output=True)
     name = f"firebreak-sim-{uuid.uuid4().hex[:8]}"
@@ -1267,4 +1274,5 @@ def write_image(*, local: pathlib.Path, node: str, seek: int = 0, state: dict) -
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    with busy():
+        sys.exit(main())

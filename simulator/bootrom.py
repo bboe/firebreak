@@ -246,15 +246,17 @@ class Emmc:
         return data
 
     def read(self, *, area: int, count: int, first: int) -> bytes | None:
-        self.process.stdin.write(EMMC_HEADER.pack(b"r", area, first, count))
-        status = self.answer(length=1)
-        data = self.answer(length=count * BLOCK)
+        with dot.busy():
+            self.process.stdin.write(EMMC_HEADER.pack(b"r", area, first, count))
+            status = self.answer(length=1)
+            data = self.answer(length=count * BLOCK)
         return data if status == b"k" else None
 
     def write(self, *, area: int, data: bytes, first: int) -> bool:
         header = EMMC_HEADER.pack(b"w", area, first, len(data) // BLOCK)
-        self.process.stdin.write(header + data)
-        return self.answer(length=1) == b"k"
+        with dot.busy():
+            self.process.stdin.write(header + data)
+            return self.answer(length=1) == b"k"
 
 
 class Payload:

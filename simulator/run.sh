@@ -5,7 +5,8 @@
 # short. Run TOOL (firebreak or dot_firmware) to TARGET with FLAGs, under the
 # simulator's virtualenv and with the simulator first on PATH, and leave
 # OUT.log, OUT.jsonl, OUT.txt, OUT.snapshot and OUT.table. Destroy the Dot
-# on exit, Ctrl-C included.
+# on exit, Ctrl-C included. FIREBREAK_SIM_SPEED runs the clock that many
+# times faster; 1 is real time.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 out=$1 tool=$2 target=$3
@@ -23,6 +24,8 @@ finish() {
 }
 trap finish EXIT
 trap 'exit 130' HUP INT QUIT TERM
+FIREBREAK_SIM_SPEED=${FIREBREAK_SIM_SPEED:-20}
+export FIREBREAK_SIM_SPEED
 python3 "$here/dot.py" create --runner $$ --start "$start" >/dev/null || exit 1
 python=$work/venv/bin/python
 case $tool in
@@ -42,7 +45,7 @@ if [ "$start" = no-light ]; then
     (
         trap 'exit 0' TERM
         until grep -q "Short the Dot's test point" "$out.log"; do sleep 0.5; done
-        python3 "$here/dot.py" plug >/dev/null
+        "$python" "$here/dot.py" plug >/dev/null
     ) &
     plugger=$!
 fi
@@ -53,10 +56,10 @@ status=$?
 runner=
 [ -n "$plugger" ] && kill "$plugger" 2>/dev/null && wait "$plugger"
 plugger=
-python3 "$here/dot.py" halt
+"$python" "$here/dot.py" halt
 cp "$work/trace.jsonl" "$out.jsonl"
 python3 "$here/trace.py" "$out.jsonl" > "$out.txt"
-python3 "$here/dot.py" snapshot > "$out.snapshot"
-python3 "$here/dot.py" table "$out.table"
+"$python" "$here/dot.py" snapshot > "$out.snapshot"
+"$python" "$here/dot.py" table "$out.table"
 echo "$tool $target: exit $status, $(grep -c '"tool"' "$out.jsonl") calls, $(grep -m1 -o 'The Dot is [a-z]*' "$out.log" || echo 'no verdict')"
 exit $status

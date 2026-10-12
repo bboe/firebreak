@@ -377,6 +377,83 @@ The simulator accepts these, where a real Dot may not:
 - The bootrom keeps the pseudo-terminal's other end open, so a tool can close
   and reopen the port.
 
+## The clock
+
+- `FIREBREAK_SIM_SPEED` sets the speed, K. `run.sh` sets 20 when it is not
+  set. At 1 or less the hook changes nothing.
+- The hook replaces `time.monotonic`, `time.perf_counter`, `time.time`, their
+  `_ns` forms, `time.sleep`, `select.select` and the `select` method of each
+  `selectors` class. It does this in every process the virtualenv's
+  interpreter starts: the tool, its children, `dot.py` and `bootrom.py`.
+  `run.sh` runs `plug`, `halt`, `snapshot` and `table` under that interpreter
+  too.
+- The clock runs K times faster than real time, except while a process holds
+  it. Then it runs at real time in every process. A `dot.py` call holds it
+  from its start to its exit, except while it sleeps. `bootrom.py` holds it
+  for each eMMC access. So work in the container takes real time, and so
+  does a tool timeout that waits for it.
+- `clock.json`, in the state folder, holds the anchor in real and in clock
+  time, the offset to wall time, and the pids that hold the clock. A change
+  replaces the file whole, under `clock.lock`. Each change drops the pids that
+  are gone, so a call that a tool kills holds the clock only until the next
+  change. `create` deletes the file.
+- Each trace line's `time` is the clock's, not real time, except the lines
+  that `create` writes: `run.sh` runs it without the hook.
+- A sleep or a wait for a descriptor sleeps at most 50 ms of real time at
+  once, so a change of speed takes effect within 50 ms.
+- pyserial keeps `time.monotonic` as a class attribute and calls it through
+  `self`. A plain function there gets `self` as an argument, so the clock's
+  functions are bound methods.
+
+These stay in real time:
+
+- `Event.wait`, `Lock.acquire` and `Condition.wait` with a timeout. Each tool
+  uses them only for its progress line, every 0.1 s, and for its cache lock,
+  in a loop with no deadline.
+- Socket timeouts. Only downloads use them, and the cache holds every
+  download.
+- `datetime.now()` in amonet's log, and `time.strftime` in each tool's log.
+  They only print.
+- `run.sh`: `timeout 1500`, and the 0.5 s poll for the short prompt.
+
+Work outside a hold counts K times: the interpreter's start before the hook,
+each tool's own work, and the pseudo-terminal. With 6 Dots at once a call to
+`adb` or `fastboot` spends about 100 ms there, 2 s at K=20. These timeouts
+bound K:
+
+- firebreak kills `fastboot flash brick` after 8 s, as a Dot needs. At K=20,
+  with 6 Dots at once, the call took 1.6 to 2.8 s to start and the chain 0.8
+  to 1.3 s more. At K=100, 1 of the 3 runs from stock fastboot was killed
+  before the reboot, and at K=200 all 3 were. Each then stopped with "the Dot
+  has been stock-fastboot for 10 minutes".
+- firebreak waits 5 s for a 64-block payload read. At K=100 and at K=200, 1
+  of the 3 runs from no light stopped there, with 25,550 and 26,572 of
+  32,772 bytes.
+- At K=20 all 18 runs rooted, 6 at a time. At K=100, 2 of 6 stopped, and at
+  K=200, 4 of 6.
+
+### Measured
+
+Measured on 2026-10-12, firebreak to each target from no light with `--short`
+and from stock fastboot, 6 Dots at once. Each Dot had its own `FIREBREAK_SIM`
+and `FIREBREAK_SIM_CACHE`. A time is from the start of `run.sh` to its
+summary line, and includes `create` and `snapshot`.
+
+| run | K=1 | calls | K=20 | calls | K=20 | calls |
+| --- | --- | --- | --- | --- | --- | --- |
+| v1-bboe, no light | 73 s | 181 | 60 s | 165 | 58 s | 165 |
+| v1, no light | 75 s | 191 | 58 s | 175 | 60 s | 175 |
+| v2, no light | 103 s | 275 | 60 s | 249 | 60 s | 248 |
+| v1-bboe, fastboot | 87 s | 186 | 64 s | 164 | 64 s | 164 |
+| v1, fastboot | 87 s | 186 | 64 s | 164 | 64 s | 164 |
+| v2, fastboot | 63 s | 65 | 30 s | 51 | 28 s | 51 |
+
+- The 6 runs took 103 s at K=1 and 64 s at K=20, both times.
+- A run makes fewer calls at a higher K. A call's start counts K times, so
+  fewer polls fit in a wait.
+- At K=20 and K=100, each run's trace, snapshot and raw table matched the run
+  at K=1, but for the number of polls.
+
 ## The trace
 
 - Every `adb` and `fastboot` call, boot and reboot goes to `trace.jsonl`, one
