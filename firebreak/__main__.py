@@ -25,7 +25,18 @@ from firebreak.host import check_adb, check_user
 from firebreak.plugin import FireOs6
 from firebreak.route import root
 from firebreak.support import report, write_test
-from firebreak.ui import ARGUMENTS, SESSION, FatalError, stop
+from firebreak.ui import (
+    ARGUMENTS,
+    SESSION,
+    ANSIColor,
+    FatalError,
+    Kind,
+    paint,
+    show,
+    stop,
+    upgrade,
+    warn,
+)
 from firebreak.unlocks import (
     amonet_biscuit_v1_1_0,
     amonet_biscuit_v1_1_0_bboe,
@@ -44,9 +55,13 @@ def check_for_update() -> None:
     with contextlib.suppress(Exception):
         import update_checker  # ruff: ignore[import-outside-top-level]
 
-        update_checker.update_check(
+        result = update_checker.UpdateChecker().check(
             package_name="firebreak", package_version=__version__
         )
+        if result:
+            how, line = upgrade()
+            warn(text=f"{result} To use it, {how}:")
+            show(kind=Kind.WARN, text=paint(code=ANSIColor.YELLOW, text=f"  {line}"))
 
 
 def child_main(*, arguments: list[str], name: str) -> int:

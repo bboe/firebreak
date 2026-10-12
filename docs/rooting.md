@@ -435,9 +435,13 @@ ring read white.
   host with pyserial fetches nothing.
 - A run asks PyPI once whether a newer firebreak exists, through
   update_checker, after it refuses root and before it starts adb, so a root
-  run cannot leave a root-owned `~/.cache`. It prints a line on stderr only
-  when one does, and keeps each answer for an hour. `--no-update-check` skips
-  it. A child never checks.
+  run cannot leave a root-owned `~/.cache`. It prints a notice only when one
+  does, with the way to upgrade: the latest release's `firebreak.pyz` for a
+  pyz, and `uvx firebreak@latest` for any other run, as the README gives
+  both. The command or link goes on a line of its own, outside the 79-column
+  wrap, so a copied line holds all of it.
+- The check keeps each answer for an hour. `--no-update-check` skips it. A
+  child never checks.
 - Each request has a 1 s timeout: with PyPI unreachable through a dead proxy,
   a run that stopped at the adb check took 1.2 s. The timeout does not cover
   DNS: with a resolver that never answers, the same run took 8.8 s. A failed

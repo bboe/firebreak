@@ -297,6 +297,38 @@ def test_stop_is_plain_without_color() -> None:
     assert str(raised.value) == "one\ntwo"
 
 
+@pytest.mark.parametrize(
+    ("argv", "prefix", "said"),
+    [
+        (
+            "/c/archive-v0/x/bin/firebreak",
+            "/c/uv/archive-v0/x",
+            ("run", "uvx firebreak@latest"),
+        ),
+        (
+            "/home/me/firebreak.pyz",
+            "/usr",
+            (
+                "download firebreak.pyz from",
+                "https://github.com/bboe/firebreak/releases/latest",
+            ),
+        ),
+        (
+            "/home/me/.venv/bin/firebreak",
+            "/home/me/.venv",
+            ("run", "uvx firebreak@latest"),
+        ),
+        ("/home/me/src/firebreak/__main__.py", "/usr", ("run", "uvx firebreak@latest")),
+    ],
+)
+def test_upgrade_offers_the_pyz_or_uvx(
+    *, argv: str, monkeypatch: pytest.MonkeyPatch, prefix: str, said: tuple[str, str]
+) -> None:
+    monkeypatch.setattr(name="argv", target=sys, value=[argv])
+    monkeypatch.setattr(name="prefix", target=sys, value=prefix)
+    assert ui.upgrade() == said
+
+
 def tty(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="isatty", target=sys.stdout, value=lambda: True)
     monkeypatch.delenv(name="NO_COLOR", raising=False)

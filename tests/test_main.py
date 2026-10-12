@@ -25,12 +25,37 @@ def test_a_child_does_not_check_for_an_update(
 def test_a_failing_update_check_is_silent(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def failed(**_: str) -> None:
+    def failed(*_: object, **__: str) -> None:
         raise RuntimeError
 
-    monkeypatch.setattr(name="update_check", target=update_checker, value=failed)
+    monkeypatch.setattr(name="check", target=update_checker.UpdateChecker, value=failed)
     main.check_for_update()
     assert capsys.readouterr() == ("", "")
+
+
+def test_a_newer_release_is_named_with_how_to_upgrade(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    newer = update_checker.UpdateResult(
+        available="9.0.0",
+        package="firebreak",
+        release_date=None,
+        running=main.__version__,
+    )
+    monkeypatch.setattr(
+        name="check", target=update_checker.UpdateChecker, value=lambda *_, **__: newer
+    )
+    command = "/a/very/long/path/to/a/virtual/environment/bin/python3 -m pip install"
+    monkeypatch.setattr(name="upgrade", target=main, value=lambda: ("run", command))
+    main.check_for_update()
+    out, err = capsys.readouterr()
+    *notice, line = out.splitlines()
+    assert " ".join(" ".join(notice).split()) == (
+        f"Version {main.__version__} of firebreak is outdated. Version 9.0.0 is"
+        " available. To use it, run:"
+    )
+    assert line == "  " + command
+    assert err == ""
 
 
 def test_a_refused_user_stops_before_the_update_check(
@@ -53,9 +78,9 @@ def test_a_run_checks_for_an_update_once(*, monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(name="check_user", target=main, value=lambda: None)
     monkeypatch.setattr(name="check_adb", target=main, value=lambda: sys.exit(1))
     monkeypatch.setattr(
-        name="update_check",
-        target=update_checker,
-        value=lambda **options: checked.append(options),
+        name="check",
+        target=update_checker.UpdateChecker,
+        value=lambda _, **options: checked.append(options),
     )
     with pytest.raises(SystemExit):
         main.cli()
@@ -102,6 +127,16 @@ def test_a_run_with_no_update_check_does_not_check(
     )
     with pytest.raises(SystemExit):
         main.cli()
+
+
+def test_no_newer_release_says_nothing(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="check", target=update_checker.UpdateChecker, value=lambda *_, **__: None
+    )
+    main.check_for_update()
+    assert capsys.readouterr() == ("", "")
 
 
 def test_target_names_are_the_unlocks_names() -> None:

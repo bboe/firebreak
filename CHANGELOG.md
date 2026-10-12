@@ -4,6 +4,12 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- The notice of a newer firebreak says how to upgrade, on a line of its own:
+  the latest release's `firebreak.pyz` for a pyz, and `uvx firebreak@latest`
+  for any other run.
+
 ### Changed
 
 - `--verbose` and `--report` name a rooted Fire OS 5 by its unlock:

@@ -20,6 +20,7 @@ BOOT0_EMPTY = (
     " computer"
 )
 MINUTE = 60
+RELEASES = "https://github.com/bboe/firebreak/releases/latest"
 SPINNER = "\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f"
 SUPPORT = (
     "Please stop by #support-device-unlocking in the EchoMuse Discord,"
@@ -259,6 +260,12 @@ def stop(*, error: FatalError) -> NoReturn:
     if error.prefix and color(stream=sys.stderr):
         text = f"\033[{ANSIColor.RED.value}m{text}\033[0m"
     raise SystemExit(text)
+
+
+def upgrade() -> tuple[str, str]:
+    if invocation(options=[]).endswith(".pyz"):
+        return "download firebreak.pyz from", RELEASES
+    return "run", shlex.join(split_command=UVX)
 
 
 def warn(*, text: str) -> None:
