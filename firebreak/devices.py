@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import enum
+import re
 
 from firebreak.layouts import BootMovedLayout, StockLayout
 from firebreak.plugin import Device, Feature
@@ -8,12 +9,20 @@ from firebreak.plugin import Device, Feature
 BOOT_MOVED_LAYOUT = BootMovedLayout(
     align=0x400, sectors=0x37000, targets=("boot_a", "boot_b")
 )
+BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
+LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
 STOCK_LAYOUT = StockLayout(partitions=16)
 BISCUIT = Device(
     features=frozenset({Feature.AB_SLOTS, Feature.BOOT0, Feature.RPMB}),
     layouts=(BOOT_MOVED_LAYOUT, STOCK_LAYOUT),
     name="biscuit",
 )
+
+
+class LK(enum.Enum):
+    FIREOS5 = "f379dba-20170906_000423"
+    FIREOS6 = "63cb91b-20221007_072309"
+    FIREOS6_4315 = "41fb3ce-20221007_151724"
 
 
 class State(enum.Enum):

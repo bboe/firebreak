@@ -1,18 +1,74 @@
 from __future__ import annotations
 
 import struct
+import subprocess
 import sys
+import time
 import types
 from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import cache, recovery, twrp, ui, write_test
+from firebreak import cache, host, ui
 from firebreak.mediatek import gcpu, usbdl
 
 if TYPE_CHECKING:
     import pathlib
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
+
+
+class FakeAdb:
+    def __init__(self) -> None:
+        self.answers: dict[
+            str, list[str | tuple[int, str] | Exception | Callable[[], str]]
+        ] = {}
+        self.asked: list[list[str]] = []
+        self.raw = b""
+        self.sent: list[bytes] = []
+
+    def answer(self, *, words: list[str]) -> tuple[int, str]:
+        answer = next(
+            (
+                said.pop(0) if len(said) > 1 else said[0]
+                for key, said in self.answers.items()
+                if key in words[-1]
+            ),
+            "",
+        )
+        if isinstance(answer, Exception):
+            raise answer
+        if callable(answer):
+            answer = answer()
+        return answer if isinstance(answer, tuple) else (0, answer)
+
+    def command(
+        self, *, arguments: list[object], standard_input: object = None, **_: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        words = [str(word) for word in arguments]
+        self.asked.append(words)
+        if words[1] == "exec-out":
+            return subprocess.CompletedProcess(
+                args=words, returncode=0, stdout=self.raw
+            )
+        if hasattr(standard_input, "read"):
+            self.sent.append(standard_input.read())
+        returncode, text = self.answer(words=words)
+        return subprocess.CompletedProcess(
+            args=words, returncode=returncode, stdout=text.encode()
+        )
+
+    def commands(self, *, holding: str) -> list[str]:
+        return [words[-1] for words in self.asked if holding in words[-1]]
+
+    def stream(
+        self, *, arguments: list[str], pieces: list[pathlib.Path], **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        self.asked.append(arguments)
+        self.sent.append(b"".join(piece.read_bytes() for piece in pieces))
+        returncode, text = self.answer(words=arguments)
+        return subprocess.CompletedProcess(
+            args=arguments, returncode=returncode, stdout=text
+        )
 
 
 class FakePort:
@@ -48,21 +104,34 @@ def fresh_session() -> Iterator[None]:
 @pytest.fixture(autouse=True)
 def no_real_cache(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
     directory = tmp_path / "real-cache"
-    for module in (cache, sys.modules.get("firebreak.__main__")):
-        if module is not None:
-            monkeypatch.setattr(name="CACHE", target=module, value=directory)
-            monkeypatch.setattr(
-                name="ERASED", target=module, value=directory / "boot0-erased"
-            )
-    for module in (recovery, twrp, write_test):
-        monkeypatch.setattr(name="CACHE", target=module, value=directory)
-    for module in (recovery, twrp):
-        monkeypatch.setattr(
-            name="ERASED", target=module, value=directory / "boot0-erased"
-        )
+    for name, module in tuple(sys.modules.items()):
+        if name != "firebreak" and not name.startswith("firebreak."):
+            continue
+        for attribute, value in (
+            ("CACHE", directory),
+            ("ERASED", directory / "boot0-erased"),
+        ):
+            if hasattr(module, attribute):
+                monkeypatch.setattr(name=attribute, target=module, value=value)
     monkeypatch.setenv(name="HOME", value=str(tmp_path / "real-home"))
     monkeypatch.setenv(name="USERPROFILE", value=str(tmp_path / "real-home"))
     monkeypatch.setattr(name="get", target=cache.webbrowser, value=real_browser)
+
+
+@pytest.fixture
+def adb(*, monkeypatch: pytest.MonkeyPatch) -> FakeAdb:
+    fake = FakeAdb()
+    real = {"command": host.command, "stream": host.stream}
+    for name, module in tuple(sys.modules.items()):
+        if name != "firebreak" and not name.startswith("firebreak."):
+            continue
+        for attribute, value in real.items():
+            if getattr(module, attribute, None) is value:
+                monkeypatch.setattr(
+                    name=attribute, target=module, value=getattr(fake, attribute)
+                )
+    monkeypatch.setattr(name="sleep", target=time, value=lambda _: None)
+    return fake
 
 
 def acquire_replies() -> bytes:

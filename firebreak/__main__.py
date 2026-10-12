@@ -68,21 +68,16 @@ from firebreak.cache import (
     unpack,
     write_slices,
 )
-from firebreak.devices import State
+from firebreak.devices import BY_NAME, LITTLE_KERNEL_DESCRIPTION, LK, State
 from firebreak.emmc import EmmcArea
+from firebreak.emos import child_emos, stage_emos
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
-    MORE_THAN_ONE,
-    NO_ACCESS,
     PUSH_TRIES,
-    USER_SERIAL,
     adb_script,
     adb_shell,
     check_adb,
     check_user,
-    child,
-    child_path,
-    command,
     getvar,
     in_fastboot,
     md5_mismatch,
@@ -90,7 +85,6 @@ from firebreak.host import (
     push_checked,
     pyserial_wheel,
     reconnect,
-    rerun,
     run,
     usb_serial,
 )
@@ -107,6 +101,7 @@ from firebreak.mediatek.usbdl import (
 )
 from firebreak.plan import TABLE_SECTORS, Action, resolve
 from firebreak.plugin import FireOs6
+from firebreak.probe import probed, read_recovery, state
 from firebreak.report import (
     LEFT_IN_RECOVERY,
     LISTING_OK,
@@ -149,7 +144,6 @@ from firebreak.ui import (
     again,
     asked_for,
     clock,
-    explained,
     paint,
     passed,
     program,
@@ -183,9 +177,7 @@ BOOT_ROOT = Download(
     size=473633,
     url="https://xdaforums.com/attachments/boot-root-zip.6388001/",
 )
-BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
 CHAIN_TEE = ("tee2", "tee1")
-EMOS_DEVICE_ID = (0x1949, 0x2007)
 FASTBOOT_MODE = (
     "Unplug the USB cable, press and hold the action button (the one with a dot),"
     " plug the cable back in, and let go when the light ring turns green."
@@ -196,7 +188,6 @@ FIREOS5_ROOTED = {
     State.AMONET_V1_1_0_BOOTED,
 }
 FTVDB = "https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/"
-LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
 MD5_DIGITS = 32
 OPEN_GRACE = 1
 POKE_GONE_WAIT = 5
@@ -291,12 +282,6 @@ BUILDS = {
         sha256="90832e86498c5e803974c30359aea71c1129757be0ddc59d831a94b27f81487f",
     ),
 }
-
-
-class LK(enum.Enum):
-    FIREOS5 = "f379dba-20170906_000423"
-    FIREOS6 = "63cb91b-20221007_072309"
-    FIREOS6_4315 = "41fb3ce-20221007_151724"
 
 
 class Shell(enum.Enum):
@@ -708,43 +693,6 @@ def check_for_update() -> None:
         )
 
 
-def child_emos(*, action: str, want: str) -> int:
-    import serial  # ruff: ignore[import-outside-top-level]
-    from serial.tools import list_ports  # ruff: ignore[import-outside-top-level]
-
-    ports = [
-        port.device
-        for port in list_ports.comports()
-        if (port.vid, port.pid) == EMOS_DEVICE_ID and want in {"", port.serial_number}
-    ]
-    if action == "find" or len(ports) != 1:
-        print(len(ports))
-        return int(action != "find")
-    try:
-        connection = serial.Serial(
-            baudrate=115200, port=ports[0], timeout=0.2, write_timeout=1
-        )
-    except serial.SerialException:
-        print("denied")
-        return 1
-    with connection:
-        connection.reset_input_buffer()
-        connection.write(data=b"\n")
-        seen = b""
-        deadline = time.monotonic() + 5
-        while time.monotonic() < deadline:
-            seen += connection.read(size=256)
-            if seen.rstrip(b" ").endswith(b"password:"):
-                print("password")
-                return 1
-            if seen.rstrip(b" ").endswith(b"#"):
-                connection.write(data=b"/init recovery\n")
-                print("recovery")
-                return 0
-    print("silent")
-    return 1
-
-
 def child_main(*, arguments: list[str], name: str) -> int:
     if sys.path[0] == str(pathlib.Path.cwd()):
         del sys.path[0]
@@ -910,42 +858,6 @@ def download(*, build: str) -> pathlib.Path:
     if threading.current_thread() is threading.main_thread():
         passed(message=f"OTA {build} verified")
     return update
-
-
-def emos(*, action: str) -> str:
-    if action != "find" and ARGUMENTS.verbose:
-        show(
-            text=f"{clock()} $ "
-            + shlex.join(split_command=child(arguments=[action], name="emos"))
-        )
-    output = subprocess.run(
-        args=child(arguments=[action, USER_SERIAL or ""], name="emos"),
-        capture_output=True,
-        check=False,
-        cwd=CACHE,
-        env=dict(os.environ, PYTHONPATH=child_path(wheel=pyserial_wheel())),
-        text=True,
-        timeout=30,
-    ).stdout.strip()
-    if output.isdigit() and int(output) > 1:
-        raise FatalError(message=MORE_THAN_ONE)
-    return output
-
-
-def emos_recovery() -> None:
-    answer = emos(action="recovery")
-    if answer == "password":
-        raise FatalError(
-            message="emOS's console asks for a password. Type /init recovery at"
-            " the console, or clear the console password in EchoMuse's"
-            " dashboard, then run this again."
-        )
-    if answer == "denied":
-        raise FatalError(message=NO_ACCESS + rerun())
-    if answer != "recovery":
-        raise FatalError(
-            message="emOS's serial console did not answer. Run this again."
-        )
 
 
 def erase_by_fastboot() -> str:
@@ -1290,78 +1202,6 @@ def prefetch() -> None:
     fetch(download=MAGISK)
     fetch(download=TWRP)
     threading.Thread(daemon=True, target=prebuild).start()
-
-
-def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-statements, too-many-branches]
-    if in_fastboot():
-        unlock = getvar(name="unlock_status").lower()
-        if unlock == "false":
-            if getvar(name="lk_build_desc") == LK.FIREOS5.value:
-                return State.STOCK_FIREOS5_FASTBOOT
-            return State.STOCK_FASTBOOT
-        if unlock != "true":
-            return State.STARTING
-        little_kernel = getvar(name="lk_build_desc")
-        if not little_kernel:
-            return State.STARTING
-        if little_kernel == LK.FIREOS5.value:
-            return State.AMONET_V1_1_0_FASTBOOT
-        return State.AMONET_V2_0_0_FASTBOOT
-    adb_state = ""
-    if usb_serial():
-        adb_state = run(arguments=["adb", "get-state"], timeout=30).stdout
-    if "unauthorized" in adb_state:
-        return State.STOCK_BOOTED
-    adb_state = adb_state.strip()
-    if adb_state == "recovery":
-        version = adb_shell(command="getprop ro.twrp.version", timeout=30)
-        little_kernel = adb_shell(command="getprop ro.boot.lk_build_desc", timeout=30)
-        if not version[:1].isdigit() or not LITTLE_KERNEL_DESCRIPTION.fullmatch(
-            string=little_kernel
-        ):
-            return State.STARTING
-        if "mtp" not in adb_shell(command="getprop sys.usb.config", timeout=30):
-            return State.STARTING
-        if little_kernel != LK.FIREOS5.value:
-            if "boot_a_x" in partition_table():
-                return State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE
-            return State.AMONET_V2_0_0_TWRP
-        if version != TWRP_VERSION:
-            return State.AMONET_V1_1_0_TWRP
-        return State.AMONET_V1_1_0_BBOE_TWRP
-    if adb_state == "device":
-        booted = adb_shell(command="getprop sys.boot_completed", timeout=30) == "1"
-        if adb_shell(command="getprop ro.build.version.name", timeout=30).startswith(
-            "Fire OS 6"
-        ):
-            if "uid=0" in adb_shell(command="id; su -c id", timeout=30):
-                return State.AMONET_V2_0_0_BOOTED
-            return State.STOCK_BOOTED
-        if booted and "uid=0" in adb_shell(command="su -c id", timeout=30):
-            return rooted()
-        return State.BOOTED
-    return State.EMOS if emos(action="find") == "1" else State.NONE
-
-
-def probed() -> str:
-    try:
-        return state().value
-    except FatalError as error:
-        plain = explained(error=error)
-        return "<unreadable: " + masked(text=plain).strip().split(sep="\n")[0] + ">"
-
-
-def read_recovery(*, size: int) -> bytes:
-    return command(
-        arguments=[
-            "adb",
-            "exec-out",
-            f"su -c 'dd if={BY_NAME}/recovery bs=512 count={size // 512} 2>/dev/null'",
-        ],
-        standard_input=subprocess.DEVNULL,
-        standard_output=subprocess.PIPE,
-        timeout=60,
-    ).stdout
 
 
 def reboot_stages() -> dict[State, Stage]:
@@ -1760,23 +1600,6 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         seen = None
 
 
-def rooted() -> State:
-    images = {
-        State.AMONET_V1_1_0_BBOE_BOOTED: fetch(download=TWRP),
-        State.AMONET_V1_1_0_BOOTED: unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
-        / "bin"
-        / "twrp.img",
-    }
-    data = read_recovery(size=max(image.stat().st_size for image in images.values()))
-    for found, image in images.items():
-        size = image.stat().st_size
-        if hashlib.md5(data[:size], usedforsecurity=False).hexdigest() == digest(
-            kind="md5", path=image
-        ):
-            return found
-    return State.ROOTED
-
-
 def say_missed_short(*, count: int) -> None:
     if sys.stdout.isatty():
         print()
@@ -1861,11 +1684,6 @@ def stage_downgrade() -> bool:
         wheel=wheel,
     )
     return stage_amonet_v1_1_0_recovery()
-
-
-def stage_emos() -> None:
-    emos_recovery()
-    PROGRESS.begin(estimate="40 s", label="waiting for recovery to start")
 
 
 def stage_fastbrick() -> None:
@@ -2214,17 +2032,6 @@ def stages() -> dict[State, Stage]:
     if isinstance(ARGUMENTS.target.installs, FireOs6):
         return table | fireos6_stages()
     return table | fireos5_stages()
-
-
-def state() -> State:
-    SESSION.probing = True
-    try:
-        current = probe()
-    except subprocess.TimeoutExpired:
-        current = State.STARTING
-    finally:
-        SESSION.probing = False
-    return current
 
 
 def system_chunks(

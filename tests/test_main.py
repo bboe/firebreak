@@ -10,6 +10,7 @@ import pytest
 import update_checker
 
 from firebreak import __main__ as main
+from firebreak import ui
 
 if TYPE_CHECKING:
     import pathlib
@@ -330,7 +331,7 @@ def test_a_stale_marker_says_nothing_before_the_dot_is_seen(
     with pytest.raises(main.FatalError, match="no -S option") as stopped:
         main.root()
     assert "boot0 may hold no preloader" not in " ".join(
-        main.explained(error=stopped.value).split()
+        ui.explained(error=stopped.value).split()
     )
     assert main.SESSION.boot0_marker is None
 
@@ -539,25 +540,6 @@ def test_erasing_boot0_that_fails_leaves_no_marker(
     main.ERASED.touch()
     assert main.erase_by_fastboot().startswith("fastboot reboot failed")
     assert main.ERASED.exists()
-
-
-def test_probed_prints_an_unreadable_state_plain_and_masked(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    message = (
-        "sgdisk did not print the Dot's table:\n"
-        "Disk identifier (GUID): 0FC63DAF-8483-4772-8E79-3D69D8477DE4"
-    )
-
-    def state() -> main.State:
-        raise main.FatalError(message=message)
-
-    monkeypatch.setattr(name="state", target=main, value=state)
-    assert main.probed() == (
-        "<unreadable: ERROR: sgdisk did not print the Dot's table:>"
-    )
-    monkeypatch.setattr(name="state", target=main, value=lambda: main.State.NONE)
-    assert main.probed() == main.State.NONE.value
 
 
 def test_target_names_are_the_unlocks_names() -> None:

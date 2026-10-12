@@ -9,82 +9,19 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import host, twrp
+from firebreak import twrp
 from firebreak.ui import FatalError, explained
 
 if TYPE_CHECKING:
     import pathlib
-    from collections.abc import Callable
+
+    from conftest import FakeAdb
 
 TABLE = """\
 Number  Start (sector)    End (sector)  Size       Code  Name
    1            1024            2047   512.0 KiB   0700  boot_a
   12           65536          131071   32.0 MiB    8300  userdata
 table-ok"""
-
-
-class FakeAdb:
-    def __init__(self) -> None:
-        self.answers: dict[
-            str, list[str | tuple[int, str] | Exception | Callable[[], str]]
-        ] = {}
-        self.asked: list[list[str]] = []
-        self.raw = b""
-        self.sent: list[bytes] = []
-
-    def answer(self, *, words: list[str]) -> tuple[int, str]:
-        answer = next(
-            (
-                said.pop(0) if len(said) > 1 else said[0]
-                for key, said in self.answers.items()
-                if key in words[-1]
-            ),
-            "",
-        )
-        if isinstance(answer, Exception):
-            raise answer
-        if callable(answer):
-            answer = answer()
-        return answer if isinstance(answer, tuple) else (0, answer)
-
-    def command(
-        self, *, arguments: list[object], standard_input: object = None, **_: object
-    ) -> subprocess.CompletedProcess[bytes]:
-        words = [str(word) for word in arguments]
-        self.asked.append(words)
-        if words[1] == "exec-out":
-            return subprocess.CompletedProcess(
-                args=words, returncode=0, stdout=self.raw
-            )
-        if hasattr(standard_input, "read"):
-            self.sent.append(standard_input.read())
-        returncode, text = self.answer(words=words)
-        return subprocess.CompletedProcess(
-            args=words, returncode=returncode, stdout=text.encode()
-        )
-
-    def commands(self, *, holding: str) -> list[str]:
-        return [words[-1] for words in self.asked if holding in words[-1]]
-
-    def stream(
-        self, *, arguments: list[str], pieces: list[pathlib.Path], **_: object
-    ) -> subprocess.CompletedProcess[str]:
-        self.asked.append(arguments)
-        self.sent.append(b"".join(piece.read_bytes() for piece in pieces))
-        returncode, text = self.answer(words=arguments)
-        return subprocess.CompletedProcess(
-            args=arguments, returncode=returncode, stdout=text
-        )
-
-
-@pytest.fixture
-def adb(*, monkeypatch: pytest.MonkeyPatch) -> FakeAdb:
-    fake = FakeAdb()
-    for module in (host, twrp):
-        monkeypatch.setattr(name="command", target=module, value=fake.command)
-    monkeypatch.setattr(name="stream", target=twrp, value=fake.stream)
-    monkeypatch.setattr(name="sleep", target=time, value=lambda _: None)
-    return fake
 
 
 @pytest.fixture
