@@ -121,7 +121,7 @@ driver](#windows).
 
 When a run fails, run it again with `--report`, then please stop by
 `#support-device-unlocking` in the
-[EchoMuse Discord](https://discord.gg/vq3pub8Kp) and paste what it prints. It
+[EchoMuse Discord](https://discord.gg/vAPHMDvREG) and paste what it prints. It
 starts the Dot's recovery, prints what the Dot, its eMMC and this computer are,
 and the Dot's partition table, and writes no partition. A Dot already in a
 recovery stays there, and the Dot is left in its recovery afterwards.
