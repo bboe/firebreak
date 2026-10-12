@@ -1,21 +1,14 @@
 from __future__ import annotations
 
 import functools
-import hashlib
 import sys
 import types
-from typing import TYPE_CHECKING
 
 import pytest
 import update_checker
 
 from firebreak import __main__ as main
 from firebreak import ui
-
-if TYPE_CHECKING:
-    import pathlib
-
-LK = {"stock": b"S" * 241664, "v1.1.0": b"1" * 372368, "v2.0.0": b"2" * 359744}
 
 
 def described(*, value: object) -> object:
@@ -24,42 +17,6 @@ def described(*, value: object) -> object:
             name: described(value=held) for name, held in value.keywords.items()
         }
     return value
-
-
-def guard(
-    *, monkeypatch: pytest.MonkeyPatch, slots: dict[str, bytes], tmp_path: pathlib.Path
-) -> list[str]:
-    read: list[str] = []
-    numbers = {"lk_a": 3, "lk_b": 5}
-    held = {f"{main.DISK}p{numbers[slot]}": data for slot, data in slots.items()}
-    releases = {
-        main.AMONET_BISCUIT_V1_1_0_ZIP.name: LK["v1.1.0"],
-        main.AMONET_BISCUIT_V2_0_0_ZIP.name: LK["v2.0.0"],
-    }
-
-    def unpacked(*, download: object) -> pathlib.Path:
-        root = tmp_path / download.name
-        (root / "bin").mkdir(exist_ok=True, parents=True)
-        (root / "bin" / "lk.bin").write_bytes(releases[download.name])
-        return root
-
-    def shell(*, command: str, timeout: float) -> str:
-        del timeout
-        node = command.split(sep=" ")[2]
-        size = int(command.split(sep="bs=")[1].split(maxsplit=1, sep=" ")[0])
-        read.append(node)
-        data = held[node][:size]
-        return f"{hashlib.md5(data, usedforsecurity=False).hexdigest()}  -"
-
-    monkeypatch.setattr(name="adb_shell", target=main, value=shell)
-    monkeypatch.setattr(
-        name="partitions",
-        target=main,
-        value=lambda: {slot: (numbers[slot], 0, 0) for slot in slots},
-    )
-    monkeypatch.setattr(name="unpack", target=main, value=unpacked)
-    main.amonet_chain()
-    return read
 
 
 def test_a_child_does_not_check_for_an_update(
@@ -76,25 +33,6 @@ def test_a_child_does_not_check_for_an_update(
         main.main()
 
 
-def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
-    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-) -> None:
-    answers = {"lk_build_desc": main.LK.FIREOS6.value, "unlock_status": "true"}
-    monkeypatch.setattr(name="unpack", target=main, value=lambda **_: tmp_path)
-    monkeypatch.setattr(name="pyserial_wheel", target=main, value=lambda: None)
-    monkeypatch.setattr(
-        name="getvar", target=main, value=lambda **o: answers[o["name"]]
-    )
-    monkeypatch.setattr(name="bootrom_step", target=main, value=lambda **_: True)
-    monkeypatch.setattr(
-        name="amonet_v2_0_0_payload", target=main, value=lambda: tmp_path
-    )
-    monkeypatch.setattr(
-        name="stage_amonet_v1_1_0_recovery", target=main, value=lambda: False
-    )
-    assert main.stage_downgrade() is False
-
-
 def test_a_failing_update_check_is_silent(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -104,37 +42,6 @@ def test_a_failing_update_check_is_silent(
     monkeypatch.setattr(name="update_check", target=update_checker, value=failed)
     main.check_for_update()
     assert capsys.readouterr() == ("", "")
-
-
-def test_a_fastboot_that_never_says_whether_it_is_unlocked_stops_cleanly(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    asked: list[str] = []
-    monkeypatch.setattr(
-        name="getvar", target=main, value=lambda **o: asked.append(o["name"]) or ""
-    )
-    monkeypatch.setattr(name="sleep", target=main.time, value=lambda _: None)
-    monkeypatch.setattr(
-        name="run", target=main, value=lambda **_: pytest.fail("flashed")
-    )
-    with pytest.raises(main.FatalError, match="did not say whether it is unlocked"):
-        main.stage_amonet_v1_1_0_recovery()
-    assert asked == ["unlock_status"] * main.PUSH_TRIES
-
-
-def test_a_locked_fastboot_is_left_for_its_own_stage(
-    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ran: list[list[object]] = []
-    monkeypatch.setattr(name="getvar", target=main, value=lambda **_: "false")
-    monkeypatch.setattr(
-        name="run",
-        target=main,
-        value=lambda **options: ran.append(options["arguments"]),
-    )
-    assert main.stage_amonet_v1_1_0_recovery() is False
-    assert ran == []
-    assert "locked fastboot" in capsys.readouterr().out
 
 
 def test_a_refused_user_stops_before_the_update_check(
@@ -336,26 +243,6 @@ def test_a_stale_marker_says_nothing_before_the_dot_is_seen(
     assert main.SESSION.boot0_marker is None
 
 
-def test_an_unlocked_fastboot_takes_v1_1_0_to_its_recovery(
-    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-) -> None:
-    ran: list[list[object]] = []
-    monkeypatch.setattr(name="getvar", target=main, value=lambda **_: "true")
-    monkeypatch.setattr(name="unpack", target=main, value=lambda **_: tmp_path)
-    monkeypatch.setattr(name="fetch", target=main, value=lambda **_: tmp_path / "twrp")
-    monkeypatch.setattr(
-        name="run",
-        target=main,
-        value=lambda **options: ran.append(options["arguments"]),
-    )
-    assert main.stage_amonet_v1_1_0_recovery() is True
-    assert [words[1:4] for words in ran] == [
-        ["-S", "256M", "flash"],
-        ["-S", "256M", "flash"],
-        ["oem", "reboot-recovery"],
-    ]
-
-
 def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) -> None:
     state = main.State
     to_twrp = (main.reboot, {"label": "waiting for recovery"})
@@ -524,73 +411,10 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
         } == route, name
 
 
-def test_erasing_boot0_that_fails_leaves_no_marker(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    main.ERASED.parent.mkdir(exist_ok=True, parents=True)
-    main.ERASED.touch()
-    answers = iter([1, 0, 1])
-    monkeypatch.setattr(
-        name="run",
-        target=main,
-        value=lambda **_: types.SimpleNamespace(returncode=next(answers), stdout="no"),
-    )
-    assert main.erase_by_fastboot().startswith("fastboot erase boot0 failed")
-    assert not main.ERASED.exists()
-    main.ERASED.touch()
-    assert main.erase_by_fastboot().startswith("fastboot reboot failed")
-    assert main.ERASED.exists()
-
-
 def test_target_names_are_the_unlocks_names() -> None:
     assert main.AMONET_BISCUIT_V1_1_0 == "amonet-biscuit-v1.1.0"
     assert main.AMONET_BISCUIT_V1_1_0_BBOE == "amonet-biscuit-v1.1.0-bboe"
     assert main.AMONET_BISCUIT_V2_0_0 == "amonet-biscuit-v2.0.0"
-
-
-def test_the_guard_needs_both_slots(
-    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-) -> None:
-    with pytest.raises(main.FatalError, match="has no lk_b"):
-        guard(monkeypatch=monkeypatch, slots={"lk_a": LK["v2.0.0"]}, tmp_path=tmp_path)
-
-
-@pytest.mark.parametrize(
-    argnames=("slots", "nodes"),
-    argvalues=[
-        ({"lk_a": LK["v2.0.0"], "lk_b": LK["stock"]}, ["p3"]),
-        ({"lk_a": LK["v1.1.0"], "lk_b": LK["stock"]}, ["p3", "p3"]),
-        (
-            {"lk_a": LK["v1.1.0"][:4096] + LK["v2.0.0"][4096:], "lk_b": LK["v2.0.0"]},
-            ["p3", "p3", "p5"],
-        ),
-        (
-            {"lk_a": LK["v2.0.0"][:4096] + LK["stock"][4096:], "lk_b": LK["v1.1.0"]},
-            ["p3", "p3", "p5", "p5"],
-        ),
-    ],
-    ids=["v2.0.0", "v1.1.0", "lk_a-torn", "lk_a-torn-over-stock"],
-)
-def test_the_guard_passes_an_amonet_lk_in_either_slot(
-    *,
-    monkeypatch: pytest.MonkeyPatch,
-    nodes: list[str],
-    slots: dict[str, bytes],
-    tmp_path: pathlib.Path,
-) -> None:
-    read = guard(monkeypatch=monkeypatch, slots=slots, tmp_path=tmp_path)
-    assert [node[len(main.DISK) :] for node in read] == nodes
-
-
-def test_the_guard_refuses_a_stock_lk_in_both_slots(
-    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-) -> None:
-    with pytest.raises(main.FatalError, match="neither lk_a nor lk_b"):
-        guard(
-            monkeypatch=monkeypatch,
-            slots={"lk_a": LK["stock"], "lk_b": LK["stock"]},
-            tmp_path=tmp_path,
-        )
 
 
 def test_the_session_has_no_marker_while_the_first_probe_runs(

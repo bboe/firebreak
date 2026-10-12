@@ -34,14 +34,10 @@ from typing import IO, TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
-    import serial
 
-    from firebreak.emmc import Emmc
-
-from firebreak import __version__, bootrom, recovery, updates
-from firebreak.amonet.biscuit_v2_0_0 import Client
-from firebreak.amonet.payload import NotReadyError, Payload, start_payload
+from firebreak import __version__, recovery, updates
 from firebreak.android.bootimg import boot_image, cpio, magisk_db, magisk_files
+from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import (
     CACHE,
     ERASED,
@@ -58,37 +54,21 @@ from firebreak.cache import (
     unpack,
     write_slices,
 )
-from firebreak.devices import BY_NAME, LITTLE_KERNEL_DESCRIPTION, LK, State
-from firebreak.emmc import EmmcArea
+from firebreak.devices import BY_NAME, State
 from firebreak.emos import child_emos, stage_emos
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
-    PUSH_TRIES,
     adb_script,
     adb_shell,
     check_adb,
     check_user,
     getvar,
     in_fastboot,
-    no_port_help,
     push_checked,
     pyserial_wheel,
-    reconnect,
     run,
     usb_serial,
 )
-from firebreak.mediatek import range_check
-from firebreak.mediatek.usbdl import (
-    BAUD_RATE,
-    PORT_POLL_INTERVAL,
-    READ_TIMEOUT,
-    Bootrom,
-    HandshakeTimeoutError,
-    ProductId,
-    UsbdlError,
-    mediatek_ports,
-)
-from firebreak.plan import TABLE_SECTORS, Action, resolve
 from firebreak.plugin import FireOs6
 from firebreak.probe import probed, read_recovery, state
 from firebreak.report import (
@@ -112,7 +92,6 @@ from firebreak.twrp import (
     DISK,
     TABLE_OK,
     partition_table,
-    partitions,
     reboot,
     wait_for_twrp,
     write_system,
@@ -125,11 +104,8 @@ from firebreak.ui import (
     SUPPORT,
     ANSIColor,
     FatalError,
-    Kind,
     again,
-    asked_for,
     clock,
-    paint,
     passed,
     program,
     say,
@@ -137,6 +113,13 @@ from firebreak.ui import (
     status,
     stop,
     warn,
+)
+from firebreak.unlock import (
+    amonet_chain,
+    amonet_v2_0_0_payload,
+    stage_amonet_v1_1_0_recovery,
+    stage_downgrade,
+    stage_fastbrick,
 )
 from firebreak.unlocks import (
     amonet_biscuit_v1_1_0,
@@ -151,8 +134,6 @@ AMONET_BISCUIT_V1_1_0_BBOE = amonet_biscuit_v1_1_0_bboe.AMONET_BISCUIT_V1_1_0_BB
 AMONET_BISCUIT_V1_1_0_ZIP = amonet_biscuit_v1_1_0.SOURCE
 AMONET_BISCUIT_V2_0_0 = amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0.name
 AMONET_BISCUIT_V2_0_0_ZIP = amonet_biscuit_v2_0_0.SOURCE
-BOOTROM_STEP_TIMEOUT = 30 * MINUTE
-BOOTROM_WRITE_TIMEOUT = 30
 BOOT_ROOT = Download(
     browser=True,
     name="boot-root.zip",
@@ -169,12 +150,6 @@ FIREOS5_ROOTED = {
     State.AMONET_V1_1_0_BBOE_BOOTED,
     State.AMONET_V1_1_0_BOOTED,
 }
-MD5_DIGITS = 32
-OPEN_GRACE = 1
-POKE_GONE_WAIT = 5
-POKE_WRITE_TIMEOUT = 1
-REPLUG_WAIT = 600
-SHORT_WAIT = 5
 TWRP = amonet_biscuit_v1_1_0_bboe.RECOVERY
 TWRPS = frozenset({
     State.AMONET_V1_1_0_TWRP,
@@ -238,219 +213,6 @@ class Stage:
     passes: frozenset[State] = frozenset()
 
 
-def amonet_chain() -> None:
-    part = partitions()
-    for slot in ("lk_a", "lk_b"):
-        if slot not in part:
-            raise FatalError(
-                message=f"the Dot's partition table has no {slot}. " + again()
-            )
-    if any(amonet_lk(node=f"{DISK}p{part[slot][0]}") for slot in ("lk_a", "lk_b")):
-        return
-    raise FatalError(
-        message="neither lk_a nor lk_b holds amonet v2.0.0's or v1.1.0's LK, so"
-        " this Dot is locked and the recovery it started is one amonet left"
-        " behind. Nothing was written. Unlock it first: unplug the USB cable,"
-        " hold the action button, plug it back in, and let go when the ring"
-        " turns green. " + again()
-    )
-
-
-def amonet_lk(*, node: str) -> bool:
-    for download in (AMONET_BISCUIT_V2_0_0_ZIP, AMONET_BISCUIT_V1_1_0_ZIP):
-        local = unpack(download=download) / "bin" / "lk.bin"
-        want = digest(kind="md5", path=local)
-        for attempt in range(PUSH_TRIES):
-            read = adb_shell(
-                command=f"[ -b {node} ] && dd if={node} bs={local.stat().st_size}"
-                " count=1 2>/dev/null | md5sum",
-                timeout=120,
-            )
-            held = read.split(sep="\n")[-1].split(sep=" ")[0]
-            if held == want:
-                return True
-            if len(held) == MD5_DIGITS:
-                break
-            if attempt + 1 < PUSH_TRIES:
-                reconnect(remote=DISK)
-        if len(held) != MD5_DIGITS:
-            raise FatalError(
-                message=f"{node} did not answer with an md5 of its first"
-                f" {local.stat().st_size} bytes: {held or 'nothing'}. Nothing"
-                " was written. " + again() + " " + asked_for()
-            )
-    return False
-
-
-def amonet_v2_0_0_payload() -> pathlib.Path:
-    amonet = unpack(download=AMONET_BISCUIT_V2_0_0_ZIP)
-    return amonet / "brom-payload" / "build" / "payload.bin"
-
-
-def await_amonet_fastboot() -> None:
-    for _ in range(30):
-        try:
-            if in_fastboot() and getvar(name="lk_build_desc") == LK.FIREOS5.value:
-                return
-        except subprocess.TimeoutExpired:
-            pass
-        time.sleep(2)
-    raise FatalError(message="the Dot did not come back in v1.1.0's fastboot")
-
-
-def await_bootrom_port(
-    *, deadline: float, erase: Callable[[], str] | None, preloaders: set[str]
-) -> serial.Serial | None:
-    failures: dict[str, float] = {}
-    missed = 0
-    while True:
-        found = mediatek_ports()
-        failures = {name: when for name, when in failures.items() if name in found}
-        preloaders &= set(found)
-        for name in sorted(found):
-            if found[name] != ProductId.BOOTROM:
-                continue
-            port = open_bootrom(failures=failures, name=name)
-            if port is not None:
-                return port
-        for name in sorted(found):
-            if found[name] != ProductId.PRELOADER or name in preloaders:
-                continue
-            preloaders.add(name)
-            if not erase and not SESSION.short:
-                return None
-            if SESSION.short:
-                missed += 1
-                say_missed_short(count=missed)
-        if time.monotonic() >= deadline:
-            raise FatalError(
-                message="the Dot's bootrom did not show up as a serial port.\n"
-                + no_port_help()
-            )
-        time.sleep(PORT_POLL_INTERVAL)
-
-
-def await_port_gone(*, deadline: float, name: str) -> None:
-    while name in mediatek_ports() and time.monotonic() < deadline:
-        time.sleep(PORT_POLL_INTERVAL)
-
-
-def bootloader_plan(*, amonet: pathlib.Path, live: Emmc) -> tuple[Action, ...]:
-    check_emmc(live=live)
-    unlock = amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0
-    try:
-        raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
-    except (OSError, UsbdlError) as error:
-        raise FatalError(
-            message=f"the Dot's partition table could not be read: {error}."
-            f" {unwritten()} Unplug the Dot. " + again()
-        ) from error
-    try:
-        resolved = resolve(raw=raw, source=amonet, unlock=unlock)
-    except (FileNotFoundError, KeyError, ValueError) as error:
-        raise FatalError(
-            message=f"{unlock.name} does not fit this Dot: {error.args[0]}."
-            f" {unwritten()} " + again()
-        ) from error
-    kinds = [action.kind for action in resolved]
-    if bootrom.REBOOT not in kinds:
-        return resolved
-    return resolved[: kinds.index(bootrom.REBOOT) + 1]
-
-
-def bootrom_client(
-    *, deadline: float, erase: Callable[[], str] | None
-) -> Bootrom | None:
-    overall = time.monotonic() + BOOTROM_STEP_TIMEOUT
-    preloaders = {
-        name
-        for name, product in mediatek_ports().items()
-        if product == ProductId.PRELOADER
-    }
-    while True:
-        port = await_bootrom_port(deadline=deadline, erase=erase, preloaders=preloaders)
-        if port is None:
-            return None
-        client = Bootrom(port=port)
-        try:
-            client.handshake()
-        except (HandshakeTimeoutError, OSError) as error:
-            with contextlib.suppress(OSError):
-                client.port.close()
-            if SESSION.short:
-                raise FatalError(
-                    message=f"the Dot's bootrom did not answer ({error})."
-                    f" {unwritten()} Unplug the Dot. " + again()
-                ) from error
-            PROGRESS.note(
-                message=f"The Dot's bootrom did not answer ({error}). Unplug the Dot"
-                " and plug it back in; the run goes on when its bootrom returns."
-            )
-            await_port_gone(deadline=overall, name=port.name)
-            if time.monotonic() >= overall:
-                raise FatalError(
-                    message="the Dot's bootrom never answered a handshake."
-                    f" {unwritten()} Unplug the Dot. " + again()
-                ) from error
-            deadline = min(overall, time.monotonic() + REPLUG_WAIT)
-        except UsbdlError as error:
-            with contextlib.suppress(OSError):
-                client.port.close()
-            raise FatalError(
-                message=f"the Dot's bootrom did not answer as one: {error}."
-                f" {unwritten()} Unplug the Dot. " + again()
-            ) from error
-        else:
-            return client
-
-
-def bootrom_step(
-    *,
-    amonet: pathlib.Path,
-    erase: Callable[[], str] | None,
-    payload: pathlib.Path,
-    wheel: pathlib.Path | None,
-) -> bool:
-    if wheel is not None and str(wheel) not in sys.path:
-        sys.path.insert(0, str(wheel))
-    if erase:
-        ERASED.touch()
-        failure = erase()
-        if failure:
-            raise FatalError(message=failure)
-    elif SESSION.short:
-        say(
-            code=ANSIColor.YELLOW,
-            text="Short the Dot's test point and plug it in. The run waits for"
-            " its bootrom, then says when the short may come off.",
-        )
-        status(text="Waiting for the bootrom.")
-    else:
-        poke_live_payload()
-        PROGRESS.begin(estimate="40 s", label="waiting for the Dot to restart")
-    client = bootrom_client(
-        deadline=time.monotonic() + (60 if erase else 600), erase=erase
-    )
-    if client is None:
-        ERASED.unlink(missing_ok=True)
-        PROGRESS.note(
-            message="The Dot started its preloader, so boot0 is intact and it"
-            " needs no bootrom step."
-        )
-        return False
-    live = exploit(client=client, payload=payload)
-    actions = bootrom.check(actions=bootloader_plan(amonet=amonet, live=live))
-    if PROGRESS.steps:
-        PROGRESS.steps += len(actions) - 1
-    ERASED.touch()
-    bootrom.execute(actions=actions, payload=live)
-    with contextlib.suppress(OSError):
-        client.port.close()
-    ERASED.unlink(missing_ok=True)
-    await_amonet_fastboot()
-    return True
-
-
 def build_system(*, package: Download, target: pathlib.Path) -> None:
     part = CACHE / "system.part"
     shutil.rmtree(ignore_errors=True, path=part)
@@ -478,25 +240,6 @@ def build_system(*, package: Download, target: pathlib.Path) -> None:
         with path.open(mode="rb+") as file:
             os.fsync(fd=file.fileno())
     part.replace(target=target)
-
-
-def check_emmc(*, live: Emmc) -> None:
-    try:
-        live.switch_partition(partition=EmmcArea.USER)
-        block = live.read_block(index=0)
-    except (OSError, UsbdlError) as error:
-        said = str(error)
-    else:
-        if bootrom.switched(block=block, partition=EmmcArea.USER):
-            return
-        wanted = bootrom.USER_AREA_SIGNATURE
-        said = (
-            f"block 0 of its user area ends {block[-len(wanted) :]!r}, not {wanted!r}"
-        )
-    raise FatalError(
-        message=f"the Dot's eMMC did not answer{short_hint()}: {said}."
-        f" {unwritten()} Unplug the Dot. " + again()
-    )
 
 
 def check_for_update() -> None:
@@ -608,51 +351,6 @@ Run again with another target to move the Dot to it.""",
         write_test()
         return
     root()
-
-
-def countdown() -> None:
-    text = "The bootrom answered. The short may come off now; continuing{}."
-    if not sys.stdout.isatty():
-        warn(text=text.format(f" in {SHORT_WAIT} s"))
-        time.sleep(SHORT_WAIT)
-        return
-    for left in range(SHORT_WAIT, 0, -1):
-        status(text=text.format(f" in {left} s"))
-        time.sleep(1)
-    status(text=text.format(""))
-    print()
-
-
-def erase_by_fastboot() -> str:
-    erased = run(arguments=["fastboot", "erase", "boot0"], timeout=60)
-    if erased.returncode != 0:
-        ERASED.unlink(missing_ok=True)
-        return f"fastboot erase boot0 failed:\n{erased.stdout}"
-    rebooted = run(arguments=["fastboot", "reboot"], timeout=60)
-    if rebooted.returncode != 0:
-        return f"fastboot reboot failed:\n{rebooted.stdout}"
-    return ""
-
-
-def exploit(*, client: Bootrom, payload: pathlib.Path) -> Client:
-    data = payload.read_bytes()
-    try:
-        client.disable_watchdog()
-        if SESSION.short:
-            countdown()
-        range_check.defeat(bootrom=client)
-        live = start_payload(bootrom=client, client=Client, payload=data)
-    except NotReadyError as error:
-        raise FatalError(
-            message=f"the payload did not start{short_hint()}: {error}."
-            f" {unwritten()} Unplug the Dot. " + again()
-        ) from error
-    except (OSError, UsbdlError) as error:
-        raise FatalError(
-            message=f"the exploit did not go through the Dot's bootrom: {error}."
-            f" {unwritten()} Unplug the Dot. " + again()
-        ) from error
-    return live
 
 
 def fireos5_stages() -> dict[State, Stage]:
@@ -871,17 +569,6 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
     return False
 
 
-def keep_trying(*, message: str) -> None:
-    said = message + ". The run keeps trying."
-    if not SESSION.short:
-        PROGRESS.note(message=said)
-        return
-    if sys.stdout.isatty():
-        print()
-    warn(text=said)
-    status(text="Waiting for the bootrom.")
-
-
 def main() -> None:
     if sys.argv[1:2] == ["_child"]:
         sys.exit(child_main(arguments=sys.argv[3:], name=sys.argv[2]))
@@ -898,42 +585,6 @@ def main() -> None:
                 f" {error.timeout:.0f} seconds"
             )
         )
-
-
-def open_bootrom(*, failures: dict[str, float], name: str) -> serial.Serial | None:
-    try:
-        return open_serial_port(name=name, write_timeout=BOOTROM_WRITE_TIMEOUT)
-    except OSError as error:
-        first = failures.setdefault(name, time.monotonic())
-        if first and time.monotonic() - first >= OPEN_GRACE:
-            failures[name] = 0
-            keep_trying(message=f"Cannot open {name}: {error}")
-        return None
-
-
-def open_serial_port(*, name: str, write_timeout: float) -> serial.Serial:
-    import serial  # ruff: ignore[import-outside-top-level]
-
-    return serial.Serial(
-        baudrate=BAUD_RATE,
-        port=name,
-        timeout=READ_TIMEOUT,
-        write_timeout=write_timeout,
-    )
-
-
-def poke_live_payload() -> None:
-    poked = []
-    for name in sorted(mediatek_ports()):
-        with (
-            contextlib.suppress(OSError),
-            open_serial_port(name=name, write_timeout=POKE_WRITE_TIMEOUT) as connection,
-        ):
-            Payload(port=connection).reboot()
-            poked.append(name)
-    deadline = time.monotonic() + POKE_GONE_WAIT
-    for name in poked:
-        await_port_gone(deadline=deadline, name=name)
 
 
 def prebuild() -> None:
@@ -1272,133 +923,6 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         seen = None
 
 
-def say_missed_short(*, count: int) -> None:
-    if sys.stdout.isatty():
-        print()
-    show(
-        kind=Kind.WARN,
-        text=paint(
-            code=ANSIColor.RED,
-            text=f"Short {count} missed: the Dot started normally. Unplug, short,"
-            " and plug it in again.",
-        ),
-    )
-    status(text="Waiting for the bootrom.")
-
-
-def short_hint() -> str:
-    return ", most likely because the short was still on" if SESSION.short else ""
-
-
-def stage_amonet_v1_1_0_recovery() -> bool:
-    unlocked = ""
-    for _ in range(PUSH_TRIES):
-        unlocked = getvar(name="unlock_status").lower()
-        if unlocked in {"true", "false"}:
-            break
-        time.sleep(1)
-    if unlocked == "false":
-        PROGRESS.note(
-            message="The Dot came back in its own locked fastboot rather than"
-            " amonet's, which accepts nothing this needs. This run unlocks it again"
-            " and goes on from v2.0.0's recovery."
-        )
-        return False
-    if unlocked != "true":
-        raise FatalError(
-            message="the Dot's fastboot did not say whether it is unlocked. " + again()
-        )
-    amonet = unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
-    twrp = fetch(download=TWRP)
-    PROGRESS.begin(estimate="30 s", label=f"waiting for TWRP {TWRP_VERSION}")
-    run(
-        arguments=["fastboot", "-S", "256M", "flash", "tee2", "bin/tz.img"],
-        check=True,
-        directory=amonet,
-        timeout=120,
-    )
-    run(
-        arguments=["fastboot", "-S", "256M", "flash", "recovery", twrp],
-        check=True,
-        timeout=120,
-    )
-    run(
-        arguments=["fastboot", "oem", "reboot-recovery"],
-        check=True,
-        directory=amonet,
-        timeout=60,
-    )
-    return True
-
-
-def stage_downgrade() -> bool:
-    amonet = unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
-    wheel = pyserial_wheel()
-    if getvar(name="unlock_status").lower() != "true":
-        raise FatalError(message="not in amonet's fastboot")
-    little_kernel = getvar(name="lk_build_desc")
-    if not LITTLE_KERNEL_DESCRIPTION.fullmatch(string=little_kernel):
-        raise FatalError(
-            message="the Dot did not report its bootloader version;"
-            " boot0 was not erased. " + again()
-        )
-    if little_kernel == LK.FIREOS5.value:
-        raise FatalError(
-            message="the Dot already runs amonet v1.1.0's bootloader. " + again()
-        )
-    PROGRESS.begin(
-        estimate="5 s", label="erasing boot0 so the Dot falls into its bootrom"
-    )
-    bootrom_step(
-        amonet=amonet,
-        erase=erase_by_fastboot,
-        payload=amonet_v2_0_0_payload(),
-        wheel=wheel,
-    )
-    return stage_amonet_v1_1_0_recovery()
-
-
-def stage_fastbrick() -> None:
-    amonet = unpack(download=AMONET_BISCUIT_V2_0_0_ZIP)
-    if getvar(name="product") != "BISCUIT":
-        raise FatalError(message="fastboot reports a product other than BISCUIT")
-    little_kernel = getvar(name="lk_build_desc")
-    if not little_kernel:
-        raise FatalError(
-            message="fastboot did not report the bootloader version;"
-            " the Dot was not modified"
-        )
-    image = "bin/fastbrick.img"
-    if little_kernel in {LK.FIREOS6.value, LK.FIREOS6_4315.value}:
-        image = "bin/fastbrick-20221007.img"
-    PROGRESS.begin(estimate="10 s", label="unlocking with amonet v2.0.0")
-    for attempt in range(10):
-        if attempt:
-            time.sleep(2)
-        arguments = ["fastboot", "-S", "256M", "flash", "brick", image]
-        try:
-            output = run(arguments=arguments, directory=amonet, timeout=8).stdout
-            started = False
-        except subprocess.TimeoutExpired as error:
-            output = (error.output or b"").decode(encoding="utf-8", errors="replace")
-            started = True
-        if "eMMC-RO" in output:
-            raise FatalError(message="the Dot's eMMC is read-only; it was not modified")
-        if "Device mismatch" in output:
-            raise FatalError(
-                message="the payload rejected this device; it was not modified"
-            )
-        if started:
-            PROGRESS.begin(
-                estimate="40 s", label="waiting for v2.0.0 recovery to start"
-            )
-            return
-    raise FatalError(
-        message=f"the unlock did not start after 10 attempts, with {image} for"
-        f" the bootloader {little_kernel}; the Dot was not modified"
-    )
-
-
 def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
     fireos = fetch(download=ARGUMENTS.target.installs.package)
     magisk = fetch(download=MAGISK)
@@ -1589,10 +1113,6 @@ def system_image(*, package: Download) -> tuple[list[pathlib.Path], str, int]:
         want,
         int(blocks),
     )
-
-
-def unwritten() -> str:
-    return "Only boot0 was erased." if ERASED.exists() else "Nothing was written."
 
 
 def write_test() -> None:

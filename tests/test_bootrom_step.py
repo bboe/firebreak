@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import subprocess
 import types
 from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import __main__ as main
+from firebreak import bootrom_step
 from firebreak.amonet.payload import BLOCK_SIZE, PAYLOAD_MAGIC, Command
 from firebreak.bootrom import USER_AREA_SIGNATURE
 from firebreak.mediatek.usbdl import (
@@ -136,10 +137,10 @@ def rig(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> Rig:
         written=[],
     )
     found.payload.write_bytes(data=PAYLOAD)
-    main.ERASED.parent.mkdir(parents=True)
+    bootrom_step.ERASED.parent.mkdir(parents=True)
 
     def executed(*, actions: tuple[Action, ...], payload: Live) -> None:
-        found.erased.append(main.ERASED.exists())
+        found.erased.append(bootrom_step.ERASED.exists())
         found.steps.append(f"execute {payload}")
         found.written.append(tuple(action.label for action in actions))
         if found.write_error is not None:
@@ -167,44 +168,52 @@ def rig(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> Rig:
         return found.resolved
 
     monkeypatch.setattr(name="rig", target=Client, value=found)
-    monkeypatch.setattr(name="Bootrom", target=main, value=Client)
-    monkeypatch.setattr(name="start_payload", target=main, value=started)
+    monkeypatch.setattr(name="Bootrom", target=bootrom_step, value=Client)
+    monkeypatch.setattr(name="start_payload", target=bootrom_step, value=started)
     monkeypatch.setattr(
-        name="countdown", target=main, value=lambda: found.steps.append("countdown")
+        name="countdown",
+        target=bootrom_step,
+        value=lambda: found.steps.append("countdown"),
     )
     monkeypatch.setattr(
-        name="getvar", target=main, value=lambda **_: main.LK.FIREOS5.value
+        name="getvar",
+        target=bootrom_step,
+        value=lambda **_: bootrom_step.LK.FIREOS5.value,
     )
-    monkeypatch.setattr(name="in_fastboot", target=main, value=lambda: True)
-    monkeypatch.setattr(name="mediatek_ports", target=main, value=ports)
-    monkeypatch.setattr(name="open_serial_port", target=main, value=opened)
-    monkeypatch.setattr(name="resolve", target=main, value=resolved)
+    monkeypatch.setattr(name="in_fastboot", target=bootrom_step, value=lambda: True)
+    monkeypatch.setattr(name="mediatek_ports", target=bootrom_step, value=ports)
+    monkeypatch.setattr(name="open_serial_port", target=bootrom_step, value=opened)
+    monkeypatch.setattr(name="resolve", target=bootrom_step, value=resolved)
     monkeypatch.setattr(
         name="time",
-        target=main,
+        target=bootrom_step,
         value=types.SimpleNamespace(monotonic=monotonic, sleep=lambda _: None),
     )
-    monkeypatch.setattr(name="path", target=main.sys, value=[*main.sys.path])
+    monkeypatch.setattr(
+        name="path", target=bootrom_step.sys, value=[*bootrom_step.sys.path]
+    )
     monkeypatch.setattr(
         name="defeat",
-        target=main.range_check,
+        target=bootrom_step.range_check,
         value=lambda **_: found.steps.append("range checks"),
     )
-    monkeypatch.setattr(name="execute", target=main.bootrom, value=executed)
-    monkeypatch.setattr(name="read", target=main.bootrom, value=lambda **_: b"table")
+    monkeypatch.setattr(name="execute", target=bootrom_step.bootrom, value=executed)
+    monkeypatch.setattr(
+        name="read", target=bootrom_step.bootrom, value=lambda **_: b"table"
+    )
     return found
 
 
 def started(*, bootrom: Client, client: type, payload: bytes) -> Live:
-    assert client is main.Client
+    assert client is bootrom_step.Client
     if bootrom.rig.not_ready:
         message = "the payload's ready pattern: expected b'\\xb1', got b''"
-        raise main.NotReadyError(message)
+        raise bootrom_step.NotReadyError(message)
     return bootrom.start_payload(payload=payload)
 
 
 def step(*, erase: object = None, rig: Rig, wheel: pathlib.Path | None = None) -> bool:
-    return main.bootrom_step(
+    return bootrom_step.bootrom_step(
         amonet=rig.amonet, erase=erase, payload=rig.payload, wheel=wheel
     )
 
@@ -212,10 +221,10 @@ def step(*, erase: object = None, rig: Rig, wheel: pathlib.Path | None = None) -
 def test_a_bootrom_port_is_taken_over_a_preloader_in_the_same_pass(
     *, capsys: pytest.CaptureFixture[str], rig: Rig
 ) -> None:
-    main.SESSION.short = True
+    bootrom_step.SESSION.short = True
     rig.ports = [{}, BOTH]
     assert step(rig=rig) is True
-    assert rig.opened == [("/dev/b-bootrom", main.BOOTROM_WRITE_TIMEOUT)]
+    assert rig.opened == [("/dev/b-bootrom", bootrom_step.BOOTROM_WRITE_TIMEOUT)]
     assert "missed" not in capsys.readouterr().out
 
 
@@ -241,11 +250,11 @@ def test_a_dead_emmc_stops_the_run_before_anything_is_written(*, rig: Rig) -> No
     with pytest.raises(FatalError, match="eMMC did not answer: block 0"):
         step(rig=rig)
     assert rig.written == []
-    assert not main.ERASED.exists()
+    assert not bootrom_step.ERASED.exists()
 
 
 def test_a_dead_emmc_with_the_short_on_blames_the_short(*, rig: Rig) -> None:
-    main.SESSION.short = True
+    bootrom_step.SESSION.short = True
     rig.signature = None
     with pytest.raises(FatalError, match="most likely because the short"):
         step(rig=rig)
@@ -256,7 +265,7 @@ def test_a_dead_emmc_with_the_short_on_blames_the_short(*, rig: Rig) -> None:
 def test_a_failed_erase_stops_the_run_with_its_own_message(*, rig: Rig) -> None:
     with pytest.raises(FatalError, match="boot0 did not erase"):
         step(erase=lambda: "boot0 did not erase", rig=rig)
-    assert main.ERASED.exists()
+    assert bootrom_step.ERASED.exists()
     assert rig.clients == []
 
 
@@ -265,7 +274,7 @@ def test_a_failed_exploit_stops_the_run_with_nothing_written(*, rig: Rig) -> Non
     with pytest.raises(FatalError, match="exploit did not go through"):
         step(rig=rig)
     assert rig.written == []
-    assert not main.ERASED.exists()
+    assert not bootrom_step.ERASED.exists()
 
 
 def test_a_failure_after_the_erase_says_only_boot0_was_erased(*, rig: Rig) -> None:
@@ -275,6 +284,27 @@ def test_a_failure_after_the_erase_says_only_boot0_was_erased(*, rig: Rig) -> No
     said = explained(error=failure.value).replace("\n", " ")
     assert "Only boot0 was erased" in said
     assert "Nothing was written" not in said
+
+
+def test_a_fastboot_check_that_times_out_is_tried_again(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    answers = iter([subprocess.TimeoutExpired(cmd="fastboot", timeout=30), True])
+
+    def in_fastboot() -> bool:
+        answer = next(answers)
+        if isinstance(answer, BaseException):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(name="in_fastboot", target=bootrom_step, value=in_fastboot)
+    monkeypatch.setattr(
+        name="getvar",
+        target=bootrom_step,
+        value=lambda **_: bootrom_step.LK.FIREOS5.value,
+    )
+    monkeypatch.setattr(name="sleep", target=bootrom_step.time, value=lambda _: None)
+    bootrom_step.await_amonet_fastboot()
 
 
 def test_a_handshake_that_times_out_asks_for_a_replug_and_tries_again(
@@ -293,7 +323,7 @@ def test_a_handshake_that_times_out_asks_for_a_replug_and_tries_again(
 def test_a_handshake_that_times_out_with_the_short_on_stops_the_run(
     *, rig: Rig
 ) -> None:
-    main.SESSION.short = True
+    bootrom_step.SESSION.short = True
     rig.handshakes = [HandshakeTimeoutError("no answer within 10 seconds")]
     with pytest.raises(FatalError, match="bootrom did not answer"):
         step(rig=rig)
@@ -303,19 +333,31 @@ def test_a_handshake_that_times_out_with_the_short_on_stops_the_run(
 def test_a_missed_short_is_counted_and_the_run_keeps_waiting(
     *, capsys: pytest.CaptureFixture[str], rig: Rig
 ) -> None:
-    main.SESSION.short = True
+    bootrom_step.SESSION.short = True
     rig.ports = [{}, PRELOADER, BOOTROM]
     assert step(rig=rig) is True
     assert "Short 1 missed" in capsys.readouterr().out
     assert rig.steps[:3] == ["handshake", "watchdog", "countdown"]
     assert rig.written == [WRITES]
-    assert not main.ERASED.exists()
+    assert not bootrom_step.ERASED.exists()
+
+
+def test_a_missed_short_on_a_terminal_starts_a_new_line(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="isatty", target=bootrom_step.sys.stdout, value=lambda: True
+    )
+    bootrom_step.say_missed_short(count=2)
+    out = capsys.readouterr().out
+    assert out.startswith("\n")
+    assert "Short 2 missed" in out
 
 
 def test_a_payload_that_never_starts_with_the_short_on_blames_the_short(
     *, rig: Rig
 ) -> None:
-    main.SESSION.short = True
+    bootrom_step.SESSION.short = True
     rig.not_ready = True
     with pytest.raises(FatalError, match="most likely because the short"):
         step(rig=rig)
@@ -329,12 +371,19 @@ def test_a_plan_that_does_not_resolve_stops_before_anything_is_written(
         message = "biscuit has no lk_c partition"
         raise KeyError(message)
 
-    main.SESSION.short = True
-    monkeypatch.setattr(name="resolve", target=main, value=unresolvable)
+    bootrom_step.SESSION.short = True
+    monkeypatch.setattr(name="resolve", target=bootrom_step, value=unresolvable)
     with pytest.raises(FatalError, match="does not fit this Dot: biscuit has no"):
         step(rig=rig)
     assert rig.written == []
-    assert not main.ERASED.exists()
+    assert not bootrom_step.ERASED.exists()
+
+
+def test_a_plan_with_no_reboot_is_carried_out_whole(*, rig: Rig) -> None:
+    kinds = [action.kind for action in ACTIONS]
+    rig.resolved = ACTIONS[: kinds.index("Reboot")]
+    assert step(rig=rig) is True
+    assert rig.written == [WRITES[:-1]]
 
 
 def test_a_port_that_will_not_open_is_named_once_after_a_second(
@@ -352,25 +401,45 @@ def test_a_port_that_will_not_open_is_named_once_after_a_second(
 def test_a_preloader_means_boot0_is_intact_and_needs_no_bootrom_step(
     *, capsys: pytest.CaptureFixture[str], rig: Rig, tmp_path: pathlib.Path
 ) -> None:
-    main.ERASED.touch()
+    bootrom_step.ERASED.touch()
     rig.ports = [{}, {}, PRELOADER]
     wheel = tmp_path / "pyserial.whl"
     assert step(rig=rig, wheel=wheel) is False
-    assert not main.ERASED.exists()
+    assert not bootrom_step.ERASED.exists()
     assert rig.written == []
-    assert str(wheel) in main.sys.path
+    assert str(wheel) in bootrom_step.sys.path
     assert "boot0 is intact" in capsys.readouterr().out
 
 
 def test_a_second_missed_short_warns_again_and_counts_it(
     *, capsys: pytest.CaptureFixture[str], rig: Rig
 ) -> None:
-    main.SESSION.short = True
+    bootrom_step.SESSION.short = True
     rig.ports = [{}, PRELOADER, {}, PRELOADER, BOOTROM]
     assert step(rig=rig) is True
     said = capsys.readouterr().out
     assert "Short 1 missed" in said
     assert "Short 2 missed" in said
+
+
+def test_a_serial_port_opens_at_the_bootrom_rate(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import serial  # ruff: ignore[import-outside-top-level]
+
+    opened: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        name="Serial", target=serial, value=lambda **o: opened.append(o)
+    )
+    bootrom_step.open_serial_port(name="/dev/ttyACM0", write_timeout=2)
+    assert opened == [
+        {
+            "baudrate": bootrom_step.BAUD_RATE,
+            "port": "/dev/ttyACM0",
+            "timeout": bootrom_step.READ_TIMEOUT,
+            "write_timeout": 2,
+        }
+    ]
 
 
 def test_a_table_that_cannot_be_read_stops_the_run(
@@ -380,11 +449,25 @@ def test_a_table_that_cannot_be_read_stops_the_run(
         message = "device not configured"
         raise OSError(message)
 
-    monkeypatch.setattr(name="read", target=main.bootrom, value=unreadable)
+    monkeypatch.setattr(name="read", target=bootrom_step.bootrom, value=unreadable)
     with pytest.raises(FatalError, match="partition table could not be read"):
         step(rig=rig)
     assert rig.written == []
-    assert not main.ERASED.exists()
+    assert not bootrom_step.ERASED.exists()
+
+
+def test_keep_trying_with_the_short_on_warns_and_waits_on(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="isatty", target=bootrom_step.sys.stdout, value=lambda: True
+    )
+    bootrom_step.SESSION.short = True
+    bootrom_step.keep_trying(message="Cannot open COM3")
+    out = capsys.readouterr().out
+    assert out.startswith("\n")
+    assert "Cannot open COM3. The run keeps trying." in out
+    assert "Waiting for the bootrom." in out
 
 
 def test_no_port_at_all_stops_the_run_with_the_port_help(*, rig: Rig) -> None:
@@ -395,10 +478,30 @@ def test_no_port_at_all_stops_the_run_with_the_port_help(*, rig: Rig) -> None:
     assert rig.clients == []
 
 
+@pytest.mark.parametrize("tty", [False, True])
+def test_the_countdown_says_when_the_short_may_come_off(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tty: bool
+) -> None:
+    slept: list[float] = []
+    monkeypatch.setattr(
+        name="isatty", target=bootrom_step.sys.stdout, value=lambda: tty
+    )
+    monkeypatch.setattr(name="sleep", target=bootrom_step.time, value=slept.append)
+    bootrom_step.countdown()
+    out = capsys.readouterr().out
+    assert "The short may come off now" in out
+    if tty:
+        assert slept == [1] * bootrom_step.SHORT_WAIT
+        assert out.endswith("\n")
+    else:
+        assert slept == [bootrom_step.SHORT_WAIT]
+        assert f"continuing in {bootrom_step.SHORT_WAIT} s." in out
+
+
 def test_the_dot_that_never_reaches_fastboot_stops_the_run(
     *, monkeypatch: pytest.MonkeyPatch, rig: Rig
 ) -> None:
-    monkeypatch.setattr(name="in_fastboot", target=main, value=lambda: False)
+    monkeypatch.setattr(name="in_fastboot", target=bootrom_step, value=lambda: False)
     with pytest.raises(FatalError, match=r"did not come back in v1\.1\.0's fastboot"):
         step(rig=rig)
     assert rig.written == [WRITES]
@@ -410,15 +513,15 @@ def test_the_erase_route_waits_for_the_port_without_poking_a_payload(
     rig.ports = [{}, BOOTROM]
     rig.tick = [20.0]
     assert step(erase=lambda: "", rig=rig) is True
-    assert not main.ERASED.exists()
-    assert rig.opened == [("/dev/bootrom", main.BOOTROM_WRITE_TIMEOUT)]
+    assert not bootrom_step.ERASED.exists()
+    assert rig.opened == [("/dev/bootrom", bootrom_step.BOOTROM_WRITE_TIMEOUT)]
     assert rig.written == [WRITES]
 
 
 def test_the_erased_marker_is_in_place_for_the_first_write(*, rig: Rig) -> None:
     assert step(rig=rig) is True
     assert rig.erased == [True]
-    assert not main.ERASED.exists()
+    assert not bootrom_step.ERASED.exists()
 
 
 def test_the_plan_is_carried_out_through_the_payload_and_stops_at_its_reboot(
@@ -437,8 +540,8 @@ def test_the_plan_is_carried_out_through_the_payload_and_stops_at_its_reboot(
     ]
     assert rig.written == [WRITES]
     assert rig.opened == [
-        ("/dev/bootrom", main.POKE_WRITE_TIMEOUT),
-        ("/dev/bootrom", main.BOOTROM_WRITE_TIMEOUT),
+        ("/dev/bootrom", bootrom_step.POKE_WRITE_TIMEOUT),
+        ("/dev/bootrom", bootrom_step.BOOTROM_WRITE_TIMEOUT),
     ]
 
 
@@ -450,8 +553,8 @@ def test_the_resume_poke_reboots_every_mediatek_port(*, rig: Rig) -> None:
         [REBOOT_COMMAND],
     ]
     assert rig.opened[:2] == [
-        ("/dev/bootrom", main.POKE_WRITE_TIMEOUT),
-        ("/dev/preloader", main.POKE_WRITE_TIMEOUT),
+        ("/dev/bootrom", bootrom_step.POKE_WRITE_TIMEOUT),
+        ("/dev/preloader", bootrom_step.POKE_WRITE_TIMEOUT),
     ]
 
 
@@ -462,7 +565,7 @@ def test_the_resume_poke_waits_for_the_payload_to_go(*, rig: Rig) -> None:
 
 
 def test_the_step_count_grows_with_the_actions(*, rig: Rig) -> None:
-    main.PROGRESS.step = 4
-    main.PROGRESS.steps = 9
+    bootrom_step.PROGRESS.step = 4
+    bootrom_step.PROGRESS.steps = 9
     assert step(rig=rig) is True
-    assert main.PROGRESS.steps == 12
+    assert bootrom_step.PROGRESS.steps == 12
