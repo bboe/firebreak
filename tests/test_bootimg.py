@@ -96,7 +96,7 @@ def test_boot_image(*, tmp_path: pathlib.Path) -> None:
     assert files[b".backup"] == (0o40000, b"")
     assert files[b".backup/.magisk"][1].startswith(b"KEEPVERITY=false\n")
     assert files[b"default.prop"][1] == (
-        b"ro.secure=0\nro.debuggable=1\npersist.sys.usb.config=mtp,adb\n"
+        b"ro.secure=0\nro.debuggable=1\npersist.sys.usb.config=adb\n"
     )
     assert files[b"fstab.mt8163"][1] == b"/dev/system /system ext4 ro wait\n"
     assert files[b"fstab.other"][1] == b"/dev/data /data ext4 rw wait\n"

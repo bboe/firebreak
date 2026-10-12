@@ -50,7 +50,7 @@ def boot_image(*, fireos: pathlib.Path, magisk: pathlib.Path) -> bytes:
     )
     prop = re.sub(
         pattern=rb"(?m)^persist\.sys\.usb\.config=.*",
-        repl=b"persist.sys.usb.config=mtp,adb",
+        repl=b"persist.sys.usb.config=adb",
         string=prop,
     )
     files[b"default.prop"] = (mode, prop)

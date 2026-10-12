@@ -522,7 +522,7 @@ ring read white.
 - adb, fastboot and the bootrom's serial port need the Dot's USB devices open
   to the user. Ubuntu's `android-sdk-platform-tools-common` and
   android-udev-rules, which LineageOS points to, list other Lab126 products
-  but not a booted Dot, `1949:0112`. Other guides for this Dot use `sudo`.
+  but not a booted Dot, `1949:0110`. Other guides for this Dot use `sudo`.
   These rules, in `/etc/udev/rules.d/51-echo-dot.rules`, cover every state,
   the serial port included:
 
@@ -536,12 +536,12 @@ ring read white.
   SUBSYSTEM=="tty", ATTRS{idVendor}=="1949", ATTRS{idProduct}=="2007", MODE="0660", GROUP="plugdev", TAG+="uaccess"
   ```
 
-  Then `sudo udevadm trigger`. Fire OS 5 is `1949:0112` (`mtp,adb`, set by its
-  own init scripts, the same on every Dot), TWRP `18d1:d001` and
-  `18d1:4ee2`, fastboot `0bb4:0c01`, the bootrom `0e8d:0003`, and emOS's
-  serial console `1949:2007`. The `usb` line for `1949` covers emOS's USB
-  device but not its `/dev/ttyACM*` node, which is `dialout`'s without the
-  `tty` line.
+  Then `sudo udevadm trigger`. A rooted Fire OS 5 is `1949:0110` (adb alone, set
+  in its boot image; the `mtp,adb` Fire OS 5 otherwise runs is `1949:0112`),
+  TWRP `18d1:d001` and `18d1:4ee2`, fastboot `0bb4:0c01`, the bootrom
+  `0e8d:0003`, and emOS's serial console `1949:2007`. The `usb` line for `1949`
+  covers emOS's USB device but not its `/dev/ttyACM*` node, which is `dialout`'s
+  without the `tty` line.
 - `uaccess` covers a user at the machine; over SSH the user must be in
   `plugdev`. A new group reaches only new processes, and a running adb server
   keeps its old permissions: with the group added and the old server up,
@@ -858,7 +858,8 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
 - No other mode needs a hand-installed driver. On a Windows machine that rooted
   a Dot, the driver store held only MediaTek's and Amazon's
   `FireDevicesUsbDeviceClass`, which serves amonet fastboot (`0bb4:0c01`) and
-  can come through Windows Update. Windows bound adb (`1949:0112`) and
+  can come through Windows Update. Windows bound adb (`1949:0110`, by its
+  interface class through its own `winusb.inf`) and
   v1.1.0's TWRP (`18d1:4ee2`) itself. TWRP 3.7.0_9-bboeN is untried on
   Windows. macOS and Linux need no driver.
 - A port that will not open is named once and retried: udev or a modem
@@ -999,7 +1000,16 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   boot patch and `service.d` path change, and the host's boot image build
   follows 17.3's.
 - The ramdisk loses `verify` from every fstab, and `default.prop` gets
-  `ro.secure=0`, `ro.debuggable=1` and `persist.sys.usb.config=mtp,adb`.
+  `ro.secure=0`, `ro.debuggable=1` and `persist.sys.usb.config=adb`.
+- adb alone, not stock's `mtp`, and not `mtp,adb`. On Ubuntu, GNOME's
+  `gvfs-mtp-volume-monitor` reset a booted Dot on `mtp,adb` about every 7 s,
+  so the last step's wait for Fire OS 5 timed out; 2 owners hit it. With adb
+  alone the Dot has 1 interface, the ADB one, and nothing to probe. Nothing
+  here uses MTP, and TWRP's `mtp,adb` is its own ramdisk's.
+- The property holds: `init.fosflags.sh`, made to take its adb branch, only
+  appends `,adb` where adb is missing, and a fresh root leaves no persisted
+  value in `/data/property`. bryce and nether's Dot each read `adb` after a
+  reboot, and bryce kept one USB device number for 2 minutes.
 - The cmdline is the 512-byte header field at offset 64. Stock is
   `bootopt=64S3,32N2,64N2`; the script appends a space and
   `androidboot.selinux=permissive`.
