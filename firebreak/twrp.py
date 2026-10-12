@@ -17,7 +17,7 @@ from firebreak.host import (
     run,
     stream,
 )
-from firebreak.ui import PROGRESS, SESSION, _die, again, asked_for, say
+from firebreak.ui import PROGRESS, SESSION, FatalError, again, asked_for, say
 
 if TYPE_CHECKING:
     import pathlib
@@ -82,11 +82,10 @@ def check_nodes(*, want: dict[str, int]) -> str:
                 )
         if attempt + 1 < PUSH_TRIES:
             reconnect(remote=DISK)
-    _die(
+    raise FatalError(
         message="the Dot did not answer which of its partitions are block"
         f" devices: {said!r}. " + again()
     )
-    return ""
 
 
 def clear_boot0() -> None:
@@ -114,8 +113,9 @@ def partition_table() -> str:
             return "\n".join(said[:-1])
         if attempt + 1 < PUSH_TRIES:
             reconnect(remote=DISK)
-    _die(message="sgdisk did not print the Dot's partition table:\n" + "\n".join(said))
-    return ""
+    raise FatalError(
+        message="sgdisk did not print the Dot's partition table:\n" + "\n".join(said)
+    )
 
 
 def partitions() -> dict[str, tuple[int, int, int]]:
@@ -125,7 +125,7 @@ def partitions() -> dict[str, tuple[int, int, int]]:
         if len(field) >= TABLE_FIELDS and all(value.isdigit() for value in field[:3]):
             found[field[-1]] = (int(field[0]), int(field[1]), int(field[2]))
     if "userdata" not in found:
-        _die(message="no userdata in the Dot's partition table")
+        raise FatalError(message="no userdata in the Dot's partition table")
     return found
 
 
@@ -141,7 +141,7 @@ def read_sectors(*, count: int, start: int) -> bytes:
         timeout=60,
     ).stdout
     if len(raw) != count * 512:
-        _die(
+        raise FatalError(
             message=f"read {len(raw)} bytes of the Dot's partition table,"
             f" not {count * 512}"
         )
@@ -154,7 +154,7 @@ def reboot(*, estimate: str = "40 s", into: str = "recovery", label: str) -> Non
 
 
 def restore_failed(*, message: str) -> NoReturn:
-    _die(message=message)
+    raise FatalError(message=message)
 
 
 def sliced_system(*, slices: list[pathlib.Path], system: str) -> str:
@@ -264,7 +264,7 @@ def unmount(*, started: bool = False) -> None:
         message = "the Dot did not answer what is mounted: " + left
     if started:
         restore_failed(message=message + "; do not reboot")
-    _die(message=message + "; nothing was written")
+    raise FatalError(message=message + "; nothing was written")
 
 
 def wait_for_twrp() -> None:
@@ -272,13 +272,15 @@ def wait_for_twrp() -> None:
     try:
         run(arguments=["adb", "wait-for-recovery"], timeout=300)
     except subprocess.TimeoutExpired:
-        _die(message="the Dot did not reach recovery (TWRP) within 5 minutes")
+        raise FatalError(
+            message="the Dot did not reach recovery (TWRP) within 5 minutes"
+        ) from None
     deadline = time.monotonic() + 30
     while not adb_shell(command="getprop ro.twrp.version", timeout=30)[
         :1
     ].isdigit() or "mtp" not in adb_shell(command="getprop sys.usb.config"):
         if time.monotonic() > deadline:
-            _die(message="TWRP did not finish starting within 30 seconds")
+            raise FatalError(message="TWRP did not finish starting within 30 seconds")
         time.sleep(1)
 
 
@@ -352,7 +354,9 @@ def write_system(
         f' && ! grep -q -e "^$d " -e "^{system} " /proc/mounts && echo ready'
     )
     if ready.split(sep="\n")[-1] != "ready":
-        _die(message=f"{system} is not a block device, or it stayed mounted")
+        raise FatalError(
+            message=f"{system} is not a block device, or it stayed mounted"
+        )
     read_back = (
         "sync; echo 3 > /proc/sys/vm/drop_caches;"
         f" {SESSION.dd} if={system} bs=4096 count={blocks} 2>/dev/null | md5sum"
@@ -380,7 +384,7 @@ def write_system(
     if said == "its md5 read back did not match":
         slices[0].unlink(missing_ok=True)
         said += ". The cached image was discarded, so the next run rebuilds it"
-    _die(
+    raise FatalError(
         message=f"{system} was not written intact after {PUSH_TRIES} tries;"
         f" the last: {said}. " + asked_for()
     )

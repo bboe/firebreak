@@ -23,7 +23,7 @@ from xml.parsers.expat import ExpatError
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterator
 
-from firebreak.ui import SESSION, ANSIColor, _die, again, passed, say, show, warn
+from firebreak.ui import SESSION, ANSIColor, FatalError, again, passed, say, show, warn
 
 BROWSER_POLL_SECONDS = 2
 BROWSER_WAIT_SECONDS = 120
@@ -92,7 +92,9 @@ def browser_fetch(*, download: Download, path: pathlib.Path) -> None:
     shutil.copyfile(dst=part, src=found[0])
     if digest(kind="sha256", path=part) != download.sha256:
         part.unlink()
-        _die(message=f"the copy of {found[0]} in {CACHE} does not hash to the pin")
+        raise FatalError(
+            message=f"the copy of {found[0]} in {CACHE} does not hash to the pin"
+        )
     part.replace(target=path)
     passed(message=f"{download.name} verified")
     discard(paths=found)
@@ -289,16 +291,16 @@ def fetch(*, download: Download) -> pathlib.Path:
                     )
         except (OSError, http.client.HTTPException) as error:
             part.unlink(missing_ok=True)
-            _die(message=f"downloading {name} failed: {error!r}")
+            raise FatalError(message=f"downloading {name} failed: {error!r}") from error
         if total and done != total:
             part.unlink()
-            _die(
+            raise FatalError(
                 message=f"downloading {name} stopped after {done} of {total} bytes. "
                 + again()
             )
         if digest(kind="sha256", path=part) != want:
             part.unlink()
-            _die(message=f"{name} does not hash to {want}")
+            raise FatalError(message=f"{name} does not hash to {want}")
         part.replace(target=path)
         SESSION.verified.add(path)
         return path
@@ -319,7 +321,7 @@ def gave_up(
             " This terminal cannot read the Trash, where Safari moves a zip it"
             f" unpacks. If it is there, drag it into {directory}."
         )
-    _die(
+    raise FatalError(
         message=f"{download.name} did not reach {directory} in"
         f" {BROWSER_WAIT_SECONDS // 60} minutes.{left} Download it from"
         f" {download.url} into {directory}. " + again()
@@ -419,7 +421,7 @@ def judge(
     if got == download.sha256:
         return
     arrived.unlink(missing_ok=True)
-    _die(
+    raise FatalError(
         message=f"{download.url} gave {arrived} with the sha256 {got},"
         f" not {download.sha256}, and it was removed. The attachment"
         " may have changed."
@@ -460,7 +462,7 @@ def names_in(*, directory: pathlib.Path) -> set[str]:
 def open_in_browser(*, directory: pathlib.Path, download: Download) -> None:
     browser = graphical_browser()
     if browser is None:
-        _die(
+        raise FatalError(
             message=f"{download.name} is an XDA attachment, and XDA serves it"
             " only to a browser that runs JavaScript. None is available here."
             f" Download it from {download.url} on any computer, and copy it"
@@ -477,7 +479,7 @@ def open_in_browser(*, directory: pathlib.Path, download: Download) -> None:
     )
     show(text=download.url)
     if not browser.open(url=download.url):
-        _die(
+        raise FatalError(
             message=f"the browser did not open {download.url}. Download it"
             f" there, into {directory}. " + again()
         )

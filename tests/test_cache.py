@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import cache
+from firebreak.ui import FatalError, explained
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -295,12 +296,12 @@ def test_fetch_fails(
     source.write_bytes(data=BODY)
     download = item(source=source)
     wrong = dataclasses.replace(download, sha256="0" * 64)
-    with pytest.raises(expected_exception=SystemExit, match="does not hash to"):
+    with pytest.raises(expected_exception=FatalError, match="does not hash to"):
         cache.fetch(download=wrong)
     assert list(cache.CACHE.iterdir()) == []
     source.unlink()
     with pytest.raises(
-        expected_exception=SystemExit, match=r"downloading zip\.bin failed"
+        expected_exception=FatalError, match=r"downloading zip\.bin failed"
     ):
         cache.fetch(download=download)
     monkeypatch.setattr(
@@ -309,7 +310,7 @@ def test_fetch_fails(
         value=lambda *_, **__: Response(body=BODY, length="999999"),
     )
     with pytest.raises(
-        expected_exception=SystemExit, match="stopped after 8000 of 999999 bytes"
+        expected_exception=FatalError, match="stopped after 8000 of 999999 bytes"
     ):
         cache.fetch(download=download)
     assert list(cache.CACHE.iterdir()) == []
@@ -377,7 +378,7 @@ def test_fetch_from_the_browser_checks_its_copy(
         target=cache.shutil,
         value=lambda *, dst, **_: dst.write_bytes(data=b"short"),
     )
-    with pytest.raises(expected_exception=SystemExit, match="does not hash to the pin"):
+    with pytest.raises(expected_exception=FatalError, match="does not hash to the pin"):
         cache.fetch(download=browser_item())
     assert (downloads / "boot-root.zip").read_bytes() == BODY
     assert list(cache.CACHE.iterdir()) == []
@@ -452,12 +453,12 @@ def test_fetch_from_the_browser_gives_up(
         now[0] += seconds
 
     monkeypatch.setattr(name="sleep", target=cache.time, value=sleep)
-    with pytest.raises(expected_exception=SystemExit) as stopped:
+    with pytest.raises(expected_exception=FatalError) as stopped:
         cache.fetch(download=browser_item())
     assert (
         f"boot-root.zip did not reach {downloads} in 2 minutes. Download it from"
         f" https://xdaforums.com/attachments/boot-root-zip.1/ into {downloads}."
-    ) in " ".join(str(stopped.value).split())
+    ) in " ".join(explained(error=stopped.value).split())
     assert sum(sleeps) == 122
     assert set(sleeps) == {2}
     assert hashed == [downloads / "lookalike.bin"]
@@ -542,9 +543,9 @@ def test_fetch_from_the_browser_leaves_what_it_cannot_trace(
         now[0] += seconds
 
     monkeypatch.setattr(name="sleep", target=cache.time, value=sleep)
-    with pytest.raises(expected_exception=SystemExit) as stopped:
+    with pytest.raises(expected_exception=FatalError) as stopped:
         cache.fetch(download=browser_item())
-    message = " ".join(str(stopped.value).split())
+    message = " ".join(explained(error=stopped.value).split())
     assert (
         "These arrived with no record of their source, and were left:"
         f" {downloads / 'boot-root.zip'}. Download it from"
@@ -564,9 +565,9 @@ def test_fetch_from_the_browser_needs_a_browser(
         raise cache.webbrowser.Error
 
     monkeypatch.setattr(name="get", target=cache.webbrowser, value=no_browser)
-    with pytest.raises(expected_exception=SystemExit) as stopped:
+    with pytest.raises(expected_exception=FatalError) as stopped:
         cache.fetch(download=browser_item())
-    message = " ".join(str(stopped.value).split())
+    message = " ".join(explained(error=stopped.value).split())
     assert f"None is available here. Download it from {XDA} on any computer" in message
     assert "opens next" not in capsys.readouterr().out
 
@@ -581,9 +582,11 @@ def test_fetch_from_the_browser_needs_it_to_open(
         value=lambda: types.SimpleNamespace(name="default", open=lambda **_: False),
     )
     monkeypatch.setattr(name="sleep", target=cache.time, value=waited)
-    with pytest.raises(expected_exception=SystemExit) as stopped:
+    with pytest.raises(expected_exception=FatalError) as stopped:
         cache.fetch(download=browser_item())
-    assert f"the browser did not open {XDA}." in " ".join(str(stopped.value).split())
+    assert f"the browser did not open {XDA}." in " ".join(
+        explained(error=stopped.value).split()
+    )
 
 
 @pytest.mark.skipif(
@@ -608,11 +611,13 @@ def test_fetch_from_the_browser_points_at_a_trash_it_cannot_read(
         value=lambda seconds: now.append(now.pop() + seconds),
     )
     try:
-        with pytest.raises(expected_exception=SystemExit) as stopped:
+        with pytest.raises(expected_exception=FatalError) as stopped:
             cache.fetch(download=browser_item())
     finally:
         trash.chmod(0o700)
-    assert "This terminal cannot read the Trash" in " ".join(str(stopped.value).split())
+    assert "This terminal cannot read the Trash" in " ".join(
+        explained(error=stopped.value).split()
+    )
 
 
 @pytest.mark.usefixtures("cached")
@@ -653,9 +658,9 @@ def test_fetch_from_the_browser_removes_a_wrong_download(
     monkeypatch.setattr(
         name="sleep", target=cache.time, value=lambda _: next(arrivals)()
     )
-    with pytest.raises(expected_exception=SystemExit) as stopped:
+    with pytest.raises(expected_exception=FatalError) as stopped:
         cache.fetch(download=browser_item())
-    message = " ".join(str(stopped.value).split())
+    message = " ".join(explained(error=stopped.value).split())
     assert f"{XDA} gave {placeholder} with the sha256" in message
     assert hashlib.sha256(b"a newer release").hexdigest() in message
     assert next(arrivals, None) is None
@@ -739,7 +744,7 @@ def test_fetch_from_the_browser_survives_a_vanished_file(
         now[0] += seconds
 
     monkeypatch.setattr(name="sleep", target=cache.time, value=sleep)
-    with pytest.raises(expected_exception=SystemExit, match="did not reach"):
+    with pytest.raises(expected_exception=FatalError, match="did not reach"):
         cache.fetch(download=browser_item())
 
 

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from typing import IO
 
 from firebreak.cache import digest
-from firebreak.ui import _die, passed
+from firebreak.ui import FatalError, passed
 
 BLOCK_IMAGES = {
     "boot": "boot.img",
@@ -111,8 +111,7 @@ class WireType(enum.IntEnum):
 
 def blob(*, value: int | bytes) -> bytes:
     if isinstance(value, int):
-        _die(message="the OTA's manifest has a number where it needs bytes")
-        return b""
+        raise FatalError(message="the OTA's manifest has a number where it needs bytes")
     return value
 
 
@@ -127,8 +126,7 @@ def decompress(*, data: bytes, kind: int, name: str) -> bytes:
         return bz2.decompress(data=data)
     if kind == OperationType.REPLACE_XZ:
         return lzma.decompress(data=data)
-    _die(message=f"{name} has op type {kind}")
-    return b""
+    raise FatalError(message=f"{name} has op type {kind}")
 
 
 def extract(*, update: pathlib.Path, work: pathlib.Path) -> None:
@@ -161,10 +159,12 @@ def extract_blocks(*, archive: zipfile.ZipFile, work: pathlib.Path) -> None:
                     length = min(1 << 20, block_range.end - offset)
                     chunk = new_data.read(length)
                     if len(chunk) != length:
-                        _die(message="the OTA's system.new.dat is short")
+                        raise FatalError(message="the OTA's system.new.dat is short")
                     image.write(chunk)
         if new_data.read(1):
-            _die(message="the OTA's system.new.dat outlasts its transfer list")
+            raise FatalError(
+                message="the OTA's system.new.dat outlasts its transfer list"
+            )
     passed(message=f"{'system':>{LABEL_WIDTH}} built from the transfer list")
 
 
@@ -173,7 +173,7 @@ def extract_payload(*, archive: zipfile.ZipFile, work: pathlib.Path) -> None:
         manifest = read_manifest(payload=payload)
         for name in IMAGES:
             if name not in manifest.partitions:
-                _die(message=f"the OTA has no {name} image")
+                raise FatalError(message=f"the OTA has no {name} image")
             partition = manifest.partitions[name]
             want = blob(value=partition.info[InfoField.HASH]).hex()
             path = work / (name + ".img")
@@ -187,7 +187,7 @@ def extract_payload(*, archive: zipfile.ZipFile, work: pathlib.Path) -> None:
                     )
                 )
                 if digest(kind="sha256", path=path) != want:
-                    _die(message=name + " does not match the manifest")
+                    raise FatalError(message=name + " does not match the manifest")
             passed(message=f"{name:>{LABEL_WIDTH}} matches the manifest")
 
 
@@ -213,9 +213,9 @@ def fields(*, message: bytes) -> Iterator[tuple[int, int, int | bytes]]:
             value = message[index : index + 4]
             index += 4
         else:
-            _die(message=f"the OTA's manifest has wire type {wire_type}")
+            raise FatalError(message=f"the OTA's manifest has wire type {wire_type}")
         if index > len(message):
-            _die(message="the OTA's manifest ends inside a field")
+            raise FatalError(message="the OTA's manifest ends inside a field")
         yield field_number, wire_type, value
 
 
@@ -242,8 +242,7 @@ def image_bytes(
 
 def number(*, value: int | bytes) -> int:
     if isinstance(value, bytes):
-        _die(message="the OTA's manifest has bytes where it needs a number")
-        return 0
+        raise FatalError(message="the OTA's manifest has bytes where it needs a number")
     return value
 
 
@@ -282,7 +281,9 @@ def payload_partition(*, message: bytes) -> tuple[str, PayloadPartition]:
 def read_manifest(*, payload: IO[bytes]) -> Manifest:
     header = payload.read(24)
     if header[:4] != b"CrAU" or struct.unpack(">Q", header[4:12])[0] != PAYLOAD_VERSION:
-        _die(message="the OTA's payload.bin is not a version 2 update payload")
+        raise FatalError(
+            message="the OTA's payload.bin is not a version 2 update payload"
+        )
     manifest_size, signature_size = struct.unpack(">QI", header[12:24])
     block_size = 4096
     partitions = {}
@@ -304,21 +305,23 @@ def transfer_command(*, words: list[str]) -> TransferCommand:
     if words[0] not in {"erase", "new", "zero"} or not all(
         number.isdigit() for number in numbers
     ):
-        _die(message=f"the OTA's transfer list has a {words[0]!r} command")
+        raise FatalError(message=f"the OTA's transfer list has a {words[0]!r} command")
     bounds = [int(number) * 4096 for number in numbers[1:]]
     ranges = [
         BlockRange(end=end, start=start)
         for start, end in zip(bounds[::2], bounds[1::2])
     ]
     if any(block_range.start >= block_range.end for block_range in ranges):
-        _die(message="the OTA's transfer list has an empty or reversed range")
+        raise FatalError(
+            message="the OTA's transfer list has an empty or reversed range"
+        )
     return TransferCommand(ranges=ranges, verb=words[0])
 
 
 def transfer_list(*, text: str) -> TransferList:
     lines = text.split(sep="\n")
     if lines[0] not in {"3", "4"}:
-        _die(message=f"the OTA's transfer list is version {lines[0]}")
+        raise FatalError(message=f"the OTA's transfer list is version {lines[0]}")
     commands = [
         transfer_command(words=words)
         for words in (line.split() for line in lines[4:])
@@ -329,10 +332,10 @@ def transfer_list(*, text: str) -> TransferList:
         ranges=[block_range for command in commands for block_range in command.ranges]
     ):
         if block_range.start > size:
-            _die(message="the OTA's transfer list leaves a gap")
+            raise FatalError(message="the OTA's transfer list leaves a gap")
         size = max(size, block_range.end)
     if not size:
-        _die(message="the OTA's transfer list writes nothing")
+        raise FatalError(message="the OTA's transfer list writes nothing")
     written = 0
     for block_range in by_start(
         ranges=[
@@ -343,7 +346,7 @@ def transfer_list(*, text: str) -> TransferList:
         ]
     ):
         if block_range.start < written:
-            _die(message="the OTA's transfer list writes a block twice")
+            raise FatalError(message="the OTA's transfer list writes a block twice")
         written = block_range.end
     return TransferList(commands=commands, size=size)
 
@@ -352,7 +355,7 @@ def varint(*, data: bytes, index: int) -> tuple[int, int]:
     result = shift = 0
     while True:
         if index >= len(data):
-            _die(message="the OTA's manifest ends inside a number")
+            raise FatalError(message="the OTA's manifest ends inside a number")
         byte = data[index]
         index += 1
         result |= (byte & 0x7F) << shift

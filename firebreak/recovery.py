@@ -21,7 +21,7 @@ from firebreak.host import (
 from firebreak.plan import SECTOR_SIZE, TABLE_SECTORS, Action, resolve, whole_sectors
 from firebreak.plugin import BOOT0, ClearBoot0Header, Repartition
 from firebreak.twrp import CLEAR_BOOT0, check_nodes, read_sectors, reboot
-from firebreak.ui import PROGRESS, _die, again
+from firebreak.ui import PROGRESS, FatalError, again
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -73,10 +73,10 @@ def carry_out(
             raw=raw, source=unpack(download=unlock.source), unlock=unlock
         )
     except (FileNotFoundError, KeyError, ValueError) as error:
-        _die(
+        raise FatalError(
             message=f"{unlock.name} does not fit this Dot: {error.args[0]}. Nothing was"
             " written. " + again()
-        )
+        ) from error
     live = partition_map(entries=raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE])
     table = tuple(
         sorted(
@@ -110,7 +110,7 @@ def carry_out(
         ),
     )
     if table and not reaches(first=table[0].offset // SECTOR_SIZE):
-        _die(
+        raise FatalError(
             message=f"this TWRP's dd cannot read sector"
             f" {table[0].offset // SECTOR_SIZE}, where {unlock.name}'s backup"
             " partition table goes. Nothing was written. " + again()
@@ -131,7 +131,7 @@ def carry_out(
     )
     if wrong:
         run(arguments=["adb", "reboot", "recovery"], check=False, timeout=60)
-        _die(
+        raise FatalError(
             message="the kernel does not hold the table that is on the disk:"
             f" {wrong}. A write by that name could land in RAM and verify"
             " against itself, so the Dot is restarting into recovery. " + again()
@@ -143,7 +143,7 @@ def carry_out(
     if answer[-2:] != ["4096", "0"]:
         if answer[-2:-1] == ["4096"]:
             ERASED.unlink(missing_ok=True)
-        _die(
+        raise FatalError(
             message=f"boot0's header did not read back as cleared, so {unlock.name}"
             " was not written. " + again()
         )
@@ -166,7 +166,7 @@ def check(*, actions: tuple[Action, ...]) -> tuple[Action, ...]:
         and (action.offset is None or (action.data is None and action.image is None))
     })
     if refused:
-        _die(
+        raise FatalError(
             message=f"recovery cannot carry out {', '.join(refused)}. Nothing was"
             " written. " + again()
         )
@@ -178,7 +178,7 @@ def check(*, actions: tuple[Action, ...]) -> tuple[Action, ...]:
         if said[:1] != ["block"] or (
             partition is not None and said[1:] != [str(partition.sectors * SECTOR_SIZE)]
         ):
-            _die(
+            raise FatalError(
                 message=f"{node} is not the block device the partition table"
                 f" describes: {' '.join(said) or 'nothing'}. Nothing was written. "
                 + again()
@@ -242,7 +242,7 @@ def read(*, count: int, first: int, node: str) -> str:
         if said[1] == "whole" and len(digest) == MD5_DIGITS:
             break
     else:
-        _die(
+        raise FatalError(
             message=f"{node} did not answer with an md5 of {count} sectors at"
             f" {first}. Do not restart the Dot. " + again()
         )
@@ -262,9 +262,13 @@ def read_raw(*, count: int, first: int, node: str) -> bytes:
             timeout=60,
         ).stdout
     except (OSError, subprocess.SubprocessError) as error:
-        _die(message=f"{node} could not be read at sector {first}: {error}. " + again())
+        raise FatalError(
+            message=f"{node} could not be read at sector {first}: {error}. " + again()
+        ) from error
     if len(block) != count * SECTOR_SIZE:
-        _die(message=f"read {len(block)} bytes at sector {first} of {node}. " + again())
+        raise FatalError(
+            message=f"read {len(block)} bytes at sector {first} of {node}. " + again()
+        )
     return block
 
 
@@ -290,7 +294,7 @@ def write(*, first: int, node: str, staged: pathlib.Path) -> None:
     if said.split(sep="\n")[-1] != "written" or read(
         count=count, first=first, node=node
     ) != md5(data=data):
-        _die(
+        raise FatalError(
             message=f"{len(data)} bytes at sector {first} of {node} did not read"
             " back. Do not restart the Dot. " + again()
         )

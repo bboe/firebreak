@@ -144,17 +144,19 @@ from firebreak.ui import (
     SESSION,
     SUPPORT,
     ANSIColor,
+    FatalError,
     Kind,
-    _die,
     again,
     asked_for,
     clock,
+    explained,
     paint,
     passed,
     program,
     say,
     show,
     status,
+    stop,
     warn,
 )
 from firebreak.unlocks import (
@@ -396,10 +398,12 @@ def amonet_chain() -> None:
     part = partitions()
     for slot in ("lk_a", "lk_b"):
         if slot not in part:
-            _die(message=f"the Dot's partition table has no {slot}. " + again())
+            raise FatalError(
+                message=f"the Dot's partition table has no {slot}. " + again()
+            )
     if any(amonet_lk(node=f"{DISK}p{part[slot][0]}") for slot in ("lk_a", "lk_b")):
         return
-    _die(
+    raise FatalError(
         message="neither lk_a nor lk_b holds amonet v2.0.0's or v1.1.0's LK, so"
         " this Dot is locked and the recovery it started is one amonet left"
         " behind. Nothing was written. Unlock it first: unplug the USB cable,"
@@ -426,7 +430,7 @@ def amonet_lk(*, node: str) -> bool:
             if attempt + 1 < PUSH_TRIES:
                 reconnect(remote=DISK)
         if len(held) != MD5_DIGITS:
-            _die(
+            raise FatalError(
                 message=f"{node} did not answer with an md5 of its first"
                 f" {local.stat().st_size} bytes: {held or 'nothing'}. Nothing"
                 " was written. " + again() + " " + asked_for()
@@ -449,7 +453,7 @@ def amonet_v1_1_0_recovery() -> bool:
         )
         return False
     if unlocked != "true":
-        _die(
+        raise FatalError(
             message="the Dot's fastboot did not say whether it is unlocked. " + again()
         )
     amonet = unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
@@ -488,7 +492,7 @@ def await_amonet_fastboot() -> None:
         except subprocess.TimeoutExpired:
             pass
         time.sleep(2)
-    _die(message="the Dot did not come back in v1.1.0's fastboot")
+    raise FatalError(message="the Dot did not come back in v1.1.0's fastboot")
 
 
 def await_bootrom_port(
@@ -516,7 +520,7 @@ def await_bootrom_port(
                 missed += 1
                 say_missed_short(count=missed)
         if time.monotonic() >= deadline:
-            _die(
+            raise FatalError(
                 message="the Dot's bootrom did not show up as a serial port.\n"
                 + no_port_help()
             )
@@ -534,17 +538,17 @@ def bootloader_plan(*, amonet: pathlib.Path, live: Emmc) -> tuple[Action, ...]:
     try:
         raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
     except (OSError, UsbdlError) as error:
-        _die(
+        raise FatalError(
             message=f"the Dot's partition table could not be read: {error}."
             f" {unwritten()} Unplug the Dot. " + again()
-        )
+        ) from error
     try:
         resolved = resolve(raw=raw, source=amonet, unlock=unlock)
     except (FileNotFoundError, KeyError, ValueError) as error:
-        _die(
+        raise FatalError(
             message=f"{unlock.name} does not fit this Dot: {error.args[0]}."
             f" {unwritten()} " + again()
-        )
+        ) from error
     kinds = [action.kind for action in resolved]
     if bootrom.REBOOT not in kinds:
         return resolved
@@ -571,28 +575,28 @@ def bootrom_client(
             with contextlib.suppress(OSError):
                 client.port.close()
             if SESSION.short:
-                _die(
+                raise FatalError(
                     message=f"the Dot's bootrom did not answer ({error})."
                     f" {unwritten()} Unplug the Dot. " + again()
-                )
+                ) from error
             PROGRESS.note(
                 message=f"The Dot's bootrom did not answer ({error}). Unplug the Dot"
                 " and plug it back in; the run goes on when its bootrom returns."
             )
             await_port_gone(deadline=overall, name=port.name)
             if time.monotonic() >= overall:
-                _die(
+                raise FatalError(
                     message="the Dot's bootrom never answered a handshake."
                     f" {unwritten()} Unplug the Dot. " + again()
-                )
+                ) from error
             deadline = min(overall, time.monotonic() + REPLUG_WAIT)
         except UsbdlError as error:
             with contextlib.suppress(OSError):
                 client.port.close()
-            _die(
+            raise FatalError(
                 message=f"the Dot's bootrom did not answer as one: {error}."
                 f" {unwritten()} Unplug the Dot. " + again()
-            )
+            ) from error
         else:
             return client
 
@@ -610,7 +614,7 @@ def bootrom_step(
         ERASED.touch()
         failure = erase()
         if failure:
-            _die(message=failure)
+            raise FatalError(message=failure)
     elif SESSION.short:
         say(
             code=ANSIColor.YELLOW,
@@ -653,7 +657,9 @@ def build_system(*, package: Download, target: pathlib.Path) -> None:
         words = archive.read(name="system.transfer.list").decode().split()
         commands = dict(zip(words[4::2], words[5::2]))
         if words[0] != "3" or set(commands) != {"erase", "new"}:
-            _die(message=f"{package.name} has a transfer list this does not read")
+            raise FatalError(
+                message=f"{package.name} has a transfer list this does not read"
+            )
         blocks = int(commands["erase"].split(sep=",")[-1])
         bounds = [int(number) for number in commands["new"].split(sep=",")[1:]]
         ranges = [*zip(bounds[::2], bounds[1::2]), (blocks, blocks)]
@@ -724,7 +730,7 @@ def check_emmc(*, live: Emmc) -> None:
         said = (
             f"block 0 of its user area ends {block[-len(wanted) :]!r}, not {wanted!r}"
         )
-    _die(
+    raise FatalError(
         message=f"the Dot's eMMC did not answer{short_hint()}: {said}."
         f" {unwritten()} Unplug the Dot. " + again()
     )
@@ -860,7 +866,9 @@ Run again with another target to move the Dot to it.""",
     ARGUMENTS.verbose = options.verbose
     for tool in ("adb", "fastboot"):
         if not shutil.which(cmd=tool):
-            _die(message=tool + " not found: install Android platform-tools")
+            raise FatalError(
+                message=tool + " not found: install Android platform-tools"
+            )
     check_user()
     if not options.no_update_check:
         check_for_update()
@@ -893,15 +901,17 @@ def downgrade() -> bool:
     amonet = unpack(download=AMONET_BISCUIT_V1_1_0_ZIP)
     wheel = pyserial_wheel()
     if getvar(name="unlock_status").lower() != "true":
-        _die(message="not in amonet's fastboot")
+        raise FatalError(message="not in amonet's fastboot")
     little_kernel = getvar(name="lk_build_desc")
     if not LITTLE_KERNEL_DESCRIPTION.fullmatch(string=little_kernel):
-        _die(
+        raise FatalError(
             message="the Dot did not report its bootloader version;"
             " boot0 was not erased. " + again()
         )
     if little_kernel == LK.FIREOS5.value:
-        _die(message="the Dot already runs amonet v1.1.0's bootloader. " + again())
+        raise FatalError(
+            message="the Dot already runs amonet v1.1.0's bootloader. " + again()
+        )
     PROGRESS.begin(
         estimate="5 s", label="erasing boot0 so the Dot falls into its bootrom"
     )
@@ -941,7 +951,7 @@ def download(*, build: str) -> pathlib.Path:
                     string=response.read().decode(errors="replace"),
                 )
             if not links:
-                _die(message="no download link on " + page)
+                raise FatalError(message="no download link on " + page)
             part = CACHE / (update.name + ".part")
             response = urllib.request.urlopen(timeout=60, url=links[0])
             with response, part.open(mode="wb") as part_file:
@@ -951,15 +961,15 @@ def download(*, build: str) -> pathlib.Path:
                     response=response,
                 )
         except (OSError, http.client.HTTPException) as error:
-            _die(message=f"the download failed: {error!r}")
+            raise FatalError(message=f"the download failed: {error!r}") from error
         if total and done != total:
-            _die(
+            raise FatalError(
                 message=f"the download stopped after {done} of {total} bytes. "
                 + again()
             )
         part.replace(target=update)
     if digest(kind="sha256", path=update) != build_details.sha256:
-        _die(message=f"{update} does not hash to {build_details.sha256}")
+        raise FatalError(message=f"{update} does not hash to {build_details.sha256}")
     SESSION.verified.add(update)
     if threading.current_thread() is threading.main_thread():
         passed(message=f"OTA {build} verified")
@@ -982,22 +992,24 @@ def emos(*, action: str) -> str:
         timeout=30,
     ).stdout.strip()
     if output.isdigit() and int(output) > 1:
-        _die(message=MORE_THAN_ONE)
+        raise FatalError(message=MORE_THAN_ONE)
     return output
 
 
 def emos_recovery() -> None:
     answer = emos(action="recovery")
     if answer == "password":
-        _die(
+        raise FatalError(
             message="emOS's console asks for a password. Type /init recovery at"
             " the console, or clear the console password in EchoMuse's"
             " dashboard, then run this again."
         )
     if answer == "denied":
-        _die(message=NO_ACCESS + rerun())
+        raise FatalError(message=NO_ACCESS + rerun())
     if answer != "recovery":
-        _die(message="emOS's serial console did not answer. Run this again.")
+        raise FatalError(
+            message="emOS's serial console did not answer. Run this again."
+        )
 
 
 def emos_stage() -> None:
@@ -1025,25 +1037,25 @@ def exploit(*, client: Bootrom, payload: pathlib.Path) -> Client:
         range_check.defeat(bootrom=client)
         live = start_payload(bootrom=client, client=Client, payload=data)
     except NotReadyError as error:
-        _die(
+        raise FatalError(
             message=f"the payload did not start{short_hint()}: {error}."
             f" {unwritten()} Unplug the Dot. " + again()
-        )
+        ) from error
     except (OSError, UsbdlError) as error:
-        _die(
+        raise FatalError(
             message=f"the exploit did not go through the Dot's bootrom: {error}."
             f" {unwritten()} Unplug the Dot. " + again()
-        )
+        ) from error
     return live
 
 
 def fastbrick() -> None:
     amonet = unpack(download=AMONET_BISCUIT_V2_0_0_ZIP)
     if getvar(name="product") != "BISCUIT":
-        _die(message="fastboot reports a product other than BISCUIT")
+        raise FatalError(message="fastboot reports a product other than BISCUIT")
     little_kernel = getvar(name="lk_build_desc")
     if not little_kernel:
-        _die(
+        raise FatalError(
             message="fastboot did not report the bootloader version;"
             " the Dot was not modified"
         )
@@ -1062,15 +1074,17 @@ def fastbrick() -> None:
             output = (error.output or b"").decode(encoding="utf-8", errors="replace")
             started = True
         if "eMMC-RO" in output:
-            _die(message="the Dot's eMMC is read-only; it was not modified")
+            raise FatalError(message="the Dot's eMMC is read-only; it was not modified")
         if "Device mismatch" in output:
-            _die(message="the payload rejected this device; it was not modified")
+            raise FatalError(
+                message="the payload rejected this device; it was not modified"
+            )
         if started:
             PROGRESS.begin(
                 estimate="40 s", label="waiting for v2.0.0 recovery to start"
             )
             return
-    _die(
+    raise FatalError(
         message=f"the unlock did not start after 10 attempts, with {image} for"
         f" the bootloader {little_kernel}; the Dot was not modified"
     )
@@ -1154,7 +1168,7 @@ def hide_updater() -> None:
     if not hidden():
         adb_shell(command=f"su -c 'pm hide {UPDATER}'", timeout=60)
     if not hidden():
-        _die(
+        raise FatalError(
             message=f"{UPDATER} is not hidden; an update would replace the"
             " boot image and remove root"
         )
@@ -1165,19 +1179,19 @@ def install_fireos(*, reboot: bool = True, slot: str = "") -> None:
     magisk = fetch(download=MAGISK)
     slot = slot or adb_shell(command="getprop ro.boot.slot_suffix", timeout=30)
     if slot not in {"_a", "_b"}:
-        _die(message=f"TWRP reports the boot slot {slot!r}, not _a or _b")
+        raise FatalError(message=f"TWRP reports the boot slot {slot!r}, not _a or _b")
     boot, system = f"{BY_NAME}/boot{slot}_x", f"{BY_NAME}/system{slot}"
     with tempfile.TemporaryDirectory(dir=CACHE) as temporary:
         work = pathlib.Path(temporary)
         PROGRESS.begin(estimate="5 s", label="formatting userdata")
         if not adb_script(body=Shell.DATA.value, name="data.sh", work=work):
-            _die(message="userdata did not format and mount")
+            raise FatalError(message="userdata did not format and mount")
         PROGRESS.begin(estimate="100 s", label="writing Fire OS 5.5.5.4's /system")
         slices, want, blocks = system_image(package=ARGUMENTS.target.installs.package)
         write_system(blocks=blocks, slices=slices, system=system, want=want)
         body = Shell.SYSTEM.value.format(hosts=" ".join(UPDATE_HOSTS), system=system)
         if not adb_script(body=body, name="system.sh", work=work):
-            _die(message="patching /system failed")
+            raise FatalError(message="patching /system failed")
 
         PROGRESS.begin(estimate="5 s", label="writing the boot image")
         data = boot_image(fireos=fireos, magisk=magisk)
@@ -1200,7 +1214,7 @@ def install_fireos(*, reboot: bool = True, slot: str = "") -> None:
             .split(sep=" ")[0]
         )
         if written != want:
-            _die(
+            raise FatalError(
                 message="the patched boot image did not verify on the Dot: read"
                 f" {written or 'nothing'}, expected {want}"
             )
@@ -1218,7 +1232,7 @@ def install_fireos6() -> None:
     update_file = download(build=build)
     zip_path = fetch(download=BOOT_ROOT)
     if "boot_a_x" in partition_table():
-        _die(
+        raise FatalError(
             message="v2.0.0's TWRP runs on amonet v1.1.0's partition table. " + again()
         )
     PROGRESS.begin(estimate="10 s", label="wiping cache and data")
@@ -1238,7 +1252,7 @@ def install_fireos6() -> None:
         adb_shell(command="twrp install " + update, timeout=600)
         after = adb_shell(command="bcbtool get_active", timeout=30)
         if {before, after} != {"a", "b"}:
-            _die(
+            raise FatalError(
                 message=f"installing Fire OS 6 {build} left the"
                 f" active slot {after!r}, where it was {before!r}. " + again()
             )
@@ -1247,7 +1261,7 @@ def install_fireos6() -> None:
     output = adb_shell(command="twrp install /sdcard/boot-root.zip", timeout=300)
     errors = [line for line in output.split(sep="\n") if "(!) Error" in line]
     if errors:
-        _die(message="boot-root.zip failed: " + errors[0])
+        raise FatalError(message="boot-root.zip failed: " + errors[0])
     PROGRESS.begin(estimate="1 min", label="waiting for rooted Fire OS 6 to boot")
     run(arguments=["adb", "reboot"])
 
@@ -1260,7 +1274,7 @@ def install_magisk(*, magisk: pathlib.Path, work: pathlib.Path) -> None:
     archive.write_bytes(data=cpio(files=files))
     push_checked(local=archive, remote=DOT_TEMPORARY_DIRECTORY / "magisk.cpio")
     if not adb_script(body=Shell.MAGISK.value, name="magisk.sh", work=work):
-        _die(message="Magisk 17.3 did not install")
+        raise FatalError(message="Magisk 17.3 did not install")
     names = sorted(name for name, (mode, _) in files.items() if stat.S_ISREG(mode))
     want = hashlib.md5(
         b"".join(files[name][1] for name in names), usedforsecurity=False
@@ -1272,7 +1286,7 @@ def install_magisk(*, magisk: pathlib.Path, work: pathlib.Path) -> None:
         .split(sep=" ")[0]
     )
     if got != want:
-        _die(message="Magisk 17.3's files did not verify on the Dot")
+        raise FatalError(message="Magisk 17.3's files did not verify on the Dot")
 
 
 def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: ignore[complex-structure, too-many-return-statements, too-many-branches]
@@ -1391,12 +1405,16 @@ def main() -> None:
         sys.exit(child_main(arguments=sys.argv[3:], name=sys.argv[2]))
     try:
         cli()
+    except FatalError as error:
+        stop(error=error)
     except KeyboardInterrupt:
-        _die(message="stopped", prefix="")
+        stop(error=FatalError(message="stopped", prefix=""))
     except subprocess.TimeoutExpired as error:
-        _die(
-            message=f"{' '.join(map(str, error.cmd))} did not finish in"
-            f" {error.timeout:.0f} seconds"
+        stop(
+            error=FatalError(
+                message=f"{' '.join(map(str, error.cmd))} did not finish in"
+                f" {error.timeout:.0f} seconds"
+            )
         )
 
 
@@ -1437,12 +1455,12 @@ def poke_live_payload() -> None:
 
 
 def prebuild() -> None:
-    with contextlib.suppress(Exception, SystemExit):
+    with contextlib.suppress(Exception):
         system_image(package=ARGUMENTS.target.installs.package)
 
 
 def predownload() -> None:
-    with contextlib.suppress(Exception, SystemExit):
+    with contextlib.suppress(Exception):
         prefetch()
 
 
@@ -1521,8 +1539,8 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
 def probed() -> str:
     try:
         return state().value
-    except SystemExit as stop:
-        plain = re.sub(pattern=r"\x1b\[[0-9;]*m", repl="", string=str(stop))
+    except FatalError as error:
+        plain = explained(error=error)
         return "<unreadable: " + masked(text=plain).strip().split(sep="\n")[0] + ">"
 
 
@@ -1590,7 +1608,7 @@ def replace_twrp() -> None:
         adb_shell(command=read_back, timeout=120).split(sep="\n")[-1].split(sep=" ")[0]
     )
     if written != digest(kind="md5", path=twrp):
-        _die(
+        raise FatalError(
             message=f"TWRP {TWRP_VERSION} did not verify in recovery. Leave the Dot"
             " running. " + again()
         )
@@ -1748,13 +1766,13 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
     version = ""
     while not version or "mtp" not in adb_shell(command="getprop sys.usb.config"):
         if time.monotonic() > deadline:
-            _die(message="TWRP did not finish starting within 30 seconds")
+            raise FatalError(message="TWRP did not finish starting within 30 seconds")
         time.sleep(1)
         version = adb_shell(command="getprop ro.twrp.version")
         if not version[:1].isdigit():
             version = ""
         elif not version.startswith(TWRP_VERSIONS):
-            _die(
+            raise FatalError(
                 message="this needs a TWRP for this Dot: v1.1.0's 3.2.3,"
                 f" v2.0.0's 3.7.0, or the {TWRP_VERSION} that firebreak"
                 " installs"
@@ -1768,12 +1786,12 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
         SESSION.dd = "toybox dd"
     tools = adb_shell(command=Shell.TOOLS.value).split(sep="\n")[-1]
     if not tools.startswith("tools:"):
-        _die(message="the Dot did not answer which tools it has: " + tools)
+        raise FatalError(message="the Dot did not answer which tools it has: " + tools)
     if tools != "tools:":
-        _die(message="this TWRP has no" + tools[len("tools:") :])
+        raise FatalError(message="this TWRP has no" + tools[len("tools:") :])
     device = adb_shell(command="getprop ro.product.device")
     if device != "biscuit":
-        _die(
+        raise FatalError(
             message="this is not an Echo Dot (2nd Gen): TWRP reports the"
             f" device {device!r}"
         )
@@ -1782,7 +1800,7 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
     if not gpt_intact(entries=raw[1024:], header=raw[512:1024]):
         size = adb_shell(command=f"blockdev --getsize64 {DISK}")
         if not size.isdigit():
-            _die(message="could not read the Dot's disk size")
+            raise FatalError(message="could not read the Dot's disk size")
         tail = read_sectors(count=33, start=int(size) // 512 - 33)
         raw = raw[:512] + tail[-512:] + tail[:-512]
         show(text="the primary partition table is damaged; using the backup")
@@ -1814,14 +1832,16 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
         files[image] = work / (image + ".img")
     for step in (*WRITES, *chain_writes()):
         if files[step.image].stat().st_size > table.partitions[step.partition].size:
-            _die(message=f"{files[step.image].name} does not fit {step.partition}")
+            raise FatalError(
+                message=f"{files[step.image].name} does not fit {step.partition}"
+            )
     if (
         adb_shell(command="[ -b /dev/block/mmcblk0boot0 ] && echo block").split(
             sep="\n"
         )[-1]
         != "block"
     ):
-        _die(
+        raise FatalError(
             message="/dev/block/mmcblk0boot0 is not a block device, so the"
             " preloader would be written to a file and read back from it"
         )
@@ -1830,7 +1850,9 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
         not boot0.isdigit()
         or (work / "preloader.img").stat().st_size != int(boot0) * 512
     ):
-        _die(message=f"preloader.img is not the size of boot0 ({boot0} sectors)")
+        raise FatalError(
+            message=f"preloader.img is not the size of boot0 ({boot0} sectors)"
+        )
     passed(message="stock partition table built from this Dot's own")
     warn(
         text="About to overwrite this Dot's bootloaders, system and data with"
@@ -1852,7 +1874,7 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
             time.sleep(1)
     except KeyboardInterrupt:
         print()
-        _die(message="stopped; nothing was written", prefix="")
+        raise FatalError(message="stopped; nothing was written", prefix="") from None
     show(
         kind=Kind.WARN,
         text="\r"
@@ -1874,7 +1896,9 @@ def restore_stage() -> None:  # ruff: ignore[complex-structure, too-many-branche
         )
     except KeyboardInterrupt:
         if PROGRESS.step == PROGRESS.steps:
-            _die(message=f"stopped; stock {build} is in place", prefix="")
+            raise FatalError(
+                message=f"stopped; stock {build} is in place", prefix=""
+            ) from None
         restore_failed(message="stopped part way. Do not reboot. " + again())
 
 
@@ -1893,7 +1917,7 @@ def restore_stages() -> dict[State, Stage]:
 def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
     usage = run(arguments=["fastboot", "--help"], timeout=30).stdout
     if not any(line.split()[:1] == ["-S"] for line in usage.splitlines()):
-        _die(
+        raise FatalError(
             message="this fastboot has no -S option: install a newer"
             " Android platform-tools"
         )
@@ -2064,21 +2088,21 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 waits = set()
             if not gesture and current not in waits and time.monotonic() > deadline:
                 if restored:
-                    _die(
+                    raise FatalError(
                         message=f"stock {ARGUMENTS.build} has not started"
                         f" {WAIT // 60} minutes after the restore"
                     )
                 if current == State.STOCK_BOOTED:
-                    _die(
+                    raise FatalError(
                         message="Fire OS 6 started without root adb, so"
                         " boot-root.zip did not take. " + again()
                     )
                 if current == State.BOOTED:
-                    _die(
+                    raise FatalError(
                         message="Fire OS has not finished booting with root."
                         " Reboot to recovery. " + again()
                     )
-                _die(
+                raise FatalError(
                     message=f"the Dot has been {current.value} for"
                     f" {WAIT // 60} minutes. " + again()
                 )
@@ -2182,7 +2206,7 @@ def swap_twrp() -> None:
     if hashlib.md5(
         read_recovery(size=size), usedforsecurity=False
     ).hexdigest() != digest(kind="md5", path=image):
-        _die(
+        raise FatalError(
             message=f"{label} did not verify in recovery. Leave the Dot running. "
             + again()
         )
@@ -2199,7 +2223,7 @@ def system_chunks(
             length = min(1 << 20, end * 4096 - offset)
             chunk = new_data.read(length)
             if len(chunk) != length:
-                _die(message=f"{name}'s system.new.dat is short")
+                raise FatalError(message=f"{name}'s system.new.dat is short")
             yield chunk
         position = end
 

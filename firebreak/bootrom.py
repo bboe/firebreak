@@ -7,7 +7,7 @@ from firebreak.emmc import RPMB_SIZE, EmmcArea
 from firebreak.mediatek.usbdl import UsbdlError
 from firebreak.plan import BOOT0_HEADER, SECTOR_SIZE, whole_sectors
 from firebreak.plugin import BOOT0, FastbootFlash, Reboot, ZeroRpmb
-from firebreak.ui import PROGRESS, _die, again
+from firebreak.ui import PROGRESS, FatalError, again
 
 if TYPE_CHECKING:
     from firebreak.emmc import Emmc
@@ -24,12 +24,12 @@ def check(*, actions: tuple[Action, ...]) -> tuple[Action, ...]:
         action.kind for action in actions if action.kind in UNSUPPORTED_KINDS
     })
     if refused:
-        _die(
+        raise FatalError(
             message=f"the bootrom cannot carry out {', '.join(refused)}. Nothing was"
             " written. " + again()
         )
     if any(action.kind == ZERO_RPMB and not action.expect for action in actions):
-        _die(
+        raise FatalError(
             message=f"a {ZERO_RPMB} step that expects nothing would wipe the RPMB"
             " unchecked, and the wipe cannot be undone. Nothing was written. " + again()
         )
@@ -43,10 +43,10 @@ def execute(*, actions: tuple[Action, ...], payload: Emmc) -> None:
         try:
             PROGRESS.end(skipped=execute_one(action=action, payload=payload))
         except (OSError, UsbdlError) as error:
-            _die(
+            raise FatalError(
                 message=f"{action.kind} ({action.label}) did not go through the"
                 f" bootrom: {error}. Do not unplug the Dot. " + again()
-            )
+            ) from error
 
 
 def execute_one(*, action: Action, payload: Emmc) -> bool:
@@ -87,7 +87,7 @@ def switch(*, partition: int, payload: Emmc) -> None:
     payload.switch_partition(partition=partition)
     block = payload.read_block(index=0)
     if not switched(block=block, partition=partition):
-        _die(
+        raise FatalError(
             message=f"area {partition} does not read as itself after the switch: its"
             f" block 0 starts {block[: len(BOOT0_HEADER)]!r} and ends"
             f" {block[-len(USER_AREA_SIGNATURE) :]!r}. Do not unplug the Dot. "
@@ -111,7 +111,7 @@ def write(*, data: bytes, first: int, partition: int, payload: Emmc) -> None:
             index=first + index,
         )
     if read(count=count, first=first, payload=payload) != data:
-        _die(
+        raise FatalError(
             message=f"{len(data)} bytes at block {first} of area {partition} did"
             " not read back. Do not unplug the Dot. " + again()
         )
@@ -133,7 +133,7 @@ def zero_rpmb(*, action: Action, payload: Emmc) -> None:
     payload.write_rpmb(data=bytes(RPMB_SIZE))
     found = payload.read_rpmb()
     if found != bytes(RPMB_SIZE):
-        _die(
+        raise FatalError(
             message=f"the RPMB still holds {found!r} after being zeroed. Do not"
             " unplug the Dot. " + again()
         )

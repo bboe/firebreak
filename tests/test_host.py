@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import host
+from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -132,7 +133,7 @@ def test_check_adb(
     if accepted:
         host.check_adb()
     else:
-        with pytest.raises(expected_exception=SystemExit, match=r"this needs 1\.0\.36"):
+        with pytest.raises(expected_exception=FatalError, match=r"this needs 1\.0\.36"):
             host.check_adb()
 
 
@@ -141,12 +142,12 @@ def test_check_user(*, monkeypatch: pytest.MonkeyPatch) -> None:
     host.check_user()
     linux(group_id=46, groups=[], members=["me"], monkeypatch=monkeypatch)
     with pytest.raises(
-        expected_exception=SystemExit, match="predates its user joining plugdev"
+        expected_exception=FatalError, match="predates its user joining plugdev"
     ):
         host.check_user()
     linux(group_id=46, groups=[], members=[], monkeypatch=monkeypatch)
     with pytest.raises(
-        expected_exception=SystemExit, match="cannot open the Dot over USB"
+        expected_exception=FatalError, match="cannot open the Dot over USB"
     ):
         host.check_user()
 
@@ -159,7 +160,7 @@ def test_check_user_elsewhere(*, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_check_user_refuses_root(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="geteuid", target=os, value=lambda: 0)
-    with pytest.raises(expected_exception=SystemExit, match="not as root"):
+    with pytest.raises(expected_exception=FatalError, match="not as root"):
         host.check_user()
 
 
@@ -171,7 +172,7 @@ def test_check_user_without_plugdev(*, monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(name="getgrnam", target=sys.modules["grp"], value=missing)
     with pytest.raises(
-        expected_exception=SystemExit, match="cannot open the Dot over USB"
+        expected_exception=FatalError, match="cannot open the Dot over USB"
     ):
         host.check_user()
 
@@ -218,7 +219,7 @@ def test_devices(*, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_devices_without_permission(*, monkeypatch: pytest.MonkeyPatch) -> None:
     asked = answers(monkeypatch=monkeypatch, replies=["???? no permissions\n"])
     with pytest.raises(
-        expected_exception=SystemExit, match="cannot open the Dot over USB"
+        expected_exception=FatalError, match="cannot open the Dot over USB"
     ):
         host.devices(arguments=["adb", "devices"])
     assert len(asked) == 5
@@ -245,7 +246,7 @@ def test_in_fastboot(*, monkeypatch: pytest.MonkeyPatch) -> None:
     answers(monkeypatch=monkeypatch, replies=["S1\tfastboot\n"])
     assert host.in_fastboot()
     answers(monkeypatch=monkeypatch, replies=["S1\tfastboot\nS2\tfastboot\n"])
-    with pytest.raises(expected_exception=SystemExit, match="more than one Dot"):
+    with pytest.raises(expected_exception=FatalError, match="more than one Dot"):
         host.in_fastboot()
     monkeypatch.setattr(name="USER_SERIAL", target=host, value="S2")
     assert host.in_fastboot()
@@ -343,7 +344,7 @@ def test_push_checked_fails(  # ruff: ignore[too-many-arguments]
         return completed(return_code=return_code, standard_output="adb: error")
 
     reconnects = pushing(md5=md5, monkeypatch=monkeypatch, push=push)
-    with pytest.raises(expected_exception=SystemExit, match=said):
+    with pytest.raises(expected_exception=FatalError, match=said):
         host.push_checked(local=local, remote="/tmp/x")
     assert reconnects == ["/tmp/x", "/tmp/x"]
 
@@ -387,7 +388,7 @@ def test_reconnect(
         raise subprocess.TimeoutExpired(cmd="adb", timeout=120)
 
     monkeypatch.setattr(name="run", target=host, value=slow)
-    with pytest.raises(expected_exception=SystemExit, match="did not reconnect"):
+    with pytest.raises(expected_exception=FatalError, match="did not reconnect"):
         host.reconnect(remote="/tmp/x")
 
 
@@ -412,7 +413,7 @@ def test_run() -> None:
     script = "import sys; sys.stdout.write('a\\r\\nb\\n'); sys.exit(2)"
     result = host.run(arguments=[sys.executable, "-c", script])
     assert (result.returncode, result.stdout) == (2, "a\nb\n")
-    with pytest.raises(expected_exception=SystemExit, match="failed:\na\nb"):
+    with pytest.raises(expected_exception=FatalError, match="failed:\na\nb"):
         host.run(arguments=[sys.executable, "-c", script], check=True)
 
 
@@ -489,7 +490,7 @@ def test_usb_serial(*, monkeypatch: pytest.MonkeyPatch) -> None:
     answers(
         monkeypatch=monkeypatch, replies=[head + "S1 device usb:1\nS2 recovery usb:2\n"]
     )
-    with pytest.raises(expected_exception=SystemExit, match="more than one Dot"):
+    with pytest.raises(expected_exception=FatalError, match="more than one Dot"):
         host.usb_serial()
 
 
@@ -509,5 +510,5 @@ def test_usb_serial_from_the_environment(*, monkeypatch: pytest.MonkeyPatch) -> 
     assert host.usb_serial() == "S9"
     assert asked == [["adb", "devices", "-l"]]
     monkeypatch.setattr(name="USER_SERIAL", target=host, value="10.0.0.2:5555")
-    with pytest.raises(expected_exception=SystemExit, match="names a network device"):
+    with pytest.raises(expected_exception=FatalError, match="names a network device"):
         host.usb_serial()

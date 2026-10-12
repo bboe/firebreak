@@ -114,7 +114,7 @@ def test_a_fastboot_that_never_says_whether_it_is_unlocked_stops_cleanly(
     monkeypatch.setattr(
         name="run", target=main, value=lambda **_: pytest.fail("flashed")
     )
-    with pytest.raises(SystemExit, match="did not say whether it is unlocked"):
+    with pytest.raises(main.FatalError, match="did not say whether it is unlocked"):
         main.amonet_v1_1_0_recovery()
     assert asked == ["unlock_status"] * main.PUSH_TRIES
 
@@ -179,6 +179,30 @@ def test_a_run_checks_for_an_update_once(*, monkeypatch: pytest.MonkeyPatch) -> 
     assert checked == [
         {"package_name": "firebreak", "package_version": main.__version__}
     ]
+
+
+@pytest.mark.parametrize(
+    ("raised", "said"),
+    [
+        (main.FatalError(message="no download link"), "ERROR: no download link"),
+        (KeyboardInterrupt(), "stopped"),
+        (
+            main.subprocess.TimeoutExpired(cmd=["adb", "get-state"], timeout=30),
+            "ERROR: adb get-state did not finish in 30 seconds",
+        ),
+    ],
+)
+def test_a_run_that_stops_exits_with_what_it_says(
+    *, monkeypatch: pytest.MonkeyPatch, raised: BaseException, said: str
+) -> None:
+    def cli() -> None:
+        raise raised
+
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak"])
+    monkeypatch.setattr(name="cli", target=main, value=cli)
+    with pytest.raises(SystemExit) as stopped:
+        main.main()
+    assert str(stopped.value) == said
 
 
 def test_a_run_with_no_update_check_does_not_check(
@@ -301,9 +325,11 @@ def test_a_stale_marker_says_nothing_before_the_dot_is_seen(
     monkeypatch.setattr(
         name="run", target=main, value=lambda **_: types.SimpleNamespace(stdout="")
     )
-    with pytest.raises(SystemExit, match="no -S option") as stopped:
+    with pytest.raises(main.FatalError, match="no -S option") as stopped:
         main.root()
-    assert "boot0 may hold no preloader" not in " ".join(str(stopped.value).split())
+    assert "boot0 may hold no preloader" not in " ".join(
+        main.explained(error=stopped.value).split()
+    )
     assert main.SESSION.boot0_marker is None
 
 
@@ -517,12 +543,12 @@ def test_probed_prints_an_unreadable_state_plain_and_masked(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     message = (
-        "\x1b[31mERROR: sgdisk did not print the Dot's table:\n"
-        "Disk identifier (GUID): 0FC63DAF-8483-4772-8E79-3D69D8477DE4\x1b[0m"
+        "sgdisk did not print the Dot's table:\n"
+        "Disk identifier (GUID): 0FC63DAF-8483-4772-8E79-3D69D8477DE4"
     )
 
     def state() -> main.State:
-        raise SystemExit(message)
+        raise main.FatalError(message=message)
 
     monkeypatch.setattr(name="state", target=main, value=state)
     assert main.probed() == (
@@ -541,7 +567,7 @@ def test_target_names_are_the_unlocks_names() -> None:
 def test_the_guard_needs_both_slots(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
-    with pytest.raises(SystemExit, match="has no lk_b"):
+    with pytest.raises(main.FatalError, match="has no lk_b"):
         guard(monkeypatch=monkeypatch, slots={"lk_a": LK["v2.0.0"]}, tmp_path=tmp_path)
 
 
@@ -575,7 +601,7 @@ def test_the_guard_passes_an_amonet_lk_in_either_slot(
 def test_the_guard_refuses_a_stock_lk_in_both_slots(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
-    with pytest.raises(SystemExit, match="neither lk_a nor lk_b"):
+    with pytest.raises(main.FatalError, match="neither lk_a nor lk_b"):
         guard(
             monkeypatch=monkeypatch,
             slots={"lk_a": LK["stock"], "lk_b": LK["stock"]},

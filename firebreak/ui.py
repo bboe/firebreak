@@ -33,6 +33,13 @@ class ANSIColor(enum.Enum):
     YELLOW = 33
 
 
+class FatalError(Exception):
+    def __init__(self, *, message: str, prefix: str = "ERROR: ") -> None:
+        super().__init__(prefix + message)
+        self.message = message
+        self.prefix = prefix
+
+
 class Kind(enum.Enum):
     ERROR = "error"
     INFO = "info"
@@ -130,29 +137,6 @@ class Session:
 SESSION = Session()
 
 
-def _die(*, message: str, prefix: str = "ERROR: ") -> NoReturn:
-    if PROGRESS.halt():
-        print()
-    if SESSION.shown not in {None, Kind.ERROR}:
-        print()
-    SESSION.shown = Kind.ERROR
-    text = prefix + message
-    if "\n" not in text:
-        text = textwrap.fill(
-            break_long_words=False, break_on_hyphens=False, text=text, width=79
-        )
-    if SESSION.boot0_marker is not None and SESSION.boot0_marker.exists():
-        text += "\n\n" + textwrap.fill(
-            break_long_words=False,
-            break_on_hyphens=False,
-            text=BOOT0_EMPTY + ".",
-            width=79,
-        )
-    if prefix and color(stream=sys.stderr):
-        text = f"\033[{ANSIColor.RED.value}m{text}\033[0m"
-    raise SystemExit(text)
-
-
 def again() -> str:
     return f"Run {invocation(options=sys.argv[1:])} again."
 
@@ -177,6 +161,22 @@ def color(*, stream: TextIO) -> bool:
     if os.name == "nt" and "WT_SESSION" not in os.environ:
         return False
     return stream.isatty()
+
+
+def explained(*, error: FatalError) -> str:
+    text = error.prefix + error.message
+    if "\n" not in text:
+        text = textwrap.fill(
+            break_long_words=False, break_on_hyphens=False, text=text, width=79
+        )
+    if SESSION.boot0_marker is not None and SESSION.boot0_marker.exists():
+        text += "\n\n" + textwrap.fill(
+            break_long_words=False,
+            break_on_hyphens=False,
+            text=BOOT0_EMPTY + ".",
+            width=79,
+        )
+    return text
 
 
 def invocation(*, options: list[str]) -> str:
@@ -246,6 +246,18 @@ def status(*, text: str) -> None:
         )
     else:
         warn(text=text)
+
+
+def stop(*, error: FatalError) -> NoReturn:
+    if PROGRESS.halt():
+        print()
+    if SESSION.shown not in {None, Kind.ERROR}:
+        print()
+    SESSION.shown = Kind.ERROR
+    text = explained(error=error)
+    if error.prefix and color(stream=sys.stderr):
+        text = f"\033[{ANSIColor.RED.value}m{text}\033[0m"
+    raise SystemExit(text)
 
 
 def warn(*, text: str) -> None:

@@ -15,6 +15,7 @@ from firebreak import plan, recovery
 from firebreak.android.gpt import Partition, partition_map
 from firebreak.plan import Action
 from firebreak.plugin import BOOT0
+from firebreak.ui import FatalError, explained
 from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_0
 
 if TYPE_CHECKING:
@@ -285,7 +286,7 @@ def test_a_kernel_that_holds_another_table_restarts_recovery_and_writes_nothing(
         monkeypatch=monkeypatch,
         wrong="/dev/block/mmcblk0p4 reads no, not 51200 bytes",
     )
-    with pytest.raises(SystemExit, match="does not hold the table that is on the disk"):
+    with pytest.raises(FatalError, match="does not hold the table that is on the disk"):
         carry_v2(calls=calls)
     assert [call[0] for call in calls] == ["guard", "nodes", "run"]
     assert calls[-1][3]["arguments"] == ["adb", "reboot", "recovery"]
@@ -297,7 +298,7 @@ def test_a_node_that_is_not_a_block_device_stops_it(*, dot: FakeDot) -> None:
     write = Action(
         data=b"x" * 512, kind="Write", label="w", length=512, offset=0, target=BOOT0
     )
-    with pytest.raises(SystemExit, match=r"describes: nothing\. Nothing was written"):
+    with pytest.raises(FatalError, match=r"describes: nothing\. Nothing was written"):
         recovery.execute(actions=(write,))
     assert writes(dot) == []
 
@@ -313,7 +314,7 @@ def test_a_partition_whose_node_has_another_size_stops_it(*, dot: FakeDot) -> No
         partition=MISC,
         target="misc",
     )
-    with pytest.raises(SystemExit, match=r"block 1024\. Nothing was written"):
+    with pytest.raises(FatalError, match=r"block 1024\. Nothing was written"):
         recovery.execute(actions=(action,))
     assert writes(dot) == []
 
@@ -382,7 +383,7 @@ def test_a_patch_read_that_comes_back_short_stops_it(
     action = Action(
         data=b"ABB", kind="ResetBcb", label="bcb", length=3, offset=5, target="misc"
     )
-    with pytest.raises(SystemExit, match="read 0 bytes"):
+    with pytest.raises(FatalError, match="read 0 bytes"):
         recovery.execute(actions=(action,))
     assert writes(dot) == []
 
@@ -397,7 +398,7 @@ def test_a_patch_read_that_fails_stops_it(
     action = Action(
         data=b"ABB", kind="ResetBcb", label="bcb", length=3, offset=5, target="misc"
     )
-    with pytest.raises(SystemExit, match="could not be read"):
+    with pytest.raises(FatalError, match="could not be read"):
         recovery.execute(actions=(action,))
     assert writes(dot) == []
 
@@ -432,7 +433,7 @@ def test_a_plan_that_does_not_resolve_stops_before_anything_is_written(
     monkeypatch.setattr(name="read_sectors", target=recovery, value=lambda **_: b"")
     monkeypatch.setattr(name="resolve", target=recovery, value=unresolvable)
     monkeypatch.setattr(name="unpack", target=recovery, value=lambda **_: tmp_path)
-    with pytest.raises(SystemExit, match="does not fit this Dot: biscuit has no"):
+    with pytest.raises(FatalError, match="does not fit this Dot: biscuit has no"):
         carry_v1(calls=[])
     assert not recovery.ERASED.exists()
 
@@ -442,7 +443,7 @@ def test_a_read_that_never_completes_stops_it(*, dot: FakeDot) -> None:
     action = Action(
         data=b"x" * 512, kind="Write", label="w", length=512, offset=0, target="a"
     )
-    with pytest.raises(SystemExit, match="did not answer"):
+    with pytest.raises(FatalError, match="did not answer"):
         recovery.execute(actions=(action,))
     assert writes(dot) == []
 
@@ -513,9 +514,9 @@ def test_a_table_that_goes_in_alone_is_refused_when_dd_cannot_reach_it(
         target=recovery,
         value=lambda *, first: asked.append(first) and False,
     )
-    with pytest.raises(SystemExit, match="cannot read sector 9999") as stopped:
+    with pytest.raises(FatalError, match="cannot read sector 9999") as stopped:
         carry_v1(calls=calls)
-    assert "Nothing was written." in " ".join(str(stopped.value).split())
+    assert "Nothing was written." in " ".join(explained(error=stopped.value).split())
     assert asked == [9999]
     assert [call[0] for call in calls] == ["guard"]
 
@@ -535,9 +536,9 @@ def test_a_table_whose_backup_copy_dd_cannot_reach_writes_nothing(
         target=recovery,
         value=lambda *, first: asked.append(first) and False,
     )
-    with pytest.raises(SystemExit, match="cannot read sector 9999") as stopped:
+    with pytest.raises(FatalError, match="cannot read sector 9999") as stopped:
         carry_v2(calls=calls)
-    assert "Nothing was written." in " ".join(str(stopped.value).split())
+    assert "Nothing was written." in " ".join(explained(error=stopped.value).split())
     assert asked == [9999]
     assert [call[0] for call in calls] == ["guard"]
     assert not recovery.ERASED.exists()
@@ -570,7 +571,7 @@ def test_a_write_that_does_not_finish_stops_it(*, dot: FakeDot) -> None:
     action = Action(
         data=b"x" * 512, kind="Write", label="w", length=512, offset=0, target="a"
     )
-    with pytest.raises(SystemExit, match="did not read back"):
+    with pytest.raises(FatalError, match="did not read back"):
         recovery.execute(actions=(action,))
 
 
@@ -579,7 +580,7 @@ def test_a_write_that_does_not_land_stops_it(*, dot: FakeDot) -> None:
     action = Action(
         data=b"x" * 512, kind="Write", label="w", length=512, offset=0, target="a"
     )
-    with pytest.raises(SystemExit, match="did not read back"):
+    with pytest.raises(FatalError, match="did not read back"):
         recovery.execute(actions=(action,))
     assert dot.media[recovery.DISK][:512] == b"\x11" * 512
 
@@ -696,7 +697,7 @@ def test_amonet_v2_0_0_stops_before_the_table_if_boot0_does_not_clear(
         calls=calls,
         monkeypatch=monkeypatch,
     )
-    with pytest.raises(SystemExit, match="did not read back as cleared"):
+    with pytest.raises(FatalError, match="did not read back as cleared"):
         carry_v2(calls=calls)
     assert "execute" not in [call[0] for call in calls]
     assert recovery.ERASED.exists() is marked
@@ -716,9 +717,9 @@ def test_amonet_v2_0_0_that_does_not_fit_writes_nothing(
         target=recovery,
         value=lambda **_: pytest.fail("boot0 changed"),
     )
-    with pytest.raises(SystemExit, match="does not fit this Dot") as stopped:
+    with pytest.raises(FatalError, match="does not fit this Dot") as stopped:
         carry_v2(calls=[])
-    said = " ".join(str(stopped.value).split())
+    said = " ".join(explained(error=stopped.value).split())
     assert "Nothing was written." in said
     assert "boot0 may hold no preloader" not in said
 
@@ -762,7 +763,7 @@ def test_steps_recovery_cannot_run_stop_the_plan_first(*, dot: FakeDot) -> None:
     write = Action(
         data=b"x" * 512, kind="Write", label="w", length=512, offset=0, target="a"
     )
-    with pytest.raises(SystemExit, match="ZeroRpmb"):
+    with pytest.raises(FatalError, match="ZeroRpmb"):
         recovery.execute(actions=(write, Action(kind="ZeroRpmb", label="rpmb")))
     assert dot.asked == []
 

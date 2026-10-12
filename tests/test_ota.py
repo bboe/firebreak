@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak.android import ota
+from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
     import pathlib
@@ -129,11 +130,11 @@ def test_blob_and_number_check_the_wire_type() -> None:
     assert ota.blob(value=b"x") == b"x"
     assert ota.number(value=7) == 7
     with pytest.raises(
-        expected_exception=SystemExit, match="has a number where it needs bytes"
+        expected_exception=FatalError, match="has a number where it needs bytes"
     ):
         ota.blob(value=7)
     with pytest.raises(
-        expected_exception=SystemExit, match="has bytes where it needs a number"
+        expected_exception=FatalError, match="has bytes where it needs a number"
     ):
         ota.number(value=b"x")
 
@@ -189,7 +190,7 @@ def test_extract_blocks_checks_the_data(
     update = block_ota(
         new_data=new_data, path=tmp_path / "ota.zip", transfer="4\n2\n0\n0\nnew 2,0,2\n"
     )
-    with pytest.raises(expected_exception=SystemExit, match=message):
+    with pytest.raises(expected_exception=FatalError, match=message):
         ota.extract(update=update, work=tmp_path)
 
 
@@ -197,7 +198,7 @@ def test_extract_catches_a_short_blob(*, tmp_path: pathlib.Path) -> None:
     body = payload(images=IMAGES, kinds=KINDS, short="system")
     update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")
     with pytest.raises(
-        expected_exception=SystemExit, match="system does not match the manifest"
+        expected_exception=FatalError, match="system does not match the manifest"
     ):
         ota.extract(update=update, work=tmp_path)
 
@@ -206,7 +207,7 @@ def test_extract_checks_the_hash(*, tmp_path: pathlib.Path) -> None:
     body = payload(images=IMAGES, kinds=KINDS, stale="system")
     update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")
     with pytest.raises(
-        expected_exception=SystemExit, match="system does not match the manifest"
+        expected_exception=FatalError, match="system does not match the manifest"
     ):
         ota.extract(update=update, work=tmp_path)
 
@@ -234,7 +235,7 @@ def test_extract_fails(
     kinds = {**KINDS, "lk": change.get("kind", KINDS["lk"])}
     body = payload(images=images, kinds=kinds, version=int(change.get("version", 2)))
     update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")
-    with pytest.raises(expected_exception=SystemExit, match=message):
+    with pytest.raises(expected_exception=FatalError, match=message):
         ota.extract(update=update, work=tmp_path)
 
 
@@ -265,7 +266,7 @@ def test_fields() -> None:
         (3, 1, bytes(range(8))),
         (4, 5, b"abcd"),
     ]
-    with pytest.raises(expected_exception=SystemExit, match="wire type 3"):
+    with pytest.raises(expected_exception=FatalError, match="wire type 3"):
         list(ota.fields(message=varint(value=5 << 3 | 3)))
 
 
@@ -280,7 +281,7 @@ def test_fields() -> None:
     ],
 )
 def test_fields_stops_at_a_cut_manifest(*, error: str, message: bytes) -> None:
-    with pytest.raises(expected_exception=SystemExit, match=error):
+    with pytest.raises(expected_exception=FatalError, match=error):
         list(ota.fields(message=message))
 
 
@@ -318,7 +319,7 @@ def test_transfer_list() -> None:
     ],
 )
 def test_transfer_list_fails(*, message: str, text: str) -> None:
-    with pytest.raises(expected_exception=SystemExit, match=message):
+    with pytest.raises(expected_exception=FatalError, match=message):
         ota.transfer_list(text=text)
 
 

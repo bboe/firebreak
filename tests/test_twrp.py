@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import host, twrp
+from firebreak.ui import FatalError, explained
 
 if TYPE_CHECKING:
     import pathlib
@@ -134,10 +135,10 @@ def test_a_block_device_check_naming_a_node_not_asked_about_is_read_again(
 
 def test_a_block_device_check_that_never_answers_stops_it(*, adb: FakeAdb) -> None:
     adb.answers["nodes-ok"] = ["b= nodes-"]
-    with pytest.raises(SystemExit) as stopped:
+    with pytest.raises(FatalError) as stopped:
         twrp.check_nodes(want={f"{twrp.DISK}p3": 512})
     assert "which of its partitions are block devices: 'b= nodes-'" in " ".join(
-        str(stopped.value).split()
+        explained(error=stopped.value).split()
     )
     assert len(adb.commands(holding="nodes-ok")) == twrp.PUSH_TRIES
     assert len(adb.commands(holding="wait-for-recovery")) == twrp.PUSH_TRIES - 1
@@ -171,9 +172,9 @@ def test_a_mount_left_behind_stops_it(
     *, adb: FakeAdb, answer: str, said: str, started: bool
 ) -> None:
     adb.answers["left:"] = [answer]
-    with pytest.raises(SystemExit) as stopped:
+    with pytest.raises(FatalError) as stopped:
         twrp.unmount(started=started)
-    assert said in " ".join(str(stopped.value).split())
+    assert said in " ".join(explained(error=stopped.value).split())
 
 
 def test_a_partition_table_cut_short_is_read_again(*, adb: FakeAdb) -> None:
@@ -192,14 +193,14 @@ def test_a_partition_table_is_read_by_name(*, adb: FakeAdb) -> None:
 
 def test_a_partition_table_that_never_arrives_stops_it(*, adb: FakeAdb) -> None:
     adb.answers["sgdisk --print"] = ["Problem opening /dev/block/mmcblk0"]
-    with pytest.raises(SystemExit, match="did not print"):
+    with pytest.raises(FatalError, match="did not print"):
         twrp.partition_table()
     assert len(adb.commands(holding="sgdisk")) == twrp.PUSH_TRIES
 
 
 def test_a_partition_table_without_a_userdata_row_stops_it(*, adb: FakeAdb) -> None:
     adb.answers["sgdisk --print"] = ["Disk userdata\ntable-ok"]
-    with pytest.raises(SystemExit, match="no userdata"):
+    with pytest.raises(FatalError, match="no userdata"):
         twrp.partitions()
 
 
@@ -244,7 +245,7 @@ def test_a_sector_read_returns_whole_sectors(*, adb: FakeAdb) -> None:
 
 def test_a_short_sector_read_stops_it(*, adb: FakeAdb) -> None:
     adb.raw = b"S" * 1000
-    with pytest.raises(SystemExit, match="read 1000 bytes"):
+    with pytest.raises(FatalError, match="read 1000 bytes"):
         twrp.read_sectors(count=2, start=0)
 
 
@@ -265,9 +266,9 @@ def test_a_slice_that_arrived_but_does_not_unpack_is_discarded(
     adb.answers["echo ready"] = ["ready"]
     adb.answers["gunzip"] = [twrp.GUNZIP_FAILED]
     adb.answers["md5sum"] = [md5(data=slices[0].read_bytes())]
-    with pytest.raises(SystemExit, match="after 3 tries") as stopped:
+    with pytest.raises(FatalError, match="after 3 tries") as stopped:
         twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
-    said = " ".join(str(stopped.value).split())
+    said = " ".join(explained(error=stopped.value).split())
     assert "system.00.gz arrived intact but did not unpack" in said
     assert "next run rebuilds it" in said
     assert not slices[0].exists()
@@ -315,7 +316,7 @@ def test_a_staged_write_that_dd_does_not_finish_stops_it(
 ) -> None:
     adb.answers["md5sum"] = [md5(data=b"old")]
     adb.answers["of=" + twrp.DISK] = ["dd: write error"]
-    with pytest.raises(SystemExit, match="table failed"):
+    with pytest.raises(FatalError, match="table failed"):
         twrp.write(estimate="5 s", label="table", path=image, sector=1)
     assert "bs=512 seek=1" in adb.commands(holding="of=" + twrp.DISK)[0]
 
@@ -325,7 +326,7 @@ def test_a_staged_write_that_does_not_reach_the_dot_stops_it(
 ) -> None:
     adb.answers["md5sum"] = [md5(data=b"old")]
     adb.answers[str(twrp.DOT_TEMPORARY_DIRECTORY / image.name)] = [(1, "no space")]
-    with pytest.raises(SystemExit, match="did not reach the Dot"):
+    with pytest.raises(FatalError, match="did not reach the Dot"):
         twrp.write(estimate="5 s", label="table", path=image, sector=8)
 
 
@@ -371,7 +372,7 @@ def test_a_stream_gunzip_cannot_read_is_named(
 ) -> None:
     adb.answers["echo ready"] = ["ready"]
     adb.answers["gunzip"] = [twrp.GUNZIP_FAILED]
-    with pytest.raises(SystemExit, match="gunzip could not read"):
+    with pytest.raises(FatalError, match="gunzip could not read"):
         twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
     assert slices[0].exists()
 
@@ -393,9 +394,9 @@ def test_a_stream_that_fails_on_a_slice_bad_here_discards_it(
     slices[1].write_bytes(slices[1].read_bytes()[:-8] + b"\0" * 8)
     adb.answers["echo ready"] = ["ready"]
     adb.answers["gunzip"] = [twrp.GUNZIP_FAILED]
-    with pytest.raises(SystemExit, match="after 3 tries") as stopped:
+    with pytest.raises(FatalError, match="after 3 tries") as stopped:
         twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
-    said = " ".join(str(stopped.value).split())
+    said = " ".join(explained(error=stopped.value).split())
     assert "system.01.gz did not unpack on this computer either" in said
     assert slices[0].exists()
     assert not slices[1].exists()
@@ -408,7 +409,7 @@ def test_a_stream_the_dot_says_nothing_about_is_a_failure(
 ) -> None:
     adb.answers["echo ready"] = ["ready"]
     adb.answers["gunzip"] = [""]
-    with pytest.raises(SystemExit, match="the Dot said nothing"):
+    with pytest.raises(FatalError, match="the Dot said nothing"):
         twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
 
 
@@ -418,7 +419,7 @@ def test_a_system_image_that_never_finishes_keeps_the_cache(
 ) -> None:
     adb.answers["echo ready"] = ["ready"]
     adb.answers["gunzip"] = [subprocess.TimeoutExpired(cmd=["adb"], timeout=600)]
-    with pytest.raises(SystemExit, match="did not finish"):
+    with pytest.raises(FatalError, match="did not finish"):
         twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
     assert slices[0].exists()
 
@@ -430,7 +431,7 @@ def test_a_system_image_that_never_verifies_is_discarded(
     adb.answers["echo ready"] = ["ready"]
     adb.answers["gunzip"] = [twrp.STREAM_OK]
     adb.answers["md5sum"] = [md5(data=b"old")]
-    with pytest.raises(SystemExit, match="cached image was discarded"):
+    with pytest.raises(FatalError, match="cached image was discarded"):
         twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
     assert not slices[0].exists()
 
@@ -440,7 +441,7 @@ def test_a_system_partition_left_mounted_stops_it(
     *, adb: FakeAdb, slices: list[pathlib.Path]
 ) -> None:
     adb.answers["echo ready"] = ["umount: /system_root: busy"]
-    with pytest.raises(SystemExit, match="stayed mounted"):
+    with pytest.raises(FatalError, match="stayed mounted"):
         twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
     assert adb.sent == []
 
@@ -459,7 +460,7 @@ def test_a_write_by_partition_checks_where_it_starts(
 ) -> None:
     adb.answers["md5sum"] = [md5(data=b"old")]
     adb.answers["/start"] = ["9"]
-    with pytest.raises(SystemExit, match="starts at 9, not 8"):
+    with pytest.raises(FatalError, match="starts at 9, not 8"):
         twrp.write(estimate="5 s", label="boot", number=7, path=image, sector=8)
     assert [words for words in adb.asked if words[1] == "push"] == []
 
@@ -480,7 +481,7 @@ def test_a_write_by_partition_that_push_refuses_stops_it(
     adb.answers["md5sum"] = [md5(data=b"old")]
     adb.answers["/start"] = ["8"]
     adb.answers[f"{twrp.DISK}p7"] = [(1, "remote write failed")]
-    with pytest.raises(SystemExit, match="remote write failed"):
+    with pytest.raises(FatalError, match="remote write failed"):
         twrp.write(estimate="5 s", label="boot", number=7, path=image, sector=8)
 
 
@@ -489,7 +490,7 @@ def test_a_write_that_does_not_flush_stops_it(
 ) -> None:
     adb.answers["md5sum"] = [md5(data=b"old")]
     adb.answers["of=" + twrp.DISK] = ["written"]
-    with pytest.raises(SystemExit, match="could not be flushed"):
+    with pytest.raises(FatalError, match="could not be flushed"):
         twrp.write(estimate="5 s", label="table", path=image, sector=8)
 
 
@@ -500,9 +501,11 @@ def test_a_write_that_does_not_verify_stops_it(
     adb.answers["md5sum"] = [md5(data=b"old")]
     adb.answers["of=" + twrp.DISK] = ["written"]
     adb.answers["flushed"] = ["flushed"]
-    with pytest.raises(SystemExit, match="did not verify") as stopped:
+    with pytest.raises(FatalError, match="did not verify") as stopped:
         twrp.write(estimate="5 s", label="table", path=image, sector=8)
-    assert "boot0 may hold no preloader" in " ".join(str(stopped.value).split())
+    assert "boot0 may hold no preloader" in " ".join(
+        explained(error=stopped.value).split()
+    )
 
 
 def test_a_write_with_a_matching_head_still_checks_the_whole(
@@ -524,10 +527,10 @@ def test_an_uncleared_boot0_header_stops_before_the_bootrom_fallback(
     *, adb: FakeAdb, erased: pathlib.Path
 ) -> None:
     adb.answers["force_ro"] = ["4096 12"]
-    with pytest.raises(SystemExit, match="did not clear") as stopped:
+    with pytest.raises(FatalError, match="did not clear") as stopped:
         twrp.clear_boot0()
     assert not erased.exists()
-    said = " ".join(str(stopped.value).split())
+    said = " ".join(explained(error=stopped.value).split())
     assert "nothing else was written" in said
     assert "boot0 may hold no preloader" not in said
 
@@ -537,9 +540,11 @@ def test_an_unread_boot0_says_the_dot_cannot_start(
 ) -> None:
     del erased
     adb.answers["force_ro"] = [""]
-    with pytest.raises(SystemExit, match="did not read back") as stopped:
+    with pytest.raises(FatalError, match="did not read back") as stopped:
         twrp.clear_boot0()
-    assert "boot0 may hold no preloader" in " ".join(str(stopped.value).split())
+    assert "boot0 may hold no preloader" in " ".join(
+        explained(error=stopped.value).split()
+    )
 
 
 def test_nothing_mounted_goes_on(*, adb: FakeAdb) -> None:
@@ -658,7 +663,7 @@ def test_twrp_that_does_not_finish_starting_stops_it(
     monkeypatch.setattr(name="monotonic", target=time, value=lambda: next(clock))
     adb.answers["ro.twrp.version"] = ["3.7.0_9-0"]
     adb.answers["sys.usb.config"] = ["adb"]
-    with pytest.raises(SystemExit, match="within 30 seconds"):
+    with pytest.raises(FatalError, match="within 30 seconds"):
         twrp.wait_for_twrp()
 
 
@@ -666,5 +671,5 @@ def test_twrp_that_never_comes_up_stops_it(*, adb: FakeAdb) -> None:
     adb.answers["wait-for-recovery"] = [
         subprocess.TimeoutExpired(cmd=["adb"], timeout=300)
     ]
-    with pytest.raises(SystemExit, match="within 5 minutes"):
+    with pytest.raises(FatalError, match="within 5 minutes"):
         twrp.wait_for_twrp()

@@ -6,6 +6,7 @@ import zlib
 import pytest
 
 from firebreak.android import gpt
+from firebreak.ui import FatalError
 
 DISK = 10000
 LAST_USABLE = DISK - 34
@@ -84,10 +85,10 @@ def test_gpt_intact() -> None:
 
 def test_stock_gpt_fails() -> None:
     with pytest.raises(
-        expected_exception=SystemExit, match="would have 15 partitions, not 16"
+        expected_exception=FatalError, match="would have 15 partitions, not 16"
     ):
         gpt.stock_gpt(raw=raw(names=[*OTHERS[:-1], "boot_a", "boot_b", "userdata"]))
-    with pytest.raises(expected_exception=SystemExit, match="neither copy"):
+    with pytest.raises(expected_exception=FatalError, match="neither copy"):
         gpt.stock_gpt(raw=b"M" * 512 + b"X" * 512 + bytes(16384))
 
 

@@ -10,6 +10,7 @@ from firebreak.emmc import EmmcArea
 from firebreak.mediatek.usbdl import ProtocolMismatchError
 from firebreak.plan import Action
 from firebreak.plugin import BOOT0, ZeroRpmb
+from firebreak.ui import FatalError
 from firebreak.unlocks.amonet_biscuit_v1_1_0 import (
     AMONET_BISCUIT_V1_1_0,
     FLASH_RECOVERY,
@@ -170,7 +171,7 @@ def test_a_failure_from_the_payload_names_the_action(*, payload: FakePayload) ->
         data=b"x" * 512, kind="Write", label="lk", length=512, offset=0, target="lk"
     )
     with pytest.raises(
-        SystemExit, match=r"(?s)Write \(lk\) did not go through.*Do not\s+unplug"
+        FatalError, match=r"(?s)Write \(lk\) did not go through.*Do not\s+unplug"
     ):
         bootrom.execute(actions=(action,), payload=payload)
 
@@ -185,7 +186,7 @@ def test_a_lost_switch_to_boot0_stops_before_the_write(*, payload: FakePayload) 
         offset=0,
         target=BOOT0,
     )
-    with pytest.raises(SystemExit, match="area 1 does not read as itself"):
+    with pytest.raises(FatalError, match="area 1 does not read as itself"):
         bootrom.execute(actions=(action,), payload=payload)
     assert writes(payload) == []
 
@@ -250,7 +251,7 @@ def test_a_serial_error_partway_through_says_not_to_unplug(
         data=b"x" * 512, kind="Write", label="lk", length=512, offset=0, target="lk"
     )
     with pytest.raises(
-        SystemExit, match=r"(?s)device not configured.*Do not\s+unplug the Dot"
+        FatalError, match=r"(?s)device not configured.*Do not\s+unplug the Dot"
     ):
         bootrom.execute(actions=(action,), payload=payload)
 
@@ -262,7 +263,7 @@ def test_a_user_area_without_a_boot_record_stops_the_write(
     action = Action(
         data=b"x" * 512, kind="Write", label="lk", length=512, offset=512, target="lk"
     )
-    with pytest.raises(SystemExit, match=r"area 0 does not read as itself"):
+    with pytest.raises(FatalError, match=r"area 0 does not read as itself"):
         bootrom.execute(actions=(action,), payload=payload)
     assert writes(payload) == []
 
@@ -295,7 +296,7 @@ def test_a_write_that_does_not_land_stops_it(*, payload: FakePayload) -> None:
     action = Action(
         data=b"x" * 512, kind="Write", label="lk", length=512, offset=0, target="lk"
     )
-    with pytest.raises(SystemExit, match="did not read back"):
+    with pytest.raises(FatalError, match="did not read back"):
         bootrom.execute(actions=(action,), payload=payload)
     assert (0, 0) not in payload.blocks
 
@@ -305,7 +306,7 @@ def test_a_zero_rpmb_that_expects_nothing_is_refused(
 ) -> None:
     nothing = resolved(source=tmp_path, step=ZeroRpmb(expect=None))
     assert nothing.kind == bootrom.ZERO_RPMB
-    with pytest.raises(SystemExit, match="would wipe the RPMB unchecked"):
+    with pytest.raises(FatalError, match="would wipe the RPMB unchecked"):
         bootrom.execute(actions=(nothing,), payload=payload)
     assert payload.asked == []
 
@@ -345,7 +346,7 @@ def test_an_image_is_padded_to_whole_sectors(
 def test_an_rpmb_that_does_not_zero_stops_it(*, payload: FakePayload) -> None:
     payload.lost = 1
     action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb", source=repr(EXPECT))
-    with pytest.raises(SystemExit, match="still holds"):
+    with pytest.raises(FatalError, match="still holds"):
         bootrom.execute(actions=(action,), payload=payload)
 
 
@@ -411,7 +412,7 @@ def test_steps_the_bootrom_cannot_run_stop_the_plan_first(
     write = Action(
         data=b"x" * 512, kind="Write", label="w", length=512, offset=0, target="lk"
     )
-    with pytest.raises(SystemExit, match="cannot carry out FastbootFlash"):
+    with pytest.raises(FatalError, match="cannot carry out FastbootFlash"):
         bootrom.execute(actions=(write, flash), payload=payload)
     assert payload.asked == []
 

@@ -15,6 +15,7 @@ from firebreak.mediatek.usbdl import (
     UsbdlError,
 )
 from firebreak.plan import Action
+from firebreak.ui import FatalError, explained
 
 if TYPE_CHECKING:
     import pathlib
@@ -220,7 +221,7 @@ def test_a_bootrom_port_is_taken_over_a_preloader_in_the_same_pass(
 
 def test_a_bootrom_that_does_not_answer_as_one_stops_the_run(*, rig: Rig) -> None:
     rig.handshakes = [ProtocolMismatchError("sent 0xa0, read b'\\x00'")]
-    with pytest.raises(SystemExit, match="did not answer as one"):
+    with pytest.raises(FatalError, match="did not answer as one"):
         step(rig=rig)
     assert rig.written == []
     assert rig.clients[0].port.closed is True
@@ -229,7 +230,7 @@ def test_a_bootrom_that_does_not_answer_as_one_stops_the_run(*, rig: Rig) -> Non
 def test_a_bootrom_that_never_answers_a_handshake_stops_the_run(*, rig: Rig) -> None:
     rig.handshakes = [HandshakeTimeoutError("no answer within 10 seconds")] * 4
     rig.tick = [100.0]
-    with pytest.raises(SystemExit, match="never answered a handshake"):
+    with pytest.raises(FatalError, match="never answered a handshake"):
         step(rig=rig)
     assert rig.steps.count("handshake") == 1
     assert rig.written == []
@@ -237,7 +238,7 @@ def test_a_bootrom_that_never_answers_a_handshake_stops_the_run(*, rig: Rig) -> 
 
 def test_a_dead_emmc_stops_the_run_before_anything_is_written(*, rig: Rig) -> None:
     rig.signature = b"\x00\x00"
-    with pytest.raises(SystemExit, match="eMMC did not answer: block 0"):
+    with pytest.raises(FatalError, match="eMMC did not answer: block 0"):
         step(rig=rig)
     assert rig.written == []
     assert not main.ERASED.exists()
@@ -246,14 +247,14 @@ def test_a_dead_emmc_stops_the_run_before_anything_is_written(*, rig: Rig) -> No
 def test_a_dead_emmc_with_the_short_on_blames_the_short(*, rig: Rig) -> None:
     main.SESSION.short = True
     rig.signature = None
-    with pytest.raises(SystemExit, match="most likely because the short"):
+    with pytest.raises(FatalError, match="most likely because the short"):
         step(rig=rig)
     assert rig.steps[-2:] == ["switch 0", "read block 0"]
     assert rig.written == []
 
 
 def test_a_failed_erase_stops_the_run_with_its_own_message(*, rig: Rig) -> None:
-    with pytest.raises(SystemExit, match="boot0 did not erase"):
+    with pytest.raises(FatalError, match="boot0 did not erase"):
         step(erase=lambda: "boot0 did not erase", rig=rig)
     assert main.ERASED.exists()
     assert rig.clients == []
@@ -261,7 +262,7 @@ def test_a_failed_erase_stops_the_run_with_its_own_message(*, rig: Rig) -> None:
 
 def test_a_failed_exploit_stops_the_run_with_nothing_written(*, rig: Rig) -> None:
     rig.exploit_error = OSError("device not configured")
-    with pytest.raises(SystemExit, match="exploit did not go through"):
+    with pytest.raises(FatalError, match="exploit did not go through"):
         step(rig=rig)
     assert rig.written == []
     assert not main.ERASED.exists()
@@ -269,9 +270,9 @@ def test_a_failed_exploit_stops_the_run_with_nothing_written(*, rig: Rig) -> Non
 
 def test_a_failure_after_the_erase_says_only_boot0_was_erased(*, rig: Rig) -> None:
     rig.exploit_error = OSError("device not configured")
-    with pytest.raises(SystemExit) as failure:
+    with pytest.raises(FatalError) as failure:
         step(erase=lambda: "", rig=rig)
-    said = str(failure.value).replace("\n", " ")
+    said = explained(error=failure.value).replace("\n", " ")
     assert "Only boot0 was erased" in said
     assert "Nothing was written" not in said
 
@@ -294,7 +295,7 @@ def test_a_handshake_that_times_out_with_the_short_on_stops_the_run(
 ) -> None:
     main.SESSION.short = True
     rig.handshakes = [HandshakeTimeoutError("no answer within 10 seconds")]
-    with pytest.raises(SystemExit, match="bootrom did not answer"):
+    with pytest.raises(FatalError, match="bootrom did not answer"):
         step(rig=rig)
     assert rig.written == []
 
@@ -316,7 +317,7 @@ def test_a_payload_that_never_starts_with_the_short_on_blames_the_short(
 ) -> None:
     main.SESSION.short = True
     rig.not_ready = True
-    with pytest.raises(SystemExit, match="most likely because the short"):
+    with pytest.raises(FatalError, match="most likely because the short"):
         step(rig=rig)
     assert rig.written == []
 
@@ -330,7 +331,7 @@ def test_a_plan_that_does_not_resolve_stops_before_anything_is_written(
 
     main.SESSION.short = True
     monkeypatch.setattr(name="resolve", target=main, value=unresolvable)
-    with pytest.raises(SystemExit, match="does not fit this Dot: biscuit has no"):
+    with pytest.raises(FatalError, match="does not fit this Dot: biscuit has no"):
         step(rig=rig)
     assert rig.written == []
     assert not main.ERASED.exists()
@@ -380,7 +381,7 @@ def test_a_table_that_cannot_be_read_stops_the_run(
         raise OSError(message)
 
     monkeypatch.setattr(name="read", target=main.bootrom, value=unreadable)
-    with pytest.raises(SystemExit, match="partition table could not be read"):
+    with pytest.raises(FatalError, match="partition table could not be read"):
         step(rig=rig)
     assert rig.written == []
     assert not main.ERASED.exists()
@@ -389,7 +390,7 @@ def test_a_table_that_cannot_be_read_stops_the_run(
 def test_no_port_at_all_stops_the_run_with_the_port_help(*, rig: Rig) -> None:
     rig.ports = [{}]
     rig.tick = [1000.0]
-    with pytest.raises(SystemExit, match="did not show up as a serial port"):
+    with pytest.raises(FatalError, match="did not show up as a serial port"):
         step(rig=rig)
     assert rig.clients == []
 
@@ -398,7 +399,7 @@ def test_the_dot_that_never_reaches_fastboot_stops_the_run(
     *, monkeypatch: pytest.MonkeyPatch, rig: Rig
 ) -> None:
     monkeypatch.setattr(name="in_fastboot", target=main, value=lambda: False)
-    with pytest.raises(SystemExit, match=r"did not come back in v1\.1\.0's fastboot"):
+    with pytest.raises(FatalError, match=r"did not come back in v1\.1\.0's fastboot"):
         step(rig=rig)
     assert rig.written == [WRITES]
 

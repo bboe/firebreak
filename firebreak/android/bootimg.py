@@ -13,7 +13,7 @@ import zlib
 from typing import TYPE_CHECKING
 
 from firebreak.cache import MAGISK
-from firebreak.ui import _die
+from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
     import pathlib
@@ -35,7 +35,7 @@ def boot_image(*, fireos: pathlib.Path, magisk: pathlib.Path) -> bytes:
     command_line = bytes(header[64:576]).split(sep=b"\0")[0]
     command_line += b" androidboot.selinux=permissive"
     if len(command_line) >= COMMAND_LINE_SIZE:
-        _die(
+        raise FatalError(
             message="the stock boot image's command line has no room for"
             " androidboot.selinux=permissive"
         )
@@ -108,9 +108,13 @@ def cpio_files(*, data: bytes) -> dict[bytes, tuple[int, bytes]]:
     offset = 0
     while offset < len(data):
         if data[offset : offset + 6] != b"070701":
-            _die(message="the boot image's ramdisk is not a newc cpio archive")
+            raise FatalError(
+                message="the boot image's ramdisk is not a newc cpio archive"
+            )
         if len(data) - offset < CPIO_HEADER_SIZE:
-            _die(message="the boot image's ramdisk ends inside a cpio header")
+            raise FatalError(
+                message="the boot image's ramdisk ends inside a cpio header"
+            )
         fields = [
             int(data[offset + 6 + 8 * index : offset + 14 + 8 * index], 16)
             for index in range(13)
@@ -122,8 +126,7 @@ def cpio_files(*, data: bytes) -> dict[bytes, tuple[int, bytes]]:
         if name == b"TRAILER!!!":
             return files
         files[name] = (fields[1], body)
-    _die(message="the boot image's ramdisk ends without a cpio trailer")
-    return {}
+    raise FatalError(message="the boot image's ramdisk ends without a cpio trailer")
 
 
 def magisk_binary(*, magiskinit: bytes) -> bytes:
@@ -134,8 +137,7 @@ def magisk_binary(*, magiskinit: bytes) -> bytes:
             if binary.startswith(b"\x7fELF"):
                 return binary
         offset = magiskinit.find(b"\xfd7zXZ\0", offset + 1)
-    _die(message=f"{MAGISK.name}'s magiskinit holds no magisk binary")
-    return b""
+    raise FatalError(message=f"{MAGISK.name}'s magiskinit holds no magisk binary")
 
 
 def magisk_db(*, path: pathlib.Path) -> None:
@@ -175,7 +177,7 @@ def magisk_files(
         script = archive.read(name="META-INF/com/google/android/update-binary").decode()
     packed = re.search(flags=re.MULTILINE, pattern=r"^BB_ARM=(\S+)", string=script)
     if not packed:
-        _die(message=f"{MAGISK.name} has no busybox in its installer")
+        raise FatalError(message=f"{MAGISK.name} has no busybox in its installer")
     files[b"data/adb/magisk/busybox"] = (
         0o100755,
         lzma.decompress(data=base64.b64decode(s=packed.group(1))),

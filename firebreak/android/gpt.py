@@ -4,7 +4,7 @@ import dataclasses
 import struct
 import zlib
 
-from firebreak.ui import _die
+from firebreak.ui import FatalError
 
 ENTRY_COUNT = 128
 ENTRY_SIZE = 128
@@ -109,7 +109,7 @@ def stock_entries(*, entries: bytes, last_usable: int) -> bytes:
         stock += restored
     count = len(stock) // ENTRY_SIZE
     if count != STOCK_PARTITIONS:
-        _die(
+        raise FatalError(
             message=f"the stock table would have {count} partitions,"
             f" not {STOCK_PARTITIONS}"
         )
@@ -120,7 +120,7 @@ def stock_gpt(*, raw: bytes) -> Table:
     template = raw[SECTOR_SIZE : 2 * SECTOR_SIZE]
     entries = raw[2 * SECTOR_SIZE : 2 * SECTOR_SIZE + ENTRIES_SIZE]
     if not gpt_intact(entries=entries, header=template):
-        _die(message="neither copy of the Dot's partition table is intact")
+        raise FatalError(message="neither copy of the Dot's partition table is intact")
     return rebuilt_gpt(
         entries=stock_entries(
             entries=entries, last_usable=struct.unpack("<Q", template[48:56])[0]

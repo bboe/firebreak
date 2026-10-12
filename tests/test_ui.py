@@ -19,6 +19,13 @@ URL = (
 )
 
 
+def test_a_fatal_error_is_said_whole_until_it_is_stopped() -> None:
+    error = ui.FatalError(message="word " * 30)
+    assert str(error) == "ERROR: " + "word " * 30
+    assert error.message == "word " * 30
+    assert ui.SESSION.shown is None
+
+
 @pytest.mark.parametrize(
     argnames=("program_path", "want"),
     argvalues=[
@@ -87,57 +94,38 @@ def test_color_needs_windows_terminal(*, monkeypatch: pytest.MonkeyPatch) -> Non
     assert ui.color(stream=sys.stdout)
 
 
-def test_die_halts_progress_and_fills(
-    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    tty(monkeypatch=monkeypatch)
-    monkeypatch.setattr(name="isatty", target=sys.stderr, value=lambda: True)
-    ui.PROGRESS.begin(label="step")
-    with pytest.raises(expected_exception=SystemExit) as raised:
-        ui._die(message="word " * 30)  # ruff: ignore[private-member-access]
-    text = str(raised.value)
-    assert text.startswith("\033[31mERROR: word")
-    assert "\n" in text
-    assert ui.PROGRESS.ticker is None
-    assert ui.SESSION.shown == ui.Kind.ERROR
-    assert capsys.readouterr().out.endswith("\n")
+def test_explained_keeps_a_url_whole() -> None:
+    error = ui.FatalError(message="no download link on " + URL)
+    assert ui.explained(error=error).split("\n") == [
+        "ERROR: no download link on",
+        URL,
+    ]
 
 
-def test_die_keeps_a_url_whole() -> None:
-    with pytest.raises(expected_exception=SystemExit) as raised:
-        ui._die(message="no download link on " + URL)  # ruff: ignore[private-member-access]
-    assert str(raised.value).split("\n") == ["ERROR: no download link on", URL]
+def test_explained_keeps_newlines() -> None:
+    error = ui.FatalError(message="one\ntwo", prefix="")
+    assert ui.explained(error=error) == "one\ntwo"
 
 
-def test_die_keeps_newlines_and_plain_without_color() -> None:
-    ui.SESSION.shown = ui.Kind.INFO
-    with pytest.raises(expected_exception=SystemExit) as raised:
-        ui._die(message="one\ntwo", prefix="")  # ruff: ignore[private-member-access]
-    assert str(raised.value) == "one\ntwo"
-
-
-def test_die_says_nothing_of_boot0_without_its_marker(
+def test_explained_says_nothing_of_boot0_without_its_marker(
     *, tmp_path: pathlib.Path
 ) -> None:
+    error = ui.FatalError(message="stopped", prefix="")
     ui.SESSION.boot0_marker = tmp_path / "boot0-erased"
-    with pytest.raises(expected_exception=SystemExit) as raised:
-        ui._die(message="stopped", prefix="")  # ruff: ignore[private-member-access]
-    assert str(raised.value) == "stopped"
+    assert ui.explained(error=error) == "stopped"
     ui.SESSION.boot0_marker = None
     (tmp_path / "boot0-erased").touch()
-    with pytest.raises(expected_exception=SystemExit) as raised:
-        ui._die(message="stopped", prefix="")  # ruff: ignore[private-member-access]
-    assert str(raised.value) == "stopped"
+    assert ui.explained(error=error) == "stopped"
 
 
-def test_die_says_the_dot_cannot_start_while_boot0_is_empty(
+def test_explained_says_the_dot_cannot_start_while_boot0_is_empty(
     *, tmp_path: pathlib.Path
 ) -> None:
     ui.SESSION.boot0_marker = tmp_path / "boot0-erased"
     ui.SESSION.boot0_marker.touch()
-    with pytest.raises(expected_exception=SystemExit) as raised:
-        ui._die(message="stopped", prefix="")  # ruff: ignore[private-member-access]
-    first, _, note = str(raised.value).partition("\n\n")
+    first, _, note = ui.explained(
+        error=ui.FatalError(message="stopped", prefix="")
+    ).partition("\n\n")
     assert first == "stopped"
     assert " ".join(note.split()) == ui.BOOT0_EMPTY + "."
     assert max(len(line) for line in note.split("\n")) <= 79
@@ -284,6 +272,29 @@ def test_status(
     tty(monkeypatch=monkeypatch)
     ui.status(text="waiting")
     assert capsys.readouterr().out == "\r\033[33m" + "waiting".ljust(79) + "\033[0m"
+
+
+def test_stop_halts_progress_and_fills(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tty(monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="isatty", target=sys.stderr, value=lambda: True)
+    ui.PROGRESS.begin(label="step")
+    with pytest.raises(expected_exception=SystemExit) as raised:
+        ui.stop(error=ui.FatalError(message="word " * 30))
+    text = str(raised.value)
+    assert text.startswith("\033[31mERROR: word")
+    assert "\n" in text
+    assert ui.PROGRESS.ticker is None
+    assert ui.SESSION.shown == ui.Kind.ERROR
+    assert capsys.readouterr().out.endswith("\n")
+
+
+def test_stop_is_plain_without_color() -> None:
+    ui.SESSION.shown = ui.Kind.INFO
+    with pytest.raises(expected_exception=SystemExit) as raised:
+        ui.stop(error=ui.FatalError(message="one\ntwo", prefix=""))
+    assert str(raised.value) == "one\ntwo"
 
 
 def tty(*, monkeypatch: pytest.MonkeyPatch) -> None:

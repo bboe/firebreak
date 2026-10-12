@@ -15,7 +15,7 @@ from firebreak.ui import (
     ARGUMENTS,
     PROGRESS,
     SESSION,
-    _die,
+    FatalError,
     asked_for,
     clock,
     program,
@@ -87,7 +87,7 @@ def check_adb() -> None:
     )
     parts = version.split(sep=".")
     if not all(part.isdigit() for part in parts) or tuple(map(int, parts)) < (1, 0, 36):
-        _die(
+        raise FatalError(
             message=f"adb reports version {version}; this needs 1.0.36"
             " (platform-tools r24) or newer"
         )
@@ -95,7 +95,7 @@ def check_adb() -> None:
 
 def check_user() -> None:
     if os.name != "nt" and os.geteuid() == 0:
-        _die(message=AS_ROOT)
+        raise FatalError(message=AS_ROOT)
     if not sys.platform.startswith("linux"):
         return
     import grp  # ruff: ignore[import-outside-top-level]
@@ -104,12 +104,12 @@ def check_user() -> None:
     try:
         plugdev = grp.getgrnam(name="plugdev")
     except KeyError:
-        _die(message=NO_ACCESS + rerun())
+        raise FatalError(message=NO_ACCESS + rerun()) from None
     if plugdev.gr_gid in os.getgroups():
         return
     if pwd.getpwuid(os.getuid()).pw_name in plugdev.gr_mem:
-        _die(message=NEW_GROUP + rerun())
-    _die(message=NO_ACCESS + rerun())
+        raise FatalError(message=NEW_GROUP + rerun())
+    raise FatalError(message=NO_ACCESS + rerun())
 
 
 def child(*, arguments: list[str] | None = None, name: str) -> list[str]:
@@ -168,8 +168,7 @@ def devices(*, arguments: list[str]) -> str:
         ):
             return output
         time.sleep(1)
-    _die(message=NO_ACCESS + rerun())
-    return ""
+    raise FatalError(message=NO_ACCESS + rerun())
 
 
 def getvar(*, name: str) -> str:
@@ -193,7 +192,7 @@ def in_fastboot() -> bool:
     if USER_SERIAL:
         return USER_SERIAL in serials
     if len(serials) > 1:
-        _die(message=MORE_THAN_ONE)
+        raise FatalError(message=MORE_THAN_ONE)
     return bool(serials)
 
 
@@ -259,7 +258,7 @@ def push_checked(*, local: pathlib.Path, remote: str | pathlib.PurePosixPath) ->
                 f"{' '.join(map(str, error.cmd))} did not finish in"
                 f" {error.timeout:.0f} seconds"
             )
-    _die(
+    raise FatalError(
         message=f"{remote} did not arrive intact after {PUSH_TRIES} tries;"
         f" the last: {said}. " + asked_for()
     )
@@ -279,7 +278,9 @@ def reconnect(*, remote: str | pathlib.PurePosixPath) -> None:
     try:
         run(arguments=["adb", "wait-for-recovery"], timeout=120)
     except subprocess.TimeoutExpired:
-        _die(message="the Dot did not reconnect over USB in recovery")
+        raise FatalError(
+            message="the Dot did not reconnect over USB in recovery"
+        ) from None
     time.sleep(5)
 
 
@@ -308,7 +309,9 @@ def run(
         "\r", ""
     )
     if check and result.returncode != 0:
-        _die(message=f"{' '.join(map(str, arguments))} failed:\n{result.stdout}")
+        raise FatalError(
+            message=f"{' '.join(map(str, arguments))} failed:\n{result.stdout}"
+        )
     return result
 
 
@@ -361,7 +364,7 @@ def stream(
 def usb_serial() -> str | None:
     if USER_SERIAL:
         if ":" in USER_SERIAL:
-            _die(
+            raise FatalError(
                 message="ANDROID_SERIAL names a network device;"
                 " this needs the Dot on USB"
             )
@@ -374,7 +377,7 @@ def usb_serial() -> str | None:
         if on_usb(line=line) and "no permissions" not in line
     ]
     if len(connected_serials) > 1:
-        _die(message=MORE_THAN_ONE)
+        raise FatalError(message=MORE_THAN_ONE)
     if connected_serials:
         os.environ["ANDROID_SERIAL"] = connected_serials[0]
         return connected_serials[0]

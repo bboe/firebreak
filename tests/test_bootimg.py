@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak.android import bootimg
+from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
     import pathlib
@@ -115,7 +116,7 @@ def test_boot_image_needs_room_on_the_command_line(
         )
     magisk = magisk_zip(path=tmp_path / "m.zip")
     if not fits:
-        with pytest.raises(expected_exception=SystemExit, match="has no room for"):
+        with pytest.raises(expected_exception=FatalError, match="has no room for"):
             bootimg.boot_image(fireos=fireos, magisk=magisk)
         return
     header, _, _ = unpack(image=bootimg.boot_image(fireos=fireos, magisk=magisk))
@@ -146,19 +147,19 @@ def test_cpio_files_catches_a_cut_header() -> None:
     start = archive.find(b"070701", 1)
     for cut in (6, 50, bootimg.CPIO_HEADER_SIZE - 1):
         with pytest.raises(
-            expected_exception=SystemExit, match="ends inside a cpio header"
+            expected_exception=FatalError, match="ends inside a cpio header"
         ):
             bootimg.cpio_files(data=archive[: start + cut])
 
 
 def test_cpio_files_needs_a_trailer() -> None:
     archive = bootimg.cpio(files=RAMDISK)
-    with pytest.raises(expected_exception=SystemExit, match="without a cpio trailer"):
+    with pytest.raises(expected_exception=FatalError, match="without a cpio trailer"):
         bootimg.cpio_files(data=archive[: archive.rindex(b"070701")])
 
 
 def test_cpio_files_refuses_other_formats() -> None:
-    with pytest.raises(expected_exception=SystemExit, match="not a newc cpio archive"):
+    with pytest.raises(expected_exception=FatalError, match="not a newc cpio archive"):
         bootimg.cpio_files(data=b"070707" + bytes(200))
 
 
@@ -172,7 +173,7 @@ def test_cpio_round_trip() -> None:
 
 def test_magisk_binary() -> None:
     assert bootimg.magisk_binary(magiskinit=magiskinit()) == ELF
-    with pytest.raises(expected_exception=SystemExit, match="holds no magisk binary"):
+    with pytest.raises(expected_exception=FatalError, match="holds no magisk binary"):
         bootimg.magisk_binary(magiskinit=b"junk" + lzma.compress(data=b"not elf"))
 
 
@@ -202,7 +203,7 @@ def test_magisk_files(*, tmp_path: pathlib.Path) -> None:
 def test_magisk_files_needs_busybox(*, tmp_path: pathlib.Path) -> None:
     magisk = magisk_zip(busybox=False, path=tmp_path / "m.zip")
     with pytest.raises(
-        expected_exception=SystemExit, match="has no busybox in its installer"
+        expected_exception=FatalError, match="has no busybox in its installer"
     ):
         bootimg.magisk_files(database=b"db", magisk=magisk)
 
