@@ -14,6 +14,9 @@ if TYPE_CHECKING:
     import pathlib
 
 
+DEFAULT_BUILD = "8149"
+
+
 FTVDB = "https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/"
 
 

@@ -82,8 +82,9 @@ def cli() -> None:
   {AMONET_BISCUIT_V2_0_0}
       amonet v2.0.0's own procedure: Fire OS 6 {installs.build}
       with boot-root.zip's root adb.
-  stock BUILD
-      Amazon's Fire OS 6 BUILD, which erases the whole Dot.
+  stock [BUILD]
+      Amazon's Fire OS 6 BUILD, {updates.DEFAULT_BUILD} when left out, which
+      erases the whole Dot.
 Run again with another target to move the Dot to it.""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         prog="firebreak",
@@ -132,18 +133,19 @@ Run again with another target to move the Dot to it.""",
         "build",
         choices=sorted(updates.BUILDS),
         help="with stock, and only with stock: the build to install, one of "
-        + ", ".join(sorted(updates.BUILDS)),
+        + ", ".join(sorted(updates.BUILDS))
+        + f"; {updates.DEFAULT_BUILD} when left out",
         metavar="BUILD",
         nargs="?",
     )
     options = parser.parse_intermixed_args()
     target = TARGETS[options.target]
-    if (target.installs == FireOs6(build=None)) != (options.build is not None):
+    stock = target.installs == FireOs6(build=None)
+    if options.build is not None and not stock:
         parser.error(
-            message="stock takes a BUILD, and no other target does: "
-            + ", ".join(sorted(updates.BUILDS))
+            message="only stock takes a BUILD: " + ", ".join(sorted(updates.BUILDS))
         )
-    ARGUMENTS.build = options.build or ""
+    ARGUMENTS.build = options.build or (updates.DEFAULT_BUILD if stock else "")
     ARGUMENTS.target = target
     ARGUMENTS.verbose = options.verbose
     for tool in ("adb", "fastboot"):

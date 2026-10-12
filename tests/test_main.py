@@ -143,3 +143,25 @@ def test_target_names_are_the_unlocks_names() -> None:
     assert main.AMONET_BISCUIT_V1_1_0 == "amonet-biscuit-v1.1.0"
     assert main.AMONET_BISCUIT_V1_1_0_BBOE == "amonet-biscuit-v1.1.0-bboe"
     assert main.AMONET_BISCUIT_V2_0_0 == "amonet-biscuit-v2.0.0"
+
+
+@pytest.mark.parametrize(
+    argnames=("arguments", "build"),
+    argvalues=[
+        (["stock"], "8149"),
+        (["stock", "4315"], "4315"),
+        (["amonet-biscuit-v2.0.0"], ""),
+    ],
+    ids=["stock-alone", "stock-with-a-build", "another-target"],
+)
+def test_the_build_each_target_gets(
+    *, arguments: list[str], build: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="build", target=main.ARGUMENTS, value="")
+    monkeypatch.setattr(name="target", target=main.ARGUMENTS, value="")
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", *arguments])
+    monkeypatch.setattr(name="which", target=main.shutil, value=lambda **_: "adb")
+    monkeypatch.setattr(name="check_user", target=main, value=lambda: sys.exit(1))
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert main.ARGUMENTS.build == build

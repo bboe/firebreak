@@ -591,7 +591,7 @@ ring read white.
 | `amonet-biscuit-v1.1.0-bboe`, the default | amonet v1.1.0, TWRP 3.7.0_9-bboe2, rooted Fire OS 5.5.5.4 | amonet-v1.1.0-bboe-booted |
 | `amonet-biscuit-v1.1.0` | the same, with v1.1.0's own TWRP 3.2.3 | amonet-v1.1.0-booted |
 | `amonet-biscuit-v2.0.0` | amonet v2.0.0's TWRP, Fire OS 6 8146 in both slots, `boot-root.zip` | amonet-v2.0.0-booted |
-| `stock BUILD` | Amazon's Fire OS 6 `BUILD`, the whole Dot erased | stock-booted |
+| `stock [BUILD]` | Amazon's Fire OS 6 `BUILD`, 8149 when left out, the whole Dot erased | stock-booted |
 
 - Each poll picks the stage for the state found and the target, so a run
   goes from any state to any target, a rooted Dot included. Every state has
@@ -1100,8 +1100,8 @@ every state has a route to it: a rooted Dot goes to recovery, amonet v1.1.0's
 fastboot gets amonet v1.1.0's TWRP, Fire OS 5's locked fastboot gets the
 fastbrick, and in any TWRP the restore runs.
 
-- `stock` takes a `BUILD`, and no other target does. The run downloads the
-  build before it touches the Dot.
+- Only `stock` takes a `BUILD`, and without one it installs 8149. The run
+  downloads the build before it touches the Dot.
 - The restore ends at stock-booted: the run waits for stock to start, which
   shows as `adb` answering `unauthorized` about 1.5 minutes after the reboot. A
   Dot already stock-booted, or in stock fastboot, has nothing to restore. An

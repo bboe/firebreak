@@ -94,7 +94,7 @@ which is a check on the count alone. biscuit lists it after boot moved, so a
 half-moved table is refused before the count is read. No OTA
 writes the partition table: Fire OS 5.5.5.4's and Fire OS 6 4315's write
 system, boot, LK, TEE and the preloader, and the `payload.bin` of 4405,
-5041, 6302, 8142 and 8146 carries just those five. Every table read here
+5041, 6302, 8142, 8146 and 8149 carries just those five. Every table read here
 came from one Dot, so a change between production runs is not ruled out.
 
 ### Boot moved

@@ -13,6 +13,7 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
+- `stock` without a build installs 8149. Before, it stopped with an error.
 - `--verbose` and `--report` name a rooted Fire OS 5 by its unlock:
   `amonet-v1.1.0-booted` and `amonet-v1.1.0-bboe-booted`, not
   `rooted-amonet-v1.1.0` and `rooted-amonet-v1.1.0-bboe`.

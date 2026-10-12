@@ -9,7 +9,7 @@ Dot. A stopped run picks up where it left off.
 | `amonet-biscuit-v1.1.0-bboe` (default) | rooted Fire OS [5.5.5.4][fireos-5554] on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
 | `amonet-biscuit-v1.1.0` | the same, with amonet v1.1.0's TWRP 3.2.3 | about 10 s from `amonet-biscuit-v1.1.0-bboe` |
 | `amonet-biscuit-v2.0.0` | rooted Fire OS 6 [8146][fireos-8146] on amonet v2.0.0; opens your browser to download `boot-root.zip` from [the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/) | about 5 min from `amonet-biscuit-v1.1.0-bboe` |
-| `stock BUILD` | stock Fire OS 6 at that build, with the Dot erased | about 3 min from `amonet-biscuit-v1.1.0-bboe` |
+| `stock [BUILD]` | stock Fire OS 6 at that build, [8149][fireos-8149] when left out, with the Dot erased | about 3 min from `amonet-biscuit-v1.1.0-bboe` |
 
 ## Run it
 
@@ -30,7 +30,7 @@ These commands use [Homebrew](https://brew.sh). Without it, download Google's
 ```sh
 brew install --cask android-platform-tools uv
 uvx firebreak@latest              # amonet-biscuit-v1.1.0-bboe
-uvx firebreak@latest stock 8146   # or 4315, 4405, 5041, 6302, 8138, 8142, 8149
+uvx firebreak@latest stock        # 8149, or name 4315, 4405, 5041, 6302, 8138, 8142, 8146
 ```
 
 ### Linux

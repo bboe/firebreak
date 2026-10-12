@@ -30,20 +30,15 @@ def test_help(*, command: list[str]) -> None:
     assert output.startswith("usage: firebreak ")
 
 
-@pytest.mark.parametrize(
-    argnames="arguments",
-    argvalues=[["stock"], ["amonet-biscuit-v2.0.0", "8146"]],
-    ids=["stock-alone", "build-without-stock"],
-)
-def test_only_stock_takes_a_build(*, arguments: list[str]) -> None:
+def test_only_stock_takes_a_build() -> None:
     finished = subprocess.run(
-        args=[sys.executable, "-m", "firebreak", *arguments],
+        args=[sys.executable, "-m", "firebreak", "amonet-biscuit-v2.0.0", "8146"],
         capture_output=True,
         check=False,
         text=True,
     )
     assert finished.returncode == 2
-    assert "stock takes a BUILD, and no other target does" in finished.stderr
+    assert "only stock takes a BUILD" in finished.stderr
 
 
 def test_the_pyz_holds_the_pinned_update_checker() -> None:
