@@ -599,10 +599,13 @@ def fastbrick(*, image: str, sparse: int | None, state: dict) -> int:
         )
         return 1
     cache = pathlib.Path(state["cache"])
+    writes = []
     with (
         zipfile.ZipFile(cache / "amonet-biscuit-v2.0.0.zip") as v2,
         tempfile.TemporaryDirectory() as folder,
     ):
+        upload = pathlib.Path(folder) / "brick"
+        upload.mkdir()
         for target, suffix in (
             ("lk_a", "bin/lk.bin"),
             ("lk_b", "bin/lk.bin"),
@@ -611,9 +614,17 @@ def fastbrick(*, image: str, sparse: int | None, state: dict) -> int:
             ("expdb", "bin/biscuit-kaeru.bin"),
             ("recovery", "bin/twrp.img"),
         ):
-            local = pathlib.Path(folder) / target
-            local.write_bytes(member(archive=v2, suffix=suffix))
-            write_image(local=local, node=f"{BY_NAME}/{target}", state=state)
+            (upload / target).write_bytes(member(archive=v2, suffix=suffix))
+            node = f"{BY_NAME}/{target}"
+            writes.append(
+                f"blockdev --setrw {node} 2>/dev/null; dd if=/sim/brick/{target}"
+                f" of={node} bs=512 conv=notrunc,fsync 2>/dev/null{protect(node=node)}"
+            )
+        docker(
+            arguments=["cp", "-L", str(upload), f"{state['container']}:/sim/"],
+            capture_output=True,
+        )
+    inside(command="; ".join([*writes, "rm -rf /sim/brick"]), state=state)
     request_reboot(delay=BOOT_SECONDS + 2, into="recovery")
     print(sending(image=pathlib.Path(image), part="brick", sparse=sparse), flush=True)
     time.sleep(3600)
