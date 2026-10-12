@@ -572,8 +572,8 @@ ring read white.
 - The fastbrick image is `fastbrick-20221007.img` when `lk_build_desc` is
   `63cb91b-20221007_072309` or `41fb3ce-20221007_151724`, else
   `fastbrick.img`. That one payload takes both bootloaders, where amonet
-  v2.0.0's own map lists only the first. The second ships in 4315 alone,
-  which the default image does not unlock.
+  v2.0.0's own map lists only the first. The second ships in 4310, 4313 and
+  4315, which the default image does not unlock.
 - A flash that returns means the exploit did not start, so it is retried, up to
   10 times. A flash still running after 8 seconds means the exploit is running:
   the script stops fastboot and leaves the Dot to reach TWRP.

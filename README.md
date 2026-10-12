@@ -6,9 +6,9 @@ Dot. A stopped run picks up where it left off.
 
 | target | the Dot ends with | time |
 | --- | --- | --- |
-| `amonet-biscuit-v1.1.0-bboe` (default) | rooted Fire OS 5.5.5.4 on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
+| `amonet-biscuit-v1.1.0-bboe` (default) | rooted Fire OS [5.5.5.4][fireos-5554] on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
 | `amonet-biscuit-v1.1.0` | the same, with amonet v1.1.0's TWRP 3.2.3 | about 10 s from `amonet-biscuit-v1.1.0-bboe` |
-| `amonet-biscuit-v2.0.0` | rooted Fire OS 6 8146 on amonet v2.0.0; opens your browser to download `boot-root.zip` from [the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/) | about 5 min from `amonet-biscuit-v1.1.0-bboe` |
+| `amonet-biscuit-v2.0.0` | rooted Fire OS 6 [8146][fireos-8146] on amonet v2.0.0; opens your browser to download `boot-root.zip` from [the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/) | about 5 min from `amonet-biscuit-v1.1.0-bboe` |
 | `stock BUILD` | stock Fire OS 6 at that build, with the Dot erased | about 3 min from `amonet-biscuit-v1.1.0-bboe` |
 
 ## Run it
@@ -75,6 +75,26 @@ It has x86 and x64 builds only, so Windows on ARM cannot run the bootrom step.
   can update to a build the script does not support.
 - [docs/rooting.md][rooting] says why each step is there.
 
+## Bootloaders
+
+From stock, only the LK decides whether firebreak can unlock a Dot.
+`fastboot getvar lk_build_desc` reads it.
+
+| `lk_build_desc` | ships in |
+| --- | --- |
+| `63cb91b-20221007_072309` | Fire OS 6 [4405][fireos-4405] to [8149][fireos-8149] |
+| `41fb3ce-20221007_151724` | Fire OS 6 [4310][fireos-4310], [4313][fireos-4313], [4315][fireos-4315] |
+| `beb022a-20211202_231918` | Fire OS [5.5.5.4][fireos-5554] |
+| `a828f29-20210822_210511` | Fire OS [5.5.4.9][fireos-5549], [5.5.5.0][fireos-5550] |
+| `f379dba-20170906_000423` | Fire OS [5.5.3.1][fireos-5531] to [5.5.4.6][fireos-5546] |
+| `0e1d0d9-20161018_220224` | Fire OS [5.5.0.3][fireos-5503] |
+
+- The maintainer has not unlocked a Dot on [Fire OS 5.5.0.3][fireos-5503].
+- The maintainer has unlocked [Fire OS 5.5.5.4][fireos-5554]'s LK only on a
+  Dot that fell back to it, not on a stock 5.5.5.4 Dot.
+- [docs/devices.md][devices] has each build's preloader, TEE and
+  anti-rollback versions.
+
 ## `--short`
 
 Use `--short` when the Dot shows no light and gives no fastboot. The run reaches
@@ -118,5 +138,18 @@ firebreak uses the BSD 2-Clause licence, in [LICENSE.txt][licence]. This
 repository contains no Amazon code, and firebreak is not affiliated with,
 endorsed by, or supported by Amazon.
 
+[devices]: https://github.com/bboe/firebreak/blob/main/docs/devices.md#biscuit
+[fireos-4310]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/2c4db2f5fa2ddb390faf5ccf9a879b01-8087721594-fire-os-6-5-5-5-ns6555-4310-2022-11-23/
+[fireos-4313]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/0c90e6241451777048da197542c82b87-8087722362-fire-os-6-5-5-5-ns6555-4313-2023-01-10/
+[fireos-4315]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/03c7c4dc338a93635dda0f5e1cd4e451-8087722874-fire-os-6-5-5-5-ns6555-4315-2023-11-20/
+[fireos-4405]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/570f3f6b28f94323e01e95561c87887f-8289072516-fire-os-6-5-5-6-ns6556-4405-2023-01-21/
+[fireos-5503]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/6049e04dd518483ed6e5b0d72ffe9eac-564196920-fire-os-5-5-0-3-564196920-2018-09-20/
+[fireos-5531]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/789c6b80b00b90a35c3016d42a7c4455-641575220-fire-os-5-5-3-1-641575220-2019-07-22/
+[fireos-5546]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/547fad91b469b9d6a3a1fcdb85b43671-666694320-fire-os-5-5-4-6-666694320-2021-06-23/
+[fireos-5549]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/538f9374ad45f3f1ea18948609d7446f-672720020-fire-os-5-5-4-9-672720020-2021-10-27/
+[fireos-5550]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/1be9f19c0c16337c34d55390a146c990-673726720-fire-os-5-5-5-0-673726720-2021-12-14/
+[fireos-5554]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/805e721e1bed461d8a81015a1f703fc1-680767620-fire-os-5-5-5-4-680767620-2022-11-18/
+[fireos-8146]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/8ca06ee4ef2806c974d2944b7fadd543-13222531716-fire-os-6574-1-ns65741-8146-2026-09-17/
+[fireos-8149]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/a01de630f6d943dddc9b751ae74bbb52-13222532484-fire-os-6574-1-ns65741-8149-2026-09-29/
 [licence]: https://github.com/bboe/firebreak/blob/main/LICENSE.txt
 [rooting]: https://github.com/bboe/firebreak/blob/main/docs/rooting.md
