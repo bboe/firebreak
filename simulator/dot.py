@@ -1,4 +1,4 @@
-"""Simulate an Echo Dot (2nd Generation) for firebreak and dot_firmware.py.
+"""Simulate an Echo Dot (2nd Generation) for firebreak.
 
 python3 simulator/dot.py create [--cache DIR] [--runner PID]
     [--start fastboot|no-light|stock-booted]
@@ -105,7 +105,7 @@ STOCK_TABLE = (
 )
 TABLE_BACKUP_SECTORS = 33
 TABLE_PRIMARY_SECTORS = 34
-TOOL_CACHES = ("firebreak", "overdub-firmware")
+TOOL_CACHE = "firebreak"
 TWRPS = {"bboe": "3.7.0_9-bboe2", "v1": "3.2.3-0", "v2": "3.7.0_9-0"}
 USB_CUT_STATUS = 255
 USB_DROP_SECONDS = 1.0
@@ -762,22 +762,21 @@ def known_images(*, cache: pathlib.Path) -> dict:
 
 
 def link_downloads(*, cache: pathlib.Path) -> None:
-    for tool in TOOL_CACHES:
-        for download in sorted(cache.iterdir()):
-            if not (download.is_file() and download.suffix in DOWNLOAD_SUFFIXES):
-                continue
-            copy = SIM_CACHE / tool / download.name
-            if copy.is_symlink():
-                copy.unlink()
-            source = download.stat()
-            if copy.exists() and (copy.stat().st_size, copy.stat().st_mtime_ns) == (
-                source.st_size,
-                source.st_mtime_ns,
-            ):
-                continue
-            copy.unlink(missing_ok=True)
-            clone(source=download, target=copy)
-            os.utime(copy, ns=(source.st_atime_ns, source.st_mtime_ns))
+    for download in sorted(cache.iterdir()):
+        if not (download.is_file() and download.suffix in DOWNLOAD_SUFFIXES):
+            continue
+        copy = SIM_CACHE / TOOL_CACHE / download.name
+        if copy.is_symlink():
+            copy.unlink()
+        source = download.stat()
+        if copy.exists() and (copy.stat().st_size, copy.stat().st_mtime_ns) == (
+            source.st_size,
+            source.st_mtime_ns,
+        ):
+            continue
+        copy.unlink(missing_ok=True)
+        clone(source=download, target=copy)
+        os.utime(copy, ns=(source.st_atime_ns, source.st_mtime_ns))
 
 
 def load() -> dict:
@@ -997,7 +996,7 @@ def refuse_real_caches() -> None:
     if os.environ.get("XDG_CACHE_HOME"):
         roots.add(pathlib.Path(os.environ["XDG_CACHE_HOME"]))
     real = {
-        identity(path=root / name) for root in roots for name in ("", *TOOL_CACHES)
+        identity(path=root / name) for root in roots for name in ("", TOOL_CACHE)
     } - {None}
     SIM_CACHE.mkdir(exist_ok=True, parents=True)
     if identity(path=SIM_CACHE) in real:
@@ -1005,15 +1004,14 @@ def refuse_real_caches() -> None:
             f"FIREBREAK_SIM_CACHE must not be {SIM_CACHE}: a run would write there"
         )
         raise SystemExit(message)
-    for tool in TOOL_CACHES:
-        folder = SIM_CACHE / tool
-        if folder.is_symlink():
-            message = f"{folder} is a link: a run would write where it points"
-            raise SystemExit(message)
-        folder.mkdir(exist_ok=True)
-        if identity(path=folder) in real:
-            message = f"{folder} is a real cache: a run would write there"
-            raise SystemExit(message)
+    folder = SIM_CACHE / TOOL_CACHE
+    if folder.is_symlink():
+        message = f"{folder} is a link: a run would write where it points"
+        raise SystemExit(message)
+    folder.mkdir(exist_ok=True)
+    if identity(path=folder) in real:
+        message = f"{folder} is a real cache: a run would write there"
+        raise SystemExit(message)
 
 
 def request_reboot(*, delay: float = BOOT_SECONDS, into: str) -> None:

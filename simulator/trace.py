@@ -25,10 +25,7 @@ SIM_CACHE = pathlib.Path(
     or pathlib.Path.home() / ".cache" / "firebreak-sim-cache"
 )
 CACHE_PATTERN = re.compile(
-    re.escape(str(SIM_CACHE))
-    + "/(?:firebreak|overdub-firmware)/|"
-    + re.escape(str(DOWNLOADS))
-    + "/"
+    re.escape(str(SIM_CACHE)) + "/firebreak/|" + re.escape(str(DOWNLOADS)) + "/"
 )
 
 

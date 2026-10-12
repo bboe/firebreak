@@ -5,10 +5,8 @@ import sys
 import tempfile
 import zipfile
 
-AMONET_IMAGE = "amonet/bin/lk.bin"
 BY_NAME = pathlib.Path("/dev/block/platform/mtk-msdc.0/by-name")
 RUN = pathlib.Path("/sim/run")
-UPDATER = "META-INF/com/google/android/update-binary"
 WITH_TARGET = 3
 
 
@@ -20,8 +18,6 @@ def install(*, path: str) -> int:
         print("Invalid zip file format!")
         return 1
     names = set(archive.namelist())
-    if {AMONET_IMAGE, UPDATER} <= names:
-        return update(binary=archive.read(UPDATER), path=path)
     active = (RUN / "active").read_text(encoding="utf-8").strip()
     if "META-INF/com/android/metadata" in names:
         metadata = dict(
@@ -71,19 +67,6 @@ def main() -> int:
         return wipe(part=sys.argv[2])
     print("usage: twrp install <zip> | wipe <partition>", file=sys.stderr)
     return 1
-
-
-def update(*, binary: bytes, path: str) -> int:
-    with tempfile.TemporaryDirectory() as folder:
-        script = pathlib.Path(folder) / "update-binary"
-        script.write_bytes(binary)
-        ran = subprocess.run(
-            ["/sim/path/sh", str(script), "3", "1", path],
-            check=False,
-            stderr=subprocess.DEVNULL,
-        )
-    print("Done processing script file" if ran.returncode == 0 else "Updater failed")
-    return ran.returncode
 
 
 def wipe(*, part: str) -> int:

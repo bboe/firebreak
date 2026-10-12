@@ -1,23 +1,22 @@
 # The simulator
 
-`simulator/` runs firebreak and dot_firmware.py against a simulated Dot. No
-Dot, real `adb`, real `fastboot` or real serial port takes part.
+`simulator/` runs firebreak against a simulated Dot. No Dot, real `adb`, real
+`fastboot` or real serial port takes part.
 
 ## Running it
 
 ```sh
-simulator/run.sh OUT firebreak amonet-biscuit-v1.1.0-bboe
-START=no-light simulator/run.sh OUT firebreak amonet-biscuit-v1.1.0-bboe --short
-START=no-light DOT_FIRMWARE=.../dot_firmware.py simulator/run.sh OUT dot_firmware v1-bboe --short
+simulator/run.sh OUT amonet-biscuit-v1.1.0-bboe
+START=no-light simulator/run.sh OUT amonet-biscuit-v1.1.0-bboe --short
 python3 simulator/trace.py OUT.jsonl             # one command per line, for diff
 python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per range
 ```
 
-- `run.sh` makes a new Dot, runs the tool, and leaves `OUT.log`, the trace
+- `run.sh` makes a new Dot, runs firebreak, and leaves `OUT.log`, the trace
   (`OUT.jsonl` and `OUT.txt`), a disk snapshot (`OUT.snapshot`) and the raw
   partition table (`OUT.table`: LBA 0 to 33, then the last 33 sectors).
 - `run.sh` destroys the Dot when it exits, also on Ctrl-C or `SIGTERM`. First
-  it stops the tool and the loop that waits to plug the Dot in, and waits for
+  it stops firebreak and the loop that waits to plug the Dot in, and waits for
   both. A `plug` in progress runs to its end. A Dot made with
   `python3 simulator/dot.py create` stays until `python3 simulator/dot.py destroy`.
 - `run.sh` passes its pid to `create`. `create` refuses while the `run.sh`
@@ -25,28 +24,26 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - It needs Docker, `timeout` (coreutils, on macOS too), and the downloads in
   `~/.cache/firebreak`. The image build downloads busybox, pigz and toybox
   source and checks each by SHA-256.
-- The tools' cache is `~/.cache/firebreak-sim-cache`. `dot.py create` copies
-  each download into its `firebreak` and `overdub-firmware` folders, as an
-  APFS clone on macOS and with `--reflink=auto` elsewhere. Where a clone
-  fails, as off APFS, it copies the file. So a tool that writes a file in
-  place changes only the copy. A copy whose size or modification time is not
-  its download's is copied again. What a tool builds there stays for the next
-  run.
+- firebreak's cache is `~/.cache/firebreak-sim-cache`. `dot.py create` copies
+  each download into its `firebreak` folder, as an APFS clone on macOS and
+  with `--reflink=auto` elsewhere. Where a clone fails, as off APFS, it copies
+  the file. So a run that writes a file in place changes only the copy. A copy
+  whose size or modification time is not its download's is copied again. What
+  a run builds there stays for the next run.
 - State and the trace are in `~/.cache/firebreak-sim`. `FIREBREAK_SIM` and
   `FIREBREAK_SIM_CACHE` move the two, so several Dots can run at once. Each
-  Dot needs its own pair: the tools keep their boot0-erased marker in the
+  Dot needs its own pair: firebreak keeps its boot0-erased marker in the
   cache.
-- `create` refuses a `FIREBREAK_SIM_CACHE`, or a `firebreak` or
-  `overdub-firmware` folder in it, that is the same directory as `~/.cache`,
-  `~/.cache/firebreak` or `~/.cache/overdub-firmware`, or as
-  `$XDG_CACHE_HOME` or either tool folder in it. It compares device and
-  inode, so another case, a link, a trailing slash or a relative path does not
-  get past it. It also refuses when `HOME` is not set, and when either tool
-  folder is a link. The tools would otherwise write the real caches.
+- `create` refuses a `FIREBREAK_SIM_CACHE`, or a `firebreak` folder in it,
+  that is the same directory as `~/.cache` or `~/.cache/firebreak`, or as
+  `$XDG_CACHE_HOME` or its `firebreak` folder. It compares device and inode,
+  so another case, a link, a trailing slash or a relative path does not get
+  past it. It also refuses when `HOME` is not set, and when the `firebreak`
+  folder is a link. firebreak would otherwise write the real cache.
 - `START=fastboot`, the default, starts in stock fastboot. `START=no-light`
-  erases boot0 and leaves the Dot unplugged. `run.sh` plugs it in when the
-  tool prints "Short the Dot's test point".
-- The tool's stdin is `/dev/null`. Its stdout must be unbuffered: without
+  erases boot0 and leaves the Dot unplugged. `run.sh` plugs it in when
+  firebreak prints "Short the Dot's test point".
+- firebreak's stdin is `/dev/null`. Its stdout must be unbuffered: without
   `PYTHONUNBUFFERED=1`, the prompt reached the log only at exit, and the Dot
   was never plugged in.
 - `run.sh` stops if `adb` or `fastboot` on its PATH is not the simulator's, or
@@ -54,7 +51,7 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - `simulator/bin/adb` and `simulator/bin/fastboot` run `dot.py` under the virtualenv's
   interpreter, and fail when there is none. Through pyenv's shim, `python3`
   took 270 ms to start against 14 ms, and a run makes up to about 260 calls.
-- After the tool exits, `run.sh` runs `dot.py halt` before it copies the
+- After firebreak exits, `run.sh` runs `dot.py halt` before it copies the
   trace. `halt` sends the bootrom SIGTERM, which writes its open range, and
   waits up to 10 s for it to exit. It signals the pid only when that process
   runs this checkout's `bootrom.py` for this state folder. Otherwise it drops
@@ -75,8 +72,8 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - The eMMC is files in a privileged container: the user area, boot0, boot1
   and the RPMB. `sim-boot` makes a loop device for each table entry at each
   boot.
-- The container has no network (`--network none`). The tools themselves run
-  on the host and keep its network.
+- The container has no network (`--network none`). firebreak itself runs on
+  the host and keeps its network.
 - The container is privileged. So it sees the Docker VM's devices under
   Docker Desktop, and the host's devices on a Linux host. At each boot
   `sim-boot` removes every block node from the container's `/dev` and then
@@ -149,8 +146,7 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - toybox `dd` truncates its output at `seek`, and a block device answers
   `ftruncate: Invalid argument`. toolbox's `dd` writes a block device whole,
   as overdub's rooting.md measured. So `toolbox-dd` adds `conv=notrunc` when
-  the output is a block device. Without it, dot_firmware's `boot.payload`
-  write failed.
+  the output is a block device.
 - glibc's `realpath` fails on a missing last component, so busybox
   `readlink -f` prints nothing for it. Bionic's prints the path, which
   `fix-symlinks.sh` relies on. The simulator models that script's result
@@ -161,8 +157,6 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - Device nodes are `root` `0600`, so uid 2000 can neither read nor write
   them. `/proc/sys/vm/drop_caches` and `force_ro` refuse uid 2000 too. These
   modes are Linux's and Android's defaults, not read from a Dot.
-- amonet v2.0.0's `update-binary` runs unchanged, under the TWRP's `sh`, when
-  a tool installs its zip in TWRP.
 - Each boot is decided from the disk: the preloader in boot0, the LK in
   `lk_a`, the TWRP in `recovery`, the markers in `expdb` and `misc`, the build
   in `system_X`, and Magisk in `userdata`.
@@ -171,8 +165,7 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 
 - `adb`, `fastboot`, `getprop`, `setprop`, `su`, `id` under Fire OS, `bcbtool`,
   `pm`, `dumpsys`, `getenforce` and `reboot` are stubs. `twrp install` writes a
-  Fire OS 6 build for an OTA zip and marks root adb for any other zip but
-  amonet's.
+  Fire OS 6 build for an OTA zip and marks root adb for any other zip.
 - `su` is a setuid binary. It gives root only while Magisk's database is in
   `userdata`, and Fire OS 5 has it on `PATH` only then. Magisk's busybox is not
   put first on `PATH` under `su`.
@@ -240,7 +233,6 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - 3.7.0_9-0 and 3.7.0_9-bboe2 (`/sbin/slot-symlinks.sh`): `lk_a`, `lk_b`,
   `tee1`, `tee2`, `tee` and `preloader` are files in `/tmp/ota-decoy`, at
   1, 1, 5, 5, 5 and 4 MiB. `X_real` names each one that was a partition.
-  `[ -b ]` is false for a decoy, so `update-binary` writes `X_real`.
 - `/tmp/ota-decoy` is a 64 MiB tmpfs, so a `dd` with no `count` there stops.
 - bboe2 also points `boot_a` and `boot_b` at `boot_a_x` and `boot_b_x` when
   they exist, and keeps amonet's as `boot_X_amonet`.
@@ -372,8 +364,6 @@ The simulator accepts these, where a real Dot may not:
   in its bootrom. It never lists a real port.
 - Under Python 3.9, pyserial from the wheel loads through `zipimporter`, which
   has no `exec_module`. So the hook runs the module's code from `get_code`.
-- dot_firmware.py ignores a bootrom port that is there before amonet logs
-  "Waiting for bootrom". So a no-light Dot stays unplugged until the prompt.
 - The bootrom keeps the pseudo-terminal's other end open, so a tool can close
   and reopen the port.
 
@@ -407,17 +397,16 @@ The simulator accepts these, where a real Dot may not:
 
 These stay in real time:
 
-- `Event.wait`, `Lock.acquire` and `Condition.wait` with a timeout. Each tool
+- `Event.wait`, `Lock.acquire` and `Condition.wait` with a timeout. firebreak
   uses them only for its progress line, every 0.1 s, and for its cache lock,
   in a loop with no deadline.
 - Socket timeouts. Only downloads use them, and the cache holds every
   download.
-- `datetime.now()` in amonet's log, and `time.strftime` in each tool's log.
-  They only print.
+- `time.strftime` in firebreak's log. It only prints.
 - `run.sh`: `timeout 1500`, and the 0.5 s poll for the short prompt.
 
 Work outside a hold counts K times: the interpreter's start before the hook,
-each tool's own work, and the pseudo-terminal. With 6 Dots at once a call to
+firebreak's own work, and the pseudo-terminal. With 6 Dots at once a call to
 `adb` or `fastboot` spends about 100 ms there, 2 s at K=20. These timeouts
 bound K:
 
@@ -519,75 +508,3 @@ summary line, and includes `create` and `snapshot`.
   refuses it. The simulator passes `2000:2000`.
 - The ext4 file systems differ on every run. The snapshot compares their file
   trees, not their bytes.
-
-## Both tools, measured
-
-Measured on 2026-10-11: each target from no light with `--short`, and from
-stock fastboot, all 12 Dots at once and then three at a time.
-
-- All 24 runs rooted their target: v1-bboe, v1 and v2, with each tool. All 12
-  at once took 112 s, each run 68 to 111 s. Three at a time took 294 s, each
-  run 57 to 99 s. Docker Desktop had 10 CPUs and 8 GB, and no run lacked a
-  loop device or disk space.
-- Against the set before the shell model changed, every run sent the same
-  commands, and every snapshot and table is the same, but for random bytes:
-  the stdin probe's, and the GUIDs that amonet and dot_firmware give
-  `boot_a` and `boot_b`. Under Fire OS 5 both tools send only `-n` calls and
-  drop CR, so its PTY changed no result.
-- Once in the 24, a dot_firmware v1 run from no light rejected its first
-  `/system` stream 0.16 s after the stream ended, and the second passed and
-  read back. The trace holds no output, so why is not known. 18 more runs of
-  that target, 6 and 12 at once, did not repeat it.
-- No route of either tool works in TWRP 3.2.3. From a Dot rooted to v1 and in
-  3.2.3, each writes bboe2 to `recovery`, checks it by the md5 it prints, and
-  reboots into it.
-- Each tool's stdin probe, run by itself under 3.2.3, read as not carried in
-  0.3 s and exit 0: the PTY's line discipline acted on control bytes in the
-  random part and ended `cat`. The tool then sends the image in pieces and
-  says nothing. Text with no such byte made `cat` wait until adb was killed.
-  So a probe without one would wait for its 60 s timeout. firebreak catches
-  that;
-  dot_firmware's `stdin_carries` does not, so it would stop with
-  `TimeoutExpired`.
-- From no light, the adb and fastboot commands are identical for v1-bboe and
-  v1, except the stdin probe's bytes: each tool sends 16 bytes of 0x1a and
-  1008 random ones. For v2, dot_firmware installs amonet's zip in TWRP and
-  firebreak writes the chain itself.
-- From stock fastboot, the commands for v2 are identical, and so is the disk.
-- From stock fastboot, for v1-bboe and v1, both tools write the same images
-  in TWRP, md5 for md5, in another order. dot_firmware makes room with
-  `sgdisk`; firebreak writes both table copies with `dd`. firebreak also
-  reads each region before it writes it.
-- Every Fire OS 5 route streamed the same 385,732,934 bytes to `system_a`,
-  by md5, from both tools.
-- The bootrom traffic writes the same registers. amonet writes the crypto
-  engine one word per command; firebreak writes each block of registers in one
-  command. Both read `0x10210800` twice in a row. No access was refused.
-- Every payload write carries the same bytes in the same order, except the
-  partition table. firebreak also reads each region before it writes it, and
-  reads it back after. It uses `0x1004` and `0x1003` throughout. amonet reads
-  single blocks and zeroes `userdata`'s first 10 blocks with `0x1001`.
-- Neither tool sends `0x5002` or `0x5003`. No payload halted.
-- v1-bboe and v1 tables differ in 3 ways from no light. amonet writes its own
-  protective MBR, with `0xffffffff` sectors; firebreak keeps LBA 0. amonet
-  gives `boot_a` and `boot_b` random GUIDs; firebreak derives them from the
-  disk GUID. The headers' two CRCs follow from the GUIDs. From stock
-  fastboot, `sgdisk` keeps LBA 0, so only the GUIDs and CRCs differ.
-- For v2 the tables are identical.
-- For v2 from no light, `lk_a`, `lk_b` and `tee1` hold v1.1.0's old bytes
-  past v2.0.0's shorter images, after both tools. firebreak writes whole
-  sectors, so it zeroes the rest of each image's last sector: 192 bytes of the
-  LK and 504 of the TEE. amonet's `dd` leaves those bytes as they were.
-- No write went through a decoy, and each boot0 write came after `echo 0`,
-  now for any writer.
-- Under uid 2000 on Fire OS 5, both tools did every privileged step through
-  `su`, and pushed only to `/data/local/tmp`.
-- No call crossed the USB switch in this set. In 2 earlier sets it cut a
-  firebreak `getprop` in 2 of 12 runs and in 2 of 6, and firebreak read it as
-  not yet started and polled again. No dot_firmware call crossed it.
-- Neither tool's gzip check or `gunzip-failed` path ran: every stream was a
-  whole gzip. Both are reachable. With input that is not gzip, TWRP 3.2.3's
-  pigz exits 2 and the stream prints `gunzip-failed`, while 3.7.0's toybox
-  passes it through and prints `stream-ok`. A gzip cut short prints
-  `gunzip-failed` in both. Fire OS 6 has no `gunzip`, so every stream there
-  prints `gunzip-failed`.
