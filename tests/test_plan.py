@@ -14,6 +14,7 @@ from firebreak.plugin import BOOT0, Device, ResetBcb, Unlock, Write
 from firebreak.unlocks.amonet_biscuit_v1_1_0 import AMONET_BISCUIT_V1_1_0
 from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import AMONET_BISCUIT_V1_1_0_BBOE
 from firebreak.unlocks.amonet_biscuit_v2_0_0 import AMONET_BISCUIT_V2_0_0
+from firebreak.unlocks.amonet_crown_v2_0_1 import AMONET_CROWN_V2_0_1
 from firebreak.unlocks.amonet_radar_v1_0_0 import AMONET_RADAR_V1_0_0
 
 if TYPE_CHECKING:
@@ -58,10 +59,22 @@ BISCUIT_STOCK = (
     ("cache", 3440640, 5046271),
     ("userdata", 5046272, 7651294),
 )
+CROWN_MADE_UP = (
+    ("lk", 2048, 4095),
+    ("tee1", 8192, 18431),
+    ("tee2", 18432, 28671),
+    ("expdb", 32768, 53247),
+    ("MISC", 53248, 54271),
+    ("boot", 65536, 98303),
+    ("recovery", 98304, 131071),
+    ("swdl", 131072, 163839),
+    ("userdata", 163840, 7651294),
+)
 IMAGES = {
     "biscuit-kaeru.bin": 266640,
     "boot.hdr": 96,
     "boot.payload": 13888,
+    "crown-kaeru.bin": 266640,
     "lk.bin": 372736,
     "preloader.img": 1048576,
     "radar-kaeru.bin": 266640,
@@ -215,6 +228,14 @@ def test_a_half_shuffled_table_is_refused(*, source: pathlib.Path) -> None:
         )
 
 
+def test_a_repartition_without_a_layout_is_refused(*, source: pathlib.Path) -> None:
+    unlock = dataclasses.replace(AMONET_BISCUIT_V2_0_0, layout=None)
+    with pytest.raises(ValueError, match="repartitions but names no layout"):
+        plan.resolve(
+            raw=biscuit_table(layout=BISCUIT_STOCK), source=source, unlock=unlock
+        )
+
+
 @pytest.mark.parametrize(
     argnames=("step", "error", "match"),
     argvalues=[
@@ -276,6 +297,33 @@ def test_a_table_that_is_not_intact_is_refused(*, source: pathlib.Path) -> None:
     raw[2 * SECTOR + 40] ^= 1
     with pytest.raises(ValueError, match=r"^the partition table is not intact$"):
         plan.resolve(raw=bytes(raw), source=source, unlock=AMONET_BISCUIT_V1_1_0)
+
+
+def test_crown_v2_0_1_matches_amonet(*, source: pathlib.Path) -> None:
+    actions = plan.resolve(
+        raw=biscuit_table(layout=CROWN_MADE_UP),
+        source=source,
+        unlock=AMONET_CROWN_V2_0_1,
+    )
+    assert described(actions=actions) == [
+        ("ClearBoot0Header", BOOT0, 0, 4096),
+        ("ZeroRpmb", None, -1, -1),
+        ("Write", "tee2", 18432 * SECTOR, 2641920),
+        ("Write", "lk", 2048 * SECTOR, 372736),
+        ("Write", "expdb", 32768 * SECTOR, 266752),
+        ("Write", "tee1", 8192 * SECTOR, 1107968),
+        ("Write", BOOT0, 0, 1048576),
+        ("ForceFastboot", "MISC", 53248 * SECTOR, 16),
+        ("Reboot", None, -1, -1),
+        ("FastbootFlash", "recovery", 98304 * SECTOR, 9000448),
+        ("FastbootFlash", "swdl", 131072 * SECTOR, 9000448),
+        ("Reboot", "recovery", -1, -1),
+    ]
+    assert [action.unrecoverable for action in actions].count(True) == 1
+    assert actions[6].unrecoverable
+    assert reordered_overlaps(actions=actions) == []
+    assert actions[1].expect == b"AMZN"
+    assert actions[4].image == source / "bin" / "crown-kaeru.bin"
 
 
 @pytest.mark.parametrize(

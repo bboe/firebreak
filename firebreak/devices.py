@@ -11,6 +11,13 @@ BOOT_MOVED_LAYOUT = BootMovedLayout(
     align=0x400, sectors=0x37000, targets=("boot_a", "boot_b")
 )
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
+CROWN = Device(
+    features=frozenset({Feature.BOOT0, Feature.RPMB}),
+    models=frozenset({"AEOCW", "Echo Show 8"}),
+    name="crown",
+    product="CROWN",
+    title="Echo Show 8 (1st Generation)",
+)
 FASTBOOT_MODE = (
     "Unplug the USB cable, press and hold the action button (the one with a dot),"
     " plug the cable back in, and let go when the light ring turns green. A"
@@ -34,7 +41,7 @@ RADAR = dataclasses.replace(
     product="RADAR",
     title="Echo (2nd Generation)",
 )
-DEVICES = (BISCUIT, RADAR)
+DEVICES = (BISCUIT, CROWN, RADAR)
 
 
 class LK(enum.Enum):

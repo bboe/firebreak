@@ -16,38 +16,53 @@ it out.
 
 ## Devices and unlocks
 
-`firebreak/devices.py` gives biscuit's name and its features: A/B
-slots, a boot0 and an RPMB. radar, the Echo (2nd Generation), has the same
-features. An unlock lists the features it requires, and resolution refuses a
-pairing that lacks one before anything is written.
+`firebreak/devices.py` gives biscuit's name and its features: A/B slots, a
+boot0 and an RPMB. radar, the Echo (2nd Generation), has the same features.
+crown, the Echo Show 8 (1st Generation), has a boot0 and an RPMB, but one slot.
+An unlock lists the features it requires, and resolution refuses a pairing that
+lacks one before anything is written.
 
-A device has a title for messages, such as `Echo Dot (2nd Generation)`, and
-the USB product strings its builds report, its models: `AEOBC` and its TWRPs'
-model names for biscuit. `firebreak/identify.py` names the connected device
-from them, or from the product in fastboot. A target names its device too,
-`stock` included, and a run refuses a target for another device.
+A device has a title for messages, such as `Echo Dot (2nd Generation)`, and the
+USB product strings its builds report, its models: `AEOBC` and its TWRPs' model
+names for biscuit, and `AEOCW` and `Echo Show 8` for crown.
+`firebreak/identify.py` names the connected device from them, or from the
+product in fastboot. A target names its device too, `stock` included, and a run
+refuses a target for another device.
 
 A device also gives its product, the name its LKs and its fastboot report:
-`BISCUIT` and `RADAR`. It is not always the codename in capitals:
+`BISCUIT`, `RADAR` and `CROWN`. It is not always the codename in capitals:
 amonet-crown v1.1.1's LK names `CHECKERS`.
 
 A device also lists the partition table layouts a Dot may carry: for biscuit,
 boot moved, the table amonet v1.1.0 makes, and stock. radar lists the same
 two. Its stock table is biscuit's except where `userdata` ends, and its amonet
-has biscuit's `gpt.py`. An unlock names the layout it needs: boot moved for
-v1.1.0 and its bboe variant, stock for v2.0.0.
+has biscuit's `gpt.py`. An unlock that repartitions names the layout it
+needs: boot moved for v1.1.0 and its bboe variant, stock for v2.0.0. crown
+lists no layout, because no crown table has been read here, and its unlock
+does not repartition.
 
 `firebreak/unlocks/` holds amonet v1.1.0, its bboe variant, and amonet v2.0.0,
-for biscuit, and amonet-radar v1.0.0. Each plan is amonet's `modules/main.py`
-and then its `fastboot-step.sh`, step for step. The bboe variant swaps the
-recovery image for TWRP 3.7.0_9-bboe2, a download of its own, which is why an
-unlock carries `files` beside its archive.
+for biscuit, amonet-radar v1.0.0, and amonet-crown v2.0.1. Each plan is
+amonet's `modules/main.py` and then its `fastboot-step.sh`, step for step. The
+bboe variant swaps the recovery image for TWRP 3.7.0_9-bboe2, a download of its
+own, which is why an unlock carries `files` beside its archive.
 
 amonet-radar v1.0.0 runs biscuit v2.0.0's scripts and payload byte for byte,
 and its `main.py` differs only in file names and one log line. So its plan is
 v2.0.0's, with `radar-kaeru.bin` in `expdb`, and its module builds it from
 v2.0.0's. No target uses it yet: the probe, the routes and the gesture are
 biscuit's.
+
+amonet-crown v2.0.1's `main.py`, from the bootrom, writes what biscuit's
+v2.0.0 writes, in the same order, with crown's names: one `lk`, `MISC` in
+capitals, and `crown-kaeru.bin` in `expdb`. It also clears boot0's header
+first, as v1.1.0 does, and it does not repartition. As in v2.0.0, a run from
+the preloader leaves boot0 alone, and the plan leaves that branch out. Its
+`fastboot-step.sh` writes TWRP to both `recovery` and `swdl`. Its LK and TEE
+are Fire OS 6 8149's, byte for byte. Its zip is also a TWRP install, which the
+plan leaves out. No target uses it yet, as for radar.
+
+amonet-crown v1.1.1 is not needed: it does nothing that v2.0.1 does not.
 
 A **target** is what a run ends on: its goal state, the OS it installs, and its
 unlock, which stock has none of. A Fire OS 6 target names a build from Amazon's
@@ -207,12 +222,13 @@ offers `firebreak/emmc.py`'s operations.
 
 ## The guardrail
 
-`tests/test_plan.py` resolves every unlock against biscuit's geometry, from a
-stock table and from a shuffled one. It resolves amonet-radar v1.0.0 from a
-radar stock table and one with boot moved too. Every write must equal what
-amonet's scripts issue: kind, target, byte offset and length. Reverting the
-boot-moved layout after applying it, and v2.0.0's repartition of a v1.1.0
-table, must each give back the stock table byte for byte.
+`tests/test_plan.py` resolves every biscuit unlock against biscuit's geometry,
+from a stock table and from a shuffled one. It resolves amonet-radar v1.0.0
+from a radar stock table and one with boot moved too, and amonet-crown v2.0.1
+from a made-up crown table. Every write must equal what amonet's scripts issue:
+kind, target, byte offset and length. Reverting the boot-moved layout after
+applying it, and v2.0.0's repartition of a v1.1.0 table, must each give back
+the stock table byte for byte.
 
 The tests use made-up images and a radar table copied by hand. Once, by hand
 and outside the tests, the plan was resolved against amonet-radar's own

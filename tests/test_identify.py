@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import plistlib
+import re
 import subprocess
 import types
 from typing import TYPE_CHECKING
@@ -115,13 +116,19 @@ def test_a_short_serial_is_not_marked_as_cut() -> None:
     assert str(usb).endswith("serial AB12")
 
 
+@pytest.mark.parametrize(
+    argnames=("usb", "title"),
+    argvalues=[
+        (AEORD, "Echo (2nd Generation)"),
+        (dataclasses.replace(AEORD, product="AEOCW"), "Echo Show 8 (1st Generation)"),
+    ],
+    ids=["radar", "crown"],
+)
 def test_a_target_for_another_device_is_refused_before_anything_runs(
-    *, monkeypatch: pytest.MonkeyPatch
+    *, monkeypatch: pytest.MonkeyPatch, title: str, usb: identify.UsbDevice
 ) -> None:
-    connected(monkeypatch=monkeypatch, usb=[AEORD])
-    with pytest.raises(
-        FatalError, match="this is an Echo \\(2nd Generation\\)"
-    ) as caught:
+    connected(monkeypatch=monkeypatch, usb=[usb])
+    with pytest.raises(FatalError, match=f"this is an {re.escape(title)}") as caught:
         identify.check_target(target=TARGETS["stock"])
     assert "stock is for the Echo Dot (2nd Generation)" in str(caught.value)
 

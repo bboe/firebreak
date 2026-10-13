@@ -93,12 +93,12 @@ class Target:
 class Unlock:
     device: Device
     family: str
-    layout: Layout
     plan: tuple[Step, ...]
     requires: frozenset[Feature]
     source: Download
     version: str
     files: dict[str, Download] = dataclasses.field(default_factory=dict)
+    layout: Layout | None = None
 
     @property
     def name(self) -> str:

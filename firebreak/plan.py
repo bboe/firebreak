@@ -167,6 +167,9 @@ def resolve(*, raw: bytes, source: pathlib.Path, unlock: Unlock) -> tuple[Action
     actions = []
     for step in unlock.plan:
         if isinstance(step, Repartition):
+            if unlock.layout is None:
+                message = f"{unlock.name} repartitions but names no layout"
+                raise ValueError(message)
             raw, made = repartitioned(
                 layouts=unlock.device.layouts, raw=raw, want=unlock.layout
             )
