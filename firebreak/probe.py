@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import subprocess
 
-from firebreak.cache import digest, fetch, unpack
+from firebreak.cache import digest, unpack
 from firebreak.devices import BY_NAME, LITTLE_KERNEL_DESCRIPTION, LK, State
 from firebreak.emos import emos
 from firebreak.host import adb_shell, command, getvar, in_fastboot, run, usb_serial
@@ -86,21 +86,16 @@ def read_recovery(*, size: int) -> bytes:
 
 
 def rooted() -> State:
-    images = {
-        State.AMONET_V1_1_0_BBOE_BOOTED: fetch(
-            download=amonet_biscuit_v1_1_0_bboe.RECOVERY
-        ),
-        State.AMONET_V1_1_0_BOOTED: unpack(download=amonet_biscuit_v1_1_0.SOURCE)
-        / "bin"
-        / "twrp.img",
-    }
-    data = read_recovery(size=max(image.stat().st_size for image in images.values()))
-    for found, image in images.items():
-        size = image.stat().st_size
-        if hashlib.md5(data[:size], usedforsecurity=False).hexdigest() == digest(
-            kind="md5", path=image
-        ):
-            return found
+    bboe = amonet_biscuit_v1_1_0_bboe.RECOVERY
+    image = unpack(download=amonet_biscuit_v1_1_0.SOURCE) / "bin" / "twrp.img"
+    size = image.stat().st_size
+    data = read_recovery(size=max(bboe.size, size))
+    if hashlib.sha256(data[: bboe.size]).hexdigest() == bboe.sha256:
+        return State.AMONET_V1_1_0_BBOE_BOOTED
+    if hashlib.md5(data[:size], usedforsecurity=False).hexdigest() == digest(
+        kind="md5", path=image
+    ):
+        return State.AMONET_V1_1_0_BOOTED
     return State.ROOTED
 
 

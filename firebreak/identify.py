@@ -22,6 +22,7 @@ ECHO_VENDORS = frozenset({0x0E8D, 0x1949})
 INSTANCE_PARTS = 3
 SERIAL_SHOWN = 4
 SYSFS_USB = pathlib.Path("/sys/bus/usb/devices")
+TWRP_ID = (0x18D1, 0xD001)
 USB_TIMEOUT = 30
 WINDOWS_QUERY = r"""$ProgressPreference = "SilentlyContinue"
 $key = "DEVPKEY_Device_BusReportedDeviceDesc"
@@ -107,7 +108,14 @@ def identify(*, found: list[UsbDevice] | None = None) -> Identity:
     if found is None:
         found = echo_devices()
     named = {
-        device for device in DEVICES for usb in found if usb.product in device.models
+        device
+        for device in DEVICES
+        for usb in found
+        if usb.product in device.models
+        or (
+            usb.product in device.twrp_models
+            and (usb.vendor_id, usb.product_id) == TWRP_ID
+        )
     }
     products = ", ".join(sorted({repr(usb.product) for usb in found})) or "nothing"
     return Identity(

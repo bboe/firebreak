@@ -315,6 +315,16 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
             route.State.AMONET_V1_1_0_BOOTED,
             [],
         ),
+        (
+            "amonet-biscuit-v1.1.0",
+            route.State.ROOTED,
+            [amonet_biscuit_v1_1_0.SOURCE],
+        ),
+        (
+            "amonet-biscuit-v1.1.0-bboe",
+            route.State.ROOTED,
+            [amonet_biscuit_v1_1_0.SOURCE, route.TWRP],
+        ),
         ("amonet-biscuit-v1.1.0", route.State.EMOS, [route.pyserial_wheel]),
         (
             "amonet-biscuit-v2.0.0",

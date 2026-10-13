@@ -24,6 +24,7 @@ class Device:
     title: str
     layouts: tuple[Layout, ...] = ()
     models: frozenset[str] = frozenset()
+    twrp_models: frozenset[str] = frozenset()
 
 
 @dataclasses.dataclass(frozen=True)

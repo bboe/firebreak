@@ -24,10 +24,12 @@ lacks one before anything is written.
 
 A device has a title for messages, such as `Echo Dot (2nd Generation)`, and the
 USB product strings its builds report, its models: `AEOBC` and its TWRPs' model
-names for biscuit, and `AEOCW` and `Echo Show 8` for crown.
-`firebreak/identify.py` names the connected device from them, or from the
-product in fastboot. A target names its device too, `stock` included, and a run
-refuses a target for another device.
+names for biscuit, and `AEOCW` for crown. Crown's TWRP reports `Echo Show 8`,
+which later Echo Show 8 generations can report too. So that name is one of
+crown's TWRP models, which count only on TWRP's USB ID, `18d1:d001`, the one
+crown's TWRP uses. `firebreak/identify.py` names the connected device from
+them, or from the product in fastboot. A target names its device too, `stock`
+included, and a run refuses a target for another device.
 
 A device also gives its product, the name its LKs and its fastboot report:
 `BISCUIT`, `RADAR` and `CROWN`. It is not always the codename in capitals:

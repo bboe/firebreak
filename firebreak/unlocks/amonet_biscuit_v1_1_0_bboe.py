@@ -11,6 +11,7 @@ TWRP_VERSION = "3.7.0_9-bboe2"
 RECOVERY = Download(
     name=f"twrp-{TWRP_VERSION}-biscuit.img",
     sha256="f59052713a6580a1477490b2f9cad80e9b31d22408861b18fd442129a71f2ad9",
+    size=13953024,
     url="https://github.com/bboe/twrp_device_amazon_echo-mt8163/releases/download/"
     f"v{TWRP_VERSION}/twrp-v{TWRP_VERSION}-biscuit.img",
 )

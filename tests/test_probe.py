@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import dataclasses
+import hashlib
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -31,11 +33,17 @@ def dot(*, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch) -> FakeAdb:
 
 @pytest.fixture
 def recoveries(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
-    bboe = tmp_path / "bboe.img"
-    bboe.write_bytes(TWRP_BBOE)
     (tmp_path / "v1" / "bin").mkdir(parents=True)
     (tmp_path / "v1" / "bin" / "twrp.img").write_bytes(TWRP_3_2_3)
-    monkeypatch.setattr(name="fetch", target=probe, value=lambda **_: bboe)
+    monkeypatch.setattr(
+        name="RECOVERY",
+        target=probe.amonet_biscuit_v1_1_0_bboe,
+        value=dataclasses.replace(
+            probe.amonet_biscuit_v1_1_0_bboe.RECOVERY,
+            sha256=hashlib.sha256(TWRP_BBOE).hexdigest(),
+            size=len(TWRP_BBOE),
+        ),
+    )
     monkeypatch.setattr(name="unpack", target=probe, value=lambda **_: tmp_path / "v1")
 
 

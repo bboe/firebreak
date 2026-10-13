@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import identify
-from firebreak.devices import BISCUIT, RADAR
+from firebreak.devices import BISCUIT, CROWN, RADAR
 from firebreak.ui import FatalError
 from firebreak.unlocks.targets import TARGETS
 
@@ -131,6 +131,21 @@ def test_a_target_for_another_device_is_refused_before_anything_runs(
     with pytest.raises(FatalError, match=f"this is an {re.escape(title)}") as caught:
         identify.check_target(target=TARGETS["stock"])
     assert "stock is for the Echo Dot (2nd Generation)" in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    argnames=("product_id", "device"),
+    argvalues=[(0xD001, CROWN), (0x4EE2, None)],
+    ids=["twrp", "other"],
+)
+def test_a_twrp_model_names_its_device_only_in_twrp(
+    *, device: object, monkeypatch: pytest.MonkeyPatch, product_id: int
+) -> None:
+    usb = dataclasses.replace(AEORD, product="Echo Show 8", product_id=product_id)
+    connected(monkeypatch=monkeypatch, usb=[usb])
+    assert identify.identify() == identify.Identity(
+        device=device, how="USB product 'Echo Show 8'"
+    )
 
 
 def test_a_usb_device_prints_only_the_start_of_its_serial() -> None:

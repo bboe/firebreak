@@ -488,7 +488,9 @@ ring read white.
 - Each stage names the downloads it uses. A run fetches those of the stages
   on the route from the Dot's state to the target's goal, and no others. A
   `stock` run that finds TWRP fetches only the build. A run to
-  `amonet-biscuit-v2.0.0` from v1.1.0's TWRP does not fetch Fire OS 5.
+  `amonet-biscuit-v2.0.0` from v1.1.0's TWRP does not fetch Fire OS 5. A
+  rooted Fire OS 5 Dot needs TWRP 3.7.0_9-bboe2 only when the target is
+  `amonet-biscuit-v1.1.0-bboe`.
 - amonet v1.1.0's zip is a need only where the Dot still runs v1.1.0's LK.
   On v2.0.0's TWRP the LK check matches v2.0.0's `lk.bin` first, so a run to
   `amonet-biscuit-v2.0.0` from stock fastboot does not fetch it. Were `lk_a`
@@ -506,8 +508,9 @@ ring read white.
 - The run names the device before it starts that thread, and again before the
   first stage. A device plugged in after the run started is then refused
   before the route's downloads. The probe of a rooted Fire OS 5 Dot still
-  fetches amonet v1.1.0 and TWRP 3.7.0_9-bboe2 first: it compares the
-  recovery with their images to name the state.
+  fetches amonet v1.1.0 first: it compares `recovery` with v1.1.0's TWRP to
+  name the state. For TWRP 3.7.0_9-bboe2 it compares against the pinned
+  size and SHA-256, so it downloads nothing.
 - The main thread waits for that thread's locks half a second at a time.
   On Windows, Ctrl-C does not interrupt a blocking lock wait, so one long wait
   would ignore it until a 397 MB download ended.

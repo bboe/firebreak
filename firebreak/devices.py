@@ -13,10 +13,11 @@ BOOT_MOVED_LAYOUT = BootMovedLayout(
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
 CROWN = Device(
     features=frozenset({Feature.BOOT0, Feature.RPMB}),
-    models=frozenset({"AEOCW", "Echo Show 8"}),
+    models=frozenset({"AEOCW"}),
     name="crown",
     product="CROWN",
     title="Echo Show 8 (1st Generation)",
+    twrp_models=frozenset({"Echo Show 8"}),
 )
 FASTBOOT_MODE = (
     "Unplug the USB cable, press and hold the action button (the one with a dot),"
