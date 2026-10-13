@@ -42,9 +42,10 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   TWRP.
 - On a stock Dot with LK `63cb91b`, 2026-10-12, the gesture on one USB port
   of a Mac laptop left a solid blue ring, and the Dot showed nothing on USB.
-  On another port the same gesture gave a green ring and fastboot. Too little
-  power from the first port is the likely cause, but was not measured. So the
-  gesture's message says to try another port when the ring stays solid blue.
+  On another port the same gesture gave a green ring and fastboot. The same
+  day, from stock 8149, the gesture on the first port went green, so the
+  cause is not known. The gesture's message says to try again or try another
+  port when the ring stays solid blue.
 - `su` answers about 27 seconds into Fire OS 5's first boot, while
   `dumpsys package` still answers `Can't find service: package`. So rooted
   also needs `sys.boot_completed` to be 1.

@@ -13,8 +13,8 @@ BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
 FASTBOOT_MODE = (
     "Unplug the USB cable, press and hold the action button (the one with a dot),"
     " plug the cable back in, and let go when the light ring turns green. A"
-    " ring that stays solid blue can mean the USB port gives too little power:"
-    " try another port."
+    " ring that stays solid blue can mean a bad USB connection: unplug, then"
+    " try again or try another port."
 )
 LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
 STOCK_LAYOUT = StockLayout(partitions=16)
