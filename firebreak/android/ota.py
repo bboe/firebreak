@@ -144,27 +144,7 @@ def extract_blocks(*, archive: zipfile.ZipFile, work: pathlib.Path) -> None:
             data += bytes(-len(data) % 4096)
         (work / (name + ".img")).write_bytes(data=data)
         passed(message=f"{name:>{LABEL_WIDTH}} taken from the OTA")
-    transfers = transfer_list(text=archive.read(name="system.transfer.list").decode())
-    with (
-        (work / "system.img").open(mode="wb") as image,
-        archive.open(name="system.new.dat") as new_data,
-    ):
-        image.truncate(transfers.size)
-        for command in transfers.commands:
-            if command.verb != "new":
-                continue
-            for block_range in command.ranges:
-                image.seek(block_range.start)
-                for offset in range(block_range.start, block_range.end, 1 << 20):
-                    length = min(1 << 20, block_range.end - offset)
-                    chunk = new_data.read(length)
-                    if len(chunk) != length:
-                        raise FatalError(message="the OTA's system.new.dat is short")
-                    image.write(chunk)
-        if new_data.read(1):
-            raise FatalError(
-                message="the OTA's system.new.dat outlasts its transfer list"
-            )
+    write_system(archive=archive, path=work / "system.img")
     passed(message=f"{'system':>{LABEL_WIDTH}} built from the transfer list")
 
 
@@ -362,3 +342,27 @@ def varint(*, data: bytes, index: int) -> tuple[int, int]:
         shift += 7
         if byte < VARINT_MORE:
             return result, index
+
+
+def write_system(*, archive: zipfile.ZipFile, path: pathlib.Path) -> None:
+    transfers = transfer_list(text=archive.read(name="system.transfer.list").decode())
+    with (
+        path.open(mode="wb") as image,
+        archive.open(name="system.new.dat") as new_data,
+    ):
+        image.truncate(transfers.size)
+        for command in transfers.commands:
+            if command.verb != "new":
+                continue
+            for block_range in command.ranges:
+                image.seek(block_range.start)
+                for offset in range(block_range.start, block_range.end, 1 << 20):
+                    length = min(1 << 20, block_range.end - offset)
+                    chunk = new_data.read(length)
+                    if len(chunk) != length:
+                        raise FatalError(message="the OTA's system.new.dat is short")
+                    image.write(chunk)
+        if new_data.read(1):
+            raise FatalError(
+                message="the OTA's system.new.dat outlasts its transfer list"
+            )

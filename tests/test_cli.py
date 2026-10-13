@@ -56,6 +56,41 @@ def test_only_stock_takes_a_build() -> None:
     assert "only stock takes a BUILD" in finished.stderr
 
 
+def test_survey_takes_options_before_it(*, tmp_path: pathlib.Path) -> None:
+    bad = tmp_path / "bad.zip"
+    bad.write_bytes(data=b"not a zip")
+    finished = subprocess.run(
+        args=[sys.executable, "-m", "firebreak", "--verbose", "survey", str(bad)],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    assert finished.returncode == 1
+    assert "could not survey bad.zip" in finished.stderr
+
+
+@pytest.mark.parametrize(
+    argnames=("arguments", "message"),
+    argvalues=[
+        (["stock", "4315", "8146"], "stock takes one BUILD"),
+        (["stock", "9999"], "stock takes one BUILD"),
+        (["survey"], "survey needs at least one OTA"),
+        (["--report", "survey", "x.zip"], "survey takes none of --report"),
+    ],
+)
+def test_the_positional_arguments_are_checked(
+    *, arguments: list[str], message: str
+) -> None:
+    finished = subprocess.run(
+        args=[sys.executable, "-m", "firebreak", *arguments],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    assert finished.returncode == 2
+    assert message in finished.stderr
+
+
 def test_the_pyz_holds_the_pinned_update_checker() -> None:
     with zipfile.ZipFile(file=ZIPAPP) as archive:
         names = set(archive.namelist())

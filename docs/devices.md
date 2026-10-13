@@ -3,6 +3,22 @@
 The firmware each supported device's OTAs ship, and radar's and crown's,
 which firebreak does not support yet.
 
+`firebreak survey OTA` prints, from one OTA zip and nothing else, what its
+row in a Builds table and its rows in a partition hash CSV say: the build
+descriptions, the anti-rollback versions, the TEE's hashes and the 5
+partition hashes. Only the fastbrick image comes from elsewhere, amonet's
+`profile.sh`. It needs no Dot. Its CSV rows name the build as the CSVs do,
+so each is a line of its CSV, word for word.
+
+Every CSV row starts with the device's codename and model, so the CSVs can
+be joined into one table. The model is `ro.product.model`, which every OTA of
+a device gives the same. The codename is `ro.product.device` without
+`_puffin`. Biscuit's and radar's Fire OS 6 OTAs add that suffix: they are
+built from a second device tree, `device/amazon/biscuit_puffin`, where their
+Fire OS 5 OTAs say `biscuit`. Crown shipped on Fire OS 6 and has no suffix.
+So `_puffin` appears to mark a Fire OS 5 device's later move to Fire OS 6;
+no OTA says so.
+
 ## biscuit
 
 The Echo Dot (2nd Generation). Read in October 2026 from 37 Fire OS 6 OTAs on
@@ -50,6 +66,10 @@ reports them as `antirback_pl_version`, `antirback_tee_version` and
 - PL: a constant in the preloader's code. After the check loads the string
   `[ANTI-ROLLBACK] Updating PL version`, its second `bl` calls a Thumb-2
   function that is `movs r0, #N` and `bx lr`. N is the version.
+  `firebreak survey` reads it without a disassembler: it finds the `ldr` from
+  a literal and the `add rN, pc` that make the string's address, and decodes
+  the `bl`s after them. Every address it uses is relative to the code, so it
+  needs no load address.
 - TEE: the 16 bits at offsets 0xf and 0x10 of the TEE's plaintext
   `EET KTM` header, high byte first.
 - LK: the 16 bits after `LK` in the LK's signature trailer, high byte first.

@@ -2,6 +2,14 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Added
+
+- `firebreak survey OTA` prints what docs/devices.md lists for an Amazon OTA
+  zip: its build descriptions, anti-rollback versions, TEE hashes and
+  partition hashes. It needs no Dot.
+
 ## 0.4.0 - 2026-10-13
 
 ### Added

@@ -93,9 +93,13 @@ def check_adb() -> None:
         )
 
 
-def check_user() -> None:
+def check_root() -> None:
     if os.name != "nt" and os.geteuid() == 0:
         raise FatalError(message=AS_ROOT)
+
+
+def check_user() -> None:
+    check_root()
     if not sys.platform.startswith("linux"):
         return
     import grp  # ruff: ignore[import-outside-top-level]

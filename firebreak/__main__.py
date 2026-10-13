@@ -21,11 +21,12 @@ import sys
 from firebreak import __version__, updates
 from firebreak.cache import move_old_caches
 from firebreak.emos import child_emos
-from firebreak.host import check_adb, check_user
+from firebreak.host import check_adb, check_root, check_user
 from firebreak.identify import check_target
 from firebreak.plugin import FireOs6
 from firebreak.route import root
 from firebreak.support import report, write_test
+from firebreak.survey import survey_all
 from firebreak.ui import (
     ARGUMENTS,
     SESSION,
@@ -71,6 +72,7 @@ mtkclient, by bkerler, agrees with two of firebreak's bootrom addresses.
   https://github.com/bkerler/mtkclient
 ftvdb keeps the Fire OS builds that the tables link to.
   https://ftvdb.com/"""
+SURVEY = "survey"
 TWRP_VERSION = amonet_biscuit_v1_1_0_bboe.TWRP_VERSION
 
 
@@ -108,7 +110,11 @@ def cli() -> None:
   stock [BUILD]
       Amazon's Fire OS 6 BUILD, {updates.DEFAULT_BUILD} when left out, which
       erases the whole Dot.
-Run again with another target to move the Dot to it.""",
+Run again with another target to move the Dot to it.
+
+  survey OTA [OTA ...]
+      not a target: read each Amazon OTA zip for the tables in
+      docs/devices.md. It needs no Dot.""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         prog="firebreak",
     )
@@ -155,29 +161,33 @@ Run again with another target to move the Dot to it.""",
     )
     parser.add_argument(
         "target",
-        choices=tuple(TARGETS),
+        choices=(*TARGETS, SURVEY),
         default=AMONET_BISCUIT_V1_1_0_BBOE,
-        help="the target, one of those listed below",
+        help=f"the target, one of those listed below, or {SURVEY}",
         metavar="TARGET",
         nargs="?",
     )
     parser.add_argument(
-        "build",
-        choices=sorted(updates.BUILDS),
-        help="with stock, and only with stock: the build to install, one of "
+        "rest",
+        help="with stock, and only with stock: the BUILD to install, one of "
         + ", ".join(sorted(updates.BUILDS))
-        + f"; {updates.DEFAULT_BUILD} when left out",
-        metavar="BUILD",
-        nargs="?",
+        + f"; {updates.DEFAULT_BUILD} when left out. With {SURVEY}: each OTA"
+        " zip to read",
+        metavar="BUILD|OTA",
+        nargs="*",
     )
     options = parser.parse_intermixed_args()
+    if options.target == SURVEY:
+        survey_from(options=options, parser=parser)
+        return
     target = TARGETS[options.target]
     stock = target.installs == FireOs6(build=None)
-    if options.build is not None and not stock:
-        parser.error(
-            message="only stock takes a BUILD: " + ", ".join(sorted(updates.BUILDS))
-        )
-    ARGUMENTS.build = options.build or (updates.DEFAULT_BUILD if stock else "")
+    builds = ", ".join(sorted(updates.BUILDS))
+    if options.rest and not stock:
+        parser.error(message="only stock takes a BUILD: " + builds)
+    if len(options.rest) > 1 or not set(options.rest) <= set(updates.BUILDS):
+        parser.error(message="stock takes one BUILD: " + builds)
+    ARGUMENTS.build = (options.rest or [updates.DEFAULT_BUILD if stock else ""])[0]
     ARGUMENTS.target = target
     ARGUMENTS.verbose = options.verbose
     for tool in ("adb", "fastboot"):
@@ -217,6 +227,19 @@ def main() -> None:
                 f" {error.timeout:.0f} seconds"
             )
         )
+
+
+def survey_from(
+    *, options: argparse.Namespace, parser: argparse.ArgumentParser
+) -> None:
+    if not options.rest:
+        parser.error(message=f"{SURVEY} needs at least one OTA")
+    if options.report or options.write_test or options.short:
+        parser.error(
+            message=f"{SURVEY} takes none of --report, --write-test and --short"
+        )
+    check_root()
+    survey_all(paths=[pathlib.Path(path) for path in options.rest])
 
 
 if __name__ == "__main__":
