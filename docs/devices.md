@@ -1,6 +1,7 @@
 # Devices
 
-The firmware each supported device's OTAs ship.
+The firmware each supported device's OTAs ship, and radar's, which firebreak
+does not support yet.
 
 ## biscuit
 
@@ -46,12 +47,20 @@ The preloader compares three versions with the ones in RPMB, and fastboot
 reports them as `antirback_pl_version`, `antirback_tee_version` and
 `antirback_lk_version`.
 
-- PL: a constant in the preloader's code.
+- PL: a constant in the preloader's code. After the check loads the string
+  `[ANTI-ROLLBACK] Updating PL version`, its second `bl` calls a Thumb-2
+  function that is `movs r0, #N` and `bx lr`. N is the version.
 - TEE: the 16 bits at offsets 0xf and 0x10 of the TEE's plaintext
   `EET KTM` header, high byte first.
 - LK: the 16 bits after `LK` in the LK's signature trailer, high byte first.
 - A stock 8146 Dot read `0x0005`, `0x0102` and `0x0001`.
 - PL rose from 3 to 5 after 5.5.0.3. TEE and LK are the same in every OTA.
+- A version in RPMB that is higher than the preloader's stops the boot at
+  `version mismatch!`, in a loop that only the eMMC short gets out of. The
+  short reaches the bootrom, not a boot: the Dot boots again only once its
+  RPMB is zeroed or a preloader at least as high is written. A lower version
+  is raised to the preloader's. This is read from the 8146 preloader's code,
+  not seen on a Dot.
 
 ### Partition hashes
 
@@ -79,8 +88,16 @@ and the preloader.
   `/system`, and amonet v2.0.0's `boot-root.zip` changes 6 files there:
   `default.prop`, `fstab.mt8163`, `init.fosflags.sh`, `sbin/adbd`, `sepolicy`
   and `system/build.prop`, whose `ro.build.version.number` becomes
-  `4503599628407428`. A v2 Dot on 8146 differed from 8146's `/system` in
-  those files only.
+  `4503599628407428`. A v2 Dot on 8146's `/system` filesystem differed from
+  8146's in those files only.
+- `boot-root.zip` also writes outside those files, on both slots. It writes
+  `VOFF` over the verity metadata's magic, `01b001b0`, after `system_X`'s hash
+  tree. It sets `buildvariant=userdebug` on `boot_X`'s command line. So a
+  rooted Dot's boot and `/system` hashes both differ from every row.
+- `boot-root.zip` patches what it finds and does not carry biscuit's files. It
+  finds adbd's autoroot by a byte pattern. It patches the sepolicy with
+  `magiskpolicy32`, and falls back to a policy it bundles, chosen by the
+  stock policy's md5.
 
 ### eMMC chips
 
@@ -95,3 +112,57 @@ and from each boot area's `size`, in 512-byte sectors.
 - Every stock `preloader.img` is 1 MiB, so boot0 can be larger than it. The
   stock restore pads the preloader with zeros to boot0's size.
 - The same `/system` write took 79 s on `P1J94M` and 41 s on `FJ25AB`.
+
+## radar
+
+The Echo (2nd Generation), model XC56PY. Read in October 2026 from the 10 OTAs
+on ftvdb: Fire OS 5.5.5.4 and Fire OS 6 4305, 4929, 6199, 6208, 6220, 6302,
+6425, 6436 and 6813. ftvdb has no other radar OTA.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK | fastbrick image |
+| --- | --- | --- | --- | --- | --- |
+| Fire OS 6 4929 to 6813 | `63cb91b-20221007_073612` | `bd7ae89-20221003_221237` | [2](#tee-images-1) | 0x0005, 0x0102, 0x0001 | `fastbrick.img` |
+| Fire OS 6 4305 | `41fb3ce-20221007_153017` | `919cae9-20221006_205014` | biscuit's [3](#tee-images) | 0x0005, 0x0102, 0x0001 | `fastbrick.img` |
+| Fire OS 5.5.5.4 | `59779ca-20220524_183401` | `642551b-20211203_021230` | [1](#tee-images-1) | 0x0005, 0x0102, 0x0001 | `fastbrick-20220524.img` |
+
+- amonet-radar v1.0.0's `profile.sh` chooses the fastbrick image by the LK,
+  as biscuit's does. Only 5.5.5.4's LK gets its own image. Both Fire OS 6 LKs
+  get the default, `fastbrick.img`.
+- No one has unlocked a radar on 4305 here. Its LK is `41fb3ce`, the same
+  commit as biscuit's 4310 to 4315 LK. On biscuit, that LK is unlocked by the
+  image its `63cb91b` LK gets, which amonet's own map does not give it. On
+  radar, amonet's map does give it that image, the default `fastbrick.img`.
+  Whether that unlocks radar 4305 is not known.
+- The preloaders of one row differ between builds only in boot0's GPT, as on
+  biscuit.
+- No OTA raises an anti-rollback version, and none is higher than biscuit's.
+  Each is read as biscuit's are, in [Anti-rollback](#anti-rollback).
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 2 | 1781760 | `13a2f357ddf719afccfb707a7f1668d2` | `15cd40caafa6cd8bb8c4e4ed173c973569a8a2b026235d81776ec888f1522c72` |
+| 1 | 2641920 | `2ce20a3462ab227aa750c0f9c026d6d3` | `80e54029f5defc087ff14e5da27dd9739cbf9f684b2ed8bdc3803fd1b77db856` |
+
+### Partition hashes
+
+[radar-partitions.csv](radar-partitions.csv) has the sha256 of the 5
+partitions each OTA writes, for every build above, read as biscuit's are.
+
+- 5.5.5.4 and 4305 are block OTAs. As on biscuit, a radar that Amazon's
+  updater installed matches their `/system` only if its eMMC reads erased
+  blocks as zeros.
+- Every radar Fire OS 6 build has what biscuit's `boot-root.zip` changes:
+  each file, one autoroot site in `sbin/adbd`, a `veritykeyid` boot command
+  line, and verity metadata at the offset the zip computes.
+- `boot-root.zip` patches the sepolicy with `magiskpolicy32`. If that fails,
+  it falls back to a bundled policy, and only radar 6302's and 6813's stock
+  policy, `8f6dd232a590337314bb372e84b84e77`, has one. Nothing here has run
+  it on a radar.
+- The stock sepolicy md5 of each radar build: 4305 `d88b3344`, 4929
+  `88d5111f`, 6199 to 6220 `59fb0d21`, 6302 and 6813 `8f6dd232`, 6425 and
+  6436 `ac9825e8`. Build numbers do not follow release order: 6302 is Fire
+  OS 6.4.6.6, and 6813 is 6.5.6.6.
