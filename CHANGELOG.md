@@ -4,6 +4,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- `--report` gives the eMMC chip's manufacture date and the sizes of its two
+  boot areas, which differ between the chips Dots ship with.
+
 ### Fixed
 
 - `stock` works on a Dot whose boot0 is larger than the stock preloader. It

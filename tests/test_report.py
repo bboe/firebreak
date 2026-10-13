@@ -47,9 +47,11 @@ def test_dot_details_labels_each_answer() -> None:
         return "uptime" if "uptime" in command else "x"
 
     said = report.dot_details(asked=asked)
-    assert len(said) == len(report.PROPERTIES) + len(report.EMMC_FIELDS) + 1
+    fields = len(report.PROPERTIES) + len(report.EMMC_FIELDS)
+    assert len(said) == fields + len(report.EMMC_BOOT_AREAS) + 1
     assert said[0] == report.labelled(label="ro.product.device", value="x")
     assert said[len(report.PROPERTIES)].startswith("eMMC name")
+    assert said[fields] == report.labelled(label="eMMC boot0 sectors", value="x")
     assert said[-1] == report.labelled(label="uptime", value="uptime s, dmesg from x s")
 
 

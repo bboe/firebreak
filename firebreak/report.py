@@ -11,7 +11,8 @@ if TYPE_CHECKING:
 
 BOOT_LINE = 'dmesg | grep "MMC card at address" | head -1'
 BOOT_OK = "boot-ok"
-EMMC_FIELDS = ("name", "manfid", "oemid", "prv", "life_time", "pre_eol_info")
+EMMC_BOOT_AREAS = ("boot0", "boot1")
+EMMC_FIELDS = ("name", "manfid", "oemid", "date", "prv", "life_time", "pre_eol_info")
 GUID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
 LEFT_IN_RECOVERY = "The Dot stays in its recovery: adb reboot starts it again."
 LISTING_OK = "listing-ok"
@@ -41,6 +42,14 @@ def dot_details(*, asked: Callable[..., str]) -> list[str]:
         said.append(
             labelled(
                 label=f"eMMC {name}",
+                value=asked(command=f"cat {where} 2>/dev/null || echo '<absent>'"),
+            )
+        )
+    for area in EMMC_BOOT_AREAS:
+        where = f"/sys/block/{node_held(target=DISK)}{area}/size"
+        said.append(
+            labelled(
+                label=f"eMMC {area} sectors",
                 value=asked(command=f"cat {where} 2>/dev/null || echo '<absent>'"),
             )
         )
