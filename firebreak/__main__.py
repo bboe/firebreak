@@ -49,6 +49,28 @@ from firebreak.write_test import EMMC_TARGET
 AMONET_BISCUIT_V1_1_0 = amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0.name
 AMONET_BISCUIT_V1_1_0_BBOE = amonet_biscuit_v1_1_0_bboe.AMONET_BISCUIT_V1_1_0_BBOE.name
 AMONET_BISCUIT_V2_0_0 = amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0.name
+CREDITS = """firebreak automates work that other people did first.
+
+xyz wrote amonet, a MediaTek bootrom exploit. firebreak's bootrom and payload
+clients follow its protocol.
+  https://github.com/xyzz/amonet
+k4y0z made the first port of amonet to the Echo Dot (2nd Generation).
+  https://github.com/chaosmaster
+Rortiz2 continued that port, released it with TWRP, and keeps the XDA thread.
+The bboe TWRP is a fork of their TWRP tree.
+  https://github.com/R0rt1z2
+  https://github.com/R0rt1z2/amonet/tree/mt8163-biscuit
+  https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/
+  https://github.com/R0rt1z2/twrp_device_amazon_echo-mt8163
+AntiEngineer helped find the pins and bring up UART on a Dot.
+topjohnwu wrote Magisk, which roots Fire OS 5.
+  https://github.com/topjohnwu/Magisk
+Andy Goetz described how to short the eMMC bus at the passives beside R60.
+  https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/
+mtkclient, by bkerler, agrees with two of firebreak's bootrom addresses.
+  https://github.com/bkerler/mtkclient
+ftvdb keeps the Fire OS builds that the tables link to.
+  https://ftvdb.com/"""
 TWRP_VERSION = amonet_biscuit_v1_1_0_bboe.TWRP_VERSION
 
 
@@ -118,9 +140,18 @@ Run again with another target to move the Dot to it.""",
         " wait for its bootrom, say when the short may come off, then go on",
     )
     parser.add_argument(
+        "--credits",
+        action="version",
+        help="print who did the work firebreak builds on, and stop",
+        version=CREDITS,
+    )
+    parser.add_argument(
         "--no-update-check",
         action="store_true",
         help="do not ask PyPI whether a newer firebreak exists",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"firebreak {__version__}"
     )
     parser.add_argument(
         "target",

@@ -2,6 +2,14 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Added
+
+- `--credits` prints who did the work firebreak builds on, as the README's
+  new Credits section does.
+- `--version` prints firebreak's version.
+
 ## 0.3.0 - 2026-10-13
 
 ### Added

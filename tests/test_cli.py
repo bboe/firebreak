@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import pathlib
+import re
 import subprocess
 import sys
 import zipfile
@@ -12,6 +13,20 @@ from firebreak import __version__
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ZIPAPP = ROOT / "build" / "firebreak.pyz"
+
+
+def test_credits_name_every_link_the_readme_credits() -> None:
+    output = subprocess.run(
+        args=[sys.executable, "-m", "firebreak", "--credits"],
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout
+    readme = (ROOT / "README.md").read_text()
+    section = readme.split("\n## Credits\n")[1].split("\n## ")[0]
+    assert set(re.findall(r"\]\((https://[^)]+)\)", section)) == set(
+        re.findall(r"https://\S+", output)
+    )
 
 
 @pytest.mark.parametrize(
@@ -66,3 +81,13 @@ def test_the_pyz_imports_its_update_checker() -> None:
 
 def test_the_wheel_takes_its_version_from_the_package() -> None:
     assert importlib.metadata.version("firebreak") == __version__
+
+
+def test_version() -> None:
+    output = subprocess.run(
+        args=[sys.executable, "-m", "firebreak", "--version"],
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout
+    assert output == f"firebreak {__version__}\n"

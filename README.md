@@ -138,6 +138,29 @@ partition and read it back, so nothing crosses USB. It erases `cache`, which
 holds nothing the Dot needs, and leaves an empty filesystem there, or says
 it could not.
 
+## Credits
+
+firebreak automates work that other people did first.
+
+- [xyz](https://github.com/xyzz/amonet) wrote amonet, a MediaTek bootrom
+  exploit. firebreak's bootrom and payload clients follow its protocol.
+- [k4y0z](https://github.com/chaosmaster) made the first port of amonet to the
+  Echo Dot (2nd Generation).
+- [Rortiz2](https://github.com/R0rt1z2) continued
+  [that port](https://github.com/R0rt1z2/amonet/tree/mt8163-biscuit), released
+  it with TWRP, and keeps
+  [the XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/).
+  The `bboe` TWRP is a fork of
+  [their TWRP tree](https://github.com/R0rt1z2/twrp_device_amazon_echo-mt8163).
+- AntiEngineer helped find the pins and bring up UART on a Dot.
+- [topjohnwu](https://github.com/topjohnwu/Magisk) wrote Magisk, which roots
+  Fire OS 5.
+- [Andy Goetz](https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/)
+  described how to short the eMMC bus at the passives beside R60.
+- [mtkclient](https://github.com/bkerler/mtkclient), by bkerler, agrees with
+  two of firebreak's bootrom addresses.
+- [ftvdb](https://ftvdb.com/) keeps the Fire OS builds that the tables link to.
+
 ## Licence
 
 firebreak uses the BSD 2-Clause licence, in [LICENSE.txt][licence]. This
