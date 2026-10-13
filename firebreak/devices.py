@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import enum
 import re
 
@@ -23,6 +24,7 @@ BISCUIT = Device(
     layouts=(BOOT_MOVED_LAYOUT, STOCK_LAYOUT),
     name="biscuit",
 )
+RADAR = dataclasses.replace(BISCUIT, name="radar")
 
 
 class LK(enum.Enum):

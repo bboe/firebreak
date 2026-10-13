@@ -21,6 +21,7 @@ SOURCE = Download(
     url="https://github.com/hkfuertes/amazon_device_biscuit/releases/download/none"
     "/amonet-biscuit-v2.0.0.zip",
 )
+WRITE_KAERU = Write(image="bin/biscuit-kaeru.bin", label="write kaeru", target="expdb")
 AMONET_BISCUIT_V2_0_0 = Unlock(
     device=BISCUIT,
     family="amonet",
@@ -31,7 +32,7 @@ AMONET_BISCUIT_V2_0_0 = Unlock(
         Write(image="bin/tz.img", label="write the TEE", target="tee2"),
         Write(image="bin/lk.bin", label="write the bootloader", target="lk_a"),
         Write(image="bin/lk.bin", label="write the bootloader", target="lk_b"),
-        Write(image="bin/biscuit-kaeru.bin", label="write kaeru", target="expdb"),
+        WRITE_KAERU,
         Write(
             image="bin/tee-payload.bin", label="write the TEE payload", target="tee1"
         ),

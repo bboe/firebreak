@@ -871,8 +871,9 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   Thumb-2. It names every `gcpu.Register` and gives `ACQUIRE_VALUES` and
   `SLOT_POINTER_VALUES`. `0x400`, `0xC48` and `0xC68` are computed, not
   literals, so a byte search misses them. The routines are identical in every
-  cached preloader, biscuit's and crown's. `tests/test_preloader.py` checks
-  them, and skips without a cache, so CI never runs it.
+  cached preloader: biscuit's, crown's, and the radar one amonet-radar v1.0.0
+  writes. `tests/test_preloader.py` checks them, and skips without a cache,
+  so CI never runs it.
 - The bootrom owns `0x102868` and `0x1028A8`, so the preloader does not hold
   them. Both agree with [mtkclient](https://github.com/bkerler/mtkclient)
   (GPL-3.0); nothing was copied. mtkclient also clears `0x1072DC`. One write

@@ -9,11 +9,12 @@ import pytest
 
 from firebreak import plan
 from firebreak.android import gpt
-from firebreak.devices import BISCUIT, STOCK_LAYOUT
+from firebreak.devices import BISCUIT, BOOT_MOVED_LAYOUT, STOCK_LAYOUT
 from firebreak.plugin import BOOT0, Device, ResetBcb, Unlock, Write
 from firebreak.unlocks.amonet_biscuit_v1_1_0 import AMONET_BISCUIT_V1_1_0
 from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import AMONET_BISCUIT_V1_1_0_BBOE
 from firebreak.unlocks.amonet_biscuit_v2_0_0 import AMONET_BISCUIT_V2_0_0
+from firebreak.unlocks.amonet_radar_v1_0_0 import AMONET_RADAR_V1_0_0
 
 if TYPE_CHECKING:
     import pathlib
@@ -63,10 +64,13 @@ IMAGES = {
     "boot.payload": 13888,
     "lk.bin": 372736,
     "preloader.img": 1048576,
+    "radar-kaeru.bin": 266640,
     "tee-payload.bin": 1107464,
     "twrp.img": 9000000,
     "tz.img": 2641920,
 }
+RADAR_BACKUP_ADDRESS = 7634943
+RADAR_STOCK = (*BISCUIT_STOCK[:-1], ("userdata", 5046272, 7634910))
 SECTOR = 512
 TWRP_SIZE = 13953024
 
@@ -83,10 +87,12 @@ def source(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> pathli
     return root
 
 
-def amonet_v2_writes() -> list[tuple[str, str | None, int, int]]:
+def amonet_v2_writes(
+    *, backup: int = BACKUP_ADDRESS
+) -> list[tuple[str, str | None, int, int]]:
     return [
         ("Repartition", "disk", 0, 17408),
-        ("Repartition", "disk", (BACKUP_ADDRESS - 32) * SECTOR, 16896),
+        ("Repartition", "disk", (backup - 32) * SECTOR, 16896),
         ("ZeroRpmb", None, -1, -1),
         ("Write", "tee2", 81920 * SECTOR, 2641920),
         ("Write", "lk_a", 32768 * SECTOR, 372736),
@@ -126,7 +132,9 @@ def amonet_writes(*, recovery: int) -> list[tuple[str, str | None, int, int]]:
     ]
 
 
-def biscuit_table(*, layout: tuple[tuple[str, int, int], ...]) -> bytes:
+def biscuit_table(
+    *, backup: int = BACKUP_ADDRESS, layout: tuple[tuple[str, int, int], ...]
+) -> bytes:
     entries = b"".join(
         b"T" * 16
         + uuid.uuid5(uuid.NAMESPACE_OID, name).bytes_le
@@ -137,7 +145,7 @@ def biscuit_table(*, layout: tuple[tuple[str, int, int], ...]) -> bytes:
     ).ljust(gpt.ENTRIES_SIZE, b"\0")
     template = bytearray(92)
     template[:16] = b"EFI PART" + b"\0\0\1\0" + struct.pack("<I", 92)
-    template[24:56] = struct.pack("<QQQQ", 1, BACKUP_ADDRESS, 34, 7651294)
+    template[24:56] = struct.pack("<QQQQ", 1, backup, 34, backup - 33)
     template[56:72] = b"D" * 16
     template[80:88] = struct.pack("<II", 128, 128)
     return gpt.rebuilt_gpt(entries=entries, raw=b"M" * SECTOR + bytes(template)).primary
@@ -276,6 +284,7 @@ def test_a_table_that_is_not_intact_is_refused(*, source: pathlib.Path) -> None:
         AMONET_BISCUIT_V1_1_0,
         AMONET_BISCUIT_V1_1_0_BBOE,
         AMONET_BISCUIT_V2_0_0,
+        AMONET_RADAR_V1_0_0,
     ],
     ids=lambda unlock: unlock.name,
 )
@@ -310,6 +319,33 @@ def test_no_plan_yet_has_a_recoverable_write_over_an_earlier_unrecoverable_one(
             ),
         )
     ) == [("preloader", "patch")]
+
+
+def test_radar_v1_0_0_from_a_moved_table_matches_amonet(
+    *, source: pathlib.Path
+) -> None:
+    stock = biscuit_table(backup=RADAR_BACKUP_ADDRESS, layout=RADAR_STOCK)
+    moved, _ = BOOT_MOVED_LAYOUT.apply(raw=stock)
+    actions = plan.resolve(raw=moved, source=source, unlock=AMONET_RADAR_V1_0_0)
+    assert described(actions=actions) == amonet_v2_writes(backup=RADAR_BACKUP_ADDRESS)
+    assert actions[0].data == stock
+    assert [action.unrecoverable for action in actions].count(True) == 1
+    assert actions[8].unrecoverable
+    assert actions[2].expect == b"AMZN"
+    assert actions[6].image == source / "bin" / "radar-kaeru.bin"
+    assert actions[11].image == source / "bin" / "twrp.img"
+
+
+def test_radar_v1_0_0_from_stock_leaves_the_table(*, source: pathlib.Path) -> None:
+    actions = plan.resolve(
+        raw=biscuit_table(backup=RADAR_BACKUP_ADDRESS, layout=RADAR_STOCK),
+        source=source,
+        unlock=AMONET_RADAR_V1_0_0,
+    )
+    assert (
+        described(actions=actions) == amonet_v2_writes(backup=RADAR_BACKUP_ADDRESS)[2:]
+    )
+    assert actions[4].image == source / "bin" / "radar-kaeru.bin"
 
 
 def test_reverting_the_boot_moved_layout_gives_back_the_stock_table(

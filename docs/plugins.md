@@ -17,17 +17,27 @@ it out.
 ## Devices and unlocks
 
 `firebreak/devices.py` gives biscuit's name and its features: A/B
-slots, a boot0 and an RPMB. An unlock lists the features it requires, and
-resolution refuses a pairing that lacks one before anything is written.
+slots, a boot0 and an RPMB. radar, the Echo (2nd Generation), has the same
+features. An unlock lists the features it requires, and resolution refuses a
+pairing that lacks one before anything is written.
 
 A device also lists the partition table layouts a Dot may carry: for biscuit,
-boot moved, the table amonet v1.1.0 makes, and stock. An unlock names the
-layout it needs: boot moved for v1.1.0 and its bboe variant, stock for v2.0.0.
+boot moved, the table amonet v1.1.0 makes, and stock. radar lists the same
+two. Its stock table is biscuit's except where `userdata` ends, and its amonet
+has biscuit's `gpt.py`. An unlock names the layout it needs: boot moved for
+v1.1.0 and its bboe variant, stock for v2.0.0.
 
-`firebreak/unlocks/` holds amonet v1.1.0, its bboe variant, and amonet v2.0.0.
-Each plan is amonet's `modules/main.py` and then its `fastboot-step.sh`, step
-for step. The bboe variant swaps the recovery image for TWRP 3.7.0_9-bboe2, a
-download of its own, which is why an unlock carries `files` beside its archive.
+`firebreak/unlocks/` holds amonet v1.1.0, its bboe variant, and amonet v2.0.0,
+for biscuit, and amonet-radar v1.0.0. Each plan is amonet's `modules/main.py`
+and then its `fastboot-step.sh`, step for step. The bboe variant swaps the
+recovery image for TWRP 3.7.0_9-bboe2, a download of its own, which is why an
+unlock carries `files` beside its archive.
+
+amonet-radar v1.0.0 runs biscuit v2.0.0's scripts and payload byte for byte,
+and its `main.py` differs only in file names and one log line. So its plan is
+v2.0.0's, with `radar-kaeru.bin` in `expdb`, and its module builds it from
+v2.0.0's. No target uses it yet: the probe, the routes and the gesture are
+biscuit's.
 
 A **target** is what a run ends on: its goal state, the OS it installs, and its
 unlock, which stock has none of. A Fire OS 6 target names a build from Amazon's
@@ -188,7 +198,13 @@ offers `firebreak/emmc.py`'s operations.
 ## The guardrail
 
 `tests/test_plan.py` resolves every unlock against biscuit's geometry, from a
-stock table and from a shuffled one. Every write must equal what amonet's
-scripts issue: kind, target, byte offset and length. Reverting the boot-moved
-layout after applying it, and v2.0.0's repartition of a v1.1.0 table, must
-each give back the stock table byte for byte.
+stock table and from a shuffled one. It resolves amonet-radar v1.0.0 from a
+radar stock table and one with boot moved too. Every write must equal what
+amonet's scripts issue: kind, target, byte offset and length. Reverting the
+boot-moved layout after applying it, and v2.0.0's repartition of a v1.1.0
+table, must each give back the stock table byte for byte.
+
+The tests use made-up images and a radar table copied by hand. Once, by hand
+and outside the tests, the plan was resolved against amonet-radar's own
+`gpt-radar.bin` and images, from that table and from it with boot moved. It
+fit every partition and gave back the stock table.
