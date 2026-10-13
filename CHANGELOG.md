@@ -11,6 +11,10 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- A run no longer erases boot0 when amonet's fastboot is not a Dot's. An
+  unlocked Echo (2nd Generation) in amonet's fastboot read as an unlocked
+  Dot, and the run would have written the Dot's preloader and bootloader to
+  it.
 - `stock` works on a Dot whose boot0 is larger than the stock preloader. It
   stopped with `preloader.img is not the size of boot0` on a Dot with a 4 MiB
   boot0.

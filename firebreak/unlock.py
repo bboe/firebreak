@@ -70,6 +70,19 @@ def amonet_v2_0_0_payload() -> pathlib.Path:
     return amonet / "brom-payload" / "build" / "payload.bin"
 
 
+def check_product() -> None:
+    product = getvar(name="product")
+    if not product:
+        raise FatalError(
+            message="fastboot reports no product, so nothing was written. " + again()
+        )
+    if product != "BISCUIT":
+        raise FatalError(
+            message=f"fastboot reports {product!r}, not BISCUIT, so nothing was"
+            " written. firebreak supports only the Echo Dot (2nd Generation)."
+        )
+
+
 def erase_by_fastboot() -> str:
     erased = run(arguments=["fastboot", "erase", "boot0"], timeout=60)
     if erased.returncode != 0:
@@ -130,6 +143,7 @@ def stage_downgrade() -> bool:
     wheel = pyserial_wheel()
     if getvar(name="unlock_status").lower() != "true":
         raise FatalError(message="not in amonet's fastboot")
+    check_product()
     little_kernel = getvar(name="lk_build_desc")
     if not LITTLE_KERNEL_DESCRIPTION.fullmatch(string=little_kernel):
         raise FatalError(
@@ -154,8 +168,7 @@ def stage_downgrade() -> bool:
 
 def stage_fastbrick() -> None:
     amonet = unpack(download=amonet_biscuit_v2_0_0.SOURCE)
-    if getvar(name="product") != "BISCUIT":
-        raise FatalError(message="fastboot reports a product other than BISCUIT")
+    check_product()
     little_kernel = getvar(name="lk_build_desc")
     if not little_kernel:
         raise FatalError(

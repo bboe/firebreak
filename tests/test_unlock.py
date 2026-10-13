@@ -70,9 +70,32 @@ def guard(
     ("answers", "message"),
     [
         ({"unlock_status": "false"}, "not in amonet's fastboot"),
-        ({"lk_build_desc": "", "unlock_status": "true"}, "boot0 was not erased"),
         (
-            {"lk_build_desc": unlock.LK.FIREOS5.value, "unlock_status": "true"},
+            {
+                "lk_build_desc": "63cb91b-20221007_073612",
+                "product": "RADAR",
+                "unlock_status": "true",
+            },
+            "reports 'RADAR', not BISCUIT, so nothing was written. firebreak supports",
+        ),
+        (
+            {
+                "lk_build_desc": "63cb91b-20221007_072309",
+                "product": "",
+                "unlock_status": "true",
+            },
+            "reports no product, so nothing was written. Run",
+        ),
+        (
+            {"lk_build_desc": "", "product": "BISCUIT", "unlock_status": "true"},
+            "did not report its bootloader version; boot0 was not erased",
+        ),
+        (
+            {
+                "lk_build_desc": unlock.LK.FIREOS5.value,
+                "product": "BISCUIT",
+                "unlock_status": "true",
+            },
             "already runs amonet v1.1.0's bootloader",
         ),
     ],
@@ -100,7 +123,11 @@ def test_a_downgrade_erases_boot0_through_fastboot(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
     stepped: list[dict[str, object]] = []
-    answers = {"lk_build_desc": unlock.LK.FIREOS6.value, "unlock_status": "true"}
+    answers = {
+        "lk_build_desc": unlock.LK.FIREOS6.value,
+        "product": "BISCUIT",
+        "unlock_status": "true",
+    }
     monkeypatch.setattr(name="unpack", target=unlock, value=lambda **_: tmp_path)
     monkeypatch.setattr(name="pyserial_wheel", target=unlock, value=lambda: None)
     monkeypatch.setattr(
@@ -120,7 +147,11 @@ def test_a_downgrade_erases_boot0_through_fastboot(
 def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
-    answers = {"lk_build_desc": unlock.LK.FIREOS6.value, "unlock_status": "true"}
+    answers = {
+        "lk_build_desc": unlock.LK.FIREOS6.value,
+        "product": "BISCUIT",
+        "unlock_status": "true",
+    }
     monkeypatch.setattr(name="unpack", target=unlock, value=lambda **_: tmp_path)
     monkeypatch.setattr(name="pyserial_wheel", target=unlock, value=lambda: None)
     monkeypatch.setattr(
@@ -155,7 +186,7 @@ def test_a_fastboot_that_never_says_whether_it_is_unlocked_stops_cleanly(
 @pytest.mark.parametrize(
     ("product", "little_kernel", "message"),
     [
-        ("product: crown", "x", "a product other than BISCUIT"),
+        ("product: crown", "x", "reports 'crown', not BISCUIT"),
         ("product: BISCUIT", "", "did not report the bootloader version"),
     ],
 )

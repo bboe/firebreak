@@ -882,7 +882,12 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   section above has it.
 - The script stops if `lk_build_desc` is already v1.1.0's: a second erase
   gains nothing. It reads `getvar`, and refuses a Dot whose `unlock_status` is
-  not `true`.
+  not `true`, or whose `product` is not `BISCUIT`. Every unlocked amonet LK
+  answers this fastboot. Without the `product` check, an Echo (2nd
+  Generation) on amonet-radar, whose LK says `RADAR`, would read as
+  amonet-v2.0.0-fastboot, and a run would erase its boot0 and write
+  biscuit's preloader and LK to it. This is read from the code and the LK
+  images, not seen on a radar.
 - It runs `fastboot erase boot0` and `fastboot reboot`, and the Dot drops into
   its bootrom.
 - The step ends with the plan's own reboot. Every write reports its own
