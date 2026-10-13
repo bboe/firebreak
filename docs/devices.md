@@ -53,6 +53,35 @@ reports them as `antirback_pl_version`, `antirback_tee_version` and
 - A stock 8146 Dot read `0x0005`, `0x0102` and `0x0001`.
 - PL rose from 3 to 5 after 5.5.0.3. TEE and LK are the same in every OTA.
 
+### Partition hashes
+
+[biscuit-partitions.csv](biscuit-partitions.csv) has the sha256 of the 5
+partitions each OTA writes, for every build above: boot, `/system`, lk, tee
+and the preloader.
+
+- A hash covers the image's own length, in `bytes`, and the partition is
+  larger. Hash that many bytes from the partition's start, on the active slot
+  (`ro.boot.slot_suffix`). The preloader is the first 1 MiB of boot0.
+- An A/B OTA's hashes are the ones in its `payload.bin` manifest. Every
+  payload is a full image. `/system` rebuilt from 8146's payload matched its
+  manifest.
+- A block OTA's hashes are of the files in its zip, and of `/system` rebuilt
+  from `system.new.dat` with the blocks it does not write as zeros. That is
+  Fire OS 5, and Fire OS 6 4310 to 4315.
+- Those `/system` hashes match a Dot that firebreak restored, because it
+  writes the zeros too. Amazon's updater erases those blocks and does not
+  write them: 20,458 of them on 5.5.5.4 and 79,822 on 4315. An erased block
+  reads as whatever the eMMC chip returns, so a Dot that Amazon's updater
+  installed matches only if its chip returns zeros.
+- Every build has its own boot, `/system` and preloader hash. The preloaders
+  differ only in boot0's GPT.
+- A rooted Dot matches no row. Fire OS 6 keeps its root filesystem in
+  `/system`, and amonet v2.0.0's `boot-root.zip` changes 6 files there:
+  `default.prop`, `fstab.mt8163`, `init.fosflags.sh`, `sbin/adbd`, `sepolicy`
+  and `system/build.prop`, whose `ro.build.version.number` becomes
+  `4503599628407428`. A v2 Dot on 8146 differed from 8146's `/system` in
+  those files only.
+
 ### eMMC chips
 
 Read as root from `/sys/block/mmcblk0/device/` (`name`, `manfid`, `date`)
