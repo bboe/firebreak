@@ -336,6 +336,11 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - The `0x3000` reboot hands the Dot back to the boot rules, 3 s later.
 - The port is not modelled: the short, the watchdog, the preloader's
   `0e8d:2000` port and USB packet sizes do not exist here.
+- `ports.py` also replaces `firebreak.identify.usb_devices`, so a run never
+  sees the host's own USB devices. It lists the simulated Dot as `AEOBC`
+  when it is booted, adb `unauthorized` too, as `Echo Dot (2nd Gen)` in TWRP
+  3.7.0 and as `Echo Dot 2nd Gen` in TWRP 3.2.3, and lists nothing in any
+  other mode.
 
 ### Leniencies
 

@@ -21,7 +21,9 @@ class Device:
     features: frozenset[Feature]
     name: str
     product: str
+    title: str
     layouts: tuple[Layout, ...] = ()
+    models: frozenset[str] = frozenset()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -80,6 +82,7 @@ class ResetBcb:
 
 @dataclasses.dataclass(frozen=True)
 class Target:
+    device: Device
     goal: enum.Enum
     installs: FireOs5 | FireOs6
     name: str

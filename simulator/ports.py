@@ -1,4 +1,5 @@
-"""Show the simulated Dot's bootrom as the only serial port pyserial lists.
+"""Show the simulated Dot's bootrom as the only serial port pyserial lists,
+and the simulated Dot as the only USB device firebreak.identify lists.
 
 Run each process's clock FIREBREAK_SIM_SPEED times faster, except while a call
 to the simulated Dot or its eMMC runs.
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
 BOOTROM_PRODUCT_ID = 0x0003
 CHUNK_SECONDS = 0.05
 MEDIATEK_VENDOR_ID = 0x0E8D
-MODULE = "serial.tools.list_ports"
+MODULES = ("firebreak.identify", "serial.tools.list_ports")
 NANOSECONDS = 1_000_000_000
 REAL_MONOTONIC = time.monotonic_ns
 REAL_SELECT = select.select
@@ -129,7 +130,7 @@ class Finder(importlib.abc.MetaPathFinder):
         path: Sequence[str] | None,
         target: ModuleType | None = None,
     ) -> ModuleSpec | None:
-        if fullname != MODULE:
+        if fullname not in MODULES:
             return None
         for finder in sys.meta_path:
             if finder is self or not hasattr(finder, "find_spec"):
@@ -149,7 +150,10 @@ class Loader(importlib.abc.Loader):
         exec(  # ruff: ignore[exec-builtin]
             self.inner.get_code(module.__name__), module.__dict__
         )
-        module.comports = comports
+        if module.__name__ == "firebreak.identify":
+            module.usb_devices = usb_devices
+        else:
+            module.comports = comports
 
 
 @contextlib.contextmanager
@@ -240,6 +244,36 @@ def running(*, pid: int) -> bool:
     except PermissionError:
         return True
     return True
+
+
+def usb_devices() -> list:
+    from firebreak.identify import UsbDevice  # ruff: ignore[import-outside-top-level]
+
+    try:
+        state = json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        return []
+    mode = state.get("mode")
+    if mode == "recovery" and state.get("outcome", {}).get("flavour") == "twrp-3.2.3":
+        mode = "recovery 3.2.3"
+    found = {
+        "device": (MEDIATEK_VENDOR_ID, 0x201C, "MediaTek", "AEOBC"),
+        "recovery": (0x18D1, 0xD001, "Amazon", "Echo Dot (2nd Gen)"),
+        "recovery 3.2.3": (0x18D1, 0x4EE2, "Amazon", "Echo Dot 2nd Gen"),
+        "unauthorized": (MEDIATEK_VENDOR_ID, 0x201C, "MediaTek", "AEOBC"),
+    }.get(mode)
+    if found is None:
+        return []
+    vendor_id, product_id, manufacturer, product = found
+    return [
+        UsbDevice(
+            manufacturer=manufacturer,
+            product=product,
+            product_id=product_id,
+            serial="G090SIM000000001",
+            vendor_id=vendor_id,
+        )
+    ]
 
 
 sys.meta_path.insert(0, Finder())

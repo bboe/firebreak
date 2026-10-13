@@ -21,6 +21,12 @@ slots, a boot0 and an RPMB. radar, the Echo (2nd Generation), has the same
 features. An unlock lists the features it requires, and resolution refuses a
 pairing that lacks one before anything is written.
 
+A device has a title for messages, such as `Echo Dot (2nd Generation)`, and
+the USB product strings its builds report, its models: `AEOBC` and its TWRPs'
+model names for biscuit. `firebreak/identify.py` names the connected device
+from them, or from the product in fastboot. A target names its device too,
+`stock` included, and a run refuses a target for another device.
+
 A device also gives its product, the name its LKs and its fastboot report:
 `BISCUIT` and `RADAR`. It is not always the codename in capitals:
 amonet-crown v1.1.1's LK names `CHECKERS`.

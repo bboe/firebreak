@@ -6,6 +6,13 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- A run names the device before it starts, and refuses a target made for
+  another device before it downloads anything. In fastboot it asks the
+  device's product; elsewhere it reads the USB product string, which needs no
+  adb authorization.
+- `--report` names the device and lists its USB devices, with the first 4
+  characters of each serial number. In fastboot it also prints the
+  anti-rollback versions.
 - `--report` gives the eMMC chip's manufacture date and the sizes of its two
   boot areas, which differ between the chips Dots ship with.
 

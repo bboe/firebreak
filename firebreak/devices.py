@@ -22,10 +22,19 @@ STOCK_LAYOUT = StockLayout(partitions=16)
 BISCUIT = Device(
     features=frozenset({Feature.AB_SLOTS, Feature.BOOT0, Feature.RPMB}),
     layouts=(BOOT_MOVED_LAYOUT, STOCK_LAYOUT),
+    models=frozenset({"AEOBC", "Echo Dot (2nd Gen)", "Echo Dot 2nd Gen"}),
     name="biscuit",
     product="BISCUIT",
+    title="Echo Dot (2nd Generation)",
 )
-RADAR = dataclasses.replace(BISCUIT, name="radar", product="RADAR")
+RADAR = dataclasses.replace(
+    BISCUIT,
+    models=frozenset({"AEORD", "Echo (2nd Gen)"}),
+    name="radar",
+    product="RADAR",
+    title="Echo (2nd Generation)",
+)
+DEVICES = (BISCUIT, RADAR)
 
 
 class LK(enum.Enum):

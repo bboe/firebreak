@@ -22,6 +22,7 @@ from firebreak import __version__, updates
 from firebreak.cache import move_old_caches
 from firebreak.emos import child_emos
 from firebreak.host import check_adb, check_user
+from firebreak.identify import check_target
 from firebreak.plugin import FireOs6
 from firebreak.route import root
 from firebreak.support import report, write_test
@@ -165,6 +166,7 @@ Run again with another target to move the Dot to it.""",
     if options.write_test:
         write_test()
         return
+    check_target(target=target)
     root()
 
 

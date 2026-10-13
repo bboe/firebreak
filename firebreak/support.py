@@ -12,6 +12,7 @@ from firebreak import __version__
 from firebreak.cache import CACHE
 from firebreak.devices import BY_NAME, FASTBOOT_MODE
 from firebreak.host import adb_shell, getvar, in_fastboot, run, usb_serial
+from firebreak.identify import identity_lines
 from firebreak.probe import probed
 from firebreak.report import (
     LEFT_IN_RECOVERY,
@@ -49,6 +50,14 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                 ("product", getvar(name="product")),
                 ("unlock_status", unlocked),
                 ("lk_build_desc", getvar(name="lk_build_desc")),
+                *(
+                    (name, getvar(name=name))
+                    for name in (
+                        "antirback_pl_version",
+                        "antirback_tee_version",
+                        "antirback_lk_version",
+                    )
+                ),
             ):
                 line("fastboot " + name, value or "<nothing>")
             if not unlocked:
@@ -157,6 +166,7 @@ def report() -> None:
     said = run(arguments=["adb", "version"], timeout=30).stdout.split(sep="\n")
     line("adb", ", ".join(part.strip() for part in said[:2] if part.strip()))
     line("state", probed())
+    show(text="\n".join(identity_lines()))
     if not into_recovery(line=line):
         show(text="\nThe report stops with what is above.")
         return

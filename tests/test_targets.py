@@ -31,3 +31,11 @@ def test_each_target_names_its_goal_its_install_and_its_unlock() -> None:
         "stock": (State.STOCK_BOOTED, FireOs6(build=None), None),
     }
     assert all(target.name == name for name, target in TARGETS.items())
+
+
+def test_each_target_with_an_unlock_is_for_that_unlock_s_device() -> None:
+    assert all(
+        target.device == target.unlock.device
+        for target in TARGETS.values()
+        if target.unlock is not None
+    )

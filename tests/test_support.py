@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import support
+from firebreak import identify, support
+from firebreak.devices import RADAR
+from firebreak.identify import Identity, UsbDevice
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -19,6 +21,22 @@ LISTING = (
 )
 PARTITIONS = (
     f"major minor  #blocks  name\n 179  3  65536 mmcblk0p3\n{support.PARTITIONS_OK}"
+)
+USB = (
+    UsbDevice(
+        manufacturer="MediaTek",
+        product="AEORD",
+        product_id=0x201C,
+        serial="G0X1ABCDEF",
+        vendor_id=0x0E8D,
+    ),
+    UsbDevice(
+        manufacturer="Apple",
+        product="Keyboard",
+        product_id=1,
+        serial="",
+        vendor_id=0x05AC,
+    ),
 )
 
 
@@ -36,6 +54,9 @@ class Dot:
             "id; su -c id": "uid=0(root)",
         }
         self.variables = {
+            "antirback_lk_version": "0x0001",
+            "antirback_pl_version": "0x0005",
+            "antirback_tee_version": "0x0102",
             "lk_build_desc": "f379dba-20170906_000423",
             "product": "BISCUIT",
             "unlock_status": "true",
@@ -105,6 +126,12 @@ def shown(*, monkeypatch: pytest.MonkeyPatch) -> list[str]:
     monkeypatch.setattr(name="probed", target=support, value=lambda: "none")
     monkeypatch.setattr(name="dot_details", target=support, value=lambda **_: ["dot"])
     monkeypatch.setattr(name="mmc_said", target=support, value=lambda **_: ["mmc"])
+    monkeypatch.setattr(
+        name="identify",
+        target=identify,
+        value=lambda **_: Identity(device=RADAR, how="USB product 'AEORD'"),
+    )
+    monkeypatch.setattr(name="usb_devices", target=identify, value=lambda: [*USB])
     return texts
 
 
@@ -145,6 +172,13 @@ def test_a_report_names_the_firebreak_version(
     assert support.labelled(label="firebreak version", value=support.__version__) in (
         shown
     )
+    device = "Echo (2nd Generation), by its USB product 'AEORD'"
+    assert (
+        support.labelled(label="device", value=device)
+        + "\n"
+        + support.labelled(label="usb", value=USB[0])
+    ) in shown
+    assert not any("Keyboard" in text for text in shown)
     assert shown[-1] == "\nThe report stops with what is above."
 
 
@@ -208,6 +242,7 @@ def test_into_recovery_reaches_twrp_from_where_the_dot_is(
     out = capsys.readouterr().out
     if start == "fastboot":
         assert ("fastboot product", "BISCUIT") in lines
+        assert ("fastboot antirback_pl_version", "0x0005") in lines
         assert ["fastboot", "oem", "reboot-recovery"] in fake.ran
     if start == "device":
         assert ["adb", "reboot", "recovery"] in fake.ran

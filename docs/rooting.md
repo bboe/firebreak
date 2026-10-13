@@ -122,6 +122,43 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   `0x5f` and nothing more is reopened every 10 seconds for good: a probe run
   reached 51 handshakes. On the erase route nothing else ends the run.
 
+## Which device is plugged in
+
+- Before a run that installs a target, firebreak names the device and refuses
+  a target made for another one, before it downloads anything. `--report`
+  prints the same, and does not refuse. `--write-test` does not check: it
+  writes only `cache`, by name, on any device.
+- It counts every USB device from MediaTek (`0e8d`) and Lab126 (`1949`), and
+  from Google and HTC only the IDs an Echo uses: TWRP's `18d1:d001` and
+  `18d1:4ee2`, and fastboot's `0bb4:0c01`. A phone in Android's generic
+  `mtp,adb`, `18d1:4ee2`, still counts.
+- With `ANDROID_SERIAL` set, only the USB device with that serial counts.
+  Without it, two Echo devices that name two different devices name none.
+- In fastboot it asks `getvar product`, which needs no authorization:
+  `BISCUIT` or `RADAR`.
+- Elsewhere it reads the USB product string, `iProduct`, which the host has
+  even when adb answers `unauthorized`. Fire OS sets it to
+  `ro.product.model`, and TWRP to its own model. biscuit is `AEOBC` in Fire
+  OS 5 and 6, `Echo Dot (2nd Gen)` in v2.0.0's TWRP and bboe2, and `Echo Dot
+  2nd Gen` in v1.1.0's TWRP 3.2.3. radar is `AEORD` and `Echo (2nd Gen)`.
+  The vendor and product IDs are the same on both, so they cannot tell them
+  apart.
+- macOS reads `ioreg -a -l -p IOUSB`, Linux `/sys/bus/usb/devices`, and
+  Windows `DEVPKEY_Device_BusReportedDeviceDesc` through PowerShell, which
+  gives no manufacturer. Each read `AEOBC` from a Dot on Fire OS 6, the macOS
+  one with adb `unauthorized`, where `adb devices -l` gives no model. The
+  read took about 0.05 s on macOS and 0.8 s on Windows. radar's strings are
+  read from its images, not from a radar.
+- A device that matches nothing, or no device, is let through: the checks
+  before each write still guard it. The bootrom and the preloader name no
+  product, so a Dot that shows no light is left to the bootrom step's own
+  check.
+- In fastboot, the report also prints `antirback_pl_version`,
+  `antirback_tee_version` and `antirback_lk_version`.
+- The report shows only the first 4 characters of a serial number. Amazon's
+  start with a prefix that may name the device type: `G090` on every biscuit
+  seen here.
+
 ## A Dot on emOS
 
 - EchoMuse's emOS replaces Fire OS's boot image with its own init. It runs no

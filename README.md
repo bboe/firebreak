@@ -128,6 +128,10 @@ starts the Dot's recovery, prints what the Dot, its eMMC and this computer are,
 and the Dot's partition table, and writes no partition. A Dot already in a
 recovery stays there, and the Dot is left in its recovery afterwards.
 
+`--report` also names the device and lists its USB devices. firebreak supports
+only the Echo Dot (2nd Generation), but the report is the same on other Echo
+devices, such as the Echo (2nd Generation), and helps add them.
+
 `--write-test` then tells a failing eMMC from a failing cable. It pushes a
 pattern into the Dot's RAM, then has the Dot write it over its own `cache`
 partition and read it back, so nothing crosses USB. It erases `cache`, which

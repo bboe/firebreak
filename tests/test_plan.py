@@ -189,7 +189,7 @@ def reordered_overlaps(*, actions: tuple[plan.Action, ...]) -> list[tuple[str, s
 
 def test_a_device_without_a_needed_feature_is_refused(*, source: pathlib.Path) -> None:
     unlock = Unlock(
-        device=Device(features=frozenset(), name="bare", product="BARE"),
+        device=Device(features=frozenset(), name="bare", product="BARE", title="Bare"),
         family="amonet",
         layout=STOCK_LAYOUT,
         plan=(),
