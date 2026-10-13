@@ -1,7 +1,7 @@
 # Devices
 
-The firmware each supported device's OTAs ship, and radar's, which firebreak
-does not support yet.
+The firmware each supported device's OTAs ship, and radar's and crown's,
+which firebreak does not support yet.
 
 ## biscuit
 
@@ -166,3 +166,64 @@ partitions each OTA writes, for every build above, read as biscuit's are.
   `88d5111f`, 6199 to 6220 `59fb0d21`, 6302 and 6813 `8f6dd232`, 6425 and
   6436 `ac9825e8`. Build numbers do not follow release order: 6302 is Fire
   OS 6.4.6.6, and 6813 is 6.5.6.6.
+
+## crown
+
+The Echo Show 8 (1st Generation), whose OTAs give `ro.product.model` as
+`AEOCW`. Read in October 2026 from the 19 OTAs on ftvdb: Fire OS 6 6074 to
+8149. Their `ro.build.version.name` runs from Fire OS 6.5.7.0 to Fire OS
+6574.1, as biscuit's 8146 also names itself. ftvdb has no other crown OTA.
+Crown's build numbers are its own: its 6208, 6436, 8146 and 8149 are not
+biscuit's or radar's builds of those numbers.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK | fastbrick image |
+| --- | --- | --- | --- | --- | --- |
+| Fire OS 6 6074 to 8149 | `44072a3-20240709_164449` | `79a3b50-20231019_080950` | [1](#tee-images-2) | 0x0001, 0x0102, 0x0001 | `fastbrick.img` |
+
+- Every OTA ships the same LK and TEE. The preloaders differ between builds
+  only in boot0's GPT, as on biscuit.
+- Crown has one slot: one `boot` and one `lk`. Each OTA writes its TEE to both
+  `tee1` and `tee2`. Its updater script also extracts `images/MBR` to the
+  disk, but no OTA holds that file. The extract fails, the script does not
+  check it, and nothing is written there.
+- The PL version is 1, where biscuit's and radar's are 5. No OTA raises an
+  anti-rollback version. Each is read as biscuit's are, in
+  [Anti-rollback](#anti-rollback). After the string, crown's preloader runs
+  the same code as radar's: the log call, the call that returns N, a store
+  of N into the same field, and the same compare.
+- amonet-crown v2.0.1's `profile.sh` gives every LK the default image,
+  `fastbrick.img`. Its map of LK-specific images is empty.
+- amonet-crown v2.0.1 writes this LK and this TEE, byte for byte, and a
+  preloader from 2019, `1fce15f-20190917_183143`, at PL version 1.
+- amonet-crown v1.1.1 writes an LK from 2019, `4c6677c-20190328_014231`, at
+  LK version 0, below the OTAs' 1. Its TEE is at 0x0103, above the OTAs'
+  0x0102. Its preloader is `79a3b50-20231019_082513`, at PL version 1: the
+  OTAs' commit, built 15 minutes later.
+- Both amonet-crown releases zero RPMB before they write, so the versions RPMB
+  held cannot stop the boot. This is read from their `main.py`, not seen on a
+  crown.
+- Once v1.1.1's TEE boots, RPMB can hold TEE version 0x0103. A later write of
+  any OTA's TEE, at 0x0102, would then stop the boot unless RPMB is zeroed
+  first. This is read from the anti-rollback check, not seen on a crown.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 1 | 2533376 | `a5bf748b2351a424f5016cd45fbc0c26` | `fb8f7ee4de59aab1fea4b3fc99e76aa575bf46b1aef165ea367a1e44c6713c50` |
+
+### Partition hashes
+
+[crown-partitions.csv](crown-partitions.csv) has the sha256 of the 5
+partitions each OTA writes, for every build above, read as biscuit's are.
+
+- Every crown OTA is a block OTA. As on biscuit, a crown that Amazon's updater
+  installed matches its `/system` hash only if its eMMC reads erased blocks as
+  zeros. Amazon's updater erases and does not write 119,598 to 132,373 of the
+  794,368 blocks, depending on the build.
+- Every build has its own boot, `/system` and preloader hash. `/system` is
+  3,253,731,328 bytes in every build.
+- Crown has no slot suffix. Hash `boot`, `system`, `lk` and `tee1` by name,
+  where biscuit's steps say to use the active slot.
