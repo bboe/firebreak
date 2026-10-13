@@ -6,7 +6,8 @@ import types
 import pytest
 
 from firebreak import route, ui
-from firebreak.unlocks.targets import TARGETS
+from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_0
+from firebreak.unlocks.targets import FIREOS, TARGETS
 
 
 class RanOutError(Exception):
@@ -18,7 +19,8 @@ class Run:
         self.clock = [0.0]
         self.fetched: list[str] = []
         self.monkeypatch = monkeypatch
-        self.prefetched = 0
+        self.checked = 0
+        self.prefetched: list[list[object]] = []
         self.said: dict[str, str] = {
             "getenforce": "Permissive",
             "getprop ro.build.version.name": "Fire OS 5.5.5.4",
@@ -36,6 +38,8 @@ class Run:
         monkeypatch.setattr(name="sleep", target=route.time, value=lambda _: None)
         monkeypatch.setattr(name="monotonic", target=route.time, value=self.monotonic)
         monkeypatch.setattr(name="prefetch", target=route, value=self.prefetch)
+        monkeypatch.setattr(name="check_target", target=route, value=self.check)
+        monkeypatch.setattr(name="DOWNLOADS", target=route, value=[])
         monkeypatch.setattr(
             name="fetch",
             target=route,
@@ -68,12 +72,15 @@ class Run:
         self.stepped.append(options)
         return self.bootrom_answer
 
+    def check(self, **_: object) -> None:
+        self.checked += 1
+
     def monotonic(self) -> float:
         self.clock[0] += self.tick
         return self.clock[0]
 
-    def prefetch(self) -> None:
-        self.prefetched += 1
+    def prefetch(self, *, needs: object) -> None:
+        self.prefetched.append(list(needs))
 
     def start(self) -> None:
         self.started += 1
@@ -137,6 +144,20 @@ def test_a_bootrom_step_that_finds_a_preloader_is_not_counted(
     assert "v1.1.0 recovery" not in run.fetched
 
 
+def test_a_browser_download_comes_first(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    fetched: list[str] = []
+    monkeypatch.setattr(
+        name="unpack",
+        target=route,
+        value=lambda **o: fetched.append(o["download"].name),
+    )
+    monkeypatch.setattr(
+        name="fetch", target=route, value=lambda **o: fetched.append(o["download"].name)
+    )
+    route.prefetch(needs=[amonet_biscuit_v2_0_0.SOURCE, route.BOOT_ROOT])
+    assert fetched == [route.BOOT_ROOT.name, amonet_biscuit_v2_0_0.SOURCE.name]
+
+
 def test_a_dot_at_its_goal_has_its_updater_hidden(
     *, capsys: pytest.CaptureFixture[str], run: Run
 ) -> None:
@@ -196,21 +217,22 @@ def test_a_dot_that_waits_too_long_stops_the_run(  # ruff: ignore[too-many-argum
         route.root()
 
 
-def test_a_fire_os_5_prefetch_fetches_everything_and_builds_the_system(
-    *, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("name", "twrp"),
+    [("amonet-biscuit-v1.1.0", []), ("amonet-biscuit-v1.1.0-bboe", [route.TWRP.name])],
+)
+def test_a_fire_os_5_route_fetches_what_it_needs_and_builds_the_system(
+    *, monkeypatch: pytest.MonkeyPatch, name: str, twrp: list[str]
 ) -> None:
     fetched: list[str] = []
     built: list[object] = []
     shown: list[str] = []
-    monkeypatch.setattr(
-        name="target", target=route.ARGUMENTS, value=TARGETS["amonet-biscuit-v1.1.0"]
-    )
+    monkeypatch.setattr(name="target", target=route.ARGUMENTS, value=TARGETS[name])
     monkeypatch.setattr(
         name="unpack",
         target=route,
         value=lambda **o: fetched.append(o["download"].name),
     )
-    monkeypatch.setattr(name="pyserial_wheel", target=route, value=lambda: None)
     monkeypatch.setattr(
         name="fetch", target=route, value=lambda **o: fetched.append(o["download"].name)
     )
@@ -222,17 +244,30 @@ def test_a_fire_os_5_prefetch_fetches_everything_and_builds_the_system(
         target=route,
         value=types.SimpleNamespace(is_alive=lambda: True),
     )
+    prebuilder = route.threading.Thread(daemon=True, target=route.prebuild)
+    monkeypatch.setattr(name="PREBUILDER", target=route, value=prebuilder)
     monkeypatch.setattr(
         name="show", target=route, value=lambda **o: shown.append(o["text"])
     )
-    route.prefetch()
-    for thread in route.threading.enumerate():
-        if thread.name != "MainThread" and thread.daemon:
-            thread.join(timeout=5)
-    assert "Magisk-v17.3.zip" in fetched
-    assert route.TWRP.name in fetched
-    assert built == [TARGETS["amonet-biscuit-v1.1.0"].installs.package]
-    assert shown == ["Finishing the downloads."]
+    table = route.stages()
+    route.prefetch(needs=route.needed(start=route.State.STOCK_FASTBOOT, table=table))
+    route.prefetch(
+        needs=route.needed(start=route.State.AMONET_V2_0_0_TWRP, table=table)
+    )
+    prebuilder.join(timeout=5)
+    assert (
+        fetched
+        == [
+            amonet_biscuit_v2_0_0.SOURCE.name,
+            amonet_biscuit_v1_1_0.SOURCE.name,
+            *twrp,
+            FIREOS.name,
+            "Magisk-v17.3.zip",
+        ]
+        * 2
+    )
+    assert built == [FIREOS]
+    assert shown == ["Finishing the downloads."] * 2
 
 
 @pytest.mark.parametrize(
@@ -249,11 +284,70 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
     monkeypatch.setattr(name="target", target=route.ARGUMENTS, value=TARGETS[name])
     monkeypatch.setattr(name="build", target=route.ARGUMENTS, value=build)
     monkeypatch.setattr(name="unpack", target=route, value=lambda **_: None)
+    monkeypatch.setattr(name="fetch", target=route, value=lambda **_: None)
     monkeypatch.setattr(
         name="download", target=route.updates, value=lambda **o: got.append(o["build"])
     )
-    route.prefetch()
+    route.prefetch(
+        needs=route.needed(start=route.State.AMONET_V2_0_0_TWRP, table=route.stages())
+    )
     assert got == [downloaded]
+
+
+@pytest.mark.parametrize(
+    ("name", "start", "needs"),
+    [
+        (
+            "amonet-biscuit-v1.1.0-bboe",
+            route.State.AMONET_V2_0_0_FASTBOOT,
+            [
+                amonet_biscuit_v1_1_0.SOURCE,
+                route.pyserial_wheel,
+                amonet_biscuit_v2_0_0.SOURCE,
+                route.TWRP,
+                FIREOS,
+                route.MAGISK,
+                route.start_prebuild,
+            ],
+        ),
+        (
+            "amonet-biscuit-v1.1.0",
+            route.State.AMONET_V1_1_0_BOOTED,
+            [],
+        ),
+        ("amonet-biscuit-v1.1.0", route.State.EMOS, [route.pyserial_wheel]),
+        (
+            "amonet-biscuit-v2.0.0",
+            route.State.AMONET_V1_1_0_TWRP,
+            [
+                amonet_biscuit_v2_0_0.SOURCE,
+                amonet_biscuit_v1_1_0.SOURCE,
+                route.fireos6_build,
+                route.BOOT_ROOT,
+            ],
+        ),
+        (
+            "amonet-biscuit-v2.0.0",
+            route.State.STOCK_FASTBOOT,
+            [amonet_biscuit_v2_0_0.SOURCE, route.fireos6_build, route.BOOT_ROOT],
+        ),
+        (
+            "amonet-biscuit-v2.0.0",
+            route.State.STOCK_FIREOS5_FASTBOOT,
+            [amonet_biscuit_v2_0_0.SOURCE, route.fireos6_build, route.BOOT_ROOT],
+        ),
+        ("stock", route.State.AMONET_V1_1_0_TWRP, [route.fireos6_build]),
+    ],
+)
+def test_a_route_needs_only_its_own_stages_downloads(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    needs: list[object],
+    start: route.State,
+) -> None:
+    monkeypatch.setattr(name="target", target=route.ARGUMENTS, value=TARGETS[name])
+    assert route.needed(start=start, table=route.stages()) == needs
 
 
 def test_a_run_after_boot0_was_erased_goes_through_the_bootrom(
@@ -266,9 +360,58 @@ def test_a_run_after_boot0_was_erased_goes_through_the_bootrom(
     run.states = [route.State.NONE, route.State.AMONET_V2_0_0_BOOTED]
     run.said["getprop ro.build.version.name"] = "Fire OS 6.5.7.4"
     route.root()
-    assert run.fetched == ["boot-root.zip", "v1.1.0 recovery"]
+    assert run.fetched == ["v1.1.0 recovery"]
+    assert {
+        amonet_biscuit_v1_1_0.SOURCE,
+        amonet_biscuit_v2_0_0.SOURCE,
+        route.BOOT_ROOT,
+    } <= set(run.prefetched[0])
     assert run.stepped[0]["erase"] is None
     assert "stopped after it erased boot0" in said(capsys=capsys)
+
+
+def test_a_run_fetches_its_route_s_downloads_before_the_first_stage(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    ran: list[str] = []
+    table = {
+        route.State.STOCK_FASTBOOT: route.Stage(
+            needs=(amonet_biscuit_v2_0_0.SOURCE,),
+            run=lambda: ran.append("fastbrick"),
+            steps=2,
+            then=route.State.AMONET_V1_1_0_BBOE_BOOTED,
+        )
+    }
+    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
+    route.ARGUMENTS.verbose = True
+    run.states = [route.State.STOCK_FASTBOOT, route.State.AMONET_V1_1_0_BBOE_BOOTED]
+    route.root()
+    out = said(capsys=capsys)
+    assert ran == ["fastbrick"]
+    assert run.checked == 1
+    assert run.started == 0
+    assert run.prefetched == [[amonet_biscuit_v2_0_0.SOURCE]]
+    assert "Keep the Dot plugged in" in out
+    assert "state: stock-fastboot" in out
+
+
+def test_a_run_refuses_another_device_before_it_downloads(
+    *, monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    def refuse(**_: object) -> None:
+        raise route.FatalError(message="this is an Echo (2nd Generation)")
+
+    table = {
+        route.State.STOCK_FASTBOOT: route.Stage(
+            needs=(amonet_biscuit_v2_0_0.SOURCE,), run=lambda: None, steps=2, then=None
+        )
+    }
+    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
+    monkeypatch.setattr(name="check_target", target=route, value=refuse)
+    run.states = [route.State.STOCK_FASTBOOT]
+    with pytest.raises(route.FatalError, match="Echo"):
+        route.root()
+    assert run.prefetched == []
 
 
 @pytest.mark.parametrize(
@@ -299,27 +442,31 @@ def test_a_run_says_what_the_dot_needs(
     assert message in said(capsys=capsys)
 
 
-def test_a_run_starts_the_downloads_once_it_has_work(
-    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
+    *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
-    ran: list[str] = []
     table = {
         route.State.STOCK_FASTBOOT: route.Stage(
-            run=lambda: ran.append("fastbrick"),
+            needs=(amonet_biscuit_v2_0_0.SOURCE,),
+            run=lambda: None,
             steps=2,
-            then=route.State.AMONET_V1_1_0_BBOE_BOOTED,
-        )
+            then=route.State.AMONET_V2_0_0_TWRP,
+        ),
+        route.State.AMONET_V2_0_0_TWRP: route.Stage(
+            needs=(amonet_biscuit_v2_0_0.SOURCE, FIREOS),
+            run=lambda: None,
+            steps=2,
+            then=None,
+        ),
     }
     monkeypatch.setattr(name="stages", target=route, value=lambda: table)
-    route.ARGUMENTS.verbose = True
-    run.states = [route.State.STOCK_FASTBOOT, route.State.AMONET_V1_1_0_BBOE_BOOTED]
-    route.root()
-    out = said(capsys=capsys)
-    assert ran == ["fastbrick"]
+    run.states = [route.State.NONE, route.State.STOCK_BOOTED, route.State.NONE]
+    with pytest.raises(RanOutError):
+        route.root()
+    assert run.checked == 1
     assert run.started == 1
-    assert run.prefetched == 1
-    assert "Keep the Dot plugged in" in out
-    assert "state: stock-fastboot" in out
+    assert route.DOWNLOADS == [amonet_biscuit_v2_0_0.SOURCE, FIREOS]
+    assert run.prefetched == []
 
 
 def test_a_stage_that_returns_false_counts_none_of_its_passes(
@@ -355,7 +502,8 @@ def test_a_stage_that_returns_false_counts_none_of_its_passes(
     )
     monkeypatch.setattr(name="state", target=route, value=state)
     monkeypatch.setattr(name="stages", target=route, value=lambda: table)
-    monkeypatch.setattr(name="prefetch", target=route, value=lambda: None)
+    monkeypatch.setattr(name="prefetch", target=route, value=lambda **_: None)
+    monkeypatch.setattr(name="check_target", target=route, value=lambda **_: None)
     monkeypatch.setattr(
         name="DOWNLOADER", target=route, value=types.SimpleNamespace(ident=1)
     )
@@ -403,7 +551,8 @@ def test_a_stage_that_returns_nothing_counts_its_passes(
     )
     monkeypatch.setattr(name="state", target=route, value=state)
     monkeypatch.setattr(name="stages", target=route, value=lambda: table)
-    monkeypatch.setattr(name="prefetch", target=route, value=lambda: None)
+    monkeypatch.setattr(name="prefetch", target=route, value=lambda **_: None)
+    monkeypatch.setattr(name="check_target", target=route, value=lambda **_: None)
     monkeypatch.setattr(
         name="DOWNLOADER", target=route, value=types.SimpleNamespace(ident=1)
     )
@@ -655,6 +804,18 @@ def test_stock_that_does_not_start_after_the_restore_stops_the_run(
     run.tick = route.WAIT / 2
     with pytest.raises(route.FatalError, match="stock 8146 has not started 10 minutes"):
         route.root()
+
+
+def test_the_background_downloads_leave_the_browser_to_the_run(
+    *, monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    run.target(name="amonet-biscuit-v2.0.0")
+    monkeypatch.setattr(name="stages", target=route, value=route.stages)
+    run.states = [route.State.AMONET_V2_0_0_FASTBOOT]
+    with pytest.raises(RanOutError):
+        route.root()
+    assert run.started == 1
+    assert list(route.DOWNLOADS) == [amonet_biscuit_v2_0_0.SOURCE, route.fireos6_build]
 
 
 def test_the_session_has_no_marker_while_the_first_probe_runs(

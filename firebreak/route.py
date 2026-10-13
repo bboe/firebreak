@@ -9,7 +9,16 @@ from typing import TYPE_CHECKING
 
 from firebreak import recovery, updates
 from firebreak.bootrom_step import bootrom_step
-from firebreak.cache import ERASED, MAGISK, cache_note, fetch, hold, lock_for, unpack
+from firebreak.cache import (
+    ERASED,
+    MAGISK,
+    Download,
+    cache_note,
+    fetch,
+    hold,
+    lock_for,
+    unpack,
+)
 from firebreak.devices import FASTBOOT_MODE, State
 from firebreak.emos import stage_emos
 from firebreak.fireos import (
@@ -24,6 +33,7 @@ from firebreak.fireos import (
     system_image,
 )
 from firebreak.host import adb_shell, pyserial_wheel, run
+from firebreak.identify import check_target
 from firebreak.plugin import FireOs6
 from firebreak.probe import state
 from firebreak.stock import STOCK_STEPS, stage_restore
@@ -53,9 +63,16 @@ from firebreak.unlock import (
 from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_0
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
+
+    Need = Download | Callable[[], object]
 
 
+AHEAD = {
+    State.AMONET_V2_0_0_FASTBOOT: State.AMONET_V2_0_0_TWRP,
+    State.STOCK_BOOTED: State.STOCK_FASTBOOT,
+}
+DOWNLOADS: list[Need] = []
 FIREOS5_ROOTED = {
     State.ROOTED,
     State.AMONET_V1_1_0_BBOE_BOOTED,
@@ -74,7 +91,12 @@ class Stage:
     run: Callable[[], bool | None]
     steps: int
     then: State | None
+    needs: tuple[Need, ...] = ()
     passes: frozenset[State] = frozenset()
+
+
+def bootrom_needs() -> tuple[Need, ...]:
+    return (amonet_biscuit_v1_1_0.SOURCE, pyserial_wheel, amonet_biscuit_v2_0_0.SOURCE)
 
 
 def fireos5_stages() -> dict[State, Stage]:
@@ -85,6 +107,15 @@ def fireos5_stages() -> dict[State, Stage]:
         State.AMONET_V2_0_0_FASTBOOT,
     })
     goal = ARGUMENTS.target.goal
+    unlock = ARGUMENTS.target.unlock
+    fireos = (ARGUMENTS.target.installs.package, MAGISK, start_prebuild)
+    chained = (
+        amonet_biscuit_v2_0_0.SOURCE,
+        amonet_biscuit_v1_1_0.SOURCE,
+        unlock.source,
+        *unlock.files.values(),
+        *fireos,
+    )
     chain = functools.partial(
         recovery.carry_out,
         after=functools.partial(
@@ -97,35 +128,60 @@ def fireos5_stages() -> dict[State, Stage]:
             stage_install_fireos, reboot=False, slot="_a"
         ),
         guard=amonet_chain,
-        unlock=ARGUMENTS.target.unlock,
+        unlock=unlock,
     )
     return {
         State.AMONET_V1_1_0_TWRP: Stage(
-            run=stage_replace_twrp, steps=1, then=State.AMONET_V1_1_0_BBOE_TWRP
+            needs=(TWRP,),
+            run=stage_replace_twrp,
+            steps=1,
+            then=State.AMONET_V1_1_0_BBOE_TWRP,
         ),
         State.AMONET_V2_0_0_TWRP: Stage(
+            needs=chained,
             run=chain,
             steps=2,
             then=State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
         ),
-        State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(run=chain, steps=7, then=goal),
+        State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(
+            needs=chained, run=chain, steps=7, then=goal
+        ),
         State.AMONET_V1_1_0_BBOE_TWRP: Stage(
-            run=stage_install_fireos, steps=4, then=State.AMONET_V1_1_0_BBOE_BOOTED
+            needs=fireos,
+            run=stage_install_fireos,
+            steps=4,
+            then=State.AMONET_V1_1_0_BBOE_BOOTED,
         ),
         State.AMONET_V2_0_0_BOOTED: reboot_stages()[State.AMONET_V2_0_0_BOOTED],
         State.AMONET_V2_0_0_FASTBOOT: Stage(
+            needs=(*bootrom_needs(), TWRP),
             passes=downgrades,
             run=stage_downgrade,
             steps=2,
             then=State.AMONET_V1_1_0_BBOE_TWRP,
         ),
     } | {
-        rooted: Stage(run=stage_swap_twrp, steps=1, then=goal)
+        rooted: Stage(
+            needs=(amonet_biscuit_v1_1_0.SOURCE, TWRP),
+            run=stage_swap_twrp,
+            steps=1,
+            then=goal,
+        )
         for rooted in FIREOS5_ROOTED - {goal}
     }
 
 
+def fireos6_build() -> None:
+    build = ARGUMENTS.build or ARGUMENTS.target.installs.build
+    with hold(lock=lock_for(key=build)):
+        updates.download(build=build)
+
+
 def fireos6_stages() -> dict[State, Stage]:
+    installed = (
+        amonet_biscuit_v2_0_0.SOURCE,
+        *amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0.files.values(),
+    )
     install = functools.partial(
         recovery.carry_out,
         after=functools.partial(reboot, label="waiting for v2.0.0 recovery to start"),
@@ -135,16 +191,25 @@ def fireos6_stages() -> dict[State, Stage]:
     )
     return {
         State.AMONET_V1_1_0_TWRP: Stage(
-            run=install, steps=4, then=State.AMONET_V2_0_0_TWRP
+            needs=(*installed, amonet_biscuit_v1_1_0.SOURCE),
+            run=install,
+            steps=4,
+            then=State.AMONET_V2_0_0_TWRP,
         ),
         State.AMONET_V2_0_0_TWRP: Stage(
-            run=stage_install_fireos6, steps=5, then=State.AMONET_V2_0_0_BOOTED
+            needs=(amonet_biscuit_v2_0_0.SOURCE, fireos6_build, BOOT_ROOT),
+            run=stage_install_fireos6,
+            steps=5,
+            then=State.AMONET_V2_0_0_BOOTED,
         ),
         State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(
-            run=install, steps=4, then=State.AMONET_V2_0_0_TWRP
+            needs=installed, run=install, steps=4, then=State.AMONET_V2_0_0_TWRP
         ),
         State.AMONET_V1_1_0_BBOE_TWRP: Stage(
-            run=install, steps=4, then=State.AMONET_V2_0_0_TWRP
+            needs=(*installed, amonet_biscuit_v1_1_0.SOURCE),
+            run=install,
+            steps=4,
+            then=State.AMONET_V2_0_0_TWRP,
         ),
     } | {
         state: stage
@@ -153,35 +218,49 @@ def fireos6_stages() -> dict[State, Stage]:
     }
 
 
+def in_browser(*, need: Need) -> bool:
+    return isinstance(need, Download) and need.browser
+
+
+def needed(*, start: State, table: dict[State, Stage]) -> list[Need]:
+    found: list[Need] = []
+    for _ in range(len(table) + 1):
+        stage = table.get(start)
+        if start == ARGUMENTS.target.goal or stage is None:
+            break
+        found.extend(stage.needs)
+        if stage.then is None:
+            break
+        start = stage.then
+    return list(dict.fromkeys(found))
+
+
 def prebuild() -> None:
     with contextlib.suppress(Exception):
         system_image(package=ARGUMENTS.target.installs.package)
 
 
+PREBUILDER = threading.Thread(daemon=True, target=prebuild)
+
+
 def predownload() -> None:
     with contextlib.suppress(Exception):
-        prefetch()
+        prefetch(needs=DOWNLOADS)
 
 
 DOWNLOADER = threading.Thread(daemon=True, target=predownload)
 
 
-def prefetch() -> None:
+def prefetch(*, needs: Iterable[Need]) -> None:
     if DOWNLOADER.is_alive() and threading.current_thread() is threading.main_thread():
         show(text="Finishing the downloads.")
-    unpack(download=amonet_biscuit_v2_0_0.SOURCE)
-    installs = ARGUMENTS.target.installs
-    if isinstance(installs, FireOs6):
-        build = ARGUMENTS.build or installs.build
-        with hold(lock=lock_for(key=build)):
-            updates.download(build=build)
-        return
-    unpack(download=amonet_biscuit_v1_1_0.SOURCE)
-    pyserial_wheel()
-    fetch(download=installs.package)
-    fetch(download=MAGISK)
-    fetch(download=TWRP)
-    threading.Thread(daemon=True, target=prebuild).start()
+    for need in sorted(needs, key=lambda need: not in_browser(need=need)):
+        if not isinstance(need, Download):
+            need()
+        elif need.directory:
+            unpack(download=need)
+        else:
+            fetch(download=need)
 
 
 def reboot_stages() -> dict[State, Stage]:
@@ -219,6 +298,7 @@ def remaining(*, start: State, table: dict[State, Stage]) -> int | None:
 def restore_stages() -> dict[State, Stage]:
     return {
         twrp: Stage(
+            needs=(fireos6_build,),
             passes=TWRPS,
             run=stage_restore,
             steps=STOCK_STEPS,
@@ -251,14 +331,20 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         )
         restored = target.unlock is None and bool(done & TWRPS)
         gesture = current == State.AMONET_V2_0_0_FASTBOOT and current not in table
+        ahead = AHEAD.get(current)
         if (
             DOWNLOADER.ident is None
-            and current not in {State.BOOTED, State.STARTING, *FIREOS5_ROOTED}
-            and not (
-                target.unlock is None
-                and current in {State.STOCK_BOOTED, State.STOCK_FASTBOOT}
-            )
+            and not done
+            and current not in table
+            and ahead in table
+            and not (target.unlock is None and current == State.STOCK_BOOTED)
         ):
+            check_target(target=target)
+            DOWNLOADS[:] = [
+                need
+                for need in needed(start=ahead, table=table)
+                if not in_browser(need=need)
+            ]
             DOWNLOADER.start()
         if current not in {State.NONE, State.STARTING, *TWRPS}:
             ERASED.unlink(missing_ok=True)
@@ -266,9 +352,12 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         if current != State.NONE:
             SESSION.short = False
         if current == State.NONE and (ERASED.exists() or SESSION.short) and not resumed:
-            if target.goal == State.AMONET_V2_0_0_BOOTED:
-                fetch(download=BOOT_ROOT)
-            prefetch()
+            prefetch(
+                needs=dict.fromkeys((
+                    *bootrom_needs(),
+                    *needed(start=State.AMONET_V1_1_0_FASTBOOT, table=table),
+                ))
+            )
             resumed = True
             done.difference_update(TWRPS)
             done.add(State.AMONET_V1_1_0_FASTBOOT)
@@ -423,10 +512,9 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             time.sleep(2)
             continue
         if not done:
-            if target.goal == State.AMONET_V2_0_0_BOOTED:
-                fetch(download=BOOT_ROOT)
-            if isinstance(target.installs, FireOs6) or current not in FIREOS5_ROOTED:
-                prefetch()
+            check_target(target=target)
+        prefetch(needs=needed(start=current, table=table))
+        if not done:
             warn(text="Keep the Dot plugged in until firebreak finishes.")
         done.add(current)
         stage = table.get(current)
@@ -440,14 +528,21 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
 
 def stages() -> dict[State, Stage]:
     table = {
-        State.EMOS: Stage(run=stage_emos, steps=1, then=None),
+        State.EMOS: Stage(needs=(pyserial_wheel,), run=stage_emos, steps=1, then=None),
         State.STOCK_FIREOS5_FASTBOOT: Stage(
-            run=stage_fastbrick, steps=2, then=State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE
+            needs=(amonet_biscuit_v2_0_0.SOURCE,),
+            run=stage_fastbrick,
+            steps=2,
+            then=State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
         ),
         State.STOCK_FASTBOOT: Stage(
-            run=stage_fastbrick, steps=2, then=State.AMONET_V2_0_0_TWRP
+            needs=(amonet_biscuit_v2_0_0.SOURCE,),
+            run=stage_fastbrick,
+            steps=2,
+            then=State.AMONET_V2_0_0_TWRP,
         ),
         State.AMONET_V1_1_0_FASTBOOT: Stage(
+            needs=(amonet_biscuit_v1_1_0.SOURCE, TWRP),
             run=stage_amonet_v1_1_0_recovery,
             steps=1,
             then=State.AMONET_V1_1_0_BBOE_TWRP,
@@ -458,3 +553,8 @@ def stages() -> dict[State, Stage]:
     if isinstance(ARGUMENTS.target.installs, FireOs6):
         return table | fireos6_stages()
     return table | fireos5_stages()
+
+
+def start_prebuild() -> None:
+    with contextlib.suppress(RuntimeError):
+        PREBUILDER.start()

@@ -485,23 +485,42 @@ ring read white.
   writes the same slices, is used as it is. If the md5 read back still fails
   after the last try, the script deletes the first slice, which works even
   when another process holds the rest open.
-- The run starts the downloads in a background thread at the first probe that
-  does not find the Dot booted, rooted or starting. So they overlap the wait
-  for a Dot and for the fastboot gesture. A Dot found rooted needs no download
-  for `amonet-biscuit-v1.1.0` or `amonet-biscuit-v1.1.0-bboe`. For `stock` and
-  `amonet-biscuit-v2.0.0` the main thread downloads the build before the first
-  stage.
+- Each stage names the downloads it uses. A run fetches those of the stages
+  on the route from the Dot's state to the target's goal, and no others. A
+  `stock` run that finds TWRP fetches only the build. A run to
+  `amonet-biscuit-v2.0.0` from v1.1.0's TWRP does not fetch Fire OS 5.
+- amonet v1.1.0's zip is a need only where the Dot still runs v1.1.0's LK.
+  On v2.0.0's TWRP the LK check matches v2.0.0's `lk.bin` first, so a run to
+  `amonet-biscuit-v2.0.0` from stock fastboot does not fetch it. Were `lk_a`
+  to match neither, the check would fetch it itself.
+- The run downloads nothing while it waits for a Dot it has not seen. That Dot
+  can be another device, or can need nothing. A Dot that waits where the next
+  state is known starts the downloads in a background thread: an unmodified
+  Dot, booted, comes back in its own fastboot after the gesture, and amonet
+  v2.0.0's fastboot comes back as its TWRP. So the downloads overlap the
+  gesture.
+- `boot-root.zip` comes through the browser, so the background thread never
+  fetches it. The main thread fetches it before the other downloads, so the
+  one step that needs the user comes first and does not land in the gesture's
+  instructions.
+- The run names the device before it starts that thread, and again before the
+  first stage. A device plugged in after the run started is then refused
+  before the route's downloads. The probe of a rooted Fire OS 5 Dot still
+  fetches amonet v1.1.0 and TWRP 3.7.0_9-bboe2 first: it compares the
+  recovery with their images to name the state.
 - The main thread waits for that thread's locks half a second at a time.
   On Windows, Ctrl-C does not interrupt a blocking lock wait, so one long wait
   would ignore it until a 397 MB download ended.
-- The downloads are about 476 MB. With the unpacked trees and the system
+- The downloads are at most about 476 MB. With the unpacked trees and the system
   image, the cache holds about 1.3 GB.
-- Before it changes the Dot, the script waits for every download and checks
-  it. A bad download then stops the run with the Dot unchanged.
-- The downloads run one at a time, amonet v2.0.0's zip first, because the
-  fastbrick needs it first. Fire OS is 397 MB of the 476, and one download
-  filled the line at about 40 MB/s, so parallel downloads would only delay
-  that zip.
+- Before each stage, the script waits for every download on the route and
+  checks it. A bad download then stops the run with the Dot unchanged. A route
+  can end before the goal: emOS reboots into a recovery the run names only
+  when it sees it. The next stage then downloads the rest.
+- The downloads run one at a time, in the route's order, so the first stage's
+  come first: amonet v2.0.0's zip for the fastbrick. Fire OS is 397 MB of the
+  476, and one download filled the line at about 40 MB/s, so parallel
+  downloads would only delay that zip.
 - Nothing deletes a download, so a later run downloads nothing. A rooted run
   prints the cache's path and size and says it is safe to delete.
 - The emOS probe and the bootrom step need pyserial, which a wheel or source
