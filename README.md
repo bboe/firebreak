@@ -71,6 +71,8 @@ It has x86 and x64 builds only, so Windows on ARM cannot run the bootrom step.
 ## Notes
 
 - From stock, the script asks for the fastboot gesture.
+- A ring that stays solid blue at the fastboot gesture can mean the USB port
+  gives too little power. Try another port.
 - Do not set up a stock Dot in the Alexa app before you unlock it. On Wi-Fi it
   can update to a build the script does not support.
 - [docs/rooting.md][rooting] says why each step is there.
