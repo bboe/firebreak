@@ -35,7 +35,14 @@ ACTIONS = (
         unrecoverable=True,
     ),
     Action(kind="Reboot", label="reboot"),
-    Action(data=b"t", kind="FastbootFlash", label="twrp", length=1, offset=0),
+    Action(
+        data=b"t",
+        kind="FastbootFlash",
+        label="twrp",
+        length=1,
+        offset=0,
+        target="recovery",
+    ),
 )
 DD = re.compile(
     r"\$d if=(?P<source>\S+)(?: of=(?P<target>\S+))? bs=512"
@@ -85,7 +92,14 @@ V2_ACTIONS = (
     ),
     Action(kind="ForceFastboot", label="fastboot"),
     Action(kind="Reboot", label="reboot"),
-    Action(data=b"t", kind="FastbootFlash", label="twrp", length=1, offset=0),
+    Action(
+        data=b"t",
+        kind="FastbootFlash",
+        label="twrp",
+        length=1,
+        offset=0,
+        target="recovery",
+    ),
 )
 
 
@@ -169,12 +183,13 @@ def carry(
     recovery.ERASED.parent.mkdir(exist_ok=True, parents=True)
 
     def record(name: str) -> object:
-        def called(**options: object) -> None:
+        def called(**options: object) -> object:
             done = options.pop("actions", ())
             if name == "check":
                 checked.extend(done)
             labels = tuple(action.label for action in done)
             calls.append((name, labels, recovery.ERASED.exists(), options))
+            return done
 
         return called
 
@@ -186,7 +201,7 @@ def carry(
         calls.append(("nodes", tuple(sorted(want.items()))))
         return wrong
 
-    for name in ("check", "execute", "reboot", "run"):
+    for name in ("apply", "check", "execute", "reboot", "run"):
         monkeypatch.setattr(name=name, target=recovery, value=record(name))
     monkeypatch.setattr(name="adb_shell", target=recovery, value=shell)
     monkeypatch.setattr(name="reaches", target=recovery, value=lambda **_: True)
@@ -600,7 +615,8 @@ def test_amonet_v1_1_0_clears_boot0_then_writes_the_preloader_last(
         ("nodes", ((f"{recovery.DISK}p4", LIVE["part3"].size),)),
         ("check", ("lk", "preloader", "twrp", "lk"), False, {}),
         ("boot0", True),
-        ("execute", ("lk", "twrp", "lk"), True, {}),
+        ("apply", ("lk", "lk"), True, {}),
+        ("execute", ("twrp",), True, {}),
         ("install", True),
         ("execute", ("preloader",), True, {}),
         ("after", False),
@@ -632,7 +648,7 @@ def test_amonet_v1_1_0_writes_a_table_that_moves_its_targets_alone(
             "reboot",
             (),
             False,
-            {"label": "waiting for recovery to read the new table"},
+            {"label": "waiting for recovery to reread table"},
         ),
     ]
 
@@ -663,12 +679,8 @@ def test_amonet_v2_0_0_clears_boot0_then_writes_the_table_backup_first(
             {},
         ),
         ("boot0", True),
-        (
-            "execute",
-            ("table", "table", "lk", "lk", "twrp", "zero misc"),
-            True,
-            {},
-        ),
+        ("apply", ("table", "table", "lk", "lk", "zero misc"), True, {}),
+        ("execute", ("twrp",), True, {}),
         ("execute", ("preloader",), True, {}),
         ("after", False),
     ]
@@ -790,6 +802,41 @@ def test_what_is_already_there_is_not_written(*, dot: FakeDot) -> None:
     nothing = Action(kind="Repartition", label="room", length=0)
     recovery.execute(actions=(nothing, action))
     assert writes(dot) == []
+
+
+@pytest.mark.parametrize(
+    argnames=("first", "skipped"),
+    argvalues=[(b"\x11", True), (b"\x22", False)],
+)
+@pytest.mark.usefixtures("dot")
+def test_writes_that_share_a_label_share_a_line(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    first: bytes,
+    skipped: bool,
+) -> None:
+    same = [
+        Action(
+            data=fill * 512,
+            kind="Write",
+            label="write the bootloader",
+            length=512,
+            offset=0,
+            target=target,
+        )
+        for fill, target in ((first, "tee1"), (b"\x11", "tee2"))
+    ]
+    recovery.execute(actions=(*same, dataclasses.replace(same[1], label="other")))
+    ended = [
+        line.split("]", 1)[1].split()
+        for line in capsys.readouterr().out.splitlines()
+        if line.endswith("total)")
+    ]
+    assert [words[:-4] for words in ended] == [
+        ["write", "the", "bootloader"],
+        ["other"],
+    ]
+    assert [words[-3] == "skip" for words in ended] == [skipped, True]
 
 
 def writes(dot: FakeDot) -> list[str]:

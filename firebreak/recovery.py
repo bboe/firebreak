@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import hashlib
+import itertools
 import pathlib
 import subprocess
 import tempfile
@@ -56,6 +57,31 @@ WRITE = (
     " echo 3 > /proc/sys/vm/drop_caches; [ $s = 0 ]"
     f" && grep -q '^{{count}}+0 records out' {DD_LOG} && echo written"
 )
+
+
+def apply(*, actions: tuple[Action, ...]) -> bool:
+    skipped = True
+    with tempfile.TemporaryDirectory(dir=CACHE) as temporary:
+        for index, action in enumerate(actions):
+            node, offset = place(action=action)
+            first, data, held = whole_sectors(
+                action=action,
+                offset=offset,
+                read=functools.partial(read_raw, node=node),
+            )
+            same = (
+                held == data
+                if held is not None
+                else read(count=len(data) // SECTOR_SIZE, first=first, node=node)
+                == md5(data=data)
+            )
+            if same:
+                continue
+            skipped = False
+            staged = pathlib.Path(temporary) / f"{index}.img"
+            staged.write_bytes(data=data)
+            write(first=first, node=node, staged=staged)
+    return skipped
 
 
 def carry_out(
@@ -120,7 +146,7 @@ def carry_out(
         for action in writes
     ):
         execute(actions=table)
-        reboot(label="waiting for recovery to read the new table")
+        reboot(label="waiting for recovery to reread table")
         return False
     wrong = check_nodes(
         want={
@@ -136,8 +162,8 @@ def carry_out(
             f" {wrong}. A write by that name could land in RAM and verify"
             " against itself, so the Dot is restarting into recovery. " + again()
         )
-    check(actions=(*table, *writes))
-    PROGRESS.begin(estimate="5 s", label="clear the preloader header (boot0)")
+    checked = check(actions=(*table, *writes))
+    PROGRESS.begin(estimate="10 s", label=f"write {unlock.family} v{unlock.version}")
     ERASED.touch()
     answer = adb_shell(command=CLEAR_BOOT0, timeout=60).split()
     if answer[-2:] != ["4096", "0"]:
@@ -147,10 +173,15 @@ def carry_out(
             message=f"boot0's header did not read back as cleared, so {unlock.name}"
             " was not written. " + again()
         )
-    PROGRESS.end()
-    execute(
-        actions=(*table, *(action for action in writes if not action.unrecoverable))
+    apply(
+        actions=tuple(
+            action
+            for action in checked
+            if not action.unrecoverable and action.target != "recovery"
+        )
     )
+    PROGRESS.end()
+    execute(actions=tuple(action for action in writes if action.target == "recovery"))
     before_preloader()
     execute(actions=tuple(action for action in writes if action.unrecoverable))
     ERASED.unlink(missing_ok=True)
@@ -188,28 +219,9 @@ def check(*, actions: tuple[Action, ...]) -> tuple[Action, ...]:
 
 def execute(*, actions: tuple[Action, ...]) -> None:
     writes = check(actions=actions)
-    with tempfile.TemporaryDirectory(dir=CACHE) as temporary:
-        for index, action in enumerate(writes):
-            PROGRESS.begin(label=action.label)
-            node, offset = place(action=action)
-            first, data, held = whole_sectors(
-                action=action,
-                offset=offset,
-                read=functools.partial(read_raw, node=node),
-            )
-            same = (
-                held == data
-                if held is not None
-                else read(count=len(data) // SECTOR_SIZE, first=first, node=node)
-                == md5(data=data)
-            )
-            if same:
-                PROGRESS.end(skipped=True)
-                continue
-            staged = pathlib.Path(temporary) / f"{index}.img"
-            staged.write_bytes(data=data)
-            write(first=first, node=node, staged=staged)
-            PROGRESS.end()
+    for label, group in itertools.groupby(writes, key=lambda action: action.label):
+        PROGRESS.begin(label=label)
+        PROGRESS.end(skipped=apply(actions=tuple(group)))
 
 
 def md5(*, data: bytes) -> str:

@@ -226,6 +226,16 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   them, and 17 from a rooted Dot, with the reboot into recovery. A restore
   write whose target already reads back the right md5 ends `skip`, in place
   of its seconds.
+- A plan carried out from TWRP prints one line per stage, not one per write. A
+  root from stock printed 22 lines, 12 of them writes that took under a
+  second. The boot0 clear, the table and every write but TWRP and the
+  preloader share one line, such as `write amonet v1.1.0-bboe`. TWRP and the
+  preloader keep their own lines, the preloader because a stop after it cannot
+  be undone. Other writes in a row that share a label share a line, such as
+  the table's primary and backup. A shared line ends `skip` only when every
+  write in it was skipped. A root from stock now prints 11 lines. `--verbose`
+  still prints every command. The bootrom step still prints one line per
+  write.
 - Each stage's estimate is an upper bound: the slowest time measured for it,
   rounded up to the next 5 seconds, over roots on macOS and Windows 11. One
   case is left out: a first run on a computer that finds the Dot already in
@@ -668,11 +678,11 @@ ring read white.
   the TWRP route below. Only `userdata` and the two appended partitions
   change, so every partition the plan writes keeps its node, and no reboot
   comes between.
-- Then the TEE, both LKs, kaeru, the TEE payload and v2.0.0's TWRP are
-  written and read back; `misc` is zeroed, as the zip does; and the
-  preloader is written last. The plan's RPMB zero, `FASTBOOT_PLEASE` and
-  reboots are left out, as for v1.1.0's chain from v2.0.0's TWRP; the run
-  reboots into recovery itself.
+- Then the TEE, both LKs, kaeru and the TEE payload are written and read
+  back, and `misc` is zeroed, as the zip does. v2.0.0's TWRP comes after
+  them, so they share one line, and the preloader is written last. The
+  plan's RPMB zero, `FASTBOOT_PLEASE` and reboots are left out, as for
+  v1.1.0's chain from v2.0.0's TWRP; the run reboots into recovery itself.
 - The zip wrote the preloader first. A stop after that left a valid
   preloader in front of a mixed LK and TEE: no bootrom, and maybe no LK, so
   only the eMMC short reached it. The zip is no longer installed, and no
@@ -735,8 +745,9 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   the table gives, or the Dot restarts into recovery with nothing written:
   a kernel holding another table would put a write by name in RAM.
 - Then boot0's header is cleared, with `boot0-erased` set, then the table, the
-  writes, the route's own step, and the preloader last. amonet v1.1.0's step
-  is Fire OS 5.5.5.4; amonet v2.0.0's is zeroing `misc`, as its zip does.
+  writes but TWRP, TWRP, and the preloader last. amonet v2.0.0's writes end
+  with zeroing `misc`, as its zip does. amonet v1.1.0's route installs Fire
+  OS 5.5.5.4 between TWRP and the preloader.
 - The table is the layout's own bytes, both copies, written by `dd` and read
   back like the rest. The backup copy goes first, so a stop between the two
   leaves the old primary in front and the next run writes whichever copy
@@ -1162,7 +1173,7 @@ fastbrick, and in any TWRP the restore runs.
   amonet-v1.1.0-bboe-booted in 1 min 52 s. Each was rooted again after the
   fastboot gesture: to `amonet-biscuit-v2.0.0` in 7 steps,
   `amonet-biscuit-v1.1.0` in 10, `amonet-biscuit-v1.1.0-bboe` in 9, as the
-  table counts.
+  table counted then.
 - As the target: from amonet-v1.1.0-bboe-booted in 3 min 11 s, `[1/17]` to
   `[17/17]`, ending when stock started, and 4315 in 4 min 9 s, which rooted
   back in 9 min 8 s. Run again on the stock Dot, it reported nothing to restore

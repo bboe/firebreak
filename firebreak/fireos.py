@@ -186,7 +186,7 @@ def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
         if not adb_script(body=body, name="system.sh", work=work):
             raise FatalError(message="patching /system failed")
 
-        PROGRESS.begin(estimate="5 s", label="writing the boot image")
+        PROGRESS.begin(estimate="10 s", label="writing the boot image and Magisk")
         data = boot_image(fireos=fireos, magisk=magisk)
         image = work / "boot.img"
         image.write_bytes(data=data.ljust(-(-len(data) // 4096) * 4096, b"\0"))
@@ -212,7 +212,6 @@ def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
                 f" {written or 'nothing'}, expected {want}"
             )
 
-        PROGRESS.begin(estimate="5 s", label="installing Magisk 17.3")
         install_magisk(magisk=magisk, work=work)
     if reboot:
         PROGRESS.begin(estimate="4 min", label="waiting for rooted Fire OS 5 to boot")

@@ -105,12 +105,12 @@ def fireos5_stages() -> dict[State, Stage]:
         ),
         State.AMONET_V2_0_0_TWRP: Stage(
             run=chain,
-            steps=3,
+            steps=2,
             then=State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
         ),
-        State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(run=chain, steps=17, then=goal),
+        State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(run=chain, steps=7, then=goal),
         State.AMONET_V1_1_0_BBOE_TWRP: Stage(
-            run=stage_install_fireos, steps=5, then=State.AMONET_V1_1_0_BBOE_BOOTED
+            run=stage_install_fireos, steps=4, then=State.AMONET_V1_1_0_BBOE_BOOTED
         ),
         State.AMONET_V2_0_0_BOOTED: reboot_stages()[State.AMONET_V2_0_0_BOOTED],
         State.AMONET_V2_0_0_FASTBOOT: Stage(
@@ -135,16 +135,16 @@ def fireos6_stages() -> dict[State, Stage]:
     )
     return {
         State.AMONET_V1_1_0_TWRP: Stage(
-            run=install, steps=12, then=State.AMONET_V2_0_0_TWRP
+            run=install, steps=4, then=State.AMONET_V2_0_0_TWRP
         ),
         State.AMONET_V2_0_0_TWRP: Stage(
             run=stage_install_fireos6, steps=5, then=State.AMONET_V2_0_0_BOOTED
         ),
         State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(
-            run=install, steps=12, then=State.AMONET_V2_0_0_TWRP
+            run=install, steps=4, then=State.AMONET_V2_0_0_TWRP
         ),
         State.AMONET_V1_1_0_BBOE_TWRP: Stage(
-            run=install, steps=12, then=State.AMONET_V2_0_0_TWRP
+            run=install, steps=4, then=State.AMONET_V2_0_0_TWRP
         ),
     } | {
         state: stage

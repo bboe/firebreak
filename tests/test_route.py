@@ -535,13 +535,13 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
         | {
             state.AMONET_V1_1_0_BBOE_TWRP: (
                 install,
-                12,
+                4,
                 state.AMONET_V2_0_0_TWRP,
                 frozenset(),
             ),
             state.AMONET_V1_1_0_TWRP: (
                 install,
-                12,
+                4,
                 state.AMONET_V2_0_0_TWRP,
                 frozenset(),
             ),
@@ -553,7 +553,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             ),
             state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: (
                 install,
-                12,
+                4,
                 state.AMONET_V2_0_0_TWRP,
                 frozenset(),
             ),
@@ -591,7 +591,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             | {
                 state.AMONET_V1_1_0_BBOE_TWRP: (
                     route.stage_install_fireos,
-                    5,
+                    4,
                     state.AMONET_V1_1_0_BBOE_BOOTED,
                     frozenset(),
                 ),
@@ -615,11 +615,11 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
                 ),
                 state.AMONET_V2_0_0_TWRP: (
                     chain,
-                    3,
+                    2,
                     state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
                     frozenset(),
                 ),
-                state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: (chain, 17, goal, frozenset()),
+                state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: (chain, 7, goal, frozenset()),
             }
             | {
                 rooted: (route.stage_swap_twrp, 1, goal, frozenset())
