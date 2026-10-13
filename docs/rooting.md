@@ -236,10 +236,15 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   write in it was skipped. A root from stock now prints 11 lines. `--verbose`
   still prints every command. The bootrom step still prints one line per
   write.
-- Each stage's estimate is an upper bound: the slowest time measured for it,
-  rounded up to the next 5 seconds, over roots on macOS and Windows 11. One
-  case is left out: a first run on a computer that finds the Dot already in
-  TWRP waits up to 35 s more for the system image.
+- Each stage's estimate is an upper bound: the slowest time measured for it on
+  any host, plus 5%, rounded up to the next 15 seconds, or the next 5 seconds
+  under a minute, over roots on macOS, Linux and Windows 11. An estimate is
+  only ever raised. It is in seconds, as the time beside it is. On 2026-10-12
+  Fire OS 5's first boot took 319 s on Linux against 240 s, and its /system
+  108 s on Windows 11 against 100 s. A Fire OS 6 slot took 119 s on Linux, 1 s
+  under its 120 s. A Mac took 272 s, 41 s and 85 s. One case is left out: a
+  first run on a computer that finds the Dot already in TWRP waits up to 35 s
+  more for the system image.
 - The estimates and the rings are from TWRP 3.2.3. One root on macOS with
   TWRP 3.7.0_9-bboe1 came in under every estimate. Its replace step took 37 s
   on a Dot.

@@ -179,7 +179,7 @@ def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
         PROGRESS.begin(estimate="5 s", label="formatting userdata")
         if not adb_script(body=Shell.DATA.value, name="data.sh", work=work):
             raise FatalError(message="userdata did not format and mount")
-        PROGRESS.begin(estimate="100 s", label="writing Fire OS 5.5.5.4's /system")
+        PROGRESS.begin(estimate="120 s", label="writing Fire OS 5.5.5.4's /system")
         slices, want, blocks = system_image(package=ARGUMENTS.target.installs.package)
         write_system(blocks=blocks, slices=slices, system=system, want=want)
         body = Shell.SYSTEM.value.format(hosts=" ".join(UPDATE_HOSTS), system=system)
@@ -214,7 +214,7 @@ def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
 
         install_magisk(magisk=magisk, work=work)
     if reboot:
-        PROGRESS.begin(estimate="4 min", label="waiting for rooted Fire OS 5 to boot")
+        PROGRESS.begin(estimate="345 s", label="waiting for rooted Fire OS 5 to boot")
         run(arguments=["adb", "reboot"])
 
 
@@ -233,7 +233,7 @@ def stage_install_fireos6() -> None:
     update = "/sdcard/update.zip"
     for index, slot in enumerate(iterable=("first", "second")):
         PROGRESS.begin(
-            estimate="2 min",
+            estimate="135 s",
             label=f"installing Fire OS 6 {build}, {slot} slot",
         )
         if index:
@@ -254,7 +254,7 @@ def stage_install_fireos6() -> None:
     errors = [line for line in output.split(sep="\n") if "(!) Error" in line]
     if errors:
         raise FatalError(message="boot-root.zip failed: " + errors[0])
-    PROGRESS.begin(estimate="1 min", label="waiting for rooted Fire OS 6 to boot")
+    PROGRESS.begin(estimate="60 s", label="waiting for rooted Fire OS 6 to boot")
     run(arguments=["adb", "reboot"])
 
 

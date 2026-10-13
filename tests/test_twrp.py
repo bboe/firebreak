@@ -151,7 +151,7 @@ def test_a_partition_table_without_userdata_is_read_again(*, adb: FakeAdb) -> No
     argnames=("options", "arguments", "estimate"),
     argvalues=[
         ({}, ["adb", "reboot", "recovery"], "40 s"),
-        ({"estimate": "4 min", "into": ""}, ["adb", "reboot"], "4 min"),
+        ({"estimate": "345 s", "into": ""}, ["adb", "reboot"], "345 s"),
     ],
     ids=["recovery", "system"],
 )

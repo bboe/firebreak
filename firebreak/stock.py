@@ -74,13 +74,13 @@ class Step:
 
 WRITES = (
     Step(
-        estimate="4 min",
+        estimate="240 s",
         image="system",
         label="write the system image to system_a",
         partition="system_a",
     ),
     Step(
-        estimate="4 min",
+        estimate="240 s",
         image="system",
         label="write the system image to system_b",
         partition="system_b",
