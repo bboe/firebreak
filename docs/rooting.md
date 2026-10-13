@@ -136,6 +136,13 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   imports it. It runs only when adb lists no Dot.
 - A port that will not open, as on Linux without the udev `tty` line, stops
   the run with the rules and the commands that add them.
+- A program that has the port open keeps firebreak out. On macOS, with
+  EchoMuse's wizard tab still open in Chrome after it installed emOS 0.10,
+  2026-10-12, pyserial's open failed with errno 16, `EBUSY`. The run had
+  printed Linux's udev commands, which do not apply. So `EBUSY` reads as
+  busy. The udev commands are Linux's only, so any failed open off Linux
+  reads as busy too. Windows was not measured. The message names the
+  wizard's tab.
 - The child opens the port and sends a newline. A prompt ending in `#` gets
   `/init recovery`. One ending in `password:` stops the run: EchoMuse's
   dashboard sets that password, and the user types the command or clears

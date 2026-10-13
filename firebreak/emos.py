@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import errno
 import os
 import shlex
 import subprocess
+import sys
 import time
 
 from firebreak.cache import CACHE
@@ -36,8 +38,8 @@ def child_emos(*, action: str, want: str) -> int:
         connection = serial.Serial(
             baudrate=115200, port=ports[0], timeout=0.2, write_timeout=1
         )
-    except serial.SerialException:
-        print("denied")
+    except serial.SerialException as error:
+        print("busy" if error.errno == errno.EBUSY else "denied")
         return 1
     with connection:
         connection.reset_input_buffer()
@@ -84,6 +86,13 @@ def emos_recovery() -> None:
             message="emOS's console asks for a password. Type /init recovery at"
             " the console, or clear the console password in EchoMuse's"
             " dashboard, then run this again."
+        )
+    if answer == "busy" or (
+        answer == "denied" and not sys.platform.startswith("linux")
+    ):
+        raise FatalError(
+            message="Another program holds emOS's serial console, such as a"
+            " browser tab with EchoMuse's wizard. Close it, then run this again."
         )
     if answer == "denied":
         raise FatalError(message=NO_ACCESS + rerun())

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import itertools
 import subprocess
 import types
@@ -84,6 +85,19 @@ def ran(*, monkeypatch: pytest.MonkeyPatch, stdout: str) -> list[dict[str, objec
     return calls
 
 
+def test_a_console_another_program_holds_is_busy(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    consoles(monkeypatch=monkeypatch, serials=["A"])
+
+    def held(**_: object) -> FakeConsole:
+        raise serial.SerialException(errno.EBUSY, "Resource busy")
+
+    monkeypatch.setattr(name="Serial", target=serial, value=held)
+    assert emos.child_emos(action="recovery", want="") == 1
+    assert capsys.readouterr().out == "busy\n"
+
+
 def test_a_console_that_asks_for_a_password_is_not_answered(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -96,17 +110,21 @@ def test_a_console_that_asks_for_a_password_is_not_answered(
 
 
 @pytest.mark.parametrize(
-    ("answer", "said"),
+    ("answer", "platform", "said"),
     [
-        ("password", "asks for a password"),
-        ("denied", "cannot open the Dot over USB"),
-        ("silent", "did not answer"),
-        ("0", "did not answer"),
+        ("password", "linux", "asks for a password"),
+        ("denied", "linux", "cannot open the Dot over USB"),
+        ("denied", "darwin", "Another program holds"),
+        ("denied", "win32", "Another program holds"),
+        ("busy", "linux", "Another program holds"),
+        ("silent", "linux", "did not answer"),
+        ("0", "linux", "did not answer"),
     ],
 )
 def test_a_console_that_does_not_start_recovery_stops_the_run(
-    *, answer: str, monkeypatch: pytest.MonkeyPatch, said: str
+    *, answer: str, monkeypatch: pytest.MonkeyPatch, platform: str, said: str
 ) -> None:
+    monkeypatch.setattr(name="platform", target=emos.sys, value=platform)
     ran(monkeypatch=monkeypatch, stdout=answer)
     with pytest.raises(FatalError, match=said):
         emos.stage_emos()
