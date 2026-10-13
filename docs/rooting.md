@@ -491,6 +491,14 @@ ring read white.
   `amonet-biscuit-v2.0.0` from v1.1.0's TWRP does not fetch Fire OS 5. A
   rooted Fire OS 5 Dot needs TWRP 3.7.0_9-bboe2 only when the target is
   `amonet-biscuit-v1.1.0-bboe`.
+- `tests/test_needs.py` checks each stage's downloads against its code, for
+  every target. It reads the source of the stage and of each firebreak
+  function it calls, and collects the downloads passed to `fetch` and
+  `unpack`. It runs nothing. It decides an `if` only when the condition has
+  no call, such as a check on the target's goal; otherwise it takes both
+  branches. A stage must name every download its code always makes, and
+  nothing else. The one exception is v1.1.0's zip in the LK check, below,
+  which a stage may name.
 - amonet v1.1.0's zip is a need only where the Dot still runs v1.1.0's LK.
   On v2.0.0's TWRP the LK check matches v2.0.0's `lk.bin` first, so a run to
   `amonet-biscuit-v2.0.0` from stock fastboot does not fetch it. Were `lk_a`
