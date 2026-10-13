@@ -23,8 +23,9 @@ BISCUIT = Device(
     features=frozenset({Feature.AB_SLOTS, Feature.BOOT0, Feature.RPMB}),
     layouts=(BOOT_MOVED_LAYOUT, STOCK_LAYOUT),
     name="biscuit",
+    product="BISCUIT",
 )
-RADAR = dataclasses.replace(BISCUIT, name="radar")
+RADAR = dataclasses.replace(BISCUIT, name="radar", product="RADAR")
 
 
 class LK(enum.Enum):

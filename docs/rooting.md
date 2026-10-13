@@ -165,6 +165,20 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   `0e8d:0003`, vendor and product both, and skips a stock preloader's, which
   `--short` reports as a missed short. amonet would otherwise take whichever
   port appears first.
+- Before it resolves its plan, the step reads the first 512 KiB of `lk_a` and
+  `lk_b` over the payload, so the wrong device hears that first. Each LK
+  names its fastboot product as `\0product\0NAME\0`: `BISCUIT` in every
+  biscuit LK, stock Fire OS 5.5.0.3 to 8149 and amonet v1.1.0's and v2.0.0's,
+  and `RADAR` in every radar LK, each by 0x4c000. The step refuses an LK that
+  names another product, and refuses when neither names `BISCUIT`. One LK is
+  enough, because the plan writes `lk_a`, then `lk_b`, so a run cut short
+  leaves the other whole. It looks only on a table whose CRCs pass; a torn
+  table goes on to the plan, which refuses it.
+- Nothing else in this step can tell a biscuit from an Echo (2nd Generation):
+  its table has biscuit's 16 partitions and the same bootrom answers. Without
+  the check, `--short` on a radar that shows no light would write biscuit's
+  amonet v1.1.0 chain, preloader included. This is read from the code and the
+  LK images, not seen on a radar.
 - It reads ports from pyserial's USB list and opens only the bootrom's, where
   amonet opened every port to see it. On Linux the preloader's
   `/dev/ttyACM*` is `dialout`'s, and the udev rule covers only `0e8d:0003`,

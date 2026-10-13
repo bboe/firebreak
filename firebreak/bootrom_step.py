@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import re
 import subprocess
 import sys
 import time
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING
 from firebreak import bootrom
 from firebreak.amonet.biscuit_v2_0_0 import Client
 from firebreak.amonet.payload import NotReadyError, Payload, start_payload
+from firebreak.android.gpt import ENTRIES_SIZE, SECTOR_SIZE, gpt_intact, partition_map
 from firebreak.cache import ERASED
 from firebreak.devices import LK
 from firebreak.emmc import EmmcArea
@@ -33,6 +35,7 @@ from firebreak.ui import (
     FatalError,
     Kind,
     again,
+    asked_for,
     paint,
     say,
     show,
@@ -53,6 +56,9 @@ if TYPE_CHECKING:
 
 BOOTROM_STEP_TIMEOUT = 30 * MINUTE
 BOOTROM_WRITE_TIMEOUT = 30
+LK_PRODUCT = re.compile(pattern=rb"\0product\0([A-Z0-9_]+)\0")
+LK_PRODUCT_SECTORS = 1024
+LK_SLOTS = ("lk_a", "lk_b")
 OPEN_GRACE = 1
 POKE_GONE_WAIT = 5
 POKE_WRITE_TIMEOUT = 1
@@ -118,6 +124,9 @@ def bootloader_plan(*, amonet: pathlib.Path, live: Emmc) -> tuple[Action, ...]:
             message=f"the Dot's partition table could not be read: {error}."
             f" {unwritten()} Unplug the Dot. " + again()
         ) from error
+    entries = raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE]
+    if gpt_intact(entries=entries, header=raw[SECTOR_SIZE : 2 * SECTOR_SIZE]):
+        check_bootloaders(entries=entries, live=live, want=unlock.device.product)
     try:
         resolved = resolve(raw=raw, source=amonet, unlock=unlock)
     except (FileNotFoundError, KeyError, ValueError) as error:
@@ -222,6 +231,44 @@ def bootrom_step(
     ERASED.unlink(missing_ok=True)
     await_amonet_fastboot()
     return True
+
+
+def check_bootloaders(*, entries: bytes, live: Emmc, want: str) -> None:
+    parts = partition_map(entries=entries)
+    named: set[str] = set()
+    for slot in LK_SLOTS:
+        part = parts.get(slot)
+        if part is None:
+            raise FatalError(
+                message=f"the Dot's partition table has no {slot}."
+                f" {unwritten()} Unplug the Dot. " + asked_for()
+            )
+        try:
+            held = bootrom.read(
+                count=min(part.sectors, LK_PRODUCT_SECTORS),
+                first=part.first,
+                payload=live,
+            )
+        except (OSError, UsbdlError) as error:
+            raise FatalError(
+                message=f"the Dot's {slot} could not be read: {error}."
+                f" {unwritten()} Unplug the Dot. " + again()
+            ) from error
+        named.update(found.decode() for found in LK_PRODUCT.findall(held))
+    other = sorted(named - {want})
+    if other:
+        raise FatalError(
+            message=f"the Dot's bootloader names its product {', '.join(other)},"
+            f" not {want}, so it is not an Echo Dot (2nd Generation)."
+            f" {unwritten()} Unplug it: firebreak supports only the Echo Dot"
+            " (2nd Generation)."
+        )
+    if want not in named:
+        raise FatalError(
+            message="neither lk_a nor lk_b holds a bootloader that names its"
+            " product, so this run cannot tell that the Dot is an Echo Dot (2nd"
+            f" Generation). {unwritten()} Unplug the Dot. " + asked_for()
+        )
 
 
 def check_emmc(*, live: Emmc) -> None:

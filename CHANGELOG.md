@@ -11,6 +11,10 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- `--short` and a resumed run check that the Dot's bootloader names it an
+  Echo Dot (2nd Generation) before the bootrom writes. An Echo (2nd
+  Generation) that showed no light would have been given the Dot's preloader
+  and bootloader.
 - A run no longer erases boot0 when amonet's fastboot is not a Dot's. An
   unlocked Echo (2nd Generation) in amonet's fastboot read as an unlocked
   Dot, and the run would have written the Dot's preloader and bootloader to

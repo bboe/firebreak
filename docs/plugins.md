@@ -21,6 +21,10 @@ slots, a boot0 and an RPMB. radar, the Echo (2nd Generation), has the same
 features. An unlock lists the features it requires, and resolution refuses a
 pairing that lacks one before anything is written.
 
+A device also gives its product, the name its LKs and its fastboot report:
+`BISCUIT` and `RADAR`. It is not always the codename in capitals:
+amonet-crown v1.1.1's LK names `CHECKERS`.
+
 A device also lists the partition table layouts a Dot may carry: for biscuit,
 boot moved, the table amonet v1.1.0 makes, and stock. radar lists the same
 two. Its stock table is biscuit's except where `userdata` ends, and its amonet

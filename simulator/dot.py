@@ -1201,7 +1201,9 @@ def start_bootrom() -> None:
 
 
 def stock_lk() -> bytes:
-    return (b"SIM STOCK LK " + LK_FIREOS6.encode()).ljust(STOCK_LK_SIZE, b"\xa5")
+    return (b"SIM STOCK LK " + LK_FIREOS6.encode() + b"\0product\0BISCUIT\0").ljust(
+        STOCK_LK_SIZE, b"\xa5"
+    )
 
 
 def stock_rpmb() -> bytes:

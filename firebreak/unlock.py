@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import ERASED, digest, fetch, unpack
-from firebreak.devices import LITTLE_KERNEL_DESCRIPTION, LK
+from firebreak.devices import BISCUIT, LITTLE_KERNEL_DESCRIPTION, LK
 from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconnect, run
 from firebreak.recovery import MD5_DIGITS
 from firebreak.twrp import DISK, partitions
@@ -76,9 +76,10 @@ def check_product() -> None:
         raise FatalError(
             message="fastboot reports no product, so nothing was written. " + again()
         )
-    if product != "BISCUIT":
+    if product != BISCUIT.product:
         raise FatalError(
-            message=f"fastboot reports {product!r}, not BISCUIT, so nothing was"
+            message=f"fastboot reports {product!r}, not {BISCUIT.product}, so"
+            " nothing was"
             " written. firebreak supports only the Echo Dot (2nd Generation)."
         )
 

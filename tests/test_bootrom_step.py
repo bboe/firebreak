@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 import subprocess
 import types
 from typing import TYPE_CHECKING
@@ -8,6 +9,7 @@ import pytest
 
 from firebreak import bootrom_step
 from firebreak.amonet.payload import BLOCK_SIZE, PAYLOAD_MAGIC, Command
+from firebreak.android import gpt
 from firebreak.bootrom import USER_AREA_SIGNATURE
 from firebreak.mediatek.usbdl import (
     HandshakeTimeoutError,
@@ -38,11 +40,13 @@ ACTIONS = (
     Action(kind="Reboot", label="reboot"),
     Action(data=b"t", kind="FastbootFlash", label="twrp", length=1, offset=0),
 )
+BISCUIT_LK = b"lk\0product\0BISCUIT\0rest"
 BOOTROM = {"/dev/bootrom": ProductId.BOOTROM}
 BOTH = {
     "/dev/a-preloader": ProductId.PRELOADER,
     "/dev/b-bootrom": ProductId.BOOTROM,
 }
+LK_FIRST = {"lk_a": 32768, "lk_b": 65536}
 PAYLOAD = b"a payload"
 PRELOADER = {"/dev/preloader": ProductId.PRELOADER}
 REBOOT_COMMAND = PAYLOAD_MAGIC.to_bytes(4, "big") + Command.REBOOT.to_bytes(4, "big")
@@ -123,6 +127,7 @@ def rig(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> Rig:
         erased=[],
         exploit_error=None,
         handshakes=[],
+        lks=dict.fromkeys(LK_FIRST.values(), BISCUIT_LK),
         not_ready=False,
         now=[0.0],
         opened=[],
@@ -132,6 +137,7 @@ def rig(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> Rig:
         resolved=ACTIONS,
         signature=USER_AREA_SIGNATURE,
         steps=[],
+        table=lk_table(names=tuple(LK_FIRST)),
         tick=[0.5],
         write_error=None,
         written=[],
@@ -198,10 +204,29 @@ def rig(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> Rig:
         value=lambda **_: found.steps.append("range checks"),
     )
     monkeypatch.setattr(name="execute", target=bootrom_step.bootrom, value=executed)
-    monkeypatch.setattr(
-        name="read", target=bootrom_step.bootrom, value=lambda **_: b"table"
-    )
+
+    def read(*, count: int, first: int, **_: object) -> bytes:
+        found.steps.append(f"read {count} at {first}")
+        return found.lks[first] if first else found.table
+
+    monkeypatch.setattr(name="read", target=bootrom_step.bootrom, value=read)
     return found
+
+
+def lk_table(*, names: tuple[str, ...]) -> bytes:
+    entries = b"".join(
+        b"T" * 16
+        + bytes([number]) * 16
+        + struct.pack("<QQ", LK_FIRST[name], LK_FIRST[name] + 2047)
+        + bytes(8)
+        + name.encode(encoding="utf-16le").ljust(72, b"\0")
+        for number, name in enumerate(names, start=1)
+    ).ljust(gpt.ENTRIES_SIZE, b"\0")
+    header = bytearray(92)
+    header[:16] = b"EFI PART" + b"\0\0\1\0" + struct.pack("<I", 92)
+    header[24:56] = struct.pack("<QQQQ", 1, 1000033, 34, 1000000)
+    header[80:88] = struct.pack("<II", 128, 128)
+    return gpt.rebuilt_gpt(entries=entries, raw=b"M" * 512 + bytes(header)).primary
 
 
 def started(*, bootrom: Client, client: type, payload: bytes) -> Live:
@@ -216,6 +241,30 @@ def step(*, erase: object = None, rig: Rig, wheel: pathlib.Path | None = None) -
     return bootrom_step.bootrom_step(
         amonet=rig.amonet, erase=erase, payload=rig.payload, wheel=wheel
     )
+
+
+def test_a_bootloader_for_another_product_stops_the_run(*, rig: Rig) -> None:
+    rig.lks[LK_FIRST["lk_a"]] = b"\0product\0RADAR\0"
+    bootrom_step.SESSION.short = True
+    with pytest.raises(FatalError, match="names its product RADAR, not BISCUIT"):
+        step(rig=rig)
+    assert rig.written == []
+    assert not bootrom_step.ERASED.exists()
+
+
+def test_a_bootloader_that_cannot_be_read_stops_the_run(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+) -> None:
+    def unreadable(*, first: int, **_: object) -> bytes:
+        if first:
+            message = "device not configured"
+            raise OSError(message)
+        return rig.table
+
+    monkeypatch.setattr(name="read", target=bootrom_step.bootrom, value=unreadable)
+    with pytest.raises(FatalError, match="lk_a could not be read"):
+        step(rig=rig)
+    assert rig.written == []
 
 
 def test_a_bootrom_port_is_taken_over_a_preloader_in_the_same_pass(
@@ -262,6 +311,15 @@ def test_a_dead_emmc_with_the_short_on_blames_the_short(*, rig: Rig) -> None:
     assert rig.written == []
 
 
+def test_a_dot_whose_bootloaders_name_no_product_stops_the_run(*, rig: Rig) -> None:
+    rig.lks = dict.fromkeys(LK_FIRST.values(), bytes(512))
+    bootrom_step.SESSION.short = True
+    with pytest.raises(FatalError, match="neither lk_a nor lk_b") as caught:
+        step(rig=rig)
+    assert "--report" in explained(error=caught.value)
+    assert rig.written == []
+
+
 def test_a_failed_erase_stops_the_run_with_its_own_message(*, rig: Rig) -> None:
     with pytest.raises(FatalError, match="boot0 did not erase"):
         step(erase=lambda: "boot0 did not erase", rig=rig)
@@ -305,6 +363,14 @@ def test_a_fastboot_check_that_times_out_is_tried_again(
     )
     monkeypatch.setattr(name="sleep", target=bootrom_step.time, value=lambda _: None)
     bootrom_step.await_amonet_fastboot()
+
+
+def test_a_foreign_bootloader_in_lk_b_alone_stops_the_run(*, rig: Rig) -> None:
+    rig.lks[LK_FIRST["lk_b"]] = b"\0product\0RADAR\0"
+    with pytest.raises(FatalError, match="names its product RADAR"):
+        step(rig=rig)
+    assert rig.written == []
+    assert "resolve" not in rig.steps
 
 
 def test_a_handshake_that_times_out_asks_for_a_replug_and_tries_again(
@@ -411,6 +477,16 @@ def test_a_preloader_means_boot0_is_intact_and_needs_no_bootrom_step(
     assert "boot0 is intact" in capsys.readouterr().out
 
 
+def test_a_resumed_run_on_a_foreign_dot_says_only_boot0_was_erased(*, rig: Rig) -> None:
+    rig.lks[LK_FIRST["lk_a"]] = b"\0product\0RADAR\0"
+    bootrom_step.ERASED.touch()
+    with pytest.raises(FatalError) as caught:
+        step(rig=rig)
+    said = explained(error=caught.value)
+    assert "Only boot0 was erased. Unplug it" in said
+    assert rig.written == []
+
+
 def test_a_second_missed_short_warns_again_and_counts_it(
     *, capsys: pytest.CaptureFixture[str], rig: Rig
 ) -> None:
@@ -456,6 +532,33 @@ def test_a_table_that_cannot_be_read_stops_the_run(
     assert not bootrom_step.ERASED.exists()
 
 
+def test_a_table_without_an_lk_slot_stops_the_run(*, rig: Rig) -> None:
+    rig.table = lk_table(names=("lk_a",))
+    with pytest.raises(FatalError, match="partition table has no lk_b"):
+        step(rig=rig)
+    assert rig.written == []
+
+
+def test_a_torn_table_is_left_to_the_plan_without_reading_an_lk(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+) -> None:
+    def torn(**_: object) -> None:
+        message = "the partition table is not intact"
+        raise ValueError(message)
+
+    table = bytearray(rig.table)
+    table[2 * 512 + 40] ^= 1
+    rig.table = bytes(table)
+    monkeypatch.setattr(name="resolve", target=bootrom_step, value=torn)
+    with pytest.raises(FatalError, match="does not fit this Dot: the partition"):
+        step(rig=rig)
+    assert [entry for entry in rig.steps if entry.startswith("read ")] == [
+        "read block 0",
+        f"read {bootrom_step.TABLE_SECTORS} at 0",
+    ]
+    assert rig.written == []
+
+
 def test_keep_trying_with_the_short_on_warns_and_waits_on(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -476,6 +579,12 @@ def test_no_port_at_all_stops_the_run_with_the_port_help(*, rig: Rig) -> None:
     with pytest.raises(FatalError, match="did not show up as a serial port"):
         step(rig=rig)
     assert rig.clients == []
+
+
+def test_one_bootloader_cut_short_still_names_the_dot(*, rig: Rig) -> None:
+    rig.lks[LK_FIRST["lk_a"]] = bytes(512)
+    assert step(rig=rig) is True
+    assert rig.written == [WRITES]
 
 
 @pytest.mark.parametrize("tty", [False, True])
@@ -535,6 +644,11 @@ def test_the_plan_is_carried_out_through_the_payload_and_stops_at_its_reboot(
         f"payload {PAYLOAD.decode()}",
         "switch 0",
         "read block 0",
+        f"read {bootrom_step.TABLE_SECTORS} at 0",
+        *(
+            f"read {bootrom_step.LK_PRODUCT_SECTORS} at {first}"
+            for first in LK_FIRST.values()
+        ),
         "resolve",
         "execute live",
     ]
