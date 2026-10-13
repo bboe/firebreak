@@ -2,13 +2,20 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
-## Unreleased
+## 0.4.0 - 2026-10-13
 
 ### Added
 
 - `--credits` prints who did the work firebreak builds on, as the README's
   new Credits section does.
 - `--version` prints firebreak's version.
+
+### Changed
+
+- A run downloads only what the route from the Dot's state to the target
+  needs, and nothing before it sees the Dot. A Dot that waits for the
+  fastboot gesture still downloads during it. A device plugged in after the
+  run started is refused before the route's downloads.
 
 ## 0.3.0 - 2026-10-13
 
