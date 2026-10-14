@@ -7,7 +7,7 @@ import threading
 import urllib.request
 from typing import TYPE_CHECKING
 
-from firebreak.cache import CACHE, digest, save
+from firebreak.cache import CACHE, Download, digest, fetch, save
 from firebreak.ui import SESSION, FatalError, again, passed
 
 if TYPE_CHECKING:
@@ -17,6 +17,39 @@ if TYPE_CHECKING:
 DEFAULT_BUILD = "8149"
 
 
+FIREOS = Download(
+    name="update-kindle-csm_biscuit-272.6.8.0_user_680767620.bin",
+    sha256="6ababc517529938f0d1e836c3410a91df19683ae62d7fca9e2ca57320d5d2faa",
+    url="https://d1s31zyz7dcc2d.cloudfront.net/47a1457e0802980eb32f63cd3ce355c0/"
+    "update-kindle-csm_biscuit-272.6.8.0_user_680767620.bin",
+)
+FIREOS5_BUILDS = {
+    "5.5.3.1": Download(
+        name="update-kindle-full_biscuit-272.6.4.1_user_641575220.bin",
+        sha256="28bc050e4a2af79c9ca66e251de7bf04c42ce8d7934dd97673d3d04f5fa0917b",
+        url="https://d1s31zyz7dcc2d.cloudfront.net/8811a0fc982bf3331dc54f5aec45d936/"
+        "update-kindle-full_biscuit-272.6.4.1_user_641575220.bin",
+    ),
+    "5.5.4.6": Download(
+        name="update-kindle-csm_biscuit-272.6.6.6_user_666694320.bin",
+        sha256="f6ed07177d98930a84db271d036a8a0d2d82dfc0bfde93f96151143de1dc9026",
+        url="https://d1s31zyz7dcc2d.cloudfront.net/0cdf0a5782c43290ba9a598e1ede98e6/"
+        "update-kindle-csm_biscuit-272.6.6.6_user_666694320.bin",
+    ),
+    "5.5.4.9": Download(
+        name="update-kindle-csm_biscuit-272.6.7.2_user_672720020.bin",
+        sha256="ec6d1a694a46dcaee1ec8b1130131e994e99ab80547dc17dd79e504d23b4bedb",
+        url="https://d1s31zyz7dcc2d.cloudfront.net/60556d35239d902637f0fc503411b791/"
+        "update-kindle-csm_biscuit-272.6.7.2_user_672720020.bin",
+    ),
+    "5.5.5.0": Download(
+        name="update-kindle-csm_biscuit-272.6.7.3_user_673726720.bin",
+        sha256="6bda9ebc976fc8c8a2dffdb88ab3c27ca0f73882c47812d9b90fe30d39bb6244",
+        url="https://d1s31zyz7dcc2d.cloudfront.net/f4994d8b2b10442d42e07b8c5d996a91/"
+        "update-kindle-csm_biscuit-272.6.7.3_user_673726720.bin",
+    ),
+    "5.5.5.4": FIREOS,
+}
 FTVDB = "https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/"
 
 
@@ -96,9 +129,12 @@ BUILDS = {
         sha256="4e00fc6d6e2bcf5146e502c7d14e67d2ab47b43c3dcca4e1e9439d24730a6c0b",
     ),
 }
+NAMES = (*FIREOS5_BUILDS, *BUILDS)
 
 
 def download(*, build: str) -> pathlib.Path:
+    if build in FIREOS5_BUILDS:
+        return fetch(download=FIREOS5_BUILDS[build])
     build_details = BUILDS[build]
     CACHE.mkdir(exist_ok=True, parents=True)
     update = (

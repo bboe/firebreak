@@ -49,7 +49,7 @@ class Scan:
             assert download is not UNRESOLVED, ast.unparse(node)
             self.found.add(download)
         elif callee is updates.download:
-            self.found.add(route.fireos6_build)
+            self.found.add(route.ota_build)
         else:
             self.function(
                 bound={

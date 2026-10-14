@@ -232,7 +232,10 @@ def restore(
     ERASED.unlink(missing_ok=True)
     PROGRESS.end()
 
-    PROGRESS.begin(estimate="90 s", label=f"waiting for stock {build} to start")
+    if build in updates.FIREOS5_BUILDS:
+        PROGRESS.begin(estimate="5 s", label=f"rebooting into stock {build}")
+    else:
+        PROGRESS.begin(estimate="90 s", label=f"waiting for stock {build} to start")
     with contextlib.suppress(subprocess.TimeoutExpired):
         run(arguments=["adb", "shell", "-n", "reboot"], timeout=60)
 

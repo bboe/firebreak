@@ -139,6 +139,21 @@ def test_a_failed_download_stops_the_run(*, monkeypatch: pytest.MonkeyPatch) -> 
         updates.download(build="8146")
 
 
+def test_a_fire_os_5_build_is_fetched_by_its_pin(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    fetched: list[updates.Download] = []
+
+    def fetch(*, download: updates.Download) -> pathlib.Path:
+        fetched.append(download)
+        return tmp_path / download.name
+
+    monkeypatch.setattr(name="fetch", target=updates, value=fetch)
+    update = updates.download(build="5.5.5.4")
+    assert fetched == [updates.FIREOS]
+    assert update == tmp_path / updates.FIREOS.name
+
+
 @pytest.mark.usefixtures("build")
 def test_a_page_with_no_link_stops_the_run(*, monkeypatch: pytest.MonkeyPatch) -> None:
     served(monkeypatch=monkeypatch, page=b"<html>gone</html>")
@@ -152,6 +167,10 @@ def test_every_build_has_whole_pins() -> None:
         assert len(details.md5) == 32
         assert len(details.sha256) == 64
         assert details.ns.startswith("NS")
+    for name, download in updates.FIREOS5_BUILDS.items():
+        assert name.startswith("5.5.")
+        assert len(download.sha256) == 64
+        assert download.url.endswith("/" + download.name)
 
 
 @pytest.mark.usefixtures("build")

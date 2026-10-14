@@ -173,12 +173,6 @@ def fireos5_stages() -> dict[State, Stage]:
     }
 
 
-def fireos6_build() -> None:
-    build = ARGUMENTS.build or ARGUMENTS.target.installs.build
-    with hold(lock=lock_for(key=build)):
-        updates.download(build=build)
-
-
 def fireos6_stages() -> dict[State, Stage]:
     installed = (
         amonet_biscuit_v2_0_0.SOURCE,
@@ -199,7 +193,7 @@ def fireos6_stages() -> dict[State, Stage]:
             then=State.AMONET_V2_0_0_TWRP,
         ),
         State.AMONET_V2_0_0_TWRP: Stage(
-            needs=(amonet_biscuit_v2_0_0.SOURCE, fireos6_build, BOOT_ROOT),
+            needs=(amonet_biscuit_v2_0_0.SOURCE, ota_build, BOOT_ROOT),
             run=stage_install_fireos6,
             steps=5,
             then=State.AMONET_V2_0_0_BOOTED,
@@ -235,6 +229,12 @@ def needed(*, start: State, table: dict[State, Stage]) -> list[Need]:
             break
         start = stage.then
     return list(dict.fromkeys(found))
+
+
+def ota_build() -> None:
+    build = ARGUMENTS.build or ARGUMENTS.target.installs.build
+    with hold(lock=lock_for(key=build)):
+        updates.download(build=build)
 
 
 def prebuild() -> None:
@@ -300,7 +300,7 @@ def remaining(*, start: State, table: dict[State, Stage]) -> int | None:
 def restore_stages() -> dict[State, Stage]:
     return {
         twrp: Stage(
-            needs=(fireos6_build,),
+            needs=(ota_build,),
             passes=TWRPS,
             run=stage_restore,
             steps=STOCK_STEPS,
@@ -452,12 +452,29 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             warn(text=f"The Dot is rooted: {version}, with root adb.")
             cache_note()
             return
-        if target.unlock is None and current in {
-            State.STOCK_BOOTED,
-            State.STOCK_FASTBOOT,
-        }:
+        if target.unlock is None and (
+            current in {State.STOCK_BOOTED, State.STOCK_FASTBOOT}
+            or (
+                restored
+                and ARGUMENTS.build in updates.FIREOS5_BUILDS
+                and current not in TWRPS
+            )
+        ):
             if done:
-                passed(message=f"The Dot runs stock {ARGUMENTS.build}.")
+                PROGRESS.end()
+                if ARGUMENTS.build in updates.FIREOS5_BUILDS:
+                    passed(
+                        message=f"Stock {ARGUMENTS.build} is written, and the Dot"
+                        " is rebooting into it."
+                    )
+                    say(
+                        text="Stock Fire OS 5 shows nothing on USB once it starts,"
+                        " so firebreak does not wait for it. Keep the Dot plugged"
+                        " in until the orange ring circles or it speaks"
+                        ' "Hello, your device is now ready".'
+                    )
+                else:
+                    passed(message=f"The Dot runs stock {ARGUMENTS.build}.")
                 warn(
                     text="If you will root it again, do not set it up in the Alexa app"
                     " first: on Wi-Fi it can take an update to a build"

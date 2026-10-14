@@ -1211,13 +1211,20 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
 ## Back to stock: the stock target
 
 `firebreak stock <build>` returns a Dot on amonet v1.1.0 or v2.0.0 to stock Fire
-OS 6, to test a root from a clean start. `stock` is a target like the others, so
-every state has a route to it: a rooted Dot goes to recovery, amonet v1.1.0's
-fastboot gets amonet v1.1.0's TWRP, Fire OS 5's locked fastboot gets the
-fastbrick, and in any TWRP the restore runs.
+OS 6 or Fire OS 5, to test a root from a clean start. `stock` is a target
+like the others, so every state has a route to it: a rooted Dot goes to
+recovery, amonet v1.1.0's fastboot gets amonet v1.1.0's TWRP, Fire OS 5's
+locked fastboot gets the fastbrick, and in any TWRP the restore runs.
 
 - Only `stock` takes a `BUILD`, and without one it installs 8149. The run
   downloads the build before it touches the Dot.
+- Fire OS 5.5.3.1 to 5.5.5.4 carry Fire OS 6's anti-rollback versions, so
+  they restore as Fire OS 6 does. 5.5.0.3's PL is 3, below RPMB's 5, so it
+  would stop at `version mismatch!`; only the bootrom can zero RPMB first.
+- Stock Fire OS 5 shows nothing on USB once it starts, so a Fire OS 5 restore
+  ends after the reboot.
+- Measured on a Dot, 2026-10-13: each Fire OS 5 build restored in about
+  2.5 min, then read locked with its own `lk_build_desc`, and unlocked again.
 - The restore ends at stock-booted: the run waits for stock to start, which
   shows as `adb` answering `unauthorized` about 1.5 minutes after the reboot. A
   Dot already stock-booted, or in stock fastboot, has nothing to restore. An

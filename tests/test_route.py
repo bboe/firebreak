@@ -217,6 +217,25 @@ def test_a_dot_that_waits_too_long_stops_the_run(  # ruff: ignore[too-many-argum
         route.root()
 
 
+def test_a_fire_os_5_restore_left_in_twrp_is_not_reported_as_written(
+    *, monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    run.target(build="5.5.5.4", name="stock")
+    twrp = route.State.AMONET_V2_0_0_TWRP
+    table = {
+        twrp: route.Stage(
+            passes=frozenset({twrp}), run=lambda: None, steps=1, then=None
+        )
+    }
+    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
+    run.states = [twrp] * 6
+    run.tick = route.WAIT / 2
+    with pytest.raises(
+        route.FatalError, match=r"stock 5\.5\.5\.4 has not started 10 minutes"
+    ):
+        route.root()
+
+
 @pytest.mark.parametrize(
     ("name", "twrp"),
     [("amonet-biscuit-v1.1.0", []), ("amonet-biscuit-v1.1.0-bboe", [route.TWRP.name])],
@@ -332,21 +351,21 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
             [
                 amonet_biscuit_v2_0_0.SOURCE,
                 amonet_biscuit_v1_1_0.SOURCE,
-                route.fireos6_build,
+                route.ota_build,
                 route.BOOT_ROOT,
             ],
         ),
         (
             "amonet-biscuit-v2.0.0",
             route.State.STOCK_FASTBOOT,
-            [amonet_biscuit_v2_0_0.SOURCE, route.fireos6_build, route.BOOT_ROOT],
+            [amonet_biscuit_v2_0_0.SOURCE, route.ota_build, route.BOOT_ROOT],
         ),
         (
             "amonet-biscuit-v2.0.0",
             route.State.STOCK_FIREOS5_FASTBOOT,
-            [amonet_biscuit_v2_0_0.SOURCE, route.fireos6_build, route.BOOT_ROOT],
+            [amonet_biscuit_v2_0_0.SOURCE, route.ota_build, route.BOOT_ROOT],
         ),
-        ("stock", route.State.AMONET_V1_1_0_TWRP, [route.fireos6_build]),
+        ("stock", route.State.AMONET_V1_1_0_TWRP, [route.ota_build]),
     ],
 )
 def test_a_route_needs_only_its_own_stages_downloads(
@@ -593,6 +612,18 @@ def test_a_stale_marker_says_nothing_before_the_dot_is_seen(
     assert route.SESSION.boot0_marker is None
 
 
+def test_a_stock_fire_os_5_run_ends_after_the_restore(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    run.target(build="5.5.5.4", name="stock")
+    monkeypatch.setattr(name="stages", target=route, value=dict)
+    run.states = [route.State.AMONET_V2_0_0_TWRP, route.State.NONE]
+    route.root()
+    out = said(capsys=capsys)
+    assert "Stock 5.5.5.4 is written" in out
+    assert "until the orange ring circles" in out
+
+
 @pytest.mark.parametrize(
     ("states", "message"),
     [
@@ -613,6 +644,24 @@ def test_a_stock_run_ends_on_stock(
     run.states = states
     route.root()
     assert message in said(capsys=capsys)
+
+
+def test_a_stock_run_reboots_fire_os_5_it_has_not_restored(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    run.target(build="5.5.5.4", name="stock")
+    ran: list[str] = []
+    table = {
+        route.State.BOOTED: route.Stage(
+            run=lambda: ran.append("reboot"), steps=1, then=None
+        )
+    }
+    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
+    run.states = [route.State.BOOTED]
+    with pytest.raises(RanOutError):
+        route.root()
+    assert ran == ["reboot"]
+    assert "runs stock" not in said(capsys=capsys)
 
 
 def test_a_v2_0_0_dot_is_told_to_use_its_gesture_and_to_reboot(
@@ -825,7 +874,7 @@ def test_the_background_downloads_leave_the_browser_to_the_run(
     with pytest.raises(RanOutError):
         route.root()
     assert run.started == 1
-    assert list(route.DOWNLOADS) == [amonet_biscuit_v2_0_0.SOURCE, route.fireos6_build]
+    assert list(route.DOWNLOADS) == [amonet_biscuit_v2_0_0.SOURCE, route.ota_build]
 
 
 def test_the_session_has_no_marker_while_the_first_probe_runs(

@@ -101,6 +101,21 @@ def md5(*, data: bytes) -> str:
     return hashlib.md5(data, usedforsecurity=False).hexdigest()
 
 
+def test_a_fire_os_5_restore_reboots_without_waiting(
+    *, monkeypatch: pytest.MonkeyPatch, restored: FakeAdb, tmp_path: pathlib.Path
+) -> None:
+    wrote(monkeypatch=monkeypatch)
+    stock.restore(
+        backup_sector=9999,
+        build="5.5.5.4",
+        files=written(tmp_path=tmp_path),
+        parts=PARTITIONS,
+        work=tmp_path,
+    )
+    assert "rebooting into stock 5.5.5.4" in stock.PROGRESS.line
+    assert restored.asked[-1][-1] == "reboot"
+
+
 @pytest.mark.parametrize(
     ("key", "answer", "said"),
     [

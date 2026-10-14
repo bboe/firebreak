@@ -32,7 +32,7 @@ from firebreak.report import (
 )
 from firebreak.twrp import DISK, TABLE_OK
 from firebreak.ui import PROGRESS, SESSION, SUPPORT, WAIT, program, say, show, status
-from firebreak.unlocks.targets import FIREOS
+from firebreak.updates import FIREOS
 from firebreak.write_test import EMMC_TARGET, MEBIBYTE, USB_TEST, emmc_leg, usb_leg
 
 if TYPE_CHECKING:

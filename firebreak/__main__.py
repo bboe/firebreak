@@ -108,7 +108,7 @@ def cli() -> None:
       amonet v2.0.0's own procedure: Fire OS 6 {installs.build}
       with boot-root.zip's root adb.
   stock [BUILD]
-      Amazon's Fire OS 6 BUILD, {updates.DEFAULT_BUILD} when left out, which
+      Amazon's Fire OS BUILD, {updates.DEFAULT_BUILD} when left out, which
       erases the whole Dot.
 Run again with another target to move the Dot to it.
 
@@ -170,7 +170,7 @@ Run again with another target to move the Dot to it.
     parser.add_argument(
         "rest",
         help="with stock, and only with stock: the BUILD to install, one of "
-        + ", ".join(sorted(updates.BUILDS))
+        + ", ".join(updates.NAMES)
         + f"; {updates.DEFAULT_BUILD} when left out. With {SURVEY}: each OTA"
         " zip to read",
         metavar="BUILD|OTA",
@@ -182,10 +182,10 @@ Run again with another target to move the Dot to it.
         return
     target = TARGETS[options.target]
     stock = target.installs == FireOs6(build=None)
-    builds = ", ".join(sorted(updates.BUILDS))
+    builds = ", ".join(updates.NAMES)
     if options.rest and not stock:
         parser.error(message="only stock takes a BUILD: " + builds)
-    if len(options.rest) > 1 or not set(options.rest) <= set(updates.BUILDS):
+    if len(options.rest) > 1 or not set(options.rest) <= set(updates.NAMES):
         parser.error(message="stock takes one BUILD: " + builds)
     ARGUMENTS.build = (options.rest or [updates.DEFAULT_BUILD if stock else ""])[0]
     ARGUMENTS.target = target

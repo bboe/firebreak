@@ -9,6 +9,8 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - `firebreak survey OTA` prints what docs/devices.md lists for an Amazon OTA
   zip: its build descriptions, anti-rollback versions, TEE hashes and
   partition hashes. It needs no Dot.
+- `stock` returns a Dot to stock Fire OS 5.5.3.1, 5.5.4.6, 5.5.4.9, 5.5.5.0 or
+  5.5.5.4.
 
 ## 0.4.0 - 2026-10-13
 
