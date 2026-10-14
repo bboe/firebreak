@@ -548,25 +548,21 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
 def stages() -> dict[State, Stage]:
     table = {
         State.EMOS: Stage(needs=(pyserial_wheel,), run=stage_emos, steps=1, then=None),
-        State.STOCK_FIREOS5_FASTBOOT: Stage(
-            needs=(amonet_biscuit_v2_0_0.SOURCE,),
-            run=stage_fastbrick,
-            steps=2,
-            then=State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
-        ),
-        State.STOCK_FASTBOOT: Stage(
-            needs=(amonet_biscuit_v2_0_0.SOURCE,),
-            run=stage_fastbrick,
-            steps=2,
-            then=State.AMONET_V2_0_0_TWRP,
-        ),
         State.AMONET_V1_1_0_FASTBOOT: Stage(
             needs=(amonet_biscuit_v1_1_0.SOURCE, TWRP),
             run=stage_amonet_v1_1_0_recovery,
             steps=1,
             then=State.AMONET_V1_1_0_BBOE_TWRP,
         ),
-    }
+    } | dict.fromkeys(
+        (State.STOCK_FASTBOOT, State.STOCK_FIREOS5_FASTBOOT),
+        Stage(
+            needs=(amonet_biscuit_v2_0_0.SOURCE,),
+            run=stage_fastbrick,
+            steps=2,
+            then=State.AMONET_V2_0_0_TWRP,
+        ),
+    )
     if ARGUMENTS.target.unlock is None:
         return table | restore_stages()
     if isinstance(ARGUMENTS.target.installs, FireOs6):

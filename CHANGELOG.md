@@ -12,6 +12,15 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - `stock` returns a Dot to stock Fire OS 5.5.3.1, 5.5.4.6, 5.5.4.9, 5.5.5.0 or
   5.5.5.4.
 
+### Changed
+
+- A run fetches each OTA from Amazon's CDN by a pinned URL. It no longer asks
+  ftvdb.
+- The step counter no longer jumps when a run starts from stock Fire OS 5
+  fastboot.
+- A download's progress label keeps the end of the file name, where the build
+  is.
+
 ## 0.4.0 - 2026-10-13
 
 ### Added

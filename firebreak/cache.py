@@ -528,7 +528,7 @@ def save(
 
     room = 78 - (len(meter(done=total)) if total else 12)
     if len(label) > room:
-        label = label[: room - 3] + "..."
+        label = label[: room // 2 - 2] + "..." + label[-(room - room // 2 - 1) :]
     done = 0
     loud = threading.current_thread() is threading.main_thread() and sys.stdout.isatty()
     if loud:

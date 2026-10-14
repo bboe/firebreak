@@ -695,19 +695,10 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             frozenset(),
         ),
         state.EMOS: (route.stage_emos, 1, None, frozenset()),
-        state.STOCK_FASTBOOT: (
-            route.stage_fastbrick,
-            2,
-            state.AMONET_V2_0_0_TWRP,
-            frozenset(),
-        ),
-        state.STOCK_FIREOS5_FASTBOOT: (
-            route.stage_fastbrick,
-            2,
-            state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
-            frozenset(),
-        ),
-    }
+    } | dict.fromkeys(
+        (state.STOCK_FASTBOOT, state.STOCK_FIREOS5_FASTBOOT),
+        (route.stage_fastbrick, 2, state.AMONET_V2_0_0_TWRP, frozenset()),
+    )
     reboots = {
         state.AMONET_V2_0_0_BOOTED: (
             to_v2_0_0_twrp,
@@ -847,6 +838,30 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             )
             for current, stage in route.stages().items()
         } == table, name
+
+
+@pytest.mark.parametrize(
+    ("name", "totals"),
+    [
+        ("amonet-biscuit-v1.1.0-bboe", {"stock": 11, "twrp": 9, "v1.1.0": 7}),
+        ("amonet-biscuit-v2.0.0", {"stock": 7, "twrp": 5, "v1.1.0": 9}),
+    ],
+)
+def test_fastboot_counts_the_steps_the_route_takes(
+    *, monkeypatch: pytest.MonkeyPatch, name: str, totals: dict[str, int]
+) -> None:
+    state = route.State
+    monkeypatch.setattr(name="target", target=route.ARGUMENTS, value=TARGETS[name])
+    table = route.stages()
+    starts = {
+        state.AMONET_V2_0_0_TWRP: totals["twrp"],
+        state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: totals["v1.1.0"],
+        state.STOCK_FASTBOOT: totals["stock"],
+        state.STOCK_FIREOS5_FASTBOOT: totals["stock"],
+    }
+    assert {
+        start: route.remaining(start=start, table=table) for start in starts
+    } == starts
 
 
 def test_stock_that_does_not_start_after_the_restore_stops_the_run(

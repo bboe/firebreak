@@ -992,7 +992,7 @@ def test_save(
 ) -> None:
     monkeypatch.setattr(name="isatty", target=sys.stdout, value=lambda: True)
     destination = io.BytesIO()
-    label = "downloading " + "x" * 80
+    label = "downloading " + "x" * 80 + "_8149.bin"
     done, total = cache.save(
         destination=destination,
         label=label,
@@ -1002,7 +1002,11 @@ def test_save(
     assert (done, total) == (8000, int(length or 0))
     shown = capsys.readouterr().out
     assert want in shown
-    assert "..." in shown
+    assert "downloading xxx" in shown
+    assert "x..." in shown
+    assert "...x" in shown
+    assert "x_8149.bin " in shown
+    assert {len(line) for line in shown.rstrip("\n").split("\r")} == {79}
     assert shown.endswith("\n")
 
 

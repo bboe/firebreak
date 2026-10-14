@@ -792,6 +792,10 @@ ring read white.
   `amonet-biscuit-v2.0.0` the run carries out the plan there first. The
   amonet v2.0.0 install itself stops if `boot_a_x` is still there, or if
   `sgdisk` prints no `userdata`.
+- Fastboot cannot tell the two tables apart, and a stock Fire OS 5 Dot is the
+  common case. So stock-fireos5-fastboot's stage plans for the stock table,
+  as stock-fastboot's does. Where the probe then finds amonet v1.1.0's
+  table, the step counter plans again from there.
 - In v2.0.0's fastboot the run asks for the + button at power-on, which
   starts v2.0.0's TWRP, and waits for it without limit.
 - `--short` goes with any target. Its bootrom step writes amonet v1.1.0, and
