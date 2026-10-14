@@ -5,7 +5,8 @@ from firebreak.plugin import FireOs5, FireOs6
 from firebreak.unlocks.amonet_biscuit_v1_1_0 import AMONET_BISCUIT_V1_1_0
 from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import AMONET_BISCUIT_V1_1_0_BBOE
 from firebreak.unlocks.amonet_biscuit_v2_0_0 import AMONET_BISCUIT_V2_0_0
-from firebreak.unlocks.targets import FIREOS, TARGETS
+from firebreak.unlocks.targets import TARGETS
+from firebreak.updates import BUILDS
 
 
 def test_each_target_names_its_goal_its_install_and_its_unlock() -> None:
@@ -15,12 +16,12 @@ def test_each_target_names_its_goal_its_install_and_its_unlock() -> None:
     } == {
         "amonet-biscuit-v1.1.0": (
             State.AMONET_V1_1_0_BOOTED,
-            FireOs5(package=FIREOS),
+            FireOs5(package=BUILDS["5.5.5.4"]),
             AMONET_BISCUIT_V1_1_0,
         ),
         "amonet-biscuit-v1.1.0-bboe": (
             State.AMONET_V1_1_0_BBOE_BOOTED,
-            FireOs5(package=FIREOS),
+            FireOs5(package=BUILDS["5.5.5.4"]),
             AMONET_BISCUIT_V1_1_0_BBOE,
         ),
         "amonet-biscuit-v2.0.0": (

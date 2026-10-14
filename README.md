@@ -30,7 +30,7 @@ These commands use [Homebrew](https://brew.sh). Without it, download Google's
 ```sh
 brew install --cask android-platform-tools uv
 uvx firebreak@latest              # amonet-biscuit-v1.1.0-bboe
-uvx firebreak@latest stock        # 8149, or name 5.5.3.1, 5.5.4.6, 5.5.4.9, 5.5.5.0, 5.5.5.4, 4315, 4405, 5041, 6302, 8138, 8142, 8146
+uvx firebreak@latest stock        # 8149, or name 8146, 8142, 8138, 6302, 5041, 4405, 4315, 5.5.5.4, 5.5.5.0, 5.5.4.9, 5.5.4.6, 5.5.3.1
 ```
 
 ### Linux

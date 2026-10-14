@@ -96,6 +96,16 @@ def child_main(*, arguments: list[str], name: str) -> int:
 
 
 def cli() -> None:
+    builds = ", ".join(
+        sorted(
+            updates.BUILDS,
+            key=lambda build: (
+                build not in updates.FIREOS5_BUILDS,
+                tuple(map(int, build.split("."))),
+            ),
+            reverse=True,
+        )
+    )
     installs = TARGETS[AMONET_BISCUIT_V2_0_0].installs
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -170,7 +180,7 @@ Run again with another target to move the Dot to it.
     parser.add_argument(
         "rest",
         help="with stock, and only with stock: the BUILD to install, one of "
-        + ", ".join(updates.NAMES)
+        + builds
         + f"; {updates.DEFAULT_BUILD} when left out. With {SURVEY}: each OTA"
         " zip to read",
         metavar="BUILD|OTA",
@@ -182,10 +192,9 @@ Run again with another target to move the Dot to it.
         return
     target = TARGETS[options.target]
     stock = target.installs == FireOs6(build=None)
-    builds = ", ".join(updates.NAMES)
     if options.rest and not stock:
         parser.error(message="only stock takes a BUILD: " + builds)
-    if len(options.rest) > 1 or not set(options.rest) <= set(updates.NAMES):
+    if len(options.rest) > 1 or not set(options.rest) <= set(updates.BUILDS):
         parser.error(message="stock takes one BUILD: " + builds)
     ARGUMENTS.build = (options.rest or [updates.DEFAULT_BUILD if stock else ""])[0]
     ARGUMENTS.target = target

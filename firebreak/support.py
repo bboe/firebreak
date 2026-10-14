@@ -32,7 +32,7 @@ from firebreak.report import (
 )
 from firebreak.twrp import DISK, TABLE_OK
 from firebreak.ui import PROGRESS, SESSION, SUPPORT, WAIT, program, say, show, status
-from firebreak.updates import FIREOS
+from firebreak.updates import BUILDS
 from firebreak.write_test import EMMC_TARGET, MEBIBYTE, USB_TEST, emmc_leg, usb_leg
 
 if TYPE_CHECKING:
@@ -173,7 +173,7 @@ def report() -> None:
     line("state in recovery", probed())
     for text in dot_details(asked=asked):
         show(text=text)
-    held = CACHE / f"system-{FIREOS.sha256[:12]}" / "md5"
+    held = CACHE / f"system-{BUILDS['5.5.5.4'].sha256[:12]}" / "md5"
     want, needs = system_record(text=held.read_text() if held.is_file() else "")
     if needs:
         line("system image", f"{needs} bytes, md5 {want}")

@@ -1294,11 +1294,9 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   checked over whole sectors, `n // 512` of them, and 4315's LK is 241,448
   bytes, so the check left the tail out and failed on a write that had
   gone in. A payload build's images are already whole blocks.
-- 4315's package number, 8087722874, is not the one the system it installs
-  reports, 8087722884. The table's is the package's, which is what names
-  the download.
-- FTVDB keys an OTA by its md5, so the download is found by md5 and then
-  pinned by the SHA-256 of a copy that matched it.
+- Each OTA comes from Amazon's CDN, at the URL ftvdb lists for it, and is
+  pinned by the SHA-256 of a copy that matched ftvdb's md5. The run does not
+  ask ftvdb.
 - Each `payload.bin` operation is read where it lies, so peak memory is one
   image plus one operation: about 1 GB, for the 768 MB system image.
 - The manifest's own lengths are not trusted. A number cut short raised a bare
