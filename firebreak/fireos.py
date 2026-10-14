@@ -8,6 +8,7 @@ import shlex
 import shutil
 import stat
 import tempfile
+import time
 import zipfile
 from typing import IO, TYPE_CHECKING
 
@@ -36,7 +37,7 @@ from firebreak.host import (
 )
 from firebreak.probe import read_recovery
 from firebreak.twrp import partition_table, wait_for_twrp, write_system
-from firebreak.ui import ARGUMENTS, PROGRESS, SESSION, FatalError, again
+from firebreak.ui import ARGUMENTS, PROGRESS, SESSION, FatalError, again, warn
 from firebreak.unlock import amonet_chain
 from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v1_1_0_bboe
 from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import TWRP_VERSION
@@ -52,6 +53,7 @@ BOOT_ROOT = Download(
     size=473633,
     url="https://xdaforums.com/attachments/boot-root-zip.6388001/",
 )
+HIDE_WAIT = 60
 TWRP = amonet_biscuit_v1_1_0_bboe.RECOVERY
 UPDATER = "com.amazon.device.software.ota"
 UPDATE_HOSTS = (
@@ -136,13 +138,27 @@ def hide_updater() -> None:
             for line in output.split(sep="\n")
         )
 
-    if not hidden():
+    if hidden():
+        return
+    delay = 1
+    deadline = time.monotonic() + HIDE_WAIT
+    while True:
         adb_shell(command=f"su -c 'pm hide {UPDATER}'", timeout=60)
-    if not hidden():
-        raise FatalError(
-            message=f"{UPDATER} is not hidden; an update would replace the"
-            " boot image and remove root"
-        )
+        if hidden():
+            return
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise FatalError(
+                message=f"{UPDATER} is not hidden; an update would replace the"
+                " boot image and remove root"
+            )
+        if delay == 1:
+            warn(
+                text=f"{UPDATER} is not hidden yet. The Dot may still be"
+                " starting, so this tries again for up to a minute."
+            )
+        time.sleep(min(delay, left))
+        delay *= 2
 
 
 def install_magisk(*, magisk: pathlib.Path, work: pathlib.Path) -> None:

@@ -1234,6 +1234,14 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
 - An update would replace the boot image and remove root. On the first rooted
   run the script runs `pm hide com.amazon.device.software.ota`, then reads
   `hidden=true` back from `dumpsys package`.
+- Right after the first boot, `dumpsys package` and `pm hide` can both exit
+  1 in the same second that `sys.boot_completed` reads 1 and `su -c id`
+  answers. Seen on 3 of 3 roots from Windows 11; a rerun a minute later hid
+  it each time. So the step says so once, then waits 1, 2, 4, 8 and 16
+  seconds between tries, and stops 60 seconds after the first try.
+- Measured on a Dot from Windows 11, writing Fire OS 5.5.5.4 again from TWRP
+  3.7.0_9-bboe2: the first try failed as before, and the second, 1 second
+  later, hid it.
 
 ## Back to stock: the stock target
 

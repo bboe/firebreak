@@ -2,6 +2,14 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Fixed
+
+- A root that ends on Fire OS 5 no longer stops with `... is not hidden`
+  when the updater cannot be hidden in the first seconds after boot. It
+  tries again for up to a minute.
+
 ## 0.6.0 - 2026-10-14
 
 ### Added

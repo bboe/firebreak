@@ -125,6 +125,13 @@ def scripts(*, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
     return ran
 
 
+def clock(*, monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    slept: list[float] = []
+    monkeypatch.setattr(name="monotonic", target=fireos.time, value=lambda: sum(slept))
+    monkeypatch.setattr(name="sleep", target=fireos.time, value=slept.append)
+    return slept
+
+
 def md5(*, data: bytes) -> str:
     return hashlib.md5(data, usedforsecurity=False).hexdigest()
 
@@ -242,10 +249,32 @@ def test_a_transfer_list_this_does_not_read_stops_the_build(
     assert not (tmp_path / "system").exists()
 
 
-def test_an_updater_that_stays_visible_stops_the_run(*, adb: FakeAdb) -> None:
+def test_an_updater_hidden_on_a_later_try_waits_twice_as_long_each_time(
+    *,
+    adb: FakeAdb,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    slept = clock(monkeypatch=monkeypatch)
+    adb.answers["dumpsys package"] = [
+        *["  User 0: hidden=false"] * 3,
+        "  User 0: hidden=true",
+    ]
+    fireos.hide_updater()
+    assert len(adb.commands(holding="pm hide " + fireos.UPDATER)) == 3
+    assert slept == [1, 2]
+    assert capsys.readouterr().out.count("not hidden yet") == 1
+
+
+def test_an_updater_that_stays_visible_stops_the_run_after_a_minute(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slept = clock(monkeypatch=monkeypatch)
     adb.answers["dumpsys package"] = ["  User 0: hidden=false"]
     with pytest.raises(FatalError, match="is not hidden"):
         fireos.hide_updater()
+    assert slept == [1, 2, 4, 8, 16, 29]
+    assert len(adb.commands(holding="pm hide " + fireos.UPDATER)) == 7
 
 
 def test_fire_os_5_before_the_preloader_takes_its_slot_and_does_not_reboot(
