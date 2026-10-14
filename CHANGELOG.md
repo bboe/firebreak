@@ -2,6 +2,13 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Fixed
+
+- A run with no cache directory stopped with `FileNotFoundError` before it
+  found the Dot. It now creates the directory.
+
 ## 0.5.0 - 2026-10-14
 
 ### Added

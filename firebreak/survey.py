@@ -137,7 +137,6 @@ def images(*, archive: zipfile.ZipFile) -> dict[str, Image]:
         found[name] = Image(
             data=data, sha256=hashlib.sha256(data).hexdigest(), size=len(data)
         )
-    CACHE.mkdir(exist_ok=True, parents=True)
     with tempfile.TemporaryDirectory(dir=CACHE) as temporary:
         path = pathlib.Path(temporary) / "system.img"
         ota.write_system(archive=archive, path=path)

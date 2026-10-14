@@ -337,7 +337,6 @@ def test_erasing_boot0_reboots_the_dot(*, adb: FakeAdb) -> None:
 def test_erasing_boot0_that_fails_leaves_no_marker(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    unlock.ERASED.parent.mkdir(exist_ok=True, parents=True)
     unlock.ERASED.touch()
     answers = iter([1, 0, 1])
     monkeypatch.setattr(

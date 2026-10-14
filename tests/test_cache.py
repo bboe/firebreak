@@ -43,6 +43,7 @@ class Response(io.BytesIO):
 @pytest.fixture
 def cached(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> pathlib.Path:
     directory = tmp_path / "cache"
+    directory.mkdir()
     monkeypatch.setattr(name="CACHE", target=cache, value=directory)
     return directory
 
@@ -100,6 +101,7 @@ def test_cache_note(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    cached.rmdir()
     cache.cache_note()
     assert capsys.readouterr().out == ""
     cached.mkdir()
@@ -774,7 +776,6 @@ def test_fetch_removes_copies_of_what_the_cache_holds(
     downloads = tmp_path / "Downloads"
     downloads.mkdir()
     monkeypatch.setattr(name="downloads_dir", target=cache, value=lambda: downloads)
-    cached.mkdir()
     (cached / "boot-root.zip").write_bytes(data=BODY)
     (cached / "zip.bin").write_bytes(data=b"other")
     (downloads / "boot-root.zip").write_bytes(data=BODY)
@@ -795,7 +796,6 @@ def test_fetch_replaces_a_corrupt_copy(
 ) -> None:
     source = tmp_path / "zip.bin"
     source.write_bytes(data=BODY)
-    cached.mkdir()
     (cached / "zip.bin").write_bytes(data=b"corrupt")
     (cached / "zip.bin.part").write_bytes(data=b"stale")
     assert cache.fetch(download=item(source=source)).read_bytes() == BODY
@@ -938,19 +938,21 @@ def test_lock_for_one_lock_across_threads() -> None:
     assert len(set(map(id, found))) == 1
 
 
-def test_move_old_caches(*, cached: pathlib.Path) -> None:
+def test_make_cache_creates_it_and_moves_old_caches_in(*, cached: pathlib.Path) -> None:
+    cached.rmdir()
+    cache.make_cache()
+    assert cached.is_dir()
     old = cached.parent / "overdub-root"
     old.mkdir()
     (old / "kept").write_text(data="old")
     (old / "moved").write_text(data="old")
-    cached.mkdir()
     (cached / "kept").write_text(data="new")
-    cache.move_old_caches()
+    cache.make_cache()
     assert (cached / "kept").read_text() == "new"
     assert (cached / "moved").read_text() == "old"
     assert (old / "kept").exists()
     (old / "kept").unlink()
-    cache.move_old_caches()
+    cache.make_cache()
     assert not old.exists()
 
 

@@ -104,6 +104,7 @@ def fresh_session() -> Iterator[None]:
 @pytest.fixture(autouse=True)
 def no_real_cache(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
     directory = tmp_path / "real-cache"
+    directory.mkdir()
     for name, module in tuple(sys.modules.items()):
         if name != "firebreak" and not name.startswith("firebreak."):
             continue

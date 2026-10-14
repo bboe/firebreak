@@ -143,7 +143,6 @@ def rig(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> Rig:
         written=[],
     )
     found.payload.write_bytes(data=PAYLOAD)
-    bootrom_step.ERASED.parent.mkdir(parents=True)
 
     def executed(*, actions: tuple[Action, ...], payload: Live) -> None:
         found.erased.append(bootrom_step.ERASED.exists())

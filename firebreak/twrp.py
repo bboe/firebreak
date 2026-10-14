@@ -192,7 +192,6 @@ def sliced_system(*, slices: list[pathlib.Path], system: str) -> str:
 
 def stdin_carries() -> bool:
     if SESSION.carries is None:
-        CACHE.mkdir(exist_ok=True, parents=True)
         probe = CACHE / "stdin-probe.bin"
         probe.write_bytes(data=b"\x1a" * 16 + os.urandom(STDIN_PROBE_BYTES - 16))
         remote = DOT_TEMPORARY_DIRECTORY / "stdin-probe"

@@ -19,7 +19,7 @@ import subprocess
 import sys
 
 from firebreak import __version__, updates
-from firebreak.cache import move_old_caches
+from firebreak.cache import make_cache
 from firebreak.emos import child_emos
 from firebreak.host import check_adb, check_root, check_user
 from firebreak.identify import check_target
@@ -207,7 +207,7 @@ Run again with another target to move the Dot to it.
     if not options.no_update_check:
         check_for_update()
     check_adb()
-    move_old_caches()
+    make_cache()
     SESSION.short = options.short
     if options.report:
         report()
@@ -247,6 +247,7 @@ def survey_from(
             message=f"{SURVEY} takes none of --report, --write-test and --short"
         )
     check_root()
+    make_cache()
     survey_all(paths=[pathlib.Path(path) for path in options.rest])
 
 

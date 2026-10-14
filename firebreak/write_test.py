@@ -185,7 +185,6 @@ def usb_leg(*, asked: Callable[..., str], line: Callable[[str, object], None]) -
             "over USB", f"skipped: {DOT_TEMPORARY_DIRECTORY} has only {spare} MiB free"
         )
         return 0
-    CACHE.mkdir(exist_ok=True, parents=True)
     local = CACHE / "usb-test.bin"
     try:
         want = pattern_file(blocks=blocks, path=local)

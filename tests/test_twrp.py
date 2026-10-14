@@ -31,7 +31,6 @@ def carried() -> None:
 
 @pytest.fixture
 def erased() -> pathlib.Path:
-    twrp.ERASED.parent.mkdir(exist_ok=True, parents=True)
     twrp.ERASED.touch()
     twrp.SESSION.boot0_marker = twrp.ERASED
     return twrp.ERASED

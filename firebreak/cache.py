@@ -267,7 +267,6 @@ def downloads_dir() -> pathlib.Path:
 def fetch(*, download: Download) -> pathlib.Path:
     name, want = download.name, download.sha256
     with hold(lock=lock_for(key=download)):
-        CACHE.mkdir(exist_ok=True, parents=True)
         path = CACHE / name
         if path in SESSION.verified:
             return path
@@ -441,12 +440,12 @@ def lock_for(*, key: object) -> threading.Lock:
         return LOCKS.setdefault(key, threading.Lock())
 
 
-def move_old_caches() -> None:
+def make_cache() -> None:
+    CACHE.mkdir(exist_ok=True, parents=True)
     for old in ("overdub-firmware", "overdub-root", "overdub-stock"):
         source = CACHE.parent / old
         if not source.is_dir():
             continue
-        CACHE.mkdir(exist_ok=True, parents=True)
         for path in source.iterdir():
             if not (CACHE / path.name).exists():
                 with contextlib.suppress(OSError):

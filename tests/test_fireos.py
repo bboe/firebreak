@@ -41,7 +41,6 @@ def fireos5(
         target=fireos.ARGUMENTS,
         value=TARGETS["amonet-biscuit-v1.1.0-bboe"],
     )
-    fireos.CACHE.mkdir(parents=True)
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(name="fetch", target=fireos, value=lambda **_: tmp_path)
     monkeypatch.setattr(
@@ -215,7 +214,6 @@ def test_a_system_image_is_built_once_from_the_package(
     )
     download = fireos.Download(name="fireos.bin", sha256="ab" * 32, url="")
     monkeypatch.setattr(name="fetch", target=fireos, value=lambda **_: path)
-    fireos.CACHE.mkdir(parents=True)
     slices, want, blocks = fireos.system_image(package=download)
     whole = b"".join(gzip.decompress(data=piece.read_bytes()) for piece in slices)
     assert whole == data + bytes(2 * BLOCK)
@@ -236,7 +234,6 @@ def test_a_transfer_list_this_does_not_read_stops_the_build(
 ) -> None:
     path = package(data=b"", path=tmp_path / "fireos.bin", transfer=transfer)
     monkeypatch.setattr(name="fetch", target=fireos, value=lambda **_: path)
-    fireos.CACHE.mkdir(parents=True)
     with pytest.raises(FatalError, match="has a transfer list this does not read"):
         fireos.build_system(
             package=fireos.Download(name="fireos.bin", sha256="0" * 64, url=""),

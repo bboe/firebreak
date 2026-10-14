@@ -42,7 +42,6 @@ def restored(*, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch) -> FakeAdb:
     adb.answers["echo formatted"] = ["formatted"]
     adb.answers["slot_suffix"] = ["_a"]
     adb.answers["md5sum /dev/block/mmcblk0boot0"] = [md5(data=PRELOADER) + "  boot0"]
-    stock.ERASED.parent.mkdir(parents=True)
     monkeypatch.setattr(name="clear_boot0", target=stock, value=lambda: None)
     monkeypatch.setattr(name="unmount", target=stock, value=lambda **_: None)
     return adb

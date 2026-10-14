@@ -400,7 +400,6 @@ def test_a_run_after_boot0_was_erased_goes_through_the_bootrom(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
     run.target(name="amonet-biscuit-v2.0.0")
-    route.ERASED.parent.mkdir(parents=True)
     route.ERASED.touch()
     monkeypatch.setattr(name="stages", target=route, value=route.stages)
     run.states = [route.State.NONE, route.State.AMONET_V2_0_0_BOOTED]
@@ -571,7 +570,6 @@ def test_a_stage_counts_its_passes_unless_it_returns_false(
 def test_a_stale_marker_says_nothing_before_the_dot_is_seen(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    route.ERASED.parent.mkdir(exist_ok=True, parents=True)
     route.ERASED.touch()
     monkeypatch.setattr(
         name="run", target=route, value=lambda **_: types.SimpleNamespace(stdout="")
@@ -867,7 +865,6 @@ def test_the_background_downloads_leave_the_browser_to_the_run(
 def test_the_session_has_no_marker_while_the_first_probe_runs(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    route.ERASED.parent.mkdir(exist_ok=True, parents=True)
     route.ERASED.touch()
 
     def state() -> route.State:
@@ -888,7 +885,6 @@ def test_the_session_has_no_marker_while_the_first_probe_runs(
 def test_the_session_takes_the_marker_after_the_first_probe(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    route.ERASED.parent.mkdir(exist_ok=True, parents=True)
     route.ERASED.touch()
     states = iter([route.State.BOOTED])
 

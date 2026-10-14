@@ -167,7 +167,6 @@ def dot(*, monkeypatch: pytest.MonkeyPatch) -> FakeDot:
     fake = FakeDot()
     for name in ("adb_shell", "command", "push_checked", "reconnect"):
         monkeypatch.setattr(name=name, target=recovery, value=getattr(fake, name))
-    recovery.CACHE.mkdir(exist_ok=True, parents=True)
     return fake
 
 
@@ -180,7 +179,6 @@ def carry(
     wrong: str = "",
 ) -> list[Action]:
     checked: list[Action] = []
-    recovery.ERASED.parent.mkdir(exist_ok=True, parents=True)
 
     def record(name: str) -> object:
         def called(**options: object) -> object:
