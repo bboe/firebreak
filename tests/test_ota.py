@@ -194,6 +194,41 @@ def test_extract_blocks_checks_the_data(
         ota.extract(update=update, work=tmp_path)
 
 
+def test_extract_blocks_keeps_the_system_image(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    update = block_ota(
+        new_data=bytes(2 * BLOCK),
+        path=tmp_path / "ota.zip",
+        transfer="4\n2\n0\n0\nnew 2,0,2\n",
+    )
+    builds = []
+    write_system = ota.write_system
+
+    def counted(**arguments: object) -> None:
+        builds.append(arguments)
+        write_system(**arguments)
+
+    monkeypatch.setattr(name="write_system", target=ota, value=counted)
+    ota.extract(update=update, work=tmp_path)
+    ota.extract(update=update, work=tmp_path)
+    assert len(builds) == 1
+    assert "system kept from the last run" in capsys.readouterr().out
+    assert not (tmp_path / "system.img.part").exists()
+    sidecar = tmp_path / "system.img.sha256"
+    sidecar.write_text(data="0" * 64)
+    ota.extract(update=update, work=tmp_path)
+    assert len(builds) == 2
+    sidecar.unlink()
+    ota.extract(update=update, work=tmp_path)
+    assert len(builds) == 3
+    assert (tmp_path / "system.img").read_bytes() == bytes(2 * BLOCK)
+    assert sidecar.read_text() == hashlib.sha256(bytes(2 * BLOCK)).hexdigest()
+
+
 def test_extract_catches_a_short_blob(*, tmp_path: pathlib.Path) -> None:
     body = payload(images=IMAGES, kinds=KINDS, short="system")
     update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")

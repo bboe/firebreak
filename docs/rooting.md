@@ -1290,6 +1290,12 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   the `new` ranges are written, because the file is truncated to size
   first, and `system.new.dat` must end where the last of them does. A block OTA
   carries no hash per image, so they rest on the OTA's pinned SHA-256.
+- The built `system.img` stays in the build's own directory for the next
+  run, which saves the 20 to 30 seconds it takes to build. It is built as
+  `system.img.part` and then renamed, and its SHA-256 goes in
+  `system.img.sha256`. A run reuses the image only when that hash matches,
+  because an older run wrote the image in place, so a stopped run left one
+  of full size with blocks missing.
 - LK, TZ and boot are padded to a multiple of 4096 bytes. A write is
   checked over whole sectors, `n // 512` of them, and 4315's LK is 241,448
   bytes, so the check left the tail out and failed on a write that had

@@ -144,7 +144,18 @@ def extract_blocks(*, archive: zipfile.ZipFile, work: pathlib.Path) -> None:
             data += bytes(-len(data) % 4096)
         (work / (name + ".img")).write_bytes(data=data)
         passed(message=f"{name:>{LABEL_WIDTH}} taken from the OTA")
-    write_system(archive=archive, path=work / "system.img")
+    path, sidecar = work / "system.img", work / "system.img.sha256"
+    if (
+        path.is_file()
+        and sidecar.is_file()
+        and sidecar.read_text() == digest(kind="sha256", path=path)
+    ):
+        passed(message=f"{'system':>{LABEL_WIDTH}} kept from the last run")
+        return
+    part = work / "system.img.part"
+    write_system(archive=archive, path=part)
+    part.replace(target=path)
+    sidecar.write_text(data=digest(kind="sha256", path=path))
     passed(message=f"{'system':>{LABEL_WIDTH}} built from the transfer list")
 
 
