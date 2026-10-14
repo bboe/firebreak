@@ -18,6 +18,7 @@ from firebreak.ui import (
     FatalError,
     asked_for,
     clock,
+    invocation,
     program,
     show,
 )
@@ -58,6 +59,11 @@ Then run it again with the new group, which a new login also has:
 """  # ruff: ignore[line-too-long]
 PUSH_TRIES = 3
 SERIAL_PROBE = "import sys; sys.path.pop(0); import serial"
+STORE_PYTHON = (
+    "this Python is the Microsoft Store's. Windows keeps the files it writes"
+    " under AppData in a private folder that adb and fastboot cannot see, so"
+    " the unlock cannot load its image. "
+)
 USER_SERIAL = os.environ.get("ANDROID_SERIAL")
 
 
@@ -90,6 +96,24 @@ def check_adb() -> None:
         raise FatalError(
             message=f"adb reports version {version}; this needs 1.0.36"
             " (platform-tools r24) or newer"
+        )
+
+
+def check_python() -> None:
+    base = pathlib.Path(getattr(sys, "_base_executable", "") or sys.executable)
+    if "windowsapps" in (part.lower() for part in base.parts):
+        pyz = shlex.split(invocation(options=[]))[-1]
+        named = pyz if shlex.quote(pyz) == pyz else f'"{pyz}"'
+        raise FatalError(
+            message=STORE_PYTHON
+            + (
+                f"Install Python from python.org and run {named} with that"
+                " python.exe by its full path, or run uv run --managed-python"
+                f" --no-project python {named}"
+                if pyz.endswith(".pyz")
+                else "Run uvx --managed-python firebreak@latest, which uses uv's"
+                " own Python, or install Python from python.org"
+            )
         )
 
 

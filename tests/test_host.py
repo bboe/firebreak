@@ -18,6 +18,12 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
+STORE = (
+    "/Users/r/AppData/Local/Microsoft/WindowsApps"
+    "/PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0/python.exe"
+)
+
+
 @pytest.fixture(autouse=True)
 def no_waiting(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="sleep", target=host.time, value=lambda _: None)
@@ -135,6 +141,56 @@ def test_check_adb(
     else:
         with pytest.raises(expected_exception=FatalError, match=r"this needs 1\.0\.36"):
             host.check_adb()
+
+
+@pytest.mark.parametrize(
+    argnames=("executable", "base", "refused"),
+    argvalues=[
+        (STORE, STORE, True),
+        ("/Users/r/AppData/Local/uv/cache/env/Scripts/python.exe", STORE, True),
+        (STORE.replace("WindowsApps", "windowsapps"), "", True),
+        ("/Users/r/AppData/Local/Programs/Python/Python313/python.exe", "", False),
+        ("/opt/homebrew/bin/python3", "/opt/homebrew/bin/python3", False),
+    ],
+)
+def test_check_python_refuses_a_store_python(
+    *, base: str, executable: str, monkeypatch: pytest.MonkeyPatch, refused: bool
+) -> None:
+    monkeypatch.setattr(name="executable", target=host.sys, value=executable)
+    monkeypatch.setattr(
+        name="_base_executable", raising=False, target=host.sys, value=base
+    )
+    monkeypatch.setattr(name="invocation", target=host, value=lambda **_: "uvx")
+    if refused:
+        with pytest.raises(
+            expected_exception=FatalError, match="Run uvx --managed-python"
+        ):
+            host.check_python()
+    else:
+        host.check_python()
+
+
+@pytest.mark.parametrize(
+    argnames=("said", "named"),
+    argvalues=[
+        ("python3 fb.pyz", "fb.pyz"),
+        ("python.exe 'firebreak (1).pyz'", '"firebreak (1).pyz"'),
+    ],
+)
+def test_check_python_tells_a_pyz_how_to_run_another_python(
+    *, monkeypatch: pytest.MonkeyPatch, named: str, said: str
+) -> None:
+    monkeypatch.setattr(name="executable", target=host.sys, value=STORE)
+    monkeypatch.setattr(
+        name="_base_executable", raising=False, target=host.sys, value=STORE
+    )
+    monkeypatch.setattr(name="invocation", target=host, value=lambda **_: said)
+    with pytest.raises(expected_exception=FatalError) as raised:
+        host.check_python()
+    assert str(raised.value).endswith(
+        f"run {named} with that python.exe by its full path, or run uv run"
+        f" --managed-python --no-project python {named}"
+    )
 
 
 def test_check_user(*, monkeypatch: pytest.MonkeyPatch) -> None:

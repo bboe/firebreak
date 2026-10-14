@@ -479,6 +479,19 @@ ring read white.
   that the package uses no module, attribute or import 3.9.6 lacks.
 - The standard library only, so the script runs on stock macOS, Linux and
   Windows. adb and fastboot are the only external tools.
+- A Python from the Microsoft Store writes under `%LOCALAPPDATA%` into its
+  own `Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache`
+  copy, and the processes it starts do not see that copy. Measured on Windows
+  11 with Store Python 3.13.14, alone and under a uv environment: Python saw a
+  file it wrote, and a `cmd` it started in that folder did not, by a relative
+  or an absolute path. The fastbrick's `fastboot` loads its image from the
+  cache, which fits one user's run on that Python: each of its 10 flashes
+  exited 1 at once.
+  The run stops when its Python, or the one its environment was made from,
+  is under `WindowsApps`. It names `uvx --managed-python`, or for a pyz, a
+  python.org `python.exe` by its full path or `uv run --managed-python
+  --no-project python`. It does not name `py`: the launcher lists the Store
+  Python too, and `py -3.13` ran it on that host.
 - On a terminal, `ERROR:` lines are red and warnings yellow. `NO_COLOR`,
   `TERM=dumb`, a pipe or a file turns that off. On Windows only Windows
   Terminal (`WT_SESSION`) gets color; the old console prints the escape codes

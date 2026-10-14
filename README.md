@@ -50,8 +50,12 @@ Run these in PowerShell. Open a new terminal after the installs.
 ```powershell
 winget install Google.PlatformTools
 winget install astral-sh.uv
-uvx firebreak@latest
+uvx --managed-python firebreak@latest
 ```
+
+`--managed-python` has uv use its own Python. A Python from the Microsoft
+Store keeps firebreak's files where adb and fastboot cannot see them, and
+firebreak stops on it.
 
 The bootrom step also needs MediaTek's VCOM driver. It runs for `--short`, for a
 Dot on amonet v2.0.0 left in fastboot, and to resume a run stopped while it

@@ -21,7 +21,7 @@ import sys
 from firebreak import __version__, updates
 from firebreak.cache import make_cache
 from firebreak.emos import child_emos
-from firebreak.host import check_adb, check_root, check_user
+from firebreak.host import check_adb, check_python, check_root, check_user
 from firebreak.identify import check_target
 from firebreak.route import root
 from firebreak.support import report, write_test
@@ -198,6 +198,7 @@ Run again with another target to move the Dot to it.
     ARGUMENTS.build = (options.rest or [updates.DEFAULT_BUILD if stock else ""])[0]
     ARGUMENTS.target = target
     ARGUMENTS.verbose = options.verbose
+    check_python()
     for tool in ("adb", "fastboot"):
         if not shutil.which(cmd=tool):
             raise FatalError(

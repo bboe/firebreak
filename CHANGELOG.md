@@ -6,6 +6,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- A run on a Python from the Microsoft Store stops at once and says how to
+  use another Python: `uvx --managed-python firebreak@latest`, or for
+  `firebreak.pyz`, python.org's Python or uv's. Before, the unlock tried its
+  flash 10 times and stopped with `the unlock did not start`: the Store's
+  Python keeps firebreak's files where fastboot cannot see them.
 - A root that ends on Fire OS 5 no longer stops with `... is not hidden`
   when the updater cannot be hidden in the first seconds after boot. It
   tries again for up to a minute.
