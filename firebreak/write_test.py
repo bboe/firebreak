@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from firebreak.cache import CACHE
 from firebreak.host import DOT_TEMPORARY_DIRECTORY, run
 from firebreak.report import masked
+from firebreak.twrp import no_truncate
 from firebreak.ui import PROGRESS, SESSION
 
 if TYPE_CHECKING:
@@ -39,9 +40,14 @@ EMMC_SPARE = 16
 EMMC_TARGET = "cache"
 MEBIBYTE = 1 << 20
 PATTERN = bytes(range(256)) + b"firebreak"
+TIMED_OUT = "<timed out>"
 TIMEOUT = 1800
 USB_BLOCKS = 128
 USB_COLUMN = 3
+USB_DID_NOT_CARRY = (
+    "USB DID NOT CARRY IT. No eMMC was written, so the cable, the port or"
+    " this computer is at fault"
+)
 USB_LEAST = 16
 USB_SPARE = 32
 USB_TEST = DOT_TEMPORARY_DIRECTORY / "usb-test"
@@ -83,7 +89,7 @@ def emmc_leg(
             blocks=written,
             chunk=chunk,
             dd=SESSION.dd,
-            no_truncate=" conv=notrunc" if SESSION.dd == "toybox dd" else "",
+            no_truncate=no_truncate(),
             node=node,
             rounds=rounds,
             source=USB_TEST,
@@ -93,7 +99,7 @@ def emmc_leg(
     )
     PROGRESS.end()
     took = time.monotonic() - started
-    if said == "<timed out>":
+    if said == TIMED_OUT:
         line(
             "the test did not finish",
             f"no answer in {TIMEOUT} s. dd may still be writing {EMMC_TARGET},"
@@ -199,8 +205,7 @@ def usb_leg(*, asked: Callable[..., str], line: Callable[[str, object], None]) -
         line("adb push said", masked(text=failed).strip().split(sep="\n")[-1])
         line(
             "verdict",
-            "USB DID NOT CARRY IT. No eMMC was written, so the cable, the port or"
-            " this computer is at fault",
+            USB_DID_NOT_CARRY,
         )
         return 0
     answer = asked(command=f"md5sum {USB_TEST}", timeout=300).strip()
@@ -218,7 +223,6 @@ def usb_leg(*, asked: Callable[..., str], line: Callable[[str, object], None]) -
         "verdict",
         "USB carried it intact, so the cable and this computer are not at fault"
         if read == want
-        else "USB DID NOT CARRY IT. No eMMC was written, so the cable, the port or"
-        " this computer is at fault",
+        else USB_DID_NOT_CARRY,
     )
     return blocks if read == want else 0

@@ -200,8 +200,11 @@ def in_fastboot() -> bool:
     return bool(serials)
 
 
-def md5_mismatch(*, command: str, want: str) -> str:
-    got = [*adb_shell(command=command).split(sep="\n")[-1].split(sep=" "), ""][0]
+def md5_mismatch(*, command: str, timeout: float = 300, want: str) -> str:
+    got = [
+        *adb_shell(command=command, timeout=timeout).split(sep="\n")[-1].split(sep=" "),
+        "",
+    ][0]
     return "" if got == want else f": read {got or 'nothing'}, expected {want}"
 
 
@@ -252,9 +255,9 @@ def push_checked(*, local: pathlib.Path, remote: str | pathlib.PurePosixPath) ->
             if result.returncode != 0:
                 said = result.stdout
                 continue
-            if adb_shell(command=f"md5sum {remote}", timeout=300).split(sep=" ")[
-                0
-            ] == digest(kind="md5", path=local):
+            if not md5_mismatch(
+                command=f"md5sum {remote}", want=digest(kind="md5", path=local)
+            ):
                 return
             said = "its md5 read back did not match"
         except subprocess.TimeoutExpired as error:

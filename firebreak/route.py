@@ -44,7 +44,6 @@ from firebreak.ui import (
     PROGRESS,
     SESSION,
     WAIT,
-    ANSIColor,
     FatalError,
     again,
     clock,
@@ -364,8 +363,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             done.difference_update(TWRPS)
             done.add(State.AMONET_V1_1_0_FASTBOOT)
             if not SESSION.short:
-                say(
-                    code=ANSIColor.YELLOW,
+                warn(
                     text="The last run stopped after it erased boot0, so the Dot"
                     " cannot start. This run writes amonet v1.1.0 through the"
                     " bootrom, then goes on from v1.1.0's TWRP. If nothing"

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from firebreak.android.gpt import (
     ENTRIES_SIZE,
+    SECTOR_SIZE,
     gpt_intact,
     partition_map,
     used_entries,
@@ -34,7 +35,6 @@ BOOT0_HEADER_BLOCKS = 8
 BOOTLOADER_CONTROL_BLOCK = b"\0ABB\x01\x8f\0"
 BOOTLOADER_CONTROL_BLOCK_OFFSET = 0x360
 FASTBOOT_PLEASE = b"FASTBOOT_PLEASE\0"
-SECTOR_SIZE = 512
 TABLE_SECTORS = 34
 
 

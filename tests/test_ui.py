@@ -237,7 +237,7 @@ def test_say(
 ) -> None:
     ui.say(text="plain")
     tty(monkeypatch=monkeypatch)
-    ui.say(code=ui.ANSIColor.YELLOW, text="yellow")
+    ui.warn(text="yellow")
     assert capsys.readouterr().out == "plain\n\n\033[33myellow\033[0m\n"
 
 

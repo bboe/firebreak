@@ -37,7 +37,6 @@ from firebreak.ui import (
     again,
     asked_for,
     paint,
-    say,
     show,
     status,
     warn,
@@ -201,8 +200,7 @@ def bootrom_step(
         if failure:
             raise FatalError(message=failure)
     elif SESSION.short:
-        say(
-            code=ANSIColor.YELLOW,
+        warn(
             text="Short the Dot's test point and plug it in. The run waits for"
             " its bootrom, then says when the short may come off.",
         )

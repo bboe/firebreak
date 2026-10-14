@@ -23,7 +23,7 @@ from xml.parsers.expat import ExpatError
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterator
 
-from firebreak.ui import SESSION, ANSIColor, FatalError, again, passed, say, show, warn
+from firebreak.ui import SESSION, FatalError, again, passed, show, warn
 
 BROWSER_POLL_SECONDS = 2
 BROWSER_WAIT_SECONDS = 120
@@ -468,8 +468,7 @@ def open_in_browser(*, directory: pathlib.Path, download: Download) -> None:
             f" Download it from {download.url} on any computer, and copy it"
             f" into {directory}. " + again()
         )
-    say(
-        code=ANSIColor.YELLOW,
+    warn(
         text=f"{download.name} is an XDA attachment, and XDA serves it only to"
         " a browser. Your browser opens next and downloads it from the address"
         f" below. This waits up to {BROWSER_WAIT_SECONDS // 60} minutes for it"

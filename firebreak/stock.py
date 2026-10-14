@@ -9,10 +9,15 @@ import time
 from typing import TYPE_CHECKING
 
 from firebreak import updates
-from firebreak.android.gpt import gpt_intact, stock_gpt
+from firebreak.android.gpt import SECTOR_SIZE, gpt_intact, stock_gpt
 from firebreak.android.ota import extract
 from firebreak.cache import CACHE, ERASED, digest
 from firebreak.host import DOT_TEMPORARY_DIRECTORY, adb_shell, md5_mismatch, run
+from firebreak.plan import (
+    BOOTLOADER_CONTROL_BLOCK,
+    BOOTLOADER_CONTROL_BLOCK_OFFSET,
+    TABLE_SECTORS,
+)
 from firebreak.twrp import (
     DISK,
     clear_boot0,
@@ -41,8 +46,6 @@ if TYPE_CHECKING:
     from firebreak.android.gpt import Partition
 
 
-BOOTLOADER_CONTROL_BLOCK = b"\0ABB\x01\x8f\0"
-BOOTLOADER_CONTROL_BLOCK_OFFSET = 0x360
 CHAIN_TEE = ("tee2", "tee1")
 STOCK_STEPS = 16
 TWRP_VERSIONS = ("3.2.", "3.7.")
@@ -278,8 +281,10 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
             f" device {device!r}"
         )
 
-    raw = read_sectors(count=34, start=0)
-    if not gpt_intact(entries=raw[1024:], header=raw[512:1024]):
+    raw = read_sectors(count=TABLE_SECTORS, start=0)
+    if not gpt_intact(
+        entries=raw[2 * SECTOR_SIZE :], header=raw[SECTOR_SIZE : 2 * SECTOR_SIZE]
+    ):
         size = adb_shell(command=f"blockdev --getsize64 {DISK}")
         if not size.isdigit():
             raise FatalError(message="could not read the Dot's disk size")

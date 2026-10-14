@@ -105,6 +105,10 @@ def clear_boot0() -> None:
     )
 
 
+def no_truncate() -> str:
+    return " conv=notrunc" if SESSION.dd == "toybox dd" else ""
+
+
 def partition_table() -> str:
     command = f"sgdisk --print {DISK}; echo {TABLE_OK}"
     for attempt in range(PUSH_TRIES):
@@ -165,7 +169,7 @@ def sliced_system(*, slices: list[pathlib.Path], system: str) -> str:
                 SYSTEM_SLICE.format(
                     dd=SESSION.dd,
                     held=held,
-                    no_truncate=" conv=notrunc" if SESSION.dd == "toybox dd" else "",
+                    no_truncate=no_truncate(),
                     seek=index * (SYSTEM_SLICE_BYTES >> 20),
                     system=system,
                 ),
@@ -200,9 +204,12 @@ def stdin_carries() -> bool:
                     timeout=60,
                 )
             failed = sent.returncode != 0
-            read = adb_shell(command=f"md5sum {remote}; rm -f {remote}", timeout=60)
-            cut = read.split(sep="\n")[-1].split(sep=" ")[0] != digest(
-                kind="md5", path=probe
+            cut = bool(
+                md5_mismatch(
+                    command=f"md5sum {remote}; rm -f {remote}",
+                    timeout=60,
+                    want=digest(kind="md5", path=probe),
+                )
             )
         except subprocess.TimeoutExpired:
             failed = cut = True
@@ -224,7 +231,7 @@ def streamed_system(*, slices: list[pathlib.Path], system: str) -> str:
             "shell",
             SYSTEM_STREAM.format(
                 dd=SESSION.dd,
-                no_truncate=" conv=notrunc" if SESSION.dd == "toybox dd" else "",
+                no_truncate=no_truncate(),
                 system=system,
             ),
         ],
@@ -326,10 +333,9 @@ def write(
                 message=f"{label} did not reach the Dot; do not reboot:"
                 f"\n{pushed.stdout}"
             )
-        no_truncate = " conv=notrunc" if SESSION.dd == "toybox dd" else ""
         done = adb_shell(
             command=f"{SESSION.dd} if={staged} of={DISK} bs={block_size} seek={offset}"
-            f"{no_truncate} && rm -f {staged} && echo written"
+            f"{no_truncate()} && rm -f {staged} && echo written"
         )
         if done.split(sep="\n")[-1] != "written":
             raise FatalError(message=f"{label} failed; do not reboot:\n{done}")

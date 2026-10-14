@@ -21,7 +21,7 @@ from firebreak.host import (
 )
 from firebreak.plan import SECTOR_SIZE, TABLE_SECTORS, Action, resolve, whole_sectors
 from firebreak.plugin import BOOT0, ClearBoot0Header, Repartition
-from firebreak.twrp import CLEAR_BOOT0, check_nodes, read_sectors, reboot
+from firebreak.twrp import CLEAR_BOOT0, DISK, check_nodes, read_sectors, reboot
 from firebreak.ui import PROGRESS, FatalError, again
 
 if TYPE_CHECKING:
@@ -34,7 +34,6 @@ DD = (
     "d=dd; n=; toybox dd --help >/dev/null 2>&1 && d='toybox dd' && n=' conv=notrunc'; "
 )
 DD_LOG = "/tmp/firebreak-dd.log"  # ruff: ignore[hardcoded-temp-file]
-DISK = "/dev/block/mmcblk0"
 FORCE_RO = "echo {lock} > /sys/block/mmcblk0boot0/force_ro; "
 HASH = (
     DD + "[ -b {node} ] && $d if={node} bs=512 skip={first} count={count}"

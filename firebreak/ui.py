@@ -214,13 +214,11 @@ def program() -> list[str]:
     return [sys.executable, sys.argv[0]]
 
 
-def say(*, code: ANSIColor | None = None, text: str) -> None:
-    text = textwrap.fill(
-        break_long_words=False, break_on_hyphens=False, text=text, width=79
-    )
+def say(*, text: str) -> None:
     show(
-        kind=Kind.WARN if code else Kind.INFO,
-        text=paint(code=code, text=text) if code else text,
+        text=textwrap.fill(
+            break_long_words=False, break_on_hyphens=False, text=text, width=79
+        )
     )
 
 

@@ -30,6 +30,7 @@ from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
     adb_script,
     adb_shell,
+    md5_mismatch,
     push_checked,
     run,
 )
@@ -158,12 +159,7 @@ def install_magisk(*, magisk: pathlib.Path, work: pathlib.Path) -> None:
         b"".join(files[name][1] for name in names), usedforsecurity=False
     ).hexdigest()
     paths = " ".join(name.decode() for name in names)
-    got = (
-        adb_shell(command=f"cd /; cat {paths} | md5sum")
-        .split(sep="\n")[-1]
-        .split(sep=" ")[0]
-    )
-    if got != want:
+    if md5_mismatch(command=f"cd /; cat {paths} | md5sum", want=want):
         raise FatalError(message="Magisk 17.3's files did not verify on the Dot")
 
 
@@ -200,16 +196,12 @@ def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
         read_back = (
             f"[ -b {boot} ] && dd if={boot} bs=4096 count={blocks} 2>/dev/null | md5sum"
         )
-        want = digest(kind="md5", path=image)
-        written = (
-            adb_shell(command=read_back, timeout=120)
-            .split(sep="\n")[-1]
-            .split(sep=" ")[0]
+        wrong = md5_mismatch(
+            command=read_back, timeout=120, want=digest(kind="md5", path=image)
         )
-        if written != want:
+        if wrong:
             raise FatalError(
-                message="the patched boot image did not verify on the Dot: read"
-                f" {written or 'nothing'}, expected {want}"
+                message="the patched boot image did not verify on the Dot" + wrong
             )
 
         install_magisk(magisk=magisk, work=work)
@@ -276,10 +268,7 @@ def stage_replace_twrp() -> None:
         f"[ -b {recovery} ] && dd if={recovery} bs=512 count={sectors} 2>/dev/null"
         " | md5sum"
     )
-    written = (
-        adb_shell(command=read_back, timeout=120).split(sep="\n")[-1].split(sep=" ")[0]
-    )
-    if written != digest(kind="md5", path=twrp):
+    if md5_mismatch(command=read_back, timeout=120, want=digest(kind="md5", path=twrp)):
         raise FatalError(
             message=f"TWRP {TWRP_VERSION} did not verify in recovery. Leave the Dot"
             " running. " + again()

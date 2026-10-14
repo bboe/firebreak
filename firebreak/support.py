@@ -33,10 +33,24 @@ from firebreak.report import (
 from firebreak.twrp import DISK, TABLE_OK
 from firebreak.ui import PROGRESS, SESSION, SUPPORT, WAIT, program, say, show, status
 from firebreak.updates import BUILDS
-from firebreak.write_test import EMMC_TARGET, MEBIBYTE, USB_TEST, emmc_leg, usb_leg
+from firebreak.write_test import (
+    EMMC_TARGET,
+    MEBIBYTE,
+    TIMED_OUT,
+    USB_TEST,
+    emmc_leg,
+    usb_leg,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+def finish(*, asked: Callable[..., str]) -> None:
+    show(text="\nwhat the kernel says about the eMMC")
+    for text in mmc_said(asked=asked):
+        show(text=text)
+    show(text="\n" + LEFT_IN_RECOVERY)
 
 
 def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: ignore[complex-structure, too-many-return-statements, too-many-branches]
@@ -147,15 +161,16 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
     return False
 
 
-def report() -> None:
-    def line(label: str, value: object) -> None:
-        show(text=labelled(label=label, value=value))
+def line(label: str, value: object) -> None:
+    show(text=labelled(label=label, value=value))
 
+
+def report() -> None:
     def asked(*, command: str, timeout: float = 60) -> str:
         try:
             said = adb_shell(command=command, timeout=timeout)
         except subprocess.TimeoutExpired:
-            return "<timed out>"
+            return TIMED_OUT
         return masked(text=said) or "<nothing>"
 
     show(text=SUPPORT + "\n")
@@ -193,21 +208,15 @@ def report() -> None:
     printed = asked(command=f"sgdisk --print {DISK}; echo {TABLE_OK}", timeout=120)
     for row in partition_rows(names=names, printed=printed):
         show(text=row)
-    show(text="\nwhat the kernel says about the eMMC")
-    for text in mmc_said(asked=asked):
-        show(text=text)
-    show(text="\n" + LEFT_IN_RECOVERY)
+    finish(asked=asked)
 
 
 def write_test() -> None:
-    def line(label: str, value: object) -> None:
-        show(text=labelled(label=label, value=value))
-
     def asked(*, command: str, timeout: float = 60) -> str:
         try:
             return masked(text=adb_shell(command=command, timeout=timeout))
         except subprocess.TimeoutExpired:
-            return "<timed out>"
+            return TIMED_OUT
 
     show(text=SUPPORT + "\n")
     line("state", probed())
@@ -244,7 +253,4 @@ def write_test() -> None:
             )
     finally:
         asked(command=f"rm -f {USB_TEST}")
-    show(text="\nwhat the kernel says about the eMMC")
-    for text in mmc_said(asked=asked):
-        show(text=text)
-    show(text="\n" + LEFT_IN_RECOVERY)
+    finish(asked=asked)

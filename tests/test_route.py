@@ -499,8 +499,12 @@ def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
     assert run.prefetched == []
 
 
-def test_a_stage_that_returns_false_counts_none_of_its_passes(
-    *, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("returned", "expected"),
+    [(False, ["first", "second"]), (None, ["first"])],
+)
+def test_a_stage_counts_its_passes_unless_it_returns_false(
+    *, expected: list[str], monkeypatch: pytest.MonkeyPatch, returned: bool | None
 ) -> None:
     ran: list[str] = []
     states = iter([
@@ -517,12 +521,12 @@ def test_a_stage_that_returns_false_counts_none_of_its_passes(
     table = {
         route.State.AMONET_V2_0_0_FASTBOOT: route.Stage(
             passes=frozenset({route.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE}),
-            run=lambda: ran.append("downgrade") is not None,
+            run=lambda: ran.append("first") or returned,
             steps=1,
             then=None,
         ),
         route.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: route.Stage(
-            run=lambda: ran.append("chain"), steps=1, then=None
+            run=lambda: ran.append("second"), steps=1, then=None
         ),
     }
     monkeypatch.setattr(
@@ -545,56 +549,7 @@ def test_a_stage_that_returns_false_counts_none_of_its_passes(
     )
     with pytest.raises(KeyboardInterrupt):
         route.root()
-    assert ran == ["downgrade", "chain"]
-
-
-def test_a_stage_that_returns_nothing_counts_its_passes(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ran: list[str] = []
-    states = iter([
-        route.State.AMONET_V2_0_0_FASTBOOT,
-        route.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
-    ])
-
-    def state() -> route.State:
-        found = next(states, None)
-        if found is None:
-            raise KeyboardInterrupt
-        return found
-
-    table = {
-        route.State.AMONET_V2_0_0_FASTBOOT: route.Stage(
-            passes=frozenset({route.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE}),
-            run=lambda: ran.append("restore"),
-            steps=1,
-            then=None,
-        ),
-        route.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: route.Stage(
-            run=lambda: ran.append("again"), steps=1, then=None
-        ),
-    }
-    monkeypatch.setattr(
-        name="run",
-        target=route,
-        value=lambda **_: types.SimpleNamespace(stdout="  -S SIZE[K|M|G]"),
-    )
-    monkeypatch.setattr(name="state", target=route, value=state)
-    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
-    monkeypatch.setattr(name="prefetch", target=route, value=lambda **_: None)
-    monkeypatch.setattr(name="check_target", target=route, value=lambda **_: None)
-    monkeypatch.setattr(
-        name="DOWNLOADER", target=route, value=types.SimpleNamespace(ident=1)
-    )
-    monkeypatch.setattr(name="sleep", target=route.time, value=lambda _: None)
-    monkeypatch.setattr(
-        name="target",
-        target=route.ARGUMENTS,
-        value=TARGETS["amonet-biscuit-v1.1.0-bboe"],
-    )
-    with pytest.raises(KeyboardInterrupt):
-        route.root()
-    assert ran == ["restore"]
+    assert ran == expected
 
 
 def test_a_stale_marker_says_nothing_before_the_dot_is_seen(

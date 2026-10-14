@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import dataclasses
+
 from firebreak.cache import Download
-from firebreak.plugin import FastbootFlash, Unlock
+from firebreak.plugin import FastbootFlash
 from firebreak.unlocks.amonet_biscuit_v1_1_0 import (
     AMONET_BISCUIT_V1_1_0,
     FLASH_RECOVERY,
@@ -15,11 +17,9 @@ RECOVERY = Download(
     url="https://github.com/bboe/twrp_device_amazon_echo-mt8163/releases/download/"
     f"v{TWRP_VERSION}/twrp-v{TWRP_VERSION}-biscuit.img",
 )
-AMONET_BISCUIT_V1_1_0_BBOE = Unlock(
-    device=AMONET_BISCUIT_V1_1_0.device,
-    family=AMONET_BISCUIT_V1_1_0.family,
+AMONET_BISCUIT_V1_1_0_BBOE = dataclasses.replace(
+    AMONET_BISCUIT_V1_1_0,
     files={"twrp": RECOVERY},
-    layout=AMONET_BISCUIT_V1_1_0.layout,
     plan=tuple(
         FastbootFlash(
             image="twrp", label="write TWRP " + TWRP_VERSION, target="recovery"
@@ -28,7 +28,5 @@ AMONET_BISCUIT_V1_1_0_BBOE = Unlock(
         else step
         for step in AMONET_BISCUIT_V1_1_0.plan
     ),
-    requires=AMONET_BISCUIT_V1_1_0.requires,
-    source=AMONET_BISCUIT_V1_1_0.source,
     version="1.1.0-bboe",
 )
