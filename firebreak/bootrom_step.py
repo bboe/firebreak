@@ -65,6 +65,14 @@ REPLUG_WAIT = 600
 SHORT_WAIT = 5
 
 
+def ask_for_short() -> None:
+    warn(
+        text="Short the Dot's test point and plug it in. The run waits for"
+        " its bootrom, then says when the short may come off.",
+    )
+    status(text="Waiting for the bootrom.")
+
+
 def await_amonet_fastboot() -> None:
     for _ in range(30):
         try:
@@ -200,11 +208,7 @@ def bootrom_step(
         if failure:
             raise FatalError(message=failure)
     elif SESSION.short:
-        warn(
-            text="Short the Dot's test point and plug it in. The run waits for"
-            " its bootrom, then says when the short may come off.",
-        )
-        status(text="Waiting for the bootrom.")
+        ask_for_short()
     else:
         poke_live_payload()
         PROGRESS.begin(estimate="40 s", label="waiting for the Dot to restart")

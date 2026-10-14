@@ -135,6 +135,11 @@ partition and read it back, so nothing crosses USB. It erases `cache`, which
 holds nothing the Dot needs, and leaves an empty filesystem there, or says
 it could not.
 
+For a Dot that shows no light, `--write-test --short` reaches its bootrom as
+[`--short`](#--short) does, writes a pattern over the end of `cache` from this
+computer, and reads it back. It says whether the eMMC refused a write or the
+bytes did not arrive, and puts back what was there when the Dot still answers.
+
 ## Credits
 
 firebreak automates work that other people did first.

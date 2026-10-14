@@ -448,6 +448,29 @@ ring read white.
 - `amonet-biscuit-v2.0.0` wipes cache and `stock` formats it. The two
   `amonet-biscuit-v1.1.0` targets format userdata only, so a cache damaged
   before a run survives it.
+- `--write-test --short` runs the test through the bootrom instead, for a Dot
+  that shows no light and so has no recovery. It reads the last 64 blocks of
+  `cache` three times, then writes 1, 34 and 64 blocks there and reads each
+  back, then writes the first read back. 34 is the partition table, the first
+  bootrom write of a `--short` run; 64 is the most one command carries.
+- v2.0.0's payload answers a block write only when the eMMC took it, and the
+  same silence follows when the bytes never all arrive. So after a write with
+  no answer the test sends a 4-byte memory read, `0x5000`. A payload that
+  answers took the whole write and refused it, which blames the card; one that
+  answers with the write's own acknowledgement was slow; one that stays silent
+  is still waiting for bytes, or for the card.
+- After a write the card refused or answered late, the test puts `cache`'s
+  blocks back. After one the payload lost track of, it cannot, and says to
+  unplug the Dot: the pattern stays at the end of `cache`, which holds nothing
+  the Dot needs.
+- A late answer is followed by the ping's own 4 bytes. When they do not come,
+  the ping filled the end of a write that lost bytes on USB, so that blames
+  USB, not the card.
+- It reads the table first and skips a table that is not intact, so a stale
+  `cache` entry cannot point the writes at another partition.
+- Measured on a Dot from Windows 11, with boot0's header cleared so no short
+  was needed: three reads agreed, writes of 1, 34 and 64 blocks read back
+  unchanged, and `cache` read back as it was.
 
 ## The host
 

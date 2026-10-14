@@ -27,6 +27,13 @@ class Client(Payload):
         )
         return self.read_exactly(label=label, length=length + FLUSH_LENGTH)[:length]
 
+    def ping(self) -> bytes:
+        self._send(
+            arguments=(PAYLOAD_LOAD_ADDRESS, FLUSH_LENGTH),
+            command=BiscuitCommand.READ_MEMORY,
+        )
+        return self.read_exactly(label="ping", length=FLUSH_LENGTH)
+
     def read_block(self, *, index: int) -> bytes:
         self._send(arguments=(index,), command=Command.READ_BLOCK)
         return self._flushed(label=f"block {index}", length=BLOCK_SIZE)

@@ -60,6 +60,14 @@ def test_every_enum_is_pinned_by_hand_in_wire_order() -> None:
     assert found == MEASURED_ENUMS
 
 
+def test_ping_reads_the_payload_s_first_word() -> None:
+    payload, port = payload_port(replies=FLUSH)
+    assert payload.ping() == FLUSH
+    assert bytes(port.written) == framed(
+        arguments=(PAYLOAD_LOAD_ADDRESS, 4), command=0x5000
+    )
+
+
 def test_read_block_flushes_the_pipe() -> None:
     payload, port = payload_port(replies=BLOCK + FLUSH)
     assert payload.read_block(index=7) == BLOCK

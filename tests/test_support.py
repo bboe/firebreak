@@ -328,3 +328,21 @@ def test_the_write_test_skips_the_emmc_leg_without_whole_lists(
     support.write_test()
     assert legs == []
     assert "did not arrive whole" in capsys.readouterr().out
+
+
+def test_the_write_test_with_short_goes_through_the_bootrom(
+    *, legs: list[dict[str, object]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        name="amonet_v2_0_0_payload", target=support, value=lambda: "payload.bin"
+    )
+    monkeypatch.setattr(
+        name="bootrom_write_test", target=support, value=lambda **said: ran.append(said)
+    )
+    monkeypatch.setattr(name="pyserial_wheel", target=support, value=lambda: None)
+    support.SESSION.short = True
+    support.write_test()
+    assert legs == []
+    assert ran[0]["payload"] == "payload.bin"
+    assert ran[0]["wheel"] is None

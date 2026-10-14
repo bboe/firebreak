@@ -4,6 +4,12 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- `--write-test --short` tests the eMMC and USB through the bootrom, for a
+  Dot that shows no light. It tells an eMMC that refuses writes from bytes
+  that do not arrive.
+
 ### Fixed
 
 - A run with no cache directory stopped with `FileNotFoundError` before it

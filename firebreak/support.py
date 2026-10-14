@@ -9,9 +9,17 @@ import time
 from typing import TYPE_CHECKING
 
 from firebreak import __version__
+from firebreak.bootrom_write_test import bootrom_write_test
 from firebreak.cache import CACHE
 from firebreak.devices import BY_NAME, FASTBOOT_MODE
-from firebreak.host import adb_shell, getvar, in_fastboot, run, usb_serial
+from firebreak.host import (
+    adb_shell,
+    getvar,
+    in_fastboot,
+    pyserial_wheel,
+    run,
+    usb_serial,
+)
 from firebreak.identify import identity_lines
 from firebreak.probe import probed
 from firebreak.report import (
@@ -32,6 +40,7 @@ from firebreak.report import (
 )
 from firebreak.twrp import DISK, TABLE_OK
 from firebreak.ui import PROGRESS, SESSION, SUPPORT, WAIT, program, say, show, status
+from firebreak.unlock import amonet_v2_0_0_payload
 from firebreak.updates import BUILDS
 from firebreak.write_test import (
     EMMC_TARGET,
@@ -44,6 +53,15 @@ from firebreak.write_test import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+def about_host() -> None:
+    line("firebreak", " ".join(pathlib.Path(word).name for word in program()[1:]))
+    line("firebreak version", __version__)
+    line("host", f"{sys.platform} ({os.name}), {platform.platform()}")
+    line("python", sys.version.split()[0])
+    said = run(arguments=["adb", "version"], timeout=30).stdout.split(sep="\n")
+    line("adb", ", ".join(part.strip() for part in said[:2] if part.strip()))
 
 
 def finish(*, asked: Callable[..., str]) -> None:
@@ -174,12 +192,7 @@ def report() -> None:
         return masked(text=said) or "<nothing>"
 
     show(text=SUPPORT + "\n")
-    line("firebreak", " ".join(pathlib.Path(word).name for word in program()[1:]))
-    line("firebreak version", __version__)
-    line("host", f"{sys.platform} ({os.name}), {platform.platform()}")
-    line("python", sys.version.split()[0])
-    said = run(arguments=["adb", "version"], timeout=30).stdout.split(sep="\n")
-    line("adb", ", ".join(part.strip() for part in said[:2] if part.strip()))
+    about_host()
     line("state", probed())
     show(text="\n".join(identity_lines()))
     if not into_recovery(line=line):
@@ -219,6 +232,12 @@ def write_test() -> None:
             return TIMED_OUT
 
     show(text=SUPPORT + "\n")
+    about_host()
+    if SESSION.short:
+        bootrom_write_test(
+            line=line, payload=amonet_v2_0_0_payload(), wheel=pyserial_wheel()
+        )
+        return
     line("state", probed())
     if not into_recovery(line=line):
         show(text="\nThe test needs a recovery, so it stops here.")
