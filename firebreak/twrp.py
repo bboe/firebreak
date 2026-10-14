@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 import time
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING
 
 from firebreak.cache import CACHE, ERASED, SYSTEM_SLICE_BYTES, digest, gzip_intact
 from firebreak.host import (
@@ -95,11 +95,11 @@ def clear_boot0() -> None:
     read, *still_set = answer or [""]
     if read == "4096" and still_set:
         ERASED.unlink(missing_ok=True)
-        restore_failed(
+        raise FatalError(
             message="boot0's header did not clear, so a failure from here would brick"
             " rather than fall into the bootrom; nothing else was written",
         )
-    restore_failed(
+    raise FatalError(
         message="boot0 did not read back, so whether its header cleared is unknown;"
         " nothing else was written"
     )
@@ -151,10 +151,6 @@ def read_sectors(*, count: int, start: int) -> bytes:
 def reboot(*, estimate: str = "40 s", into: str = "recovery", label: str) -> None:
     run(arguments=["adb", "reboot", *([into] if into else [])], check=True, timeout=60)
     PROGRESS.begin(estimate=estimate, label=label)
-
-
-def restore_failed(*, message: str) -> NoReturn:
-    raise FatalError(message=message)
 
 
 def sliced_system(*, slices: list[pathlib.Path], system: str) -> str:
@@ -263,7 +259,7 @@ def unmount(*, started: bool = False) -> None:
     else:
         message = "the Dot did not answer what is mounted: " + left
     if started:
-        restore_failed(message=message + "; do not reboot")
+        raise FatalError(message=message + "; do not reboot")
     raise FatalError(message=message + "; nothing was written")
 
 
@@ -315,18 +311,18 @@ def write(
     if number is not None:
         start = adb_shell(command=f"cat /sys/class/block/mmcblk0p{number}/start")
         if start.split(sep="\n")[-1].strip() != str(sector):
-            restore_failed(
+            raise FatalError(
                 message=f"{DISK}p{number} starts at {start or 'nothing'}, not {sector},"
                 " so the running partition table is not the one this expects"
             )
         pushed = run(arguments=["adb", "push", path, f"{DISK}p{number}"], timeout=1800)
         if pushed.returncode != 0:
-            restore_failed(message=f"{label} failed; do not reboot:\n{pushed.stdout}")
+            raise FatalError(message=f"{label} failed; do not reboot:\n{pushed.stdout}")
     else:
         staged = DOT_TEMPORARY_DIRECTORY / path.name
         pushed = run(arguments=["adb", "push", path, staged], timeout=120)
         if pushed.returncode != 0:
-            restore_failed(
+            raise FatalError(
                 message=f"{label} did not reach the Dot; do not reboot:"
                 f"\n{pushed.stdout}"
             )
@@ -336,12 +332,12 @@ def write(
             f"{no_truncate} && rm -f {staged} && echo written"
         )
         if done.split(sep="\n")[-1] != "written":
-            restore_failed(message=f"{label} failed; do not reboot:\n{done}")
+            raise FatalError(message=f"{label} failed; do not reboot:\n{done}")
     if adb_shell(command=FLUSH).split(sep="\n")[-1] != "flushed":
-        restore_failed(message=label + " could not be flushed; do not reboot")
+        raise FatalError(message=label + " could not be flushed; do not reboot")
     wrong = md5_mismatch(command=verify, want=want)
     if wrong:
-        restore_failed(message=f"{label} did not verify{wrong}; do not reboot")
+        raise FatalError(message=f"{label} did not verify{wrong}; do not reboot")
     PROGRESS.end()
 
 

@@ -412,22 +412,6 @@ def test_reverting_the_boot_moved_layout_gives_back_the_stock_table(
     ]
 
 
-def test_show(*, source: pathlib.Path) -> None:
-    actions = plan.resolve(
-        raw=biscuit_table(layout=BISCUIT_STOCK),
-        source=source,
-        unlock=AMONET_BISCUIT_V1_1_0,
-    )
-    lines = plan.show(actions=actions).split(sep="\n")
-    assert lines[0].startswith("  1. ClearBoot0Header")
-    assert lines[1] == "     b'EMMC_BOOT' and zeros"
-    assert any(line.endswith("<-- no way back") for line in lines)
-    assert "lk_a @ 16,777,216" in plan.show(actions=actions)
-    assert plan.show(actions=(plan.Action(kind="Reboot", label="reboot"),)) == (
-        f"  1. {'Reboot':<17} {'reboot':<36} {'':<22} {'':>13}"
-    )
-
-
 def test_the_held_layout_is_reverted_before_the_wanted_one_is_applied() -> None:
     seen: list[bytes] = []
 

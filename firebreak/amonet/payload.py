@@ -55,14 +55,6 @@ class Payload(Connection):
     def switch_partition(self, *, partition: int) -> None:
         self._send(arguments=(partition,), command=Command.SWITCH_PARTITION)
 
-    def write_block(self, *, data: bytes, index: int) -> None:
-        if len(data) != BLOCK_SIZE:
-            message = f"a block is {BLOCK_SIZE} bytes, not {len(data)}"
-            raise ValueError(message)
-        self._send(arguments=(index,), command=Command.WRITE_BLOCK)
-        self.port.write(data=data)
-        self._acknowledge(label=f"write of block {index}")
-
     def write_rpmb(self, *, data: bytes) -> None:
         if len(data) != RPMB_SIZE:
             message = f"RPMB takes {RPMB_SIZE} bytes, not {len(data)}"

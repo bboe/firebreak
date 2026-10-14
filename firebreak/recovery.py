@@ -129,7 +129,6 @@ def carry_out(
                 length=live[name].size,
                 offset=live[name].first * SECTOR_SIZE,
                 partition=live[name],
-                source="zeros",
                 target=name,
             )
             for name in zero

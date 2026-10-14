@@ -56,7 +56,6 @@ class BootMovedLayout:
                 length=WIPE_SECTORS * SECTOR_SIZE,
                 offset=userdata.first * SECTOR_SIZE,
                 partition=userdata,
-                source="zeros",
                 target=USERDATA,
             ),
         )
@@ -150,7 +149,6 @@ def table_writes(*, label: str, table: Table) -> tuple[Action, Action]:
             label=label,
             length=len(table.primary),
             offset=0,
-            source="the primary partition table",
             target="disk",
         ),
         Action(
@@ -159,7 +157,6 @@ def table_writes(*, label: str, table: Table) -> tuple[Action, Action]:
             label=label,
             length=len(table.backup),
             offset=table.backup_sector * SECTOR_SIZE,
-            source="the backup partition table",
             target="disk",
         ),
     )

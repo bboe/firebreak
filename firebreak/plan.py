@@ -48,7 +48,6 @@ class Action:
     length: int | None = None
     offset: int | None = None
     partition: Partition | None = None
-    source: str | None = None
     target: str | None = None
     unrecoverable: bool = False
 
@@ -78,16 +77,10 @@ def action(
             label=step.label,
             length=BOOT0_HEADER_BLOCKS * SECTOR_SIZE,
             offset=0,
-            source=repr(BOOT0_HEADER) + " and zeros",
             target=BOOT0,
         )
     if isinstance(step, ZeroRpmb):
-        return Action(
-            expect=step.expect,
-            kind=kind,
-            label=step.label,
-            source=repr(step.expect),
-        )
+        return Action(expect=step.expect, kind=kind, label=step.label)
     return Action(kind=kind, label=step.label, target=step.into)
 
 
@@ -131,7 +124,6 @@ def patched(
         length=len(data),
         offset=partition.first * SECTOR_SIZE + offset,
         partition=partition,
-        source=repr(data),
         target=step.target,
     )
 
@@ -182,25 +174,6 @@ def resolve(*, raw: bytes, source: pathlib.Path, unlock: Unlock) -> tuple[Action
     return tuple(actions)
 
 
-def show(*, actions: tuple[Action, ...]) -> str:
-    lines = []
-    for index, action in enumerate(iterable=actions, start=1):
-        where = ""
-        if action.target is not None:
-            where = action.target
-            if action.offset is not None:
-                where += f" @ {action.offset:,}"
-        size = f"{action.length:,} B" if action.length is not None else ""
-        mark = "  <-- no way back" if action.unrecoverable else ""
-        lines.append(
-            f"{index:>3}. {action.kind:<17} {action.label:<36}"
-            f" {where:<22} {size:>13}{mark}"
-        )
-        if action.source and action.kind != "Write":
-            lines.append(f"     {action.source}")
-    return "\n".join(lines)
-
-
 def whole_sectors(
     *, action: Action, offset: int, read: Callable[..., bytes]
 ) -> tuple[int, bytes, bytes | None]:
@@ -244,7 +217,6 @@ def written(
         length=length,
         offset=offset,
         partition=partition,
-        source=step.image,
         target=step.target,
         unrecoverable=step.unrecoverable,
     )

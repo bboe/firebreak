@@ -10,7 +10,6 @@ from conftest import FakePort, reply_write, sent_write, shook
 from firebreak.amonet import payload as amonet_payload
 from firebreak.mediatek import usbdl
 
-BLOCK = bytes(range(256)) * 2
 IMPORTED = frozenset({"RPMB_SIZE", "TYPE_CHECKING"})
 MEASURED = {
     "ACKNOWLEDGEMENT": b"\xd0\xd0\xd0\xd0",
@@ -88,22 +87,6 @@ def test_payload_switch_partition() -> None:
     payload.switch_partition(partition=1)
     assert bytes(port.written) == framed(arguments=(1,), command=0x1002)
     assert port.replies == bytearray()
-
-
-def test_payload_write_block() -> None:
-    payload, port = payload_port(replies=amonet_payload.ACKNOWLEDGEMENT)
-    payload.write_block(data=BLOCK, index=3)
-    assert bytes(port.written) == framed(arguments=(3,), command=0x1001) + BLOCK
-    with pytest.raises(expected_exception=ValueError, match="512 bytes, not 4"):
-        payload.write_block(data=b"four", index=3)
-
-
-def test_payload_write_block_refuses_a_bad_acknowledgement() -> None:
-    payload, _ = payload_port(replies=b"nope")
-    with pytest.raises(
-        expected_exception=usbdl.ProtocolMismatchError, match="write of block 3"
-    ):
-        payload.write_block(data=BLOCK, index=3)
 
 
 def test_payload_write_rpmb() -> None:

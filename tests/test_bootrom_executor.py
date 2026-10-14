@@ -345,7 +345,7 @@ def test_an_image_is_padded_to_whole_sectors(
 
 def test_an_rpmb_that_does_not_zero_stops_it(*, payload: FakePayload) -> None:
     payload.lost = 1
-    action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb", source=repr(EXPECT))
+    action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb")
     with pytest.raises(FatalError, match="still holds"):
         bootrom.execute(actions=(action,), payload=payload)
 
@@ -354,7 +354,7 @@ def test_an_rpmb_that_holds_something_else_is_only_a_warning(
     *, capsys: pytest.CaptureFixture[str], payload: FakePayload
 ) -> None:
     payload.rpmb = b"JUNK" + b"\x5a" * 252
-    action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb", source=repr(EXPECT))
+    action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb")
     bootrom.execute(actions=(action,), payload=payload)
     said = capsys.readouterr().out
     assert "the RPMB starts b'JUNK'" in said
@@ -366,7 +366,7 @@ def test_an_rpmb_that_holds_something_else_is_only_a_warning(
 def test_an_rpmb_that_holds_what_the_step_expects_says_nothing(
     *, capsys: pytest.CaptureFixture[str], payload: FakePayload
 ) -> None:
-    action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb", source=repr(EXPECT))
+    action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb")
     bootrom.execute(actions=(action,), payload=payload)
     assert "the RPMB starts" not in capsys.readouterr().out
     assert payload.rpmb == bytes(256)
@@ -376,7 +376,7 @@ def test_an_rpmb_that_is_already_zeroed_says_which_reading_that_is(
     *, capsys: pytest.CaptureFixture[str], payload: FakePayload
 ) -> None:
     payload.rpmb = bytes(256)
-    action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb", source=repr(EXPECT))
+    action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb")
     bootrom.execute(actions=(action,), payload=payload)
     said = capsys.readouterr().out
     assert "the RPMB starts" in said
@@ -418,7 +418,7 @@ def test_steps_the_bootrom_cannot_run_stop_the_plan_first(
 
 
 def test_the_rpmb_is_zeroed_and_read_back(*, payload: FakePayload) -> None:
-    action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb", source=repr(EXPECT))
+    action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb")
     bootrom.execute(actions=(action,), payload=payload)
     assert payload.asked == ["read rpmb", "write rpmb 256", "read rpmb"]
     assert payload.rpmb == bytes(256)

@@ -17,7 +17,6 @@ from firebreak.twrp import (
     DISK,
     clear_boot0,
     read_sectors,
-    restore_failed,
     unmount,
     write,
 )
@@ -184,11 +183,11 @@ def restore(
 
     PROGRESS.begin(estimate="30 s", label="format cache and userdata")
     if "No problems found" not in adb_shell(command="sgdisk --verify " + DISK):
-        restore_failed(message="sgdisk does not accept the new table; do not reboot")
+        raise FatalError(message="sgdisk does not accept the new table; do not reboot")
     unmount(started=True)
     adb_shell(command="blockdev --rereadpt " + DISK)
     if adb_shell(command='grep -c "mmcblk0p1[78]$" /proc/partitions') != "0":
-        restore_failed(
+        raise FatalError(
             message="the kernel still sees amonet's partitions; do not reboot,"
             " reread the table first"
         )
@@ -197,13 +196,13 @@ def restore(
     if not adb_shell(
         command=f'grep " {kibibytes} mmcblk0p{userdata.number}$" /proc/partitions'
     ):
-        restore_failed(message="userdata is not its stock size; do not reboot")
+        raise FatalError(message="userdata is not its stock size; do not reboot")
     output = adb_shell(
         command=f"mke2fs -q -t ext4 {DISK}p{cache.number}"
         f" && mke2fs -q -t ext4 {DISK}p{userdata.number} && echo formatted"
     )
     if output.split(sep="\n")[-1] != "formatted":
-        restore_failed(message="cache and userdata did not format; do not reboot")
+        raise FatalError(message="cache and userdata did not format; do not reboot")
     PROGRESS.end()
 
     for step in chain_writes():
@@ -219,14 +218,14 @@ def restore(
     preloader = work / "boot0.img"
     staged = DOT_TEMPORARY_DIRECTORY / "pl.img"
     if run(arguments=["adb", "push", preloader, staged], timeout=120).returncode != 0:
-        restore_failed(message="the preloader did not reach the Dot; do not reboot")
+        raise FatalError(message="the preloader did not reach the Dot; do not reboot")
     adb_shell(command=Shell.BOOT0.value.format(source=staged))
     wrong = md5_mismatch(
         command="md5sum /dev/block/mmcblk0boot0",
         want=digest(kind="md5", path=preloader),
     )
     if wrong:
-        restore_failed(
+        raise FatalError(
             message=f"boot0 does not match the {build} preloader{wrong}; do not reboot"
         )
     ERASED.unlink(missing_ok=True)
@@ -370,13 +369,15 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
             work=work,
         )
     except subprocess.TimeoutExpired as error:
-        restore_failed(
+        raise FatalError(
             message=f"{' '.join(map(str, error.cmd))} did not finish in"
             f" {error.timeout:.0f} seconds. Do not reboot. " + again()
-        )
+        ) from error
     except KeyboardInterrupt:
         if PROGRESS.step == PROGRESS.steps:
             raise FatalError(
                 message=f"stopped; stock {build} is in place", prefix=""
             ) from None
-        restore_failed(message="stopped part way. Do not reboot. " + again())
+        raise FatalError(
+            message="stopped part way. Do not reboot. " + again()
+        ) from None
