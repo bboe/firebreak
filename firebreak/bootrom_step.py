@@ -26,7 +26,8 @@ from firebreak.mediatek.usbdl import (
     UsbdlError,
     mediatek_ports,
 )
-from firebreak.plan import TABLE_SECTORS, resolve
+from firebreak.plan import TABLE_SECTORS, Action, resolve
+from firebreak.plugin import BOOT0, Write
 from firebreak.ui import (
     MINUTE,
     PROGRESS,
@@ -50,7 +51,6 @@ if TYPE_CHECKING:
     import serial
 
     from firebreak.emmc import Emmc
-    from firebreak.plan import Action
 
 
 BOOTROM_STEP_TIMEOUT = 30 * MINUTE
@@ -385,6 +385,41 @@ def say_missed_short(*, count: int) -> None:
 
 def short_hint() -> str:
     return ", most likely because the short was still on" if SESSION.short else ""
+
+
+def stock_preloader(
+    *, build: str, payload: pathlib.Path, preloader: bytes, wheel: pathlib.Path | None
+) -> None:
+    if wheel is not None and str(wheel) not in sys.path:
+        sys.path.insert(0, str(wheel))
+    PROGRESS.begin(estimate="10 s", label="waiting for the bootrom")
+    client = bootrom_client(deadline=time.monotonic() + MINUTE, erase=None)
+    if client is None:
+        raise FatalError(
+            message="the Dot started a preloader, so boot0 was not clear and the"
+            " RPMB was not zeroed. " + again()
+        )
+    live = exploit(client=client, payload=payload)
+    check_emmc(live=live)
+    PROGRESS.end()
+    bootrom.execute(
+        actions=(
+            Action(expect=b"AMZN", kind=bootrom.ZERO_RPMB, label="zero the RPMB"),
+            Action(
+                data=preloader,
+                kind=Write.__name__,
+                label=f"write the {build} preloader to boot0",
+                length=len(preloader),
+                offset=0,
+                target=BOOT0,
+            ),
+            Action(kind=bootrom.REBOOT, label=f"rebooting into stock {build}"),
+        ),
+        payload=live,
+    )
+    with contextlib.suppress(OSError):
+        client.port.close()
+    ERASED.unlink(missing_ok=True)
 
 
 def unwritten() -> str:

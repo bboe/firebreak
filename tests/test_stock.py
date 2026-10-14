@@ -101,6 +101,45 @@ def md5(*, data: bytes) -> str:
     return hashlib.md5(data, usedforsecurity=False).hexdigest()
 
 
+def test_a_bootrom_build_writes_its_preloader_through_the_bootrom(
+    *, monkeypatch: pytest.MonkeyPatch, restored: FakeAdb, tmp_path: pathlib.Path
+) -> None:
+    writes = wrote(monkeypatch=monkeypatch)
+    finished: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        name="amonet_v2_0_0_payload",
+        target=stock,
+        value=lambda: tmp_path / "payload.bin",
+    )
+    monkeypatch.setattr(name="pyserial_wheel", target=stock, value=lambda: None)
+    monkeypatch.setattr(
+        name="stock_preloader",
+        target=stock,
+        value=lambda **options: finished.append(options),
+    )
+    (tmp_path / "preloader.img").write_bytes(b"P" * 1024)
+    stock.ERASED.touch()
+    stock.restore(
+        backup_sector=9999,
+        build="5.5.0.3",
+        files=written(tmp_path=tmp_path),
+        parts=PARTITIONS,
+        work=tmp_path,
+    )
+    assert finished == [
+        {
+            "build": "5.5.0.3",
+            "payload": tmp_path / "payload.bin",
+            "preloader": b"P" * 1024,
+            "wheel": None,
+        }
+    ]
+    assert writes[-1][0] == "write TEE image to tee1 (primary)"
+    assert not any("pl.img" in " ".join(asked) for asked in restored.asked)
+    assert restored.asked[-1][-1] == "reboot"
+    assert stock.ERASED.exists()
+
+
 def test_a_fire_os_5_restore_reboots_without_waiting(
     *, monkeypatch: pytest.MonkeyPatch, restored: FakeAdb, tmp_path: pathlib.Path
 ) -> None:

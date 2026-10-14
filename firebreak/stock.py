@@ -11,8 +11,15 @@ from typing import TYPE_CHECKING
 from firebreak import updates
 from firebreak.android.gpt import SECTOR_SIZE, gpt_intact, stock_gpt
 from firebreak.android.ota import extract
+from firebreak.bootrom_step import stock_preloader
 from firebreak.cache import CACHE, ERASED, digest
-from firebreak.host import DOT_TEMPORARY_DIRECTORY, adb_shell, md5_mismatch, run
+from firebreak.host import (
+    DOT_TEMPORARY_DIRECTORY,
+    adb_shell,
+    md5_mismatch,
+    pyserial_wheel,
+    run,
+)
 from firebreak.plan import (
     BOOTLOADER_CONTROL_BLOCK,
     BOOTLOADER_CONTROL_BLOCK_OFFSET,
@@ -38,6 +45,7 @@ from firebreak.ui import (
     show,
     warn,
 )
+from firebreak.unlock import amonet_v2_0_0_payload
 from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import TWRP_VERSION
 
 if TYPE_CHECKING:
@@ -148,7 +156,7 @@ def chain_writes() -> tuple[Step, ...]:
     )
 
 
-def restore(
+def restore(  # ruff: ignore[complex-structure]
     *,
     backup_sector: int,
     build: str,
@@ -216,6 +224,18 @@ def restore(
             path=files[step.image],
             sector=parts[step.partition].first,
         )
+
+    if build in updates.BOOTROM_BUILDS:
+        PROGRESS.begin(estimate="5 s", label="rebooting into the bootrom")
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            run(arguments=["adb", "shell", "-n", "reboot"], timeout=60)
+        stock_preloader(
+            build=build,
+            payload=amonet_v2_0_0_payload(),
+            preloader=(work / "preloader.img").read_bytes(),
+            wheel=pyserial_wheel(),
+        )
+        return
 
     PROGRESS.begin(estimate="5 s", label="write preloader to boot0")
     preloader = work / "boot0.img"

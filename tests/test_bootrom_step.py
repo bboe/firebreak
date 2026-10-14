@@ -518,6 +518,60 @@ def test_a_serial_port_opens_at_the_bootrom_rate(
     ]
 
 
+def test_a_stock_preloader_step_that_meets_a_preloader_stops_the_run(
+    *, rig: Rig
+) -> None:
+    bootrom_step.ERASED.touch()
+    rig.ports = [{}, {}, PRELOADER]
+    with pytest.raises(FatalError, match="boot0 was not clear"):
+        bootrom_step.stock_preloader(
+            build="5.5.0.3", payload=rig.payload, preloader=b"P" * 512, wheel=None
+        )
+    assert rig.written == []
+    assert bootrom_step.ERASED.exists()
+
+
+def test_a_stock_preloader_step_zeroes_the_rpmb_and_writes_boot0(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig, tmp_path: pathlib.Path
+) -> None:
+    carried: list[tuple[Action, ...]] = []
+    monkeypatch.setattr(
+        name="execute",
+        target=bootrom_step.bootrom,
+        value=lambda *, actions, **_: carried.append(actions),
+    )
+    bootrom_step.ERASED.touch()
+    wheel = tmp_path / "pyserial.whl"
+    bootrom_step.stock_preloader(
+        build="5.5.0.3", payload=rig.payload, preloader=b"P" * 1024, wheel=wheel
+    )
+    assert rig.steps == [
+        "handshake",
+        "watchdog",
+        "range checks",
+        f"payload {PAYLOAD.decode()}",
+        "switch 0",
+        "read block 0",
+    ]
+    assert carried == [
+        (
+            Action(expect=b"AMZN", kind="ZeroRpmb", label="zero the RPMB"),
+            Action(
+                data=b"P" * 1024,
+                kind="Write",
+                label="write the 5.5.0.3 preloader to boot0",
+                length=1024,
+                offset=0,
+                target=bootrom_step.BOOT0,
+            ),
+            Action(kind="Reboot", label="rebooting into stock 5.5.0.3"),
+        )
+    ]
+    assert rig.clients[0].port.closed
+    assert not bootrom_step.ERASED.exists()
+    assert str(wheel) in bootrom_step.sys.path
+
+
 def test_a_table_that_cannot_be_read_stops_the_run(
     *, monkeypatch: pytest.MonkeyPatch, rig: Rig
 ) -> None:

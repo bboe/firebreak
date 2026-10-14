@@ -297,12 +297,17 @@ def remaining(*, start: State, table: dict[State, Stage]) -> int | None:
 
 
 def restore_stages() -> dict[State, Stage]:
+    bootrom = ARGUMENTS.build in updates.BOOTROM_BUILDS
     return {
         twrp: Stage(
-            needs=(ota_build,),
+            needs=(
+                (ota_build, amonet_biscuit_v2_0_0.SOURCE, pyserial_wheel)
+                if bootrom
+                else (ota_build,)
+            ),
             passes=TWRPS,
             run=stage_restore,
-            steps=STOCK_STEPS,
+            steps=STOCK_STEPS + 3 if bootrom else STOCK_STEPS,
             then=State.STOCK_BOOTED,
         )
         for twrp in TWRPS

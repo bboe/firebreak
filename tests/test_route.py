@@ -133,6 +133,22 @@ def test_a_background_failure_is_left_for_the_run_to_meet(
     assert not route.PROGRESS.open
 
 
+@pytest.mark.parametrize(
+    ("build", "extra", "steps"),
+    [("5.5.0.3", 2, route.STOCK_STEPS + 3), ("5.5.3.1", 0, route.STOCK_STEPS)],
+)
+def test_a_bootrom_build_restores_with_the_bootrom_s_downloads_and_steps(
+    *, build: str, extra: int, monkeypatch: pytest.MonkeyPatch, steps: int
+) -> None:
+    monkeypatch.setattr(name="build", target=route.ARGUMENTS, value=build)
+    stage = route.restore_stages()[route.State.AMONET_V2_0_0_TWRP]
+    assert (
+        stage.needs[1:]
+        == ((amonet_biscuit_v2_0_0.SOURCE, route.pyserial_wheel)[:extra])
+    )
+    assert stage.steps == steps
+
+
 def test_a_bootrom_step_that_finds_a_preloader_is_not_counted(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:

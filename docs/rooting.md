@@ -1223,12 +1223,21 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
 - Only `stock` takes a `BUILD`, and without one it installs 8149. The run
   downloads the build before it touches the Dot.
 - Fire OS 5.5.3.1 to 5.5.5.4 carry Fire OS 6's anti-rollback versions, so
-  they restore as Fire OS 6 does. 5.5.0.3's PL is 3, below RPMB's 5, so it
-  would stop at `version mismatch!`; only the bootrom can zero RPMB first.
+  they restore as Fire OS 6 does.
+- 5.5.0.3's PL is 3, below RPMB's 5, so its preloader would stop at
+  `version mismatch!`. Its restore leaves boot0 clear and reboots into the
+  bootrom. There amonet v2.0.0's payload zeroes RPMB, writes the preloader and
+  reboots. A PL 5 preloader that started in between would raise RPMB to 5
+  again.
 - Stock Fire OS 5 shows nothing on USB once it starts, so a Fire OS 5 restore
   ends after the reboot.
 - Measured on a Dot, 2026-10-13: each Fire OS 5 build restored in about
   2.5 min, then read locked with its own `lk_build_desc`, and unlocked again.
+- Measured on a Dot, 2026-10-14: 5.5.0.3 restored from amonet v2.0.0 in
+  3 min 50 s. The bootrom came up 5 s after the reboot, and its RPMB began
+  `AMZN`. The Dot read locked with 5.5.0.3's `lk_build_desc`. Its LK does not
+  report `antirback_pl_version`. The fastbrick then unlocked it, and the
+  default target rooted it in 8 min 4 s.
 - The restore ends at stock-booted: the run waits for stock to start, which
   shows as `adb` answering `unauthorized` about 1.5 minutes after the reboot. A
   Dot already stock-booted, or in stock fastboot, has nothing to restore. An

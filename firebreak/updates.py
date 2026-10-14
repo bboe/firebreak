@@ -10,9 +10,17 @@ if TYPE_CHECKING:
     import pathlib
 
 
+BOOTROM_BUILDS = frozenset({"5.5.0.3"})
 CDN = "https://d1s31zyz7dcc2d.cloudfront.net/"
 DEFAULT_BUILD = "8149"
-FIREOS5_BUILDS = frozenset({"5.5.3.1", "5.5.4.6", "5.5.4.9", "5.5.5.0", "5.5.5.4"})
+FIREOS5_BUILDS = frozenset({
+    "5.5.0.3",
+    "5.5.3.1",
+    "5.5.4.6",
+    "5.5.4.9",
+    "5.5.5.0",
+    "5.5.5.4",
+})
 
 
 def cdn_ota(*, path: str, sha256: str) -> Download:
@@ -29,6 +37,10 @@ BUILDS = {
     "4405": cdn_ota(
         path="2e17a264c416806ff7d3d984e1b6fcb7/update-kindle-biscuit_puffin-NS6556_user_4405_0008289072516.bin",
         sha256="6839b0a1e5c4f6aa57f89ea7ca67c85aa69f8fe32e5ddc252764b0d96be5bf69",
+    ),
+    "5.5.0.3": cdn_ota(
+        path="1b9718ec2da663bb299676df977055c9/update-kindle-full_biscuit-272.5.6.4_user_564196920.bin",
+        sha256="5458cd2d49b4549310d17ea9fb390db0733a633df4187fcdccabc38a980f8bea",
     ),
     "5.5.3.1": cdn_ota(
         path="8811a0fc982bf3331dc54f5aec45d936/update-kindle-full_biscuit-272.6.4.1_user_641575220.bin",

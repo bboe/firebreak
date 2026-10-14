@@ -79,8 +79,10 @@ reports them as `antirback_pl_version`, `antirback_tee_version` and
   `version mismatch!`, in a loop that only the eMMC short gets out of. The
   short reaches the bootrom, not a boot: the Dot boots again only once its
   RPMB is zeroed or a preloader at least as high is written. A lower version
-  is raised to the preloader's. This is read from the 8146 preloader's code,
-  not seen on a Dot.
+  is raised to the preloader's. This is read from the 8146 preloader's code.
+- Seen on a Dot that had run Fire OS 6, 2026-10-14: after the bootrom zeroed
+  RPMB, 5.5.0.3's preloader, PL 3, booted. The mismatch loop and the raise
+  have not been seen.
 
 ### Partition hashes
 
