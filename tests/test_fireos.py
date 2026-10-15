@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import fireos
-from firebreak.devices import State
+from firebreak.devices import BISCUIT, State
 from firebreak.ui import FatalError
 from firebreak.unlocks.targets import TARGETS
 
@@ -39,7 +39,7 @@ def fireos5(
     monkeypatch.setattr(
         name="target",
         target=fireos.ARGUMENTS,
-        value=TARGETS["amonet-biscuit-v1.1.0-bboe"],
+        value=TARGETS[BISCUIT]["amonet-biscuit-v1.1.0-bboe"],
     )
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(name="fetch", target=fireos, value=lambda **_: tmp_path)
@@ -72,7 +72,7 @@ def fireos6(
     monkeypatch.setattr(
         name="target",
         target=fireos.ARGUMENTS,
-        value=TARGETS["amonet-biscuit-v2.0.0"],
+        value=TARGETS[BISCUIT]["amonet-biscuit-v2.0.0"],
     )
     waited: list[str] = []
     monkeypatch.setattr(name="amonet_chain", target=fireos, value=lambda: None)
@@ -181,7 +181,9 @@ def test_a_rooted_dot_swaps_its_twrp_for_the_target_s(
     monkeypatch.setattr(
         name="target",
         target=fireos.ARGUMENTS,
-        value=next(target for target in TARGETS.values() if target.goal == goal),
+        value=next(
+            target for target in TARGETS[BISCUIT].values() if target.goal == goal
+        ),
     )
     monkeypatch.setattr(name="fetch", target=fireos, value=lambda **_: bboe)
     monkeypatch.setattr(name="unpack", target=fireos, value=lambda **_: tmp_path)

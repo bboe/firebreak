@@ -6,6 +6,7 @@ import types
 import pytest
 
 from firebreak import route, ui
+from firebreak.devices import BISCUIT
 from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_0
 from firebreak.unlocks.targets import TARGETS
 from firebreak.updates import BUILDS
@@ -93,7 +94,7 @@ class Run:
 
     def target(self, *, build: str = "", name: str) -> None:
         self.monkeypatch.setattr(
-            name="target", target=route.ARGUMENTS, value=TARGETS[name]
+            name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
         )
         self.monkeypatch.setattr(name="build", target=route.ARGUMENTS, value=build)
 
@@ -126,7 +127,9 @@ def test_a_background_failure_is_left_for_the_run_to_meet(
     monkeypatch.setattr(name="system_image", target=route, value=fail)
     monkeypatch.setattr(name="prefetch", target=route, value=fail)
     monkeypatch.setattr(
-        name="target", target=route.ARGUMENTS, value=TARGETS["amonet-biscuit-v1.1.0"]
+        name="target",
+        target=route.ARGUMENTS,
+        value=TARGETS[BISCUIT]["amonet-biscuit-v1.1.0"],
     )
     route.prebuild()
     route.predownload()
@@ -263,7 +266,9 @@ def test_a_fire_os_5_route_fetches_what_it_needs_and_builds_the_system(
     fetched: list[str] = []
     built: list[object] = []
     shown: list[str] = []
-    monkeypatch.setattr(name="target", target=route.ARGUMENTS, value=TARGETS[name])
+    monkeypatch.setattr(
+        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
+    )
     monkeypatch.setattr(
         name="unpack",
         target=route,
@@ -317,7 +322,9 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
     *, build: str, downloaded: str, monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
     got: list[str] = []
-    monkeypatch.setattr(name="target", target=route.ARGUMENTS, value=TARGETS[name])
+    monkeypatch.setattr(
+        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
+    )
     monkeypatch.setattr(name="build", target=route.ARGUMENTS, value=build)
     monkeypatch.setattr(name="unpack", target=route, value=lambda **_: None)
     monkeypatch.setattr(name="fetch", target=route, value=lambda **_: None)
@@ -392,7 +399,9 @@ def test_a_route_needs_only_its_own_stages_downloads(
     needs: list[object],
     start: route.State,
 ) -> None:
-    monkeypatch.setattr(name="target", target=route.ARGUMENTS, value=TARGETS[name])
+    monkeypatch.setattr(
+        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
+    )
     assert route.needed(start=start, table=route.stages()) == needs
 
 
@@ -560,7 +569,7 @@ def test_a_stage_counts_its_passes_unless_it_returns_false(
     monkeypatch.setattr(
         name="target",
         target=route.ARGUMENTS,
-        value=TARGETS["amonet-biscuit-v1.1.0-bboe"],
+        value=TARGETS[BISCUIT]["amonet-biscuit-v1.1.0-bboe"],
     )
     with pytest.raises(KeyboardInterrupt):
         route.root()
@@ -735,7 +744,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
         | reboots,
     }
     for name in ("amonet-biscuit-v1.1.0", "amonet-biscuit-v1.1.0-bboe"):
-        goal = TARGETS[name].goal
+        goal = TARGETS[BISCUIT][name].goal
         chain = (
             route.recovery.carry_out,
             {
@@ -752,7 +761,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
                     {"reboot": False, "slot": "_a"},
                 ),
                 "guard": route.amonet_chain,
-                "unlock": TARGETS[name].unlock,
+                "unlock": TARGETS[BISCUIT][name].unlock,
             },
         )
         routes[name] = (
@@ -795,9 +804,11 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
                 for rooted in route.FIREOS5_ROOTED - {goal}
             }
         )
-    assert set(routes) == set(TARGETS)
+    assert set(routes) == set(TARGETS[BISCUIT])
     for name, table in routes.items():
-        monkeypatch.setattr(name="target", target=route.ARGUMENTS, value=TARGETS[name])
+        monkeypatch.setattr(
+            name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
+        )
         assert {
             current: (
                 described(value=stage.run),
@@ -820,7 +831,9 @@ def test_fastboot_counts_the_steps_the_route_takes(
     *, monkeypatch: pytest.MonkeyPatch, name: str, totals: dict[str, int]
 ) -> None:
     state = route.State
-    monkeypatch.setattr(name="target", target=route.ARGUMENTS, value=TARGETS[name])
+    monkeypatch.setattr(
+        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
+    )
     table = route.stages()
     starts = {
         state.AMONET_V2_0_0_TWRP: totals["twrp"],
@@ -905,7 +918,7 @@ def test_the_session_takes_the_marker_after_the_first_probe(
     monkeypatch.setattr(
         name="target",
         target=route.ARGUMENTS,
-        value=TARGETS["amonet-biscuit-v1.1.0-bboe"],
+        value=TARGETS[BISCUIT]["amonet-biscuit-v1.1.0-bboe"],
     )
     with pytest.raises(KeyboardInterrupt):
         route.root()

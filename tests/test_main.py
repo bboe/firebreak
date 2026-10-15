@@ -22,6 +22,31 @@ def test_a_child_does_not_check_for_an_update(
         main.main()
 
 
+@pytest.mark.parametrize(
+    argnames=("arguments", "said"),
+    argvalues=[
+        (
+            ["--device", "biscuit", "amonet-radar-v1.0.0"],
+            "argument TARGET: invalid choice",
+        ),
+        (["--device", "radar"], "argument --device: invalid choice"),
+        (["--device", "biscuit", "survey", "x"], "survey takes none of"),
+    ],
+    ids=["unknown-target", "device-without-targets", "survey"],
+)
+def test_a_device_is_one_with_targets_and_survey_takes_none(
+    *,
+    arguments: list[str],
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    said: str,
+) -> None:
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", *arguments])
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert said in capsys.readouterr().err
+
+
 def test_a_failing_update_check_is_silent(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -139,12 +164,6 @@ def test_no_newer_release_says_nothing(
     assert capsys.readouterr() == ("", "")
 
 
-def test_target_names_are_the_unlocks_names() -> None:
-    assert main.AMONET_BISCUIT_V1_1_0 == "amonet-biscuit-v1.1.0"
-    assert main.AMONET_BISCUIT_V1_1_0_BBOE == "amonet-biscuit-v1.1.0-bboe"
-    assert main.AMONET_BISCUIT_V2_0_0 == "amonet-biscuit-v2.0.0"
-
-
 @pytest.mark.parametrize(
     argnames=("arguments", "build"),
     argvalues=[
@@ -165,3 +184,12 @@ def test_the_build_each_target_gets(
     with pytest.raises(SystemExit):
         main.cli()
     assert main.ARGUMENTS.build == build
+
+
+def test_the_help_lists_each_device_s_targets_its_default_first() -> None:
+    assert main.target_help().splitlines()[:3] == [
+        "targets for the Echo Dot (2nd Generation):",
+        "  amonet-biscuit-v1.1.0-bboe, the default",
+        "      rooted Fire OS 5.5.5.4 on amonet v1.1.0, with TWRP 3.7.0_9-bboe2.",
+    ]
+    assert "  stock [BUILD]" in main.target_help().splitlines()

@@ -6,13 +6,16 @@ import pathlib
 import plistlib
 import subprocess
 import sys
+import time
 import xml.parsers.expat
 from typing import TYPE_CHECKING
 
+from firebreak.cache import ERASED
 from firebreak.devices import DEVICES
 from firebreak.host import USER_SERIAL, command, getvar, in_fastboot
 from firebreak.report import labelled
-from firebreak.ui import FatalError
+from firebreak.ui import SESSION, FatalError, warn
+from firebreak.unlocks.targets import DEFAULTS, TARGETS
 
 if TYPE_CHECKING:
     from firebreak.plugin import Device, Target
@@ -20,6 +23,7 @@ if TYPE_CHECKING:
 ECHO_IDS = frozenset({(0x0BB4, 0x0C01), (0x18D1, 0x4EE2), (0x18D1, 0xD001)})
 ECHO_VENDORS = frozenset({0x0E8D, 0x1949})
 INSTANCE_PARTS = 3
+POLL = 2
 SERIAL_SHOWN = 4
 SYSFS_USB = pathlib.Path("/sys/bus/usb/devices")
 TWRP_ID = (0x18D1, 0xD001)
@@ -67,6 +71,45 @@ def check_target(*, target: Target) -> None:
     raise FatalError(
         message=f"this is an {identity.device.title}, by its {identity.how}, and"
         f" {target.name} is for the {target.device.title}, so nothing was done."
+    )
+
+
+def choose_target(*, device: Device | None, name: str | None) -> Target:
+    choices = [
+        targets[name or DEFAULTS[each]]
+        for each, targets in TARGETS.items()
+        if device in {None, each} and (name or DEFAULTS[each]) in targets
+    ]
+    if len(choices) == 1:
+        check_target(target=choices[0])
+        return choices[0]
+    devices = " or ".join(
+        f"{target.device.name} for the {target.device.title}" for target in choices
+    )
+    identity = identify()
+    waited = False
+    while identity.device is None and not (SESSION.short or ERASED.exists()):
+        if not waited:
+            warn(
+                text="Waiting for the Echo to name its device. One that shows no"
+                f" light never does: stop this and run it again with --device:"
+                f" {devices}."
+            )
+            waited = True
+        time.sleep(POLL)
+        identity = identify()
+    for target in choices:
+        if target.device == identity.device:
+            return target
+    if identity.device is None:
+        raise FatalError(
+            message=f"firebreak cannot tell which Echo this is, by its"
+            f" {identity.how}, so nothing was done. Run it again with --device:"
+            f" {devices}."
+        )
+    raise FatalError(
+        message=f"this is an {identity.device.title}, by its {identity.how}, and"
+        f" firebreak has no {name or 'default'} target for it, so nothing was done."
     )
 
 

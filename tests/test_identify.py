@@ -12,10 +12,12 @@ import pytest
 from firebreak import identify
 from firebreak.devices import BISCUIT, CROWN, RADAR
 from firebreak.ui import FatalError
-from firebreak.unlocks.targets import TARGETS
+from firebreak.unlocks.targets import DEFAULTS, TARGETS
 
 if TYPE_CHECKING:
     import pathlib
+
+    from firebreak.plugin import Target
 
 AEOBC = identify.UsbDevice(
     manufacturer="MediaTek",
@@ -60,6 +62,22 @@ def connected(
     monkeypatch.setattr(name="usb_devices", target=identify, value=lambda: usb or [])
 
 
+def radar_too(*, monkeypatch: pytest.MonkeyPatch) -> dict[str, Target]:
+    radar = {
+        name: dataclasses.replace(TARGETS[BISCUIT]["stock"], device=RADAR, name=name)
+        for name in ("stock", "amonet-radar-v1.0.0")
+    }
+    monkeypatch.setattr(
+        name="TARGETS", target=identify, value={**TARGETS, RADAR: radar}
+    )
+    monkeypatch.setattr(
+        name="DEFAULTS",
+        target=identify,
+        value={**DEFAULTS, RADAR: "amonet-radar-v1.0.0"},
+    )
+    return radar
+
+
 def test_a_booted_dot_is_named_by_its_usb_product(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -92,7 +110,129 @@ def test_a_matching_or_unknown_device_is_let_through(
     *, monkeypatch: pytest.MonkeyPatch, usb: list[identify.UsbDevice]
 ) -> None:
     connected(monkeypatch=monkeypatch, usb=usb)
-    identify.check_target(target=TARGETS["stock"])
+    identify.check_target(target=TARGETS[BISCUIT]["stock"])
+
+
+@pytest.mark.parametrize("usb", [[AEOBC], []], ids=["biscuit", "unknown"])
+def test_a_name_one_device_has_is_checked_against_it(
+    *, monkeypatch: pytest.MonkeyPatch, usb: list[identify.UsbDevice]
+) -> None:
+    connected(monkeypatch=monkeypatch, usb=usb)
+    assert (
+        identify.choose_target(device=None, name=None)
+        == (TARGETS[BISCUIT]["amonet-biscuit-v1.1.0-bboe"])
+    )
+    connected(monkeypatch=monkeypatch, usb=[AEORD])
+    with pytest.raises(FatalError, match="this is an Echo \\(2nd Generation\\)"):
+        identify.choose_target(device=None, name="stock")
+
+
+@pytest.mark.parametrize(
+    argnames=("name", "chosen"),
+    argvalues=[(None, "amonet-biscuit-v1.1.0-bboe"), ("stock", "stock")],
+    ids=["default", "stock"],
+)
+def test_a_name_two_devices_share_is_chosen_by_the_device(
+    *, chosen: str, monkeypatch: pytest.MonkeyPatch, name: str | None
+) -> None:
+    radar_too(monkeypatch=monkeypatch)
+    connected(monkeypatch=monkeypatch, usb=[AEOBC])
+    assert identify.choose_target(device=None, name=name) == TARGETS[BISCUIT][chosen]
+
+
+def test_a_name_two_devices_share_is_radar_s_on_a_radar(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    radar = radar_too(monkeypatch=monkeypatch)
+    connected(fastboot="RADAR", monkeypatch=monkeypatch)
+    assert identify.choose_target(device=None, name="stock") == radar["stock"]
+    assert (
+        identify.choose_target(device=None, name=None) == (radar["amonet-radar-v1.0.0"])
+    )
+
+
+def test_a_name_two_devices_share_is_refused_on_an_echo_in_its_bootrom(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    radar_too(monkeypatch=monkeypatch)
+    connected(monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="ERASED", target=identify, value=tmp_path / "erased")
+    monkeypatch.setattr(name="short", target=identify.SESSION, value=True)
+    monkeypatch.setattr(name="sleep", target=identify.time, value=pytest.fail)
+    with pytest.raises(FatalError) as caught:
+        identify.choose_target(device=None, name=None)
+    assert caught.value.message == (
+        "firebreak cannot tell which Echo this is, by its USB product nothing, so"
+        " nothing was done. Run it again with --device: biscuit for the Echo Dot"
+        " (2nd Generation) or radar for the Echo (2nd Generation)."
+    )
+    monkeypatch.setattr(name="short", target=identify.SESSION, value=False)
+    (tmp_path / "erased").touch()
+    with pytest.raises(FatalError, match="cannot tell which Echo"):
+        identify.choose_target(device=None, name=None)
+
+
+def test_a_name_two_devices_share_waits_for_the_echo_to_name_its_device(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    radar = radar_too(monkeypatch=monkeypatch)
+    connected(monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="ERASED", target=identify, value=tmp_path / "erased")
+    monkeypatch.setattr(name="short", target=identify.SESSION, value=False)
+    slept: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        slept.append(seconds)
+        if len(slept) == 2:
+            connected(fastboot="RADAR", monkeypatch=monkeypatch)
+
+    monkeypatch.setattr(name="sleep", target=identify.time, value=sleep)
+    assert identify.choose_target(device=None, name="stock") == radar["stock"]
+    assert slept == [identify.POLL, identify.POLL]
+    assert capsys.readouterr().out.count("Waiting for the Echo") == 1
+
+
+@pytest.mark.parametrize("name", [None, "stock"], ids=["default", "stock"])
+def test_a_name_with_no_target_for_the_device_is_refused(
+    *, monkeypatch: pytest.MonkeyPatch, name: str | None
+) -> None:
+    radar_too(monkeypatch=monkeypatch)
+    connected(fastboot="CROWN", monkeypatch=monkeypatch)
+    with pytest.raises(FatalError) as caught:
+        identify.choose_target(device=None, name=name)
+    assert caught.value.message == (
+        "this is an Echo Show 8 (1st Generation), by its fastboot product CROWN,"
+        f" and firebreak has no {name or 'default'} target for it, so nothing was"
+        " done."
+    )
+
+
+@pytest.mark.parametrize("name", [None, "stock"], ids=["default", "stock"])
+def test_a_named_device_chooses_its_target_on_an_unknown_echo(
+    *, monkeypatch: pytest.MonkeyPatch, name: str | None
+) -> None:
+    radar = radar_too(monkeypatch=monkeypatch)
+    connected(monkeypatch=monkeypatch)
+    assert (
+        identify.choose_target(device=RADAR, name=name)
+        == (radar[name or "amonet-radar-v1.0.0"])
+    )
+
+
+def test_a_named_device_is_refused_on_another_device(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    radar_too(monkeypatch=monkeypatch)
+    connected(monkeypatch=monkeypatch, usb=[AEOBC])
+    with pytest.raises(FatalError) as caught:
+        identify.choose_target(device=RADAR, name="stock")
+    assert caught.value.message == (
+        "this is an Echo Dot (2nd Generation), by its USB product 'AEOBC', and"
+        " stock is for the Echo (2nd Generation), so nothing was done."
+    )
 
 
 @pytest.mark.parametrize(
@@ -129,7 +269,7 @@ def test_a_target_for_another_device_is_refused_before_anything_runs(
 ) -> None:
     connected(monkeypatch=monkeypatch, usb=[usb])
     with pytest.raises(FatalError, match=f"this is an {re.escape(title)}") as caught:
-        identify.check_target(target=TARGETS["stock"])
+        identify.check_target(target=TARGETS[BISCUIT]["stock"])
     assert "stock is for the Echo Dot (2nd Generation)" in str(caught.value)
 
 

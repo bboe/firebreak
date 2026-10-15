@@ -87,6 +87,7 @@ class Target:
     goal: enum.Enum
     installs: FireOs5 | FireOs6
     name: str
+    summary: str
     unlock: Unlock | None
 
 

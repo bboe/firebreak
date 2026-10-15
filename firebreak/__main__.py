@@ -17,12 +17,13 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import textwrap
 
 from firebreak import __version__, updates
 from firebreak.cache import make_cache
 from firebreak.emos import child_emos
 from firebreak.host import check_adb, check_python, check_root, check_user
-from firebreak.identify import check_target
+from firebreak.identify import choose_target
 from firebreak.route import root
 from firebreak.support import report, write_test
 from firebreak.survey import survey_all
@@ -38,17 +39,9 @@ from firebreak.ui import (
     upgrade,
     warn,
 )
-from firebreak.unlocks import (
-    amonet_biscuit_v1_1_0,
-    amonet_biscuit_v1_1_0_bboe,
-    amonet_biscuit_v2_0_0,
-)
-from firebreak.unlocks.targets import TARGETS
+from firebreak.unlocks.targets import DEFAULTS, STOCK, TARGETS
 from firebreak.write_test import EMMC_TARGET
 
-AMONET_BISCUIT_V1_1_0 = amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0.name
-AMONET_BISCUIT_V1_1_0_BBOE = amonet_biscuit_v1_1_0_bboe.AMONET_BISCUIT_V1_1_0_BBOE.name
-AMONET_BISCUIT_V2_0_0 = amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0.name
 CREDITS = """firebreak automates work that other people did first.
 
 xyz wrote amonet, a MediaTek bootrom exploit. firebreak's bootrom and payload
@@ -72,7 +65,6 @@ mtkclient, by bkerler, agrees with two of firebreak's bootrom addresses.
 ftvdb keeps the Fire OS builds that the tables link to.
   https://ftvdb.com/"""
 SURVEY = "survey"
-TWRP_VERSION = amonet_biscuit_v1_1_0_bboe.TWRP_VERSION
 
 
 def check_for_update() -> None:
@@ -105,20 +97,11 @@ def cli() -> None:
             reverse=True,
         )
     )
-    installs = TARGETS[AMONET_BISCUIT_V2_0_0].installs
+    devices = {device.name: device for device in TARGETS}
+    names = sorted({name for targets in TARGETS.values() for name in targets})
     parser = argparse.ArgumentParser(
         description=__doc__,
-        epilog=f"""targets:
-  {AMONET_BISCUIT_V1_1_0_BBOE}, the default
-      rooted Fire OS 5.5.5.4 on amonet v1.1.0, with TWRP {TWRP_VERSION}.
-  {AMONET_BISCUIT_V1_1_0}
-      the same, with amonet v1.1.0's own TWRP 3.2.3.
-  {AMONET_BISCUIT_V2_0_0}
-      amonet v2.0.0's own procedure: Fire OS 6 {installs.build}
-      with boot-root.zip's root adb.
-  stock [BUILD]
-      Amazon's Fire OS BUILD, {updates.DEFAULT_BUILD} when left out, which
-      erases the whole Dot.
+        epilog=f"""{target_help()}
 Run again with another target to move the Dot to it.
 
   survey OTA [OTA ...]
@@ -155,6 +138,13 @@ Run again with another target to move the Dot to it.
         " wait for its bootrom, say when the short may come off, then go on",
     )
     parser.add_argument(
+        "--device",
+        choices=devices,
+        help="the device the target is for, which firebreak otherwise reads from"
+        " the Echo: "
+        + ", ".join(f"{device.name} for the {device.title}" for device in TARGETS),
+    )
+    parser.add_argument(
         "--credits",
         action="version",
         help="print who did the work firebreak builds on, and stop",
@@ -170,8 +160,7 @@ Run again with another target to move the Dot to it.
     )
     parser.add_argument(
         "target",
-        choices=(*TARGETS, SURVEY),
-        default=AMONET_BISCUIT_V1_1_0_BBOE,
+        choices=(*names, SURVEY),
         help=f"the target, one of those listed below, or {SURVEY}",
         metavar="TARGET",
         nargs="?",
@@ -189,14 +178,15 @@ Run again with another target to move the Dot to it.
     if options.target == SURVEY:
         survey_from(options=options, parser=parser)
         return
-    target = TARGETS[options.target]
-    stock = target.unlock is None
+    device = devices.get(options.device)
+    if device and options.target and options.target not in TARGETS[device]:
+        parser.error(message=f"the {device.title} has no target {options.target}")
+    stock = options.target == STOCK
     if options.rest and not stock:
         parser.error(message="only stock takes a BUILD: " + builds)
     if len(options.rest) > 1 or not set(options.rest) <= set(updates.BUILDS):
         parser.error(message="stock takes one BUILD: " + builds)
     ARGUMENTS.build = (options.rest or [updates.DEFAULT_BUILD if stock else ""])[0]
-    ARGUMENTS.target = target
     ARGUMENTS.verbose = options.verbose
     check_python()
     for tool in ("adb", "fastboot"):
@@ -216,7 +206,7 @@ Run again with another target to move the Dot to it.
     if options.write_test:
         write_test()
         return
-    check_target(target=target)
+    ARGUMENTS.target = choose_target(device=device, name=options.target)
     root()
 
 
@@ -243,13 +233,37 @@ def survey_from(
 ) -> None:
     if not options.rest:
         parser.error(message=f"{SURVEY} needs at least one OTA")
-    if options.report or options.write_test or options.short:
+    if options.report or options.write_test or options.short or options.device:
         parser.error(
-            message=f"{SURVEY} takes none of --report, --write-test and --short"
+            message=f"{SURVEY} takes none of --report, --write-test, --short and"
+            " --device"
         )
     check_root()
     make_cache()
     survey_all(paths=[pathlib.Path(path) for path in options.rest])
+
+
+def target_help() -> str:
+    lines = []
+    for device, targets in TARGETS.items():
+        lines.append(f"targets for the {device.title}:")
+        default = DEFAULTS[device]
+        for target in sorted(
+            targets.values(), key=lambda target: (target.name != default, target.name)
+        ):
+            name = target.name + (" [BUILD]" if target.name == STOCK else "")
+            lines.append(
+                f"  {name}, the default" if target.name == default else f"  {name}"
+            )
+            lines.extend(
+                textwrap.wrap(
+                    initial_indent=" " * 6,
+                    subsequent_indent=" " * 6,
+                    text=target.summary,
+                    width=74,
+                )
+            )
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

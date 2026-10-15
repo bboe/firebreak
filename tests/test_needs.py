@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import cache, plan, route, unlock, updates
+from firebreak.devices import BISCUIT
 from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_0
 from firebreak.unlocks.targets import TARGETS
 
@@ -128,11 +129,13 @@ def scanned(*, run: Callable[..., object]) -> Scan:
     return scan
 
 
-@pytest.mark.parametrize("name", sorted(TARGETS))
+@pytest.mark.parametrize("name", sorted(TARGETS[BISCUIT]))
 def test_each_stage_needs_what_its_code_downloads(
     *, monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
-    monkeypatch.setattr(name="target", target=route.ARGUMENTS, value=TARGETS[name])
+    monkeypatch.setattr(
+        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
+    )
     for state, stage in route.stages().items():
         needs: set[object] = set()
         for need in stage.needs:

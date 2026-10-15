@@ -153,6 +153,15 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   before each write still guard it. The bootrom and the preloader name no
   product, so a Dot that shows no light is left to the bootrom step's own
   check.
+- Two devices can have a target of the same name: `stock`, and the default
+  when no target is named. Then the device found chooses which one runs. Until
+  one is found, the run waits, as it waits for a Dot, and says once that an
+  Echo that shows no light never names one. With `--short`, or with
+  `boot0-erased` in the cache, the Echo is in its bootrom, so the run stops at
+  once and asks for `--device`. It never guesses: each unlock writes a
+  preloader made for its own device, and nothing here has run one device's
+  preloader on another. A target name that only one device has, or one
+  `--device` names, is checked as above.
 - In fastboot, the report also prints `antirback_pl_version`,
   `antirback_tee_version` and `antirback_lk_version`.
 - The report shows only the first 4 characters of a serial number. Amazon's
