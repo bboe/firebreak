@@ -39,7 +39,17 @@ from firebreak.report import (
     whole,
 )
 from firebreak.twrp import DISK, TABLE_OK
-from firebreak.ui import PROGRESS, SESSION, SUPPORT, WAIT, program, say, show, status
+from firebreak.ui import (
+    PROGRESS,
+    SESSION,
+    SUPPORT,
+    WAIT,
+    invocation,
+    program,
+    say,
+    show,
+    status,
+)
 from firebreak.unlock import amonet_v2_0_0_payload
 from firebreak.updates import BUILDS
 from firebreak.write_test import (
@@ -103,8 +113,8 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                 say(
                     text="This Dot's bootloader is locked, so it holds no recovery"
                     " to collect from and nothing here can give it one. Root it"
-                    " first: run firebreak again without --report, and follow"
-                    " what it asks."
+                    f" first: run {invocation(options=[])}, and follow what it"
+                    " asks."
                 )
                 return False
             PROGRESS.begin(estimate="40 s", label="restarting the Dot in its recovery")
@@ -136,8 +146,8 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                     say(
                         text="This Dot runs Fire OS without root, so its recovery"
                         " is Amazon's, which holds nothing to collect from. Root it"
-                        " first: run firebreak again without --report, and follow"
-                        " what it asks."
+                        f" first: run {invocation(options=[])}, and follow what it"
+                        " asks."
                     )
                     return False
                 PROGRESS.begin(
@@ -171,7 +181,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
             say(
                 text="The Dot did not come back in a recovery that answers adb"
                 " within 3 minutes. It is most likely in Amazon's recovery, which a"
-                " root run replaces: run firebreak again without --report."
+                f" root run replaces: run {invocation(options=[])}."
             )
             return False
         time.sleep(5)

@@ -48,9 +48,9 @@ def test_asked_for_names_the_report_as_this_run_was_started(
     monkeypatch.setattr(name="argv", target=sys, value=["/home/me/firebreak.pyz"])
     monkeypatch.setattr(name="executable", target=sys, value="/usr/bin/python3")
     said = ui.asked_for()
-    assert "run python3 firebreak.pyz --report and paste" in said
+    assert "run python3 firebreak.pyz report and paste" in said
     assert "#support-device-unlocking in the EchoMuse Discord" in said
-    assert "python3 firebreak.pyz --write-test then tells" in said
+    assert "python3 firebreak.pyz write-test then tells" in said
 
 
 def test_clock() -> None:
@@ -136,9 +136,9 @@ def test_invocation_names_uvx_for_a_uvx_run(*, monkeypatch: pytest.MonkeyPatch) 
         name="argv", target=sys, value=["/c/archive-v0/x/bin/firebreak"]
     )
     monkeypatch.setattr(name="prefix", target=sys, value="/c/uv/archive-v0/x")
-    assert ui.invocation(options=["--report"]) == "uvx firebreak@latest --report"
+    assert ui.invocation(options=["report"]) == "uvx firebreak@latest report"
     monkeypatch.setattr(name="prefix", target=sys, value="/home/me/.venv")
-    assert ui.invocation(options=["--report"]) == "firebreak --report"
+    assert ui.invocation(options=["report"]) == "firebreak report"
 
 
 def test_mark_falls_back_to_ascii(*, monkeypatch: pytest.MonkeyPatch) -> None:

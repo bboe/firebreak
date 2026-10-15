@@ -122,24 +122,25 @@ driver](#windows).
 
 ## Reporting a problem
 
-When a run fails, run it again with `--report`, then please stop by
-`#support-device-unlocking` in the
-[EchoMuse Discord](https://discord.gg/vAPHMDvREG) and paste what it prints. It
-starts the Dot's recovery, prints what the Dot, its eMMC and this computer are,
-and the Dot's partition table, and writes no partition. A Dot already in a
-recovery stays there, and the Dot is left in its recovery afterwards.
+When a run fails, run firebreak again with the `report` command, as in
+`uvx firebreak@latest report`, then please stop by `#support-device-unlocking`
+in the [EchoMuse Discord](https://discord.gg/vAPHMDvREG) and paste what it
+prints. It starts the Dot's recovery, prints what the Dot, its eMMC and this
+computer are, and the Dot's partition table, and writes no partition. A Dot
+already in a recovery stays there, and the Dot is left in its recovery
+afterwards.
 
-`--report` also names the device and lists its USB devices. firebreak supports
+`report` also names the device and lists its USB devices. firebreak supports
 only the Echo Dot (2nd Generation), but the report is the same on other Echo
 devices, such as the Echo (2nd Generation), and helps add them.
 
-`--write-test` then tells a failing eMMC from a failing cable. It pushes a
+`write-test` then tells a failing eMMC from a failing cable. It pushes a
 pattern into the Dot's RAM, then has the Dot write it over its own `cache`
 partition and read it back, so nothing crosses USB. It erases `cache`, which
 holds nothing the Dot needs, and leaves an empty filesystem there, or says
 it could not.
 
-For a Dot that shows no light, `--write-test --short` reaches its bootrom as
+For a Dot that shows no light, `write-test --short` reaches its bootrom as
 [`--short`](#--short) does, writes a pattern over the end of `cache` from this
 computer, and reads it back. It says whether the eMMC refused a write or the
 bytes did not arrive, and puts back what was there when the Dot still answers.

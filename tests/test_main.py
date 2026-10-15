@@ -1,11 +1,32 @@
 from __future__ import annotations
 
+import argparse
 import sys
 
 import pytest
 import update_checker
 
 from firebreak import __main__ as main
+
+
+def parse_into_namespace(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    subparsers = argparse._SubParsersAction  # ruff: ignore[private-member-access]
+
+    def call(
+        self: argparse._SubParsersAction,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: list[str],
+        option_string: str | None = None,  # ruff: ignore[unused-function-argument]
+    ) -> None:
+        name, *rest = values
+        setattr(namespace, self.dest, name)
+        chosen = self._name_parser_map[name]
+        _, extras = chosen.parse_known_args(rest, namespace)
+        if extras:
+            parser.error(message="unrecognized arguments: " + " ".join(extras))
+
+    monkeypatch.setattr(name="__call__", target=subparsers, value=call)
 
 
 def test_a_child_does_not_check_for_an_update(
@@ -27,10 +48,13 @@ def test_a_child_does_not_check_for_an_update(
     argvalues=[
         (
             ["--device", "biscuit", "amonet-radar-v1.0.0"],
-            "argument TARGET: invalid choice",
+            "argument TARGET|COMMAND: invalid choice",
         ),
         (["--device", "radar"], "argument --device: invalid choice"),
-        (["--device", "biscuit", "survey", "x"], "survey takes none of"),
+        (
+            ["--device", "biscuit", "survey", "x"],
+            "survey takes no --device",
+        ),
     ],
     ids=["unknown-target", "device-without-targets", "survey"],
 )
@@ -154,6 +178,23 @@ def test_a_run_with_no_update_check_does_not_check(
         main.cli()
 
 
+@pytest.mark.parametrize("into_namespace", [False, True], ids=["3.9.6", "bpo-45235"])
+def test_an_option_before_a_command_that_does_not_take_it_is_refused(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    into_namespace: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if into_namespace:
+        parse_into_namespace(monkeypatch=monkeypatch)
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "--short", "report"]
+    )
+    with pytest.raises(SystemExit):
+        main.parsed()
+    assert "report takes no --short" in capsys.readouterr().err
+
+
 def test_no_newer_release_says_nothing(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -162,6 +203,47 @@ def test_no_newer_release_says_nothing(
     )
     main.check_for_update()
     assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize(
+    argnames=("arguments", "parsed"),
+    argvalues=[
+        ([], (None, "", False, None, False)),
+        (["--short"], (None, "", True, None, False)),
+        (["--short", "stock"], ("stock", "8149", True, None, False)),
+        (["stock", "4315", "--short"], ("stock", "4315", True, None, False)),
+        (
+            ["--verbose", "--device", "biscuit", "amonet-biscuit-v2.0.0"],
+            ("amonet-biscuit-v2.0.0", "", False, "biscuit", True),
+        ),
+        (
+            ["amonet-biscuit-v2.0.0", "--device", "biscuit", "--verbose"],
+            ("amonet-biscuit-v2.0.0", "", False, "biscuit", True),
+        ),
+        (["--short", "write-test"], ("write-test", "", True, None, False)),
+        (["write-test", "--short"], ("write-test", "", True, None, False)),
+        (["report", "--verbose"], ("report", "", False, None, True)),
+    ],
+)
+@pytest.mark.parametrize("into_namespace", [False, True], ids=["3.9.6", "bpo-45235"])
+def test_options_count_before_or_after_the_target_or_command(
+    *,
+    arguments: list[str],
+    into_namespace: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    parsed: tuple[object, ...],
+) -> None:
+    if into_namespace:
+        parse_into_namespace(monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", *arguments])
+    options = main.parsed()
+    assert (
+        options.command,
+        options.build,
+        options.short,
+        options.device,
+        options.verbose,
+    ) == parsed
 
 
 @pytest.mark.parametrize(

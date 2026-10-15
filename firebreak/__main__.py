@@ -64,7 +64,10 @@ mtkclient, by bkerler, agrees with two of firebreak's bootrom addresses.
   https://github.com/bkerler/mtkclient
 ftvdb keeps the Fire OS builds that the tables link to.
   https://ftvdb.com/"""
+DEVICES = {device.name: device for device in TARGETS}
+REPORT = "report"
 SURVEY = "survey"
+WRITE_TEST = "write-test"
 
 
 def check_for_update() -> None:
@@ -87,106 +90,13 @@ def child_main(*, arguments: list[str], name: str) -> int:
 
 
 def cli() -> None:
-    builds = ", ".join(
-        sorted(
-            updates.BUILDS,
-            key=lambda build: (
-                build not in updates.FIREOS5_BUILDS,
-                tuple(map(int, build.split("."))),
-            ),
-            reverse=True,
-        )
-    )
-    devices = {device.name: device for device in TARGETS}
-    names = sorted({name for targets in TARGETS.values() for name in targets})
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        epilog=f"""{target_help()}
-Run again with another target to move the Dot to it.
-
-  survey OTA [OTA ...]
-      not a target: read each Amazon OTA zip for the tables in
-      docs/devices.md. It needs no Dot.""",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        prog="firebreak",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="print each adb and fastboot command, its exit status and the"
-        " time, and each state the Dot reaches",
-    )
-    parser.add_argument(
-        "--report",
-        action="store_true",
-        help="print what the Dot and this computer are, and the Dot's partition"
-        " table, for a support request; it starts the Dot's recovery to read them"
-        " and writes no partition",
-    )
-    parser.add_argument(
-        "--write-test",
-        action="store_true",
-        help=f"write a known pattern over the Dot's {EMMC_TARGET} partition and"
-        " read it back, which tells a failing eMMC from a failing USB cable"
-        " because nothing crosses USB; it leaves a fresh empty filesystem there,"
-        " or says it could not",
-    )
-    parser.add_argument(
-        "--short",
-        action="store_true",
-        help="for a Dot that shows no light and needs its test point shorted:"
-        " wait for its bootrom, say when the short may come off, then go on",
-    )
-    parser.add_argument(
-        "--device",
-        choices=devices,
-        help="the device the target is for, which firebreak otherwise reads from"
-        " the Echo: "
-        + ", ".join(f"{device.name} for the {device.title}" for device in TARGETS),
-    )
-    parser.add_argument(
-        "--credits",
-        action="version",
-        help="print who did the work firebreak builds on, and stop",
-        version=CREDITS,
-    )
-    parser.add_argument(
-        "--no-update-check",
-        action="store_true",
-        help="do not ask PyPI whether a newer firebreak exists",
-    )
-    parser.add_argument(
-        "--version", action="version", version=f"firebreak {__version__}"
-    )
-    parser.add_argument(
-        "target",
-        choices=(*names, SURVEY),
-        help=f"the target, one of those listed below, or {SURVEY}",
-        metavar="TARGET",
-        nargs="?",
-    )
-    parser.add_argument(
-        "rest",
-        help="with stock, and only with stock: the BUILD to install, one of "
-        + builds
-        + f"; {updates.DEFAULT_BUILD} when left out. With {SURVEY}: each OTA"
-        " zip to read",
-        metavar="BUILD|OTA",
-        nargs="*",
-    )
-    options = parser.parse_intermixed_args()
-    if options.target == SURVEY:
-        survey_from(options=options, parser=parser)
+    options = parsed()
+    if options.command == SURVEY:
+        check_root()
+        make_cache()
+        survey_all(paths=[pathlib.Path(path) for path in options.otas])
         return
-    device = devices.get(options.device)
-    if device and options.target and options.target not in TARGETS[device]:
-        parser.error(message=f"the {device.title} has no target {options.target}")
-    stock = options.target == STOCK
-    if options.rest and not stock:
-        parser.error(message="only stock takes a BUILD: " + builds)
-    if len(options.rest) > 1 or not set(options.rest) <= set(updates.BUILDS):
-        parser.error(message="stock takes one BUILD: " + builds)
-    ARGUMENTS.build = (options.rest or [updates.DEFAULT_BUILD if stock else ""])[0]
+    ARGUMENTS.build = options.build
     ARGUMENTS.verbose = options.verbose
     check_python()
     for tool in ("adb", "fastboot"):
@@ -200,14 +110,23 @@ Run again with another target to move the Dot to it.
     check_adb()
     make_cache()
     SESSION.short = options.short
-    if options.report:
-        report()
+    command = {REPORT: report, WRITE_TEST: write_test}.get(options.command)
+    if command:
+        command()
         return
-    if options.write_test:
-        write_test()
-        return
-    ARGUMENTS.target = choose_target(device=device, name=options.target)
+    ARGUMENTS.target = choose_target(
+        device=DEVICES.get(options.device), name=options.command
+    )
     root()
+
+
+def listed(*, label: str, summary: str) -> list[str]:
+    return [
+        f"  {label}",
+        *textwrap.wrap(
+            initial_indent=" " * 6, subsequent_indent=" " * 6, text=summary, width=74
+        ),
+    ]
 
 
 def main() -> None:
@@ -228,19 +147,143 @@ def main() -> None:
         )
 
 
-def survey_from(
-    *, options: argparse.Namespace, parser: argparse.ArgumentParser
-) -> None:
-    if not options.rest:
-        parser.error(message=f"{SURVEY} needs at least one OTA")
-    if options.report or options.write_test or options.short or options.device:
-        parser.error(
-            message=f"{SURVEY} takes none of --report, --write-test, --short and"
-            " --device"
+def parsed() -> argparse.Namespace:
+    builds = sorted(
+        updates.BUILDS,
+        key=lambda build: (
+            build not in updates.FIREOS5_BUILDS,
+            tuple(map(int, build.split("."))),
+        ),
+        reverse=True,
+    )
+    common_parent = argparse.ArgumentParser(
+        add_help=False, argument_default=argparse.SUPPRESS
+    )
+    common_parent.add_argument(
+        "--verbose",
+        action="store_true",
+        help="print each adb and fastboot command, its exit status and the"
+        " time, and each state the Dot reaches",
+    )
+    common_parent.add_argument(
+        "--no-update-check",
+        action="store_true",
+        help="do not ask PyPI whether a newer firebreak exists",
+    )
+    short_parent = argparse.ArgumentParser(
+        add_help=False, argument_default=argparse.SUPPRESS
+    )
+    short_parent.add_argument(
+        "--short",
+        action="store_true",
+        help="for a Dot that shows no light and needs its test point shorted:"
+        " wait for its bootrom, say when the short may come off, then go on",
+    )
+    device_parent = argparse.ArgumentParser(
+        add_help=False, argument_default=argparse.SUPPRESS
+    )
+    device_parent.add_argument(
+        "--device",
+        choices=DEVICES,
+        help="the device the target is for, which firebreak otherwise reads from"
+        " the Echo: "
+        + ", ".join(f"{device.name} for the {device.title}" for device in TARGETS),
+    )
+    about = {
+        REPORT: "print what the Dot and this computer are, and the Dot's"
+        " partition table, for a support request. It starts the Dot's recovery"
+        " to read them and writes no partition.",
+        WRITE_TEST: f"write a known pattern over the Dot's {EMMC_TARGET}"
+        " partition and read it back, which tells a failing eMMC from a failing"
+        " USB cable because nothing crosses USB. It leaves a fresh empty"
+        " filesystem there, or says it could not.",
+        SURVEY: "read each Amazon OTA zip for the tables in docs/devices.md. It"
+        " needs no Dot.",
+    }
+    labels = {WRITE_TEST: " [--short]", SURVEY: " OTA [OTA ...]"}
+    commands_help = [
+        line
+        for name, summary in about.items()
+        for line in listed(label=name + labels.get(name, ""), summary=summary)
+    ]
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=f"""{target_help()}
+Run again with another target to move the Dot to it.
+
+commands, which are not targets:
+"""
+        + "\n".join(commands_help),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[common_parent, short_parent, device_parent],
+        prog="firebreak",
+    )
+    parser.add_argument(
+        "--credits",
+        action="version",
+        help="print who did the work firebreak builds on, and stop",
+        version=CREDITS,
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"firebreak {__version__}"
+    )
+    commands = parser.add_subparsers(
+        dest="command",
+        help="the target, or a command, one of those listed below",
+        metavar="TARGET|COMMAND",
+    )
+    summaries = {
+        name: target.summary
+        for targets in TARGETS.values()
+        for name, target in targets.items()
+    }
+    for name, summary in sorted(summaries.items()):
+        target = commands.add_parser(
+            name,
+            description=summary,
+            parents=[common_parent, short_parent, device_parent],
         )
-    check_root()
-    make_cache()
-    survey_all(paths=[pathlib.Path(path) for path in options.rest])
+        if name == STOCK:
+            target.add_argument(
+                "build",
+                choices=builds,
+                default=updates.DEFAULT_BUILD,
+                help="the build to install, one of "
+                + ", ".join(builds)
+                + f"; {updates.DEFAULT_BUILD} when left out",
+                metavar="BUILD",
+                nargs="?",
+            )
+    commands.add_parser(REPORT, description=about[REPORT], parents=[common_parent])
+    commands.add_parser(
+        WRITE_TEST, description=about[WRITE_TEST], parents=[common_parent, short_parent]
+    )
+    commands.add_parser(
+        SURVEY, description=about[SURVEY], parents=[common_parent]
+    ).add_argument("otas", help="an Amazon OTA zip", metavar="OTA", nargs="+")
+    options = parser.parse_args()
+    for option, default in (
+        ("build", ""),
+        ("device", None),
+        ("no_update_check", False),
+        ("short", False),
+        ("verbose", False),
+    ):
+        setattr(options, option, getattr(options, option, default))
+    takes = {REPORT: set(), SURVEY: set(), WRITE_TEST: {"short"}}.get(
+        options.command, {"device", "short"}
+    )
+    for option in sorted({"device", "short"} - takes):
+        if getattr(options, option):
+            parser.error(message=f"{options.command} takes no --{option}")
+    device = DEVICES.get(options.device)
+    if (
+        device
+        and options.command in summaries
+        and options.command not in TARGETS[device]
+    ):
+        parser.error(message=f"the {device.title} has no target {options.command}")
+    return options
 
 
 def target_help() -> str:
@@ -251,18 +294,10 @@ def target_help() -> str:
         for target in sorted(
             targets.values(), key=lambda target: (target.name != default, target.name)
         ):
-            name = target.name + (" [BUILD]" if target.name == STOCK else "")
-            lines.append(
-                f"  {name}, the default" if target.name == default else f"  {name}"
-            )
-            lines.extend(
-                textwrap.wrap(
-                    initial_indent=" " * 6,
-                    subsequent_indent=" " * 6,
-                    text=target.summary,
-                    width=74,
-                )
-            )
+            label = target.name + (" [BUILD]" if target.name == STOCK else "")
+            if target.name == default:
+                label += ", the default"
+            lines.extend(listed(label=label, summary=target.summary))
     return "\n".join(lines)
 
 

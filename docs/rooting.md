@@ -125,8 +125,8 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 ## Which device is plugged in
 
 - Before a run that installs a target, firebreak names the device and refuses
-  a target made for another one, before it downloads anything. `--report`
-  prints the same, and does not refuse. `--write-test` does not check: it
+  a target made for another one, before it downloads anything. `report`
+  prints the same, and does not refuse. `write-test` does not check: it
   writes only `cache`, by name, on any device.
 - It counts every USB device from MediaTek (`0e8d`) and Lab126 (`1949`), and
   from Google and HTC only the IDs an Echo uses: TWRP's `18d1:d001` and
@@ -362,7 +362,7 @@ ring read white.
 ## Reporting a problem
 
 - An issue report used to carry the failing step and nothing about the Dot.
-  `--report` collects firebreak's version, the host, the state, the build,
+  `report` collects firebreak's version, the host, the state, the build,
   the eMMC, the partition table with each name's node, and the kernel's own
   mmc lines. The version matters because `uvx firebreak@latest` can run a
   newer firebreak than the run that failed.
@@ -396,7 +396,7 @@ ring read white.
   run writes TWRP; when no adb recovery answers within 3 minutes, the report
   says that is the likely reason. The Dot is left
   in its recovery afterwards, and the report ends by saying so.
-- `--write-test` separates the card, the cable and the host, which a failed
+- `write-test` separates the card, the cable and the host, which a failed
   install's md5 cannot. It writes one pattern over two paths that share no
   hardware: into `/tmp`, which is RAM, for adb and the cable with no eMMC in
   it; and from the Dot to its own `cache`, for the card with no USB in it.
@@ -457,7 +457,7 @@ ring read white.
 - `amonet-biscuit-v2.0.0` wipes cache and `stock` formats it. The two
   `amonet-biscuit-v1.1.0` targets format userdata only, so a cache damaged
   before a run survives it.
-- `--write-test --short` runs the test through the bootrom instead, for a Dot
+- `write-test --short` runs the test through the bootrom instead, for a Dot
   that shows no light and so has no recovery. It reads the last 64 blocks of
   `cache` three times, then writes 1, 34 and 64 blocks there and reads each
   back, then writes the first read back. 34 is the partition table, the first

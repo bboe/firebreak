@@ -10,6 +10,7 @@ import zipfile
 import pytest
 
 from firebreak import __version__
+from firebreak.updates import BUILDS
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ZIPAPP = ROOT / "build" / "firebreak.pyz"
@@ -53,7 +54,17 @@ def test_only_stock_takes_a_build() -> None:
         text=True,
     )
     assert finished.returncode == 2
-    assert "only stock takes a BUILD" in finished.stderr
+    assert "unrecognized arguments: 8146" in finished.stderr
+
+
+def test_stock_help_lists_the_builds() -> None:
+    output = subprocess.run(
+        args=[sys.executable, "-m", "firebreak", "stock", "-h"],
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout
+    assert all(build in " ".join(output.split()) for build in BUILDS)
 
 
 def test_survey_takes_options_before_it(*, tmp_path: pathlib.Path) -> None:
@@ -72,10 +83,13 @@ def test_survey_takes_options_before_it(*, tmp_path: pathlib.Path) -> None:
 @pytest.mark.parametrize(
     argnames=("arguments", "message"),
     argvalues=[
-        (["stock", "4315", "8146"], "stock takes one BUILD"),
-        (["stock", "9999"], "stock takes one BUILD"),
-        (["survey"], "survey needs at least one OTA"),
-        (["--report", "survey", "x.zip"], "survey takes none of --report"),
+        (["stock", "4315", "8146"], "unrecognized arguments: 8146"),
+        (["stock", "9999"], "argument BUILD: invalid choice: '9999'"),
+        (["survey"], "the following arguments are required: OTA"),
+        (["--short", "survey", "x.zip"], "survey takes no --short"),
+        (["report", "--short"], "unrecognized arguments: --short"),
+        (["report", "8149"], "unrecognized arguments: 8149"),
+        (["--device", "biscuit", "write-test"], "write-test takes no --device"),
     ],
 )
 def test_the_positional_arguments_are_checked(
