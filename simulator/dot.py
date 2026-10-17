@@ -1,6 +1,7 @@
-"""Simulate an Echo Dot (2nd Generation) for firebreak.
+"""Simulate an Echo Dot (2nd Generation), or an Echo (2nd Generation), for
+firebreak.
 
-python3 simulator/dot.py create [--cache DIR] [--runner PID]
+python3 simulator/dot.py create [--cache DIR] [--device biscuit|radar] [--runner PID]
     [--start fastboot|no-light|stock-booted]
 python3 simulator/dot.py plug
 python3 simulator/dot.py status
@@ -52,6 +53,26 @@ BOOT0_SECTORS = 2048
 BOOT_SECONDS = float(os.environ.get("FIREBREAK_SIM_BOOT_SECONDS", "3"))
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
 DETACH_SHELL = "mkdir -p /sim/run && cat > /sim/run/loops && /sim/bin/sim-boot detach"
+DEVICES = {
+    "biscuit": {
+        "amonet": "amonet-biscuit-v2.0.0.zip",
+        "fastbricks": {"63cb91b-20221007_072309": "fastbrick-20221007.img"},
+        "kaeru": "bin/biscuit-kaeru.bin",
+        "model": "AEOBC",
+        "stock": "Fire OS 6.5.7.4 (stock 8146)",
+        "stock_lk": "63cb91b-20221007_072309",
+        "v2_lk": "63cb91b-20221007_072309",
+    },
+    "radar": {
+        "amonet": "amonet-radar-v1.0.0.zip",
+        "fastbricks": {"59779ca-20220524_183401": "fastbrick-20220524.img"},
+        "kaeru": "bin/radar-kaeru.bin",
+        "model": "AEORD",
+        "stock": "Fire OS 6.5.7.2 (stock 6436)",
+        "stock_lk": "63cb91b-20221007_073612",
+        "v2_lk": "59779ca-20220524_183401",
+    },
+}
 DISK_BYTES = 3917479936
 DOWNLOAD_SUFFIXES = frozenset({".bin", ".img", ".whl", ".zip"})
 FASTBOOT_FLAGS = frozenset({"-S", "-s"})
@@ -70,7 +91,6 @@ IMAGE = "firebreak-sim"
 INSIDE_PATH = "/sim/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 LEGACY_SERVICE_BYTES = 4096
 LK_FIREOS5 = "f379dba-20170906_000423"
-LK_FIREOS6 = "63cb91b-20221007_072309"
 LOCKED = "the command you input is restricted on locked hw"
 MTP_PROPS = ("ro.twrp.version", "sys.usb.config")
 PUSH_SHELL = 'cat > "$1" && { [ "$2" = 0 ] || chmod 666 "$1"; }'
@@ -136,7 +156,11 @@ def adb(*, arguments: list[str]) -> int:  # ruff: ignore[complex-structure, too-
     if verb == "devices":
         print("List of devices attached")
         if seen(state=state) in ADB_DEVICE_MODES:
-            extra = " usb:1-1 product:biscuit model:AEOBC device:biscuit transport_id:1"
+            device = state["device"]
+            extra = (
+                f" usb:1-1 product:{device} model:{DEVICES[device]['model']}"
+                f" device:{device} transport_id:1"
+            )
             print(f"{state['serial']}\t{state['mode']}{extra if '-l' in rest else ''}")
         print()
         return 0
@@ -236,7 +260,13 @@ def clone(*, source: pathlib.Path, target: pathlib.Path) -> None:
         shutil.copyfile(source, target)
 
 
-def create(*, cache: pathlib.Path, runner: int, start: str) -> None:
+def create(*, cache: pathlib.Path, device: str, runner: int, start: str) -> None:
+    if device != "biscuit" and start == "no-light":
+        message = (
+            f"a {device} cannot start with no light: bootrom.py knows only"
+            " biscuit's payloads"
+        )
+        raise SystemExit(message)
     refuse_real_caches()
     previous = load().get("runner") if STATE.exists() else None
     if previous and previous != runner and is_runner(pid=previous):
@@ -251,7 +281,8 @@ def create(*, cache: pathlib.Path, runner: int, start: str) -> None:
     state = {
         "cache": str(cache),
         "container": name,
-        "known": known_images(cache=cache),
+        "device": device,
+        "known": known_images(cache=cache, device=device),
         "mode": "none",
         "outcome": {},
         "runner": runner,
@@ -295,8 +326,8 @@ def create(*, cache: pathlib.Path, runner: int, start: str) -> None:
             b"EMMC_BOOT".ljust(SECTOR, b"\0") + b"BRLYT\0SIM STOCK PRELOADER"
         ).ljust(262144, b"\x5a"),
         "/dev/block/mmcblk0rpmb": stock_rpmb(),
-        f"{BY_NAME}/lk_a": stock_lk(),
-        f"{BY_NAME}/lk_b": stock_lk(),
+        f"{BY_NAME}/lk_a": stock_lk(device=device),
+        f"{BY_NAME}/lk_b": stock_lk(device=device),
         f"{BY_NAME}/recovery": b"ANDROID!SIM STOCK RECOVERY".ljust(1 << 20, b"\0"),
     }
     with tempfile.TemporaryDirectory() as folder:
@@ -306,7 +337,7 @@ def create(*, cache: pathlib.Path, runner: int, start: str) -> None:
             write_image(local=local, node=node, state=state)
     inside(
         command="mkdir -p /sim/stock"
-        " && printf 'ro.build.version.name=Fire OS 6.5.7.4 (stock 8146)\\n'"
+        f" && printf 'ro.build.version.name={DEVICES[device]['stock']}\\n'"
         " > /sim/stock/build.prop"
         " && i=0 && for p in system_a userdata cache; do i=$((i + 1));"
         " E2FSPROGS_FAKE_TIME=1700000000 mke2fs -q -F -t ext4"
@@ -339,6 +370,8 @@ def current() -> dict:
 
 
 def decide(*, facts: dict, into: str, state: dict) -> dict:  # ruff: ignore[complex-structure, too-many-return-statements, too-many-branches]
+    device = state["device"]
+    spec = DEVICES[device]
     known = state["known"]
     lk = identify(prefixes=facts["prefixes"].get("lk_a", {}), table=known["lk"])
     none = {"mode": "none", "why": ""}
@@ -346,7 +379,7 @@ def decide(*, facts: dict, into: str, state: dict) -> dict:  # ruff: ignore[comp
         return {"mode": "bootrom", "why": "boot0 holds no preloader"}
     if lk is None:
         return {**none, "why": "lk_a holds no LK this simulator knows"}
-    description = LK_FIREOS5 if lk == "v1" else LK_FIREOS6
+    description = {"stock": spec["stock_lk"], "v1": LK_FIREOS5}.get(lk, spec["v2_lk"])
     marker = (lk == "v1" and facts.get("expdb_fastboot")) or (
         lk == "v2" and facts.get("misc_fastboot")
     )
@@ -357,7 +390,7 @@ def decide(*, facts: dict, into: str, state: dict) -> dict:  # ruff: ignore[comp
             "mode": "fastboot",
             "vars": {
                 "lk_build_desc": description,
-                "product": "BISCUIT",
+                "product": device.upper(),
                 "unlock_status": "false" if lk == "stock" else "true",
             },
         }
@@ -377,6 +410,7 @@ def decide(*, facts: dict, into: str, state: dict) -> dict:  # ruff: ignore[comp
             "props": {
                 "ro.boot.lk_build_desc": description,
                 "ro.boot.slot_suffix": f"_{slot}",
+                "ro.product.device": device,
                 "ro.twrp.version": TWRPS[twrp],
                 "sys.usb.config": "mtp,adb",
             },
@@ -401,6 +435,7 @@ def decide(*, facts: dict, into: str, state: dict) -> dict:  # ruff: ignore[comp
                 "ro.boot.lk_build_desc": description,
                 "ro.boot.slot_suffix": f"_{slot}",
                 "ro.build.version.name": version,
+                "ro.product.device": device,
                 "sim.su": "1" if facts["magisk"] else "0",
                 "sys.boot_completed": "1",
                 "sys.usb.config": "mtp,adb",
@@ -420,6 +455,7 @@ def decide(*, facts: dict, into: str, state: dict) -> dict:  # ruff: ignore[comp
                     "ro.boot.lk_build_desc": description,
                     "ro.boot.slot_suffix": f"_{slot}",
                     "ro.build.version.name": version,
+                    "ro.product.device": device,
                     "sim.su": "0",
                     "sys.boot_completed": "1",
                 },
@@ -598,8 +634,9 @@ def fastboot(*, arguments: list[str]) -> int:  # ruff: ignore[complex-structure,
 
 
 def fastbrick(*, image: str, sparse: int | None, state: dict) -> int:
+    spec = DEVICES[state["device"]]
     description = state["vars"].get("lk_build_desc", "")
-    wanted = "fastbrick-20221007.img" if description == LK_FIREOS6 else "fastbrick.img"
+    wanted = spec["fastbricks"].get(description, "fastbrick.img")
     if pathlib.Path(image).name != wanted:
         print(
             "Sending 'brick' OKAY\nWriting 'brick' FAILED (remote: 'unknown partition')"
@@ -608,7 +645,7 @@ def fastbrick(*, image: str, sparse: int | None, state: dict) -> int:
     cache = pathlib.Path(state["cache"])
     writes = []
     with (
-        zipfile.ZipFile(cache / "amonet-biscuit-v2.0.0.zip") as v2,
+        zipfile.ZipFile(cache / spec["amonet"]) as v2,
         tempfile.TemporaryDirectory() as folder,
     ):
         upload = pathlib.Path(folder) / "brick"
@@ -618,7 +655,7 @@ def fastbrick(*, image: str, sparse: int | None, state: dict) -> int:
             ("lk_b", "bin/lk.bin"),
             ("tee2", "bin/tz.img"),
             ("tee1", "bin/tee-payload.bin"),
-            ("expdb", "bin/biscuit-kaeru.bin"),
+            ("expdb", spec["kaeru"]),
             ("recovery", "bin/twrp.img"),
         ):
             (upload / target).write_bytes(member(archive=v2, suffix=suffix))
@@ -738,21 +775,16 @@ def is_runner(*, pid: int) -> bool:
     return any(pathlib.Path(word).name == "run.sh" for word in said)
 
 
-def known_images(*, cache: pathlib.Path) -> dict:
-    with (
-        zipfile.ZipFile(cache / "amonet-biscuit-v1.1.0.zip") as v1,
-        zipfile.ZipFile(cache / "amonet-biscuit-v2.0.0.zip") as v2,
-    ):
-        lks = {
-            "v1": member(archive=v1, suffix="bin/lk.bin"),
-            "v2": member(archive=v2, suffix="bin/lk.bin"),
-        }
-        recoveries = {
-            "bboe": (cache / "twrp-3.7.0_9-bboe2-biscuit.img").read_bytes(),
-            "v1": member(archive=v1, suffix="bin/twrp.img"),
-            "v2": member(archive=v2, suffix="bin/twrp.img"),
-        }
-    lks["stock"] = stock_lk()
+def known_images(*, cache: pathlib.Path, device: str) -> dict:
+    with zipfile.ZipFile(cache / DEVICES[device]["amonet"]) as v2:
+        lks = {"v2": member(archive=v2, suffix="bin/lk.bin")}
+        recoveries = {"v2": member(archive=v2, suffix="bin/twrp.img")}
+    if device == "biscuit":
+        with zipfile.ZipFile(cache / "amonet-biscuit-v1.1.0.zip") as v1:
+            lks["v1"] = member(archive=v1, suffix="bin/lk.bin")
+            recoveries["v1"] = member(archive=v1, suffix="bin/twrp.img")
+        recoveries["bboe"] = (cache / "twrp-3.7.0_9-bboe2-biscuit.img").read_bytes()
+    lks["stock"] = stock_lk(device=device)
     return {
         "lk": {name: [len(data), md5(data=data)] for name, data in lks.items()},
         "recovery": {
@@ -804,6 +836,7 @@ def main() -> int:
     made.add_argument(
         "--cache", default=str(pathlib.Path.home() / ".cache" / "firebreak")
     )
+    made.add_argument("--device", choices=sorted(DEVICES), default="biscuit")
     made.add_argument("--runner", default=0, type=int)
     made.add_argument(
         "--start", choices=("fastboot", "no-light", "stock-booted"), default="fastboot"
@@ -819,6 +852,7 @@ def main() -> int:
     if options.action == "create":
         create(
             cache=pathlib.Path(options.cache),
+            device=options.device,
             runner=options.runner,
             start=options.start,
         )
@@ -1200,9 +1234,11 @@ def start_bootrom() -> None:
         )
 
 
-def stock_lk() -> bytes:
-    return (b"SIM STOCK LK " + LK_FIREOS6.encode() + b"\0product\0BISCUIT\0").ljust(
-        STOCK_LK_SIZE, b"\xa5"
+def stock_lk(*, device: str) -> bytes:
+    return (
+        (f"SIM STOCK LK {DEVICES[device]['stock_lk']}\0product\0{device.upper()}\0")
+        .encode()
+        .ljust(STOCK_LK_SIZE, b"\xa5")
     )
 
 

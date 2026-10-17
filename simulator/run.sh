@@ -1,6 +1,7 @@
 #!/bin/sh
-# Usage: [START=no-light] simulator/run.sh OUT TARGET [FLAG...]
-# Create a fresh simulated Dot, in stock fastboot or, with START=no-light,
+# Usage: [DEVICE=radar] [START=no-light] simulator/run.sh OUT TARGET [FLAG...]
+# Create a fresh simulated Dot, or with DEVICE=radar an Echo (2nd
+# Generation), in stock fastboot or, with START=no-light,
 # unplugged with boot0 erased and plugged in when firebreak asks for the
 # short. Run firebreak to TARGET with FLAGs, under the simulator's
 # virtualenv and with the simulator first on PATH, and leave
@@ -11,6 +12,7 @@ set -u
 here=$(cd "$(dirname "$0")" && pwd)
 out=$1 target=$2
 shift 2
+device=${DEVICE:-biscuit}
 start=${START:-fastboot}
 cache=${FIREBREAK_SIM_CACHE:-$HOME/.cache/firebreak-sim-cache}
 work=${FIREBREAK_SIM:-$HOME/.cache/firebreak-sim}
@@ -26,7 +28,7 @@ trap finish EXIT
 trap 'exit 130' HUP INT QUIT TERM
 FIREBREAK_SIM_SPEED=${FIREBREAK_SIM_SPEED:-20}
 export FIREBREAK_SIM_SPEED
-python3 "$here/dot.py" create --runner $$ --start "$start" >/dev/null || exit 1
+python3 "$here/dot.py" create --device "$device" --runner $$ --start "$start" >/dev/null || exit 1
 python=$work/venv/bin/python
 set -- env PYTHONPATH="$here/.." "$python" -m firebreak "$target" "$@"
 PATH="$here/bin:$PATH"
