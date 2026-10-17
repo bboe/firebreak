@@ -4,13 +4,17 @@ import hashlib
 import pathlib
 import subprocess
 import types
+import zipfile
 from typing import TYPE_CHECKING
 
 import pytest
 
 from firebreak import stock
 from firebreak.android.gpt import Partition
+from firebreak.devices import BISCUIT, RADAR
+from firebreak.survey import PROPERTIES
 from firebreak.ui import FatalError
+from firebreak.unlocks.targets import TARGETS
 
 if TYPE_CHECKING:
     from conftest import FakeAdb
@@ -53,11 +57,15 @@ def twrp(
 ) -> list[dict[str, object]]:
     monkeypatch.setenv(name="ANDROID_SERIAL", value="G000")
     monkeypatch.setattr(name="build", target=stock.ARGUMENTS, value="8146")
+    monkeypatch.setattr(
+        name="target", target=stock.ARGUMENTS, value=TARGETS[BISCUIT]["stock"]
+    )
+    monkeypatch.setattr(name="made_for", target=stock, value=lambda **_: "biscuit")
     adb.answers["sys.usb.config"] = ["mtp,adb"]
     adb.answers["ro.twrp.version"] = ["3.7.0_9-0"]
     adb.answers["toybox dd --help"] = ["yes"]
     adb.answers["for t in sgdisk"] = ["tools:"]
-    adb.answers["ro.product.device"] = ["biscuit"]
+    adb.answers["ro.product.device"] = ["biscuit\ndevice-named"]
     adb.answers["echo block"] = ["block"]
     adb.answers["mmcblk0boot0/size"] = [str(BOOT0_SECTORS)]
     adb.answers["slot_suffix"] = ["_a"]
@@ -301,6 +309,23 @@ def test_chain_writes_put_the_live_lk_slot_after_the_spare(*, adb: FakeAdb) -> N
     assert labels[3] == "write LK image to lk_a (live slot)"
 
 
+@pytest.mark.parametrize(
+    ("properties", "made"),
+    [
+        (b"ro.product.device=radar_puffin\n", "radar"),
+        (b"ro.product.device=biscuit\n", "biscuit"),
+        (b"ro.product.model=AEORD\n", ""),
+    ],
+)
+def test_made_for_names_the_device_an_ota_is_for(
+    *, made: str, properties: bytes, tmp_path: pathlib.Path
+) -> None:
+    update = tmp_path / "ota.bin"
+    with zipfile.ZipFile(file=update, mode="w") as archive:
+        archive.writestr(data=properties, zinfo_or_arcname=PROPERTIES)
+    assert stock.made_for(update=update) == made
+
+
 def test_the_stock_stage_builds_its_images_from_the_dot(
     *,
     capsys: pytest.CaptureFixture[str],
@@ -344,6 +369,23 @@ def test_the_stock_stage_can_be_cancelled_in_its_countdown(
     with pytest.raises(FatalError, match="stopped; nothing was written"):
         stock.stage_restore()
     assert twrp == []
+
+
+def test_the_stock_stage_checks_the_device_of_the_target(
+    *,
+    adb: FakeAdb,
+    monkeypatch: pytest.MonkeyPatch,
+    twrp: list[dict[str, object]],
+) -> None:
+    monkeypatch.setattr(
+        name="target", target=stock.ARGUMENTS, value=TARGETS[RADAR]["stock"]
+    )
+    monkeypatch.setattr(name="made_for", target=stock, value=lambda **_: "radar")
+    with pytest.raises(FatalError, match="not an Echo \\(2nd Generation\\)"):
+        stock.stage_restore()
+    adb.answers["ro.product.device"] = ["radar\ndevice-named"]
+    stock.stage_restore()
+    assert twrp
 
 
 def test_the_stock_stage_gives_up_on_a_twrp_that_never_starts(
@@ -415,6 +457,15 @@ def test_the_stock_stage_refuses_an_image_too_big_for_its_partition(
     assert twrp == []
 
 
+def test_the_stock_stage_refuses_an_ota_made_for_another_device(
+    *, monkeypatch: pytest.MonkeyPatch, twrp: list[dict[str, object]]
+) -> None:
+    monkeypatch.setattr(name="made_for", target=stock, value=lambda **_: "radar")
+    with pytest.raises(FatalError, match="OTA 8146 is for 'radar', not biscuit"):
+        stock.stage_restore()
+    assert not twrp
+
+
 def test_the_stock_stage_waits_for_twrp_to_finish_starting(
     *, adb: FakeAdb, twrp: list[dict[str, object]]
 ) -> None:
@@ -431,7 +482,8 @@ def test_the_stock_stage_waits_for_twrp_to_finish_starting(
         ("ro.twrp.version", "2.8.7.0", "this needs a TWRP for this Dot"),
         ("for t in sgdisk", "nothing", "did not answer which tools it has: nothing"),
         ("for t in sgdisk", "tools: sgdisk", "this TWRP has no sgdisk"),
-        ("ro.product.device", "crown", "TWRP reports the device 'crown'"),
+        ("ro.product.device", "crown\ndevice-named", "the device 'crown'"),
+        ("ro.product.device", "biscuit", "TWRP reports the device None"),
         ("echo block", "", "is not a block device"),
         ("mmcblk0boot0/size", "4", r"preloader\.img does not fit boot0 \(4 sectors\)"),
         ("blockdev --getsize64", "", "could not read the Dot's disk size"),

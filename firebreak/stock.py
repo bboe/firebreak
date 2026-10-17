@@ -6,6 +6,7 @@ import enum
 import os
 import subprocess
 import time
+import zipfile
 from typing import TYPE_CHECKING
 
 from firebreak import updates
@@ -26,6 +27,8 @@ from firebreak.plan import (
     BOOTLOADER_CONTROL_BLOCK_OFFSET,
     TABLE_SECTORS,
 )
+from firebreak.report import whole
+from firebreak.survey import build_properties
 from firebreak.twrp import (
     DISK,
     clear_boot0,
@@ -56,6 +59,7 @@ if TYPE_CHECKING:
 
 
 CHAIN_TEE = ("tee2", "tee1")
+NAMED = "device-named"
 STOCK_STEPS = 16
 TWRP_VERSIONS = ("3.2.", "3.7.")
 
@@ -157,6 +161,12 @@ def chain_writes() -> tuple[Step, ...]:
     )
 
 
+def made_for(*, update: pathlib.Path) -> str:
+    with zipfile.ZipFile(file=update) as archive:
+        named = build_properties(archive=archive).get("ro.product.device", "")
+    return named.removesuffix("_puffin")
+
+
 def reboot_into_fastboot() -> None:
     PROGRESS.begin(estimate="20 s", label="rebooting into fastboot")
     with contextlib.suppress(subprocess.TimeoutExpired):
@@ -175,7 +185,7 @@ def restore(  # ruff: ignore[complex-structure]
     unmount()
 
     PROGRESS.begin(estimate="5 s", label="clear the preloader header (boot0)")
-    ERASED.touch()
+    ERASED.write_text(ARGUMENTS.target.device.name)
     clear_boot0()
     PROGRESS.end()
 
@@ -275,9 +285,17 @@ def restore(  # ruff: ignore[complex-structure]
 
 def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
     build = ARGUMENTS.build
+    device = ARGUMENTS.target.device
     work = CACHE / ("stock-" + build)
     work.mkdir(exist_ok=True, parents=True)
-    extract(update=updates.download(build=build), work=work)
+    update = updates.download(build=build, device=device)
+    made = made_for(update=update)
+    if made != device.name:
+        raise FatalError(
+            message=f"OTA {build} is for {made!r}, not {device.name}, so nothing"
+            " was written"
+        )
+    extract(update=update, work=work)
     deadline = time.monotonic() + 30
     version = ""
     while not version or "mtp" not in adb_shell(command="getprop sys.usb.config"):
@@ -305,11 +323,13 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
         raise FatalError(message="the Dot did not answer which tools it has: " + tools)
     if tools != "tools:":
         raise FatalError(message="this TWRP has no" + tools[len("tools:") :])
-    device = adb_shell(command="getprop ro.product.device")
-    if device != "biscuit":
+    named = whole(
+        marker=NAMED,
+        said=adb_shell(command=f"getprop ro.product.device; echo {NAMED}"),
+    )
+    if named != device.name:
         raise FatalError(
-            message="this is not an Echo Dot (2nd Gen): TWRP reports the"
-            f" device {device!r}"
+            message=f"this is not an {device.title}: TWRP reports the device {named!r}"
         )
 
     raw = read_sectors(count=TABLE_SECTORS, start=0)

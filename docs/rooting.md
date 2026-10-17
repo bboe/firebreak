@@ -165,6 +165,9 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   one with adb `unauthorized`, where `adb devices -l` gives no model. The
   read took about 0.05 s on macOS and 0.8 s on Windows. radar's strings are
   read from its images, not from a radar.
+- When no USB product names the device and adb answers in a recovery, it asks
+  `ro.product.device`. One radar's TWRP 3.7.0_9-0 gave only `Echo` on USB, so
+  without this a run on it waited for a name that never came.
 - A device that matches nothing, or no device, is let through: the checks
   before each write still guard it. The bootrom and the preloader name no
   product, so a Dot that shows no light is left to the bootrom step's own
@@ -172,9 +175,11 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - Two devices can have a target of the same name: `stock`, and the default
   when no target is named. Then the device found chooses which one runs. Until
   one is found, the run waits, as it waits for a Dot, and says once that an
-  Echo that shows no light never names one. With `--short`, or with
-  `boot0-erased` in the cache, the Echo is in its bootrom, so the run stops at
-  once and asks for `--device`. It never guesses: each unlock writes a
+  Echo that shows no light never names one. `boot0-erased` holds the device
+  of the run that erased boot0, so a resume takes that device. With `--short`,
+  or with a `boot0-erased` that names none, as an older firebreak left it, the
+  Echo is in its bootrom, so the run stops at once and asks for `--device`.
+  It never guesses: each unlock writes a
   preloader made for its own device, and nothing here has run one device's
   preloader on another. A target name that only one device has, or one
   `--device` names, is checked as above.
@@ -1332,6 +1337,18 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
 
 - Only `stock` takes a `BUILD`, and without one it installs 8149. The run
   downloads the build before it touches the Dot.
+- Each device has its own builds. biscuit's and radar's OTAs share build
+  numbers but not firmware, so the run picks the build only after it knows
+  the device. radar has one, 6436, Fire OS 6.5.7.2, its newest. radar has no
+  default target, so `--device radar` without a target is refused.
+- Before it writes anything, the restore checks that the OTA's
+  `ro.product.device`, without `_puffin`, names the device. A wrong entry in
+  the build table would otherwise write one device's bootloaders on another.
+- radar's restore has not run on a radar. Its stock table, boot0 and
+  partitions are biscuit's, except where `userdata` ends, so it takes the same
+  steps. The restore ends `userdata` at the table's last usable sector. One
+  radar with an 8 GB eMMC had `userdata` end 3.7 GiB before that, so its
+  restore would give `userdata` the rest of the disk.
 - `--fastboot` leaves the Dot in fastboot at the end, with `adb reboot
   bootloader` after the last write, so the next run needs no button held. Only
   `stock` takes it. 5.5.0.3 refuses it, because that restore ends in the

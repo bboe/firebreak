@@ -143,9 +143,11 @@ computer are, and the Dot's partition table, and writes no partition. A Dot
 already in a recovery stays there, and the Dot is left in its recovery
 afterwards.
 
-`report` also names the device and lists its USB devices. firebreak supports
-only the Echo Dot (2nd Generation), but the report is the same on other Echo
-devices, such as the Echo (2nd Generation), and helps add them.
+`report` also names the device and lists its USB devices. firebreak's
+targets are for the Echo Dot (2nd Generation), except `stock`, which also
+returns an Echo (2nd Generation) on amonet to stock Fire OS 6
+[6436][fireos-radar-6436]. That has not run on one yet. The report is the
+same on other Echo devices and helps add them.
 
 `write-test` then tells a failing eMMC from a failing cable. It pushes a
 pattern into the Dot's RAM, then has the Dot write it over its own `cache`
@@ -200,5 +202,6 @@ endorsed by, or supported by Amazon.
 [fireos-5554]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/805e721e1bed461d8a81015a1f703fc1-680767620-fire-os-5-5-5-4-680767620-2022-11-18/
 [fireos-8146]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/8ca06ee4ef2806c974d2944b7fadd543-13222531716-fire-os-6574-1-ns65741-8146-2026-09-17/
 [fireos-8149]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/a01de630f6d943dddc9b751ae74bbb52-13222532484-fire-os-6574-1-ns65741-8149-2026-09-29/
+[fireos-radar-6436]: https://ftvdb.com/echo/firmware/com.amazon.radar.android.os/17af64ecc5b8f0303daf4e2a37c75b1a-12718777476-fire-os-6-5-7-2-ns6572-6436-2026-03-21/
 [licence]: https://github.com/bboe/firebreak/blob/main/LICENSE.txt
 [rooting]: https://github.com/bboe/firebreak/blob/main/docs/rooting.md

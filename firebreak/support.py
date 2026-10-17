@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from firebreak import __version__
 from firebreak.bootrom_write_test import bootrom_write_test
 from firebreak.cache import CACHE
-from firebreak.devices import BY_NAME, FASTBOOT_MODE
+from firebreak.devices import BISCUIT, BY_NAME, FASTBOOT_MODE
 from firebreak.host import (
     adb_shell,
     getvar,
@@ -211,7 +211,7 @@ def report() -> None:
     line("state in recovery", probed())
     for text in dot_details(asked=asked):
         show(text=text)
-    held = CACHE / f"system-{BUILDS['5.5.5.4'].sha256[:12]}" / "md5"
+    held = CACHE / f"system-{BUILDS[BISCUIT]['5.5.5.4'].sha256[:12]}" / "md5"
     want, needs = system_record(text=held.read_text() if held.is_file() else "")
     if needs:
         line("system image", f"{needs} bytes, md5 {want}")

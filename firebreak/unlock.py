@@ -12,7 +12,7 @@ from firebreak.devices import BISCUIT, LITTLE_KERNEL_DESCRIPTION, LK, UNLOCK_BUI
 from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconnect, run
 from firebreak.recovery import MD5_DIGITS
 from firebreak.twrp import DISK, partitions
-from firebreak.ui import PROGRESS, FatalError, again, asked_for
+from firebreak.ui import ARGUMENTS, PROGRESS, FatalError, again, asked_for
 from firebreak.unlocks import (
     amonet_biscuit_v1_1_0,
     amonet_biscuit_v1_1_0_bboe,
@@ -220,9 +220,20 @@ def stage_unlock() -> bool:
             " this cannot unlock, so nothing was written. " + again()
         )
     build = UNLOCK_BUILDS[little_kernel]
+    device = ARGUMENTS.target.device
+    if build not in updates.BUILDS[device]:
+        raise FatalError(
+            message=f"the bootloader {little_kernel!r} is Fire OS {build}'s, and"
+            f" firebreak has no {build} for the {device.title}, so nothing was"
+            " written. " + again()
+        )
     work = CACHE / ("stock-" + build)
     work.mkdir(exist_ok=True, parents=True)
-    extract(update=updates.download(build=build), wanted=("lk",), work=work)
+    extract(
+        update=updates.download(build=build, device=ARGUMENTS.target.device),
+        wanted=("lk",),
+        work=work,
+    )
     payload = lk_unlock.write(
         image=work / "lk.img", path=CACHE / ("unlock-" + build + ".img")
     )
@@ -234,7 +245,7 @@ def stage_unlock() -> bool:
     PROGRESS.begin(
         estimate="5 s", label="erasing boot0 so the Dot falls into its bootrom"
     )
-    ERASED.touch()
+    ERASED.write_text(ARGUMENTS.target.device.name)
     failed = erase_by_fastboot()
     if failed:
         raise FatalError(message=failed + " " + again())

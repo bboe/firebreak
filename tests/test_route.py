@@ -302,12 +302,12 @@ def test_a_fire_os_5_route_fetches_what_it_needs_and_builds_the_system(
             amonet_biscuit_v2_0_0.SOURCE.name,
             amonet_biscuit_v1_1_0.SOURCE.name,
             *twrp,
-            BUILDS["5.5.5.4"].name,
+            BUILDS[BISCUIT]["5.5.5.4"].name,
             "Magisk-v17.3.zip",
         ]
         * 2
     )
-    assert built == [BUILDS["5.5.5.4"]]
+    assert built == [BUILDS[BISCUIT]["5.5.5.4"]]
     assert shown == ["Finishing the downloads."] * 2
 
 
@@ -348,7 +348,7 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
                 route.pyserial_wheel,
                 amonet_biscuit_v2_0_0.SOURCE,
                 route.TWRP,
-                BUILDS["5.5.5.4"],
+                BUILDS[BISCUIT]["5.5.5.4"],
                 route.MAGISK,
                 route.start_prebuild,
             ],
@@ -555,7 +555,7 @@ def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
             then=route.State.AMONET_V2_0_0_TWRP,
         ),
         route.State.AMONET_V2_0_0_TWRP: route.Stage(
-            needs=(amonet_biscuit_v2_0_0.SOURCE, BUILDS["5.5.5.4"]),
+            needs=(amonet_biscuit_v2_0_0.SOURCE, BUILDS[BISCUIT]["5.5.5.4"]),
             run=lambda: None,
             steps=2,
             then=None,
@@ -567,7 +567,7 @@ def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
         route.root()
     assert run.checked == 1
     assert run.started == 1
-    assert [amonet_biscuit_v2_0_0.SOURCE, BUILDS["5.5.5.4"]] == route.DOWNLOADS
+    assert [amonet_biscuit_v2_0_0.SOURCE, BUILDS[BISCUIT]["5.5.5.4"]] == route.DOWNLOADS
     assert run.prefetched == []
 
 

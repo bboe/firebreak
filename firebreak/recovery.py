@@ -162,7 +162,7 @@ def carry_out(
         )
     checked = check(actions=(*table, *writes))
     PROGRESS.begin(estimate="10 s", label=f"write {unlock.family} v{unlock.version}")
-    ERASED.touch()
+    ERASED.write_text(unlock.device.name)
     answer = adb_shell(command=CLEAR_BOOT0, timeout=60).split()
     if answer[-2:] != ["4096", "0"]:
         if answer[-2:-1] == ["4096"]:
