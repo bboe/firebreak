@@ -184,6 +184,13 @@ partitions each OTA writes, for every build above, read as biscuit's are.
   it falls back to a bundled policy, and only radar 6302's and 6813's stock
   policy, `8f6dd232a590337314bb372e84b84e77`, has one. Nothing here has run
   it on a radar.
+- Biscuit's 8146 and 8149 policy, `885928a0`, has no bundled policy either,
+  and a rooted 8146 Dot's sepolicy is patched, so `magiskpolicy32` patched it.
+  6436's policy has the same header: policy version 30, and the same
+  configuration. It has each type and permission that the rules name.
+  `magiskpolicy32` needs only `libc.so`, `libdl.so` and `libm.so`, and 6436's
+  `/system/lib` has each. If the patch fails anyway, the zip goes on: root
+  works, and `pm`, `am` and `dumpsys` may not.
 - The stock sepolicy md5 of each radar build: 4305 `d88b3344`, 4929
   `88d5111f`, 6199 to 6220 `59fb0d21`, 6302 and 6813 `8f6dd232`, 6425 and
   6436 `ac9825e8`. Build numbers do not follow release order: 6302 is Fire

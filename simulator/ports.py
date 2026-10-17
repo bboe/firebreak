@@ -1,5 +1,6 @@
 """Show the simulated Dot's bootrom as the only serial port pyserial lists,
-and the simulated Dot as the only USB device firebreak.identify lists.
+and the simulated Dot as the only USB device firebreak.identify lists. Give
+firebreak.cache a Downloads folder in the state folder, not the user's.
 
 Run each process's clock FIREBREAK_SIM_SPEED times faster, except while a call
 to the simulated Dot or its eMMC runs.
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
 BOOTROM_PRODUCT_ID = 0x0003
 CHUNK_SECONDS = 0.05
 MEDIATEK_VENDOR_ID = 0x0E8D
-MODULES = ("firebreak.identify", "serial.tools.list_ports")
+MODULES = ("firebreak.cache", "firebreak.identify", "serial.tools.list_ports")
 NANOSECONDS = 1_000_000_000
 REAL_MONOTONIC = time.monotonic_ns
 REAL_SELECT = select.select
@@ -150,7 +151,9 @@ class Loader(importlib.abc.Loader):
         exec(  # ruff: ignore[exec-builtin]
             self.inner.get_code(module.__name__), module.__dict__
         )
-        if module.__name__ == "firebreak.identify":
+        if module.__name__ == "firebreak.cache":
+            module.downloads_dir = downloads_dir
+        elif module.__name__ == "firebreak.identify":
             module.usb_devices = usb_devices
         else:
             module.comports = comports
@@ -188,6 +191,10 @@ def comports(*_: object) -> list:
     info.product = "MT65xx Preloader"
     info.hwid = f"USB VID:PID={MEDIATEK_VENDOR_ID:04X}:{BOOTROM_PRODUCT_ID:04X}"
     return [info]
+
+
+def downloads_dir() -> pathlib.Path:
+    return WORK / "Downloads"
 
 
 def install_clock() -> Clock | None:
@@ -257,11 +264,18 @@ def usb_devices() -> list:
     if mode == "recovery" and state.get("outcome", {}).get("flavour") == "twrp-3.2.3":
         mode = "recovery 3.2.3"
     found = {
-        "device": (MEDIATEK_VENDOR_ID, 0x201C, "MediaTek", "AEOBC"),
-        "recovery": (0x18D1, 0xD001, "Amazon", "Echo Dot (2nd Gen)"),
-        "recovery 3.2.3": (0x18D1, 0x4EE2, "Amazon", "Echo Dot 2nd Gen"),
-        "unauthorized": (MEDIATEK_VENDOR_ID, 0x201C, "MediaTek", "AEOBC"),
-    }.get(mode)
+        "biscuit": {
+            "device": (MEDIATEK_VENDOR_ID, 0x201C, "MediaTek", "AEOBC"),
+            "recovery": (0x18D1, 0xD001, "Amazon", "Echo Dot (2nd Gen)"),
+            "recovery 3.2.3": (0x18D1, 0x4EE2, "Amazon", "Echo Dot 2nd Gen"),
+            "unauthorized": (MEDIATEK_VENDOR_ID, 0x201C, "MediaTek", "AEOBC"),
+        },
+        "radar": {
+            "device": (MEDIATEK_VENDOR_ID, 0x201C, "MediaTek", "AEORD"),
+            "recovery": (0x18D1, 0x4EE2, "Amazon", "Echo"),
+            "unauthorized": (MEDIATEK_VENDOR_ID, 0x201C, "MediaTek", "AEORD"),
+        },
+    }[state.get("device", "biscuit")].get(mode)
     if found is None:
         return []
     vendor_id, product_id, manufacturer, product = found

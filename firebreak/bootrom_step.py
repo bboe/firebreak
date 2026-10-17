@@ -29,6 +29,7 @@ from firebreak.mediatek.usbdl import (
 from firebreak.plan import TABLE_SECTORS, Action, resolve
 from firebreak.plugin import BOOT0, Write
 from firebreak.ui import (
+    ARGUMENTS,
     MINUTE,
     PROGRESS,
     SESSION,
@@ -203,7 +204,7 @@ def bootrom_step(
     if wheel is not None and str(wheel) not in sys.path:
         sys.path.insert(0, str(wheel))
     if erase:
-        ERASED.touch()
+        ERASED.write_text(ARGUMENTS.target.device.name)
         failure = erase()
         if failure:
             raise FatalError(message=failure)
@@ -226,7 +227,7 @@ def bootrom_step(
     actions = bootrom.check(actions=bootloader_plan(amonet=amonet, live=live))
     if PROGRESS.steps:
         PROGRESS.steps += len(actions) - 1
-    ERASED.touch()
+    ERASED.write_text(ARGUMENTS.target.device.name)
     bootrom.execute(actions=actions, payload=live)
     with contextlib.suppress(OSError):
         client.port.close()

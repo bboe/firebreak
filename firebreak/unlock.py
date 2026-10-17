@@ -6,19 +6,22 @@ from typing import TYPE_CHECKING
 
 from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import ERASED, digest, fetch, unpack
-from firebreak.devices import BISCUIT, LITTLE_KERNEL_DESCRIPTION, LK
+from firebreak.devices import LITTLE_KERNEL_DESCRIPTION, LK
 from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconnect, run
 from firebreak.recovery import MD5_DIGITS
 from firebreak.twrp import DISK, partitions
-from firebreak.ui import PROGRESS, FatalError, again, asked_for
+from firebreak.ui import ARGUMENTS, PROGRESS, FatalError, again, asked_for
 from firebreak.unlocks import (
     amonet_biscuit_v1_1_0,
     amonet_biscuit_v1_1_0_bboe,
     amonet_biscuit_v2_0_0,
 )
+from firebreak.unlocks.targets import FASTBRICKS, TARGETS
 
 if TYPE_CHECKING:
     import pathlib
+
+    from firebreak.cache import Download
 
 
 def amonet_chain() -> None:
@@ -31,7 +34,7 @@ def amonet_chain() -> None:
     if any(amonet_lk(node=f"{DISK}p{part[slot][0]}") for slot in ("lk_a", "lk_b")):
         return
     raise FatalError(
-        message="neither lk_a nor lk_b holds amonet v2.0.0's or v1.1.0's LK, so"
+        message="neither lk_a nor lk_b holds an amonet LK for this device, so"
         " this Dot is locked and the recovery it started is one amonet left"
         " behind. Nothing was written. Unlock it first: unplug the USB cable,"
         " hold the action button, plug it back in, and let go when the ring"
@@ -40,7 +43,7 @@ def amonet_chain() -> None:
 
 
 def amonet_lk(*, node: str) -> bool:
-    for download in (amonet_biscuit_v2_0_0.SOURCE, amonet_biscuit_v1_1_0.SOURCE):
+    for download in amonet_sources():
         local = unpack(download=download) / "bin" / "lk.bin"
         want = digest(kind="md5", path=local)
         for attempt in range(PUSH_TRIES):
@@ -65,22 +68,37 @@ def amonet_lk(*, node: str) -> bool:
     return False
 
 
+def amonet_sources() -> tuple[Download, ...]:
+    device = ARGUMENTS.target.device
+    return tuple(
+        dict.fromkeys((
+            FASTBRICKS[device].source,
+            *(
+                target.unlock.source
+                for target in TARGETS[device].values()
+                if target.unlock
+            ),
+        ))
+    )
+
+
 def amonet_v2_0_0_payload() -> pathlib.Path:
     amonet = unpack(download=amonet_biscuit_v2_0_0.SOURCE)
     return amonet / "brom-payload" / "build" / "payload.bin"
 
 
 def check_product() -> None:
+    device = ARGUMENTS.target.device
     product = getvar(name="product")
     if not product:
         raise FatalError(
             message="fastboot reports no product, so nothing was written. " + again()
         )
-    if product != BISCUIT.product:
+    if product != device.product:
         raise FatalError(
-            message=f"fastboot reports {product!r}, not {BISCUIT.product}, so"
-            " nothing was"
-            " written. firebreak supports only the Echo Dot (2nd Generation)."
+            message=f"fastboot reports {product!r}, not {device.product}, so"
+            f" nothing was written. {ARGUMENTS.target.name} is for the"
+            f" {device.title}."
         )
 
 
@@ -168,7 +186,8 @@ def stage_downgrade() -> bool:
 
 
 def stage_fastbrick() -> None:
-    amonet = unpack(download=amonet_biscuit_v2_0_0.SOURCE)
+    fastbrick = FASTBRICKS[ARGUMENTS.target.device]
+    amonet = unpack(download=fastbrick.source)
     check_product()
     little_kernel = getvar(name="lk_build_desc")
     if not little_kernel:
@@ -176,10 +195,8 @@ def stage_fastbrick() -> None:
             message="fastboot did not report the bootloader version;"
             " the Dot was not modified"
         )
-    image = "bin/fastbrick.img"
-    if little_kernel in {LK.FIREOS6.value, LK.FIREOS6_4315.value}:
-        image = "bin/fastbrick-20221007.img"
-    PROGRESS.begin(estimate="10 s", label="unlocking with amonet v2.0.0")
+    image = fastbrick.fastbricks.get(little_kernel, "bin/fastbrick.img")
+    PROGRESS.begin(estimate="10 s", label=f"unlocking with {fastbrick.name}")
     for attempt in range(10):
         if attempt:
             time.sleep(2)
