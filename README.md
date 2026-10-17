@@ -131,10 +131,11 @@ already in a recovery stays there, and the Dot is left in its recovery
 afterwards.
 
 `report` also names the device and lists its USB devices. firebreak's
-targets are for the Echo Dot (2nd Generation), except `stock`, which also
-returns an Echo (2nd Generation) on amonet to stock Fire OS 6
-[6436][fireos-radar-6436]. That has not run on one yet. The report is the
-same on other Echo devices and helps add them.
+targets are for the Echo Dot (2nd Generation). An Echo (2nd Generation) has
+two: `amonet-radar-v1.0.0`, which unlocks it and roots Fire OS 6
+[6436][fireos-radar-6436] with `boot-root.zip`, and `stock`, which returns it
+to stock 6436. Neither has run on one yet. The report is the same on other
+Echo devices and helps add them.
 
 `write-test` then tells a failing eMMC from a failing cable. It pushes a
 pattern into the Dot's RAM, then has the Dot write it over its own `cache`

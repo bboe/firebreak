@@ -742,6 +742,13 @@ ring read white.
   the script stops fastboot and leaves the Dot to reach TWRP.
 - `eMMC-RO` or `Device mismatch` means the payload refused, and the Dot is
   unchanged.
+- Each device unlocks with its own amonet: biscuit with amonet v2.0.0, radar
+  with amonet-radar v1.0.0. Each unlock names its fastbrick images by LK, so
+  the fastboot product is checked against the target's device, not biscuit's.
+  radar follows amonet-radar's own map: `fastbrick-20220524.img` for Fire OS
+  5.5.5.4's LK, `59779ca-20220524_183401`, else `fastbrick.img`. Whether
+  `fastbrick.img` unlocks radar's Fire OS 6 LK, `63cb91b-20221007_073612`, is
+  not known; no radar has run it here.
 
 ## Targets
 
@@ -751,6 +758,15 @@ ring read white.
 | `amonet-biscuit-v1.1.0` | the same, with v1.1.0's own TWRP 3.2.3 | amonet-v1.1.0-booted |
 | `amonet-biscuit-v2.0.0` | amonet v2.0.0's TWRP, Fire OS 6 8146 in both slots, `boot-root.zip` | amonet-v2.0.0-booted |
 | `stock [BUILD]` | Amazon's Fire OS 6 `BUILD`, 8149 when left out, the whole Dot erased | stock-booted |
+| `amonet-radar-v1.0.0`, on radar | amonet-radar v1.0.0's TWRP, Fire OS 6 6436 in both slots, `boot-root.zip` | amonet-v2.0.0-booted |
+| `stock`, on radar | Amazon's Fire OS 6 6436, the whole Echo erased | stock-booted |
+
+- radar's unlock is amonet-radar's own procedure, as the radar XDA thread
+  gives it: the fastbrick, Fire OS 6 installed twice through TWRP, then
+  `boot-root.zip`. The thread's `boot-root.zip` is biscuit's, byte for byte.
+  The thread says a radar can need a power cycle before adb shows after that
+  reboot. radar has no default target until one has run on a radar. The
+  route from amonet v1.1.0 states and the bootrom stay biscuit's.
 
 - Each poll picks the stage for the state found and the target, so a run
   goes from any state to any target, a rooted Dot included. Every state has

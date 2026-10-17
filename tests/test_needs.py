@@ -9,12 +9,12 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import cache, plan, route, unlock, updates
-from firebreak.devices import BISCUIT
-from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_0
 from firebreak.unlocks.targets import TARGETS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from firebreak.plugin import Target
 
 PURE = (
     ast.Attribute,
@@ -23,6 +23,7 @@ PURE = (
     ast.Constant,
     ast.Load,
     ast.Name,
+    ast.Subscript,
     ast.Tuple,
     ast.UnaryOp,
     ast.boolop,
@@ -76,8 +77,9 @@ class Scan:
             self.found |= set(bound["unlock"].files.values())
             return
         if function is unlock.amonet_lk:
-            self.found.add(amonet_biscuit_v2_0_0.SOURCE)
-            self.maybe.add(amonet_biscuit_v1_1_0.SOURCE)
+            first, *rest = unlock.amonet_sources()
+            self.found.add(first)
+            self.maybe |= set(rest)
             return
         if not inspect.isfunction(function) or not function.__module__.startswith(
             "firebreak"
@@ -129,13 +131,15 @@ def scanned(*, run: Callable[..., object]) -> Scan:
     return scan
 
 
-@pytest.mark.parametrize("name", sorted(TARGETS[BISCUIT]))
+@pytest.mark.parametrize(
+    "target",
+    [target for targets in TARGETS.values() for target in targets.values()],
+    ids=lambda target: f"{target.device.name}-{target.name}",
+)
 def test_each_stage_needs_what_its_code_downloads(
-    *, monkeypatch: pytest.MonkeyPatch, name: str
+    *, monkeypatch: pytest.MonkeyPatch, target: Target
 ) -> None:
-    monkeypatch.setattr(
-        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
-    )
+    monkeypatch.setattr(name="target", target=route.ARGUMENTS, value=target)
     for state, stage in route.stages().items():
         needs: set[object] = set()
         for need in stage.needs:

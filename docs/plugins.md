@@ -73,7 +73,7 @@ command line, or the device's default, from `firebreak/updates.py`, which
 holds each device's builds. A Fire OS 5 target names its update package, from
 which firebreak builds a system image to write with dd, with Magisk beside it.
 `firebreak/unlocks/targets.py` holds the targets by device, biscuit's four and
-radar's `stock`, and each device's default; radar has none. Their goal states
+radar's two, and each device's default; radar has none. Their goal states
 are biscuit's, in `firebreak/devices.py`. A target's summary is its line in
 `--help`, which lists each device's targets, its default first.
 
@@ -83,9 +83,12 @@ boot0 alone. firebreak reaches the bootrom, so the plan writes the preloader.
 
 From an amonet v1.1.0 TWRP, firebreak carries out v2.0.0's plan in place of
 its zip: docs/rooting.md has the route. From stock, the fastbrick unlocks
-the Dot instead. In the plan, as in `main.py`, `FASTBOOT_PLEASE` lands after
-the preloader, so a bootrom route that stops between the two is past a
-resume and has no fastboot marker. The TWRP route leaves that step out.
+the Dot instead: each device's fastbrick unlock is in `FASTBRICKS`, in
+`firebreak/unlocks/targets.py`, and an unlock's `fastbricks` maps an LK to
+its image, `bin/fastbrick.img` for any other LK. In the plan, as in
+`main.py`, `FASTBOOT_PLEASE` lands after the preloader, so a bootrom route
+that stops between the two is past a resume and has no fastboot marker. The
+TWRP route leaves that step out.
 
 ## The steps
 
