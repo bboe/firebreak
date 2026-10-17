@@ -18,10 +18,18 @@ import shutil
 import subprocess
 import sys
 import textwrap
+from typing import TYPE_CHECKING
 
 from firebreak import __version__
 from firebreak.cache import make_cache
-from firebreak.devices import DEFAULTS, DEPRECATED, TARGETS, biscuit
+from firebreak.devices import (
+    BUILDS,
+    DEFAULT_BUILDS,
+    DEFAULTS,
+    DEPRECATED,
+    TARGETS,
+    biscuit,
+)
 from firebreak.emos import child_emos
 from firebreak.host import check_adb, check_python, check_root, check_user
 from firebreak.identify import choose_target
@@ -42,6 +50,9 @@ from firebreak.ui import (
     warn,
 )
 from firebreak.write_test import EMMC_TARGET
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 CREDITS = """firebreak automates work that other people did first.
 
@@ -73,14 +84,7 @@ WRITE_TEST = "write-test"
 
 
 def build_parser() -> argparse.ArgumentParser:
-    builds = sorted(
-        biscuit.BUILDS,
-        key=lambda build: (
-            build not in biscuit.FIREOS5_BUILDS,
-            tuple(map(int, build.split("."))),
-        ),
-        reverse=True,
-    )
+    builds = ordered(builds={build for each in BUILDS.values() for build in each})
     about = {
         REPORT: "print what the Dot and this computer are, and the Dot's"
         " partition table, for a support request. It starts the Dot's recovery"
@@ -159,10 +163,16 @@ other commands:
             made.add_argument(
                 "build",
                 choices=builds,
-                default=biscuit.DEFAULT_BUILD,
-                help="the build to install, one of "
-                + ", ".join(builds)
-                + f"; {biscuit.DEFAULT_BUILD} when left out",
+                default=None,
+                help="the build to install: "
+                + "; ".join(
+                    f"for the {device.title}, one of"
+                    f" {', '.join(ordered(builds=each))},"
+                    f" {DEFAULT_BUILDS[device]} when left out"
+                    if len(each) > 1
+                    else f"for the {device.title}, only {next(iter(each))}"
+                    for device, each in BUILDS.items()
+                ),
                 metavar="BUILD",
                 nargs="?",
             )
@@ -237,6 +247,14 @@ def cli() -> None:
         device=DEVICES.get(options.device),
         name=options.target if options.command == UNLOCK else options.command,
     )
+    device = ARGUMENTS.target.device
+    if ARGUMENTS.target.name == STOCK:
+        ARGUMENTS.build = options.build or DEFAULT_BUILDS[device]
+        if ARGUMENTS.build not in BUILDS[device]:
+            raise FatalError(
+                message=f"the {device.title} has no stock build {ARGUMENTS.build}:"
+                f" use one of {', '.join(ordered(builds=BUILDS[device]))}"
+            )
     root()
 
 
@@ -327,6 +345,17 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
     return made
 
 
+def ordered(*, builds: Iterable[str]) -> list[str]:
+    return sorted(
+        builds,
+        key=lambda build: (
+            build not in biscuit.FIREOS5_BUILDS,
+            tuple(map(int, build.split("."))),
+        ),
+        reverse=True,
+    )
+
+
 def parsed() -> argparse.Namespace:
     parser = build_parser()
     options = parser.parse_args()
@@ -339,7 +368,10 @@ def parsed() -> argparse.Namespace:
         ("target", None),
         ("verbose", False),
     ):
-        setattr(options, option, getattr(options, option, default))
+        setattr(options, option, getattr(options, option, None) or default)
+    named = DEVICES.get(options.device)
+    if options.command is None and named is not None and named not in DEFAULTS:
+        parser.error(message=f"the {named.title} has no default target")
     if options.command is None:
         notice = (
             "The command line arguments have changed. What used to be the"
@@ -367,7 +399,7 @@ def parsed() -> argparse.Namespace:
             message=f"stock {options.build} ends in its bootrom over a serial"
             " port, which cannot leave the Dot in fastboot"
         )
-    device = DEVICES.get(options.device)
+    device = named
     wanted = options.target if options.command == UNLOCK else options.command
     if (
         device
@@ -375,6 +407,8 @@ def parsed() -> argparse.Namespace:
         and canonical(name=wanted) not in TARGETS[device]
     ):
         parser.error(message=f"the {device.title} has no target {wanted}")
+    if device and options.build and options.build not in BUILDS[device]:
+        parser.error(message=f"the {device.title} has no stock build {options.build}")
     return options
 
 
@@ -382,13 +416,16 @@ def target_help() -> str:
     lines = []
     for device, targets in TARGETS.items():
         lines.append(f"commands for the {device.title}:")
-        default = DEFAULTS[device]
+        default = DEFAULTS.get(device)
         lines.extend(listed(label=STOCK + " [BUILD]", summary=targets[STOCK].summary))
-        lines.append(f"  {UNLOCK} [TARGET], where TARGET is one of:")
-        for target in sorted(
+        unlocks = sorted(
             (target for target in targets.values() if target.unlock),
             key=lambda target: (target.name != default, target.name),
-        ):
+        )
+        if not unlocks:
+            continue
+        lines.append(f"  {UNLOCK} [TARGET], where TARGET is one of:")
+        for target in unlocks:
             label = target.name + (", the default" if target.name == default else "")
             lines.extend(
                 "  " + line for line in listed(label=label, summary=target.summary)

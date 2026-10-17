@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import updates
-from firebreak.devices import biscuit
+from firebreak.devices import BUILDS, DEFAULT_BUILDS, biscuit
 
 if TYPE_CHECKING:
     import pathlib
@@ -53,8 +53,16 @@ def test_a_build_is_fetched_by_its_pin_once_a_session(
 
 
 def test_every_build_has_a_whole_pin_on_amazon_s_cdn() -> None:
-    for download in biscuit.BUILDS.values():
-        assert download.url.startswith(updates.CDN)
-        assert download.url.endswith("/" + download.name)
-        assert len(download.sha256) == 64
+    for device, builds in BUILDS.items():
+        for download in builds.values():
+            assert download.url.startswith(updates.CDN)
+            assert download.url.endswith("/" + download.name)
+            assert device.name in download.name
+            assert len(download.sha256) == 64
+        assert DEFAULT_BUILDS[device] in builds
     assert set(biscuit.FIREOS5_BUILDS) <= set(biscuit.BUILDS)
+
+
+def test_no_build_number_belongs_to_two_devices() -> None:
+    numbers = [build for builds in BUILDS.values() for build in builds]
+    assert len(numbers) == len(set(numbers))

@@ -25,7 +25,7 @@ from firebreak.cache import (
     system_sliced,
     write_slices,
 )
-from firebreak.devices import BY_NAME, biscuit
+from firebreak.devices import BUILDS, BY_NAME, biscuit
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
     adb_script,
@@ -227,7 +227,7 @@ def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
 def stage_install_fireos6() -> None:
     amonet_chain()
     build = ARGUMENTS.target.installs.build
-    update_file = updates.download(build=build, builds=biscuit.BUILDS)
+    update_file = updates.download(build=build, builds=BUILDS[ARGUMENTS.target.device])
     zip_path = fetch(download=BOOT_ROOT)
     if "boot_a_x" in partition_table():
         raise FatalError(

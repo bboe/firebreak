@@ -12,8 +12,16 @@ from typing import TYPE_CHECKING
 
 from firebreak.cache import ERASED
 from firebreak.devices import DEFAULTS, DEPRECATED, DEVICES, TARGETS
-from firebreak.host import USER_SERIAL, command, getvar, in_fastboot
-from firebreak.report import labelled
+from firebreak.host import (
+    USER_SERIAL,
+    adb_shell,
+    command,
+    getvar,
+    in_fastboot,
+    run,
+    usb_serial,
+)
+from firebreak.report import labelled, whole
 from firebreak.targets import REMOVED_IN
 from firebreak.ui import SESSION, FatalError, warn
 
@@ -24,6 +32,7 @@ ECHO_IDS = frozenset({(0x0BB4, 0x0C01), (0x18D1, 0x4EE2), (0x18D1, 0xD001)})
 ECHO_VENDORS = frozenset({0x0E8D, 0x1949})
 FASTBOOT_ID = (0x0BB4, 0x0C01)
 INSTANCE_PARTS = 3
+NAMED = "device-named"
 POLL = 2
 SERIAL_SHOWN = 4
 SYSFS_USB = pathlib.Path("/sys/bus/usb/devices")
@@ -84,10 +93,13 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
             " newest amonet this supports." + (" " + was.note if was.note else "")
         )
         device, name = was.device, was.name
+    if device is None and ERASED.exists():
+        marked = ERASED.read_text().strip()
+        device = next((each for each in DEVICES if each.name == marked), None)
     choices = [
-        targets[name or DEFAULTS[each]]
+        targets[wanted]
         for each, targets in TARGETS.items()
-        if device in {None, each} and (name or DEFAULTS[each]) in targets
+        if device in {None, each} and (wanted := name or DEFAULTS.get(each)) in targets
     ]
     if len(choices) == 1:
         check_target(target=choices[0])
@@ -180,6 +192,18 @@ def identify(*, found: list[UsbDevice] | None = None) -> Identity:
         )
     }
     products = ", ".join(sorted({repr(usb.product) for usb in found})) or "nothing"
+    if not named and usb_serial():
+        state = run(arguments=["adb", "get-state"], timeout=USB_TIMEOUT).stdout
+        if state.strip() == "recovery":
+            said = whole(
+                marker=NAMED,
+                said=adb_shell(
+                    command=f"getprop ro.product.device; echo {NAMED}",
+                    timeout=USB_TIMEOUT,
+                ),
+            )
+            named = {device for device in DEVICES if device.name == said}
+            products = f"{products}, and recovery's ro.product.device {said!r}"
     return Identity(
         device=named.pop() if len(named) == 1 else None,
         how=f"USB product {products}",

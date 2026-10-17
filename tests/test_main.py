@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import argparse
 import sys
+from typing import TYPE_CHECKING
 
 import pytest
 import update_checker
 
 from firebreak import __main__ as main
+from firebreak.devices import BISCUIT, DEFAULTS, RADAR, TARGETS
+
+if TYPE_CHECKING:
+    from firebreak.plugin import Device
 
 
 def parse_into_namespace(*, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -29,6 +34,21 @@ def parse_into_namespace(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="__call__", target=subparsers, value=call)
 
 
+def ran(*, device: Device, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(name="build", target=main.ARGUMENTS, value="")
+    monkeypatch.setattr(name="target", target=main.ARGUMENTS, value="")
+    monkeypatch.setattr(name="which", target=main.shutil, value=lambda **_: "adb")
+    for name in ("check_adb", "check_python", "check_user", "make_cache"):
+        monkeypatch.setattr(name=name, target=main, value=lambda: None)
+    monkeypatch.setattr(
+        name="choose_target",
+        target=main,
+        value=lambda *, name, **_: TARGETS[device][name or DEFAULTS.get(device)],
+    )
+    monkeypatch.setattr(name="root", target=main, value=lambda: sys.exit(0))
+    monkeypatch.setattr(name="check_for_update", target=main, value=lambda: None)
+
+
 def test_a_bare_run_says_what_replaced_the_default_and_stops(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -47,6 +67,18 @@ def test_a_bare_run_says_what_replaced_the_default_and_stops(
     assert "the new default is `firebreak unlock fireos6`" in out
     assert "This warning goes away in firebreak 1.0" in out
     assert "usage: firebreak" in out
+
+
+def test_a_build_the_device_has_no_ota_for_is_refused(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran(device=RADAR, monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", "stock", "8149"])
+    with pytest.raises(
+        main.FatalError,
+        match="the Echo \\(2nd Generation\\) has no stock build 8149: use one of 6436",
+    ):
+        main.cli()
 
 
 def test_a_child_does_not_check_for_an_update(
@@ -82,13 +114,24 @@ def test_a_deprecated_name_parses_but_is_not_in_the_help(
             ["--device", "biscuit", "amonet-radar-v1.0.0"],
             "argument COMMAND: invalid choice",
         ),
-        (["--device", "radar"], "argument --device: invalid choice"),
+        (["--device", "crown"], "argument --device: invalid choice"),
+        (["--device", "radar"], "the Echo (2nd Generation) has no default target"),
+        (
+            ["--device", "radar", "stock", "8149"],
+            "the Echo (2nd Generation) has no stock build 8149",
+        ),
         (
             ["--device", "biscuit", "survey", "x"],
             "survey takes no --device",
         ),
     ],
-    ids=["unknown-target", "device-without-targets", "survey"],
+    ids=[
+        "unknown-target",
+        "device-without-targets",
+        "no-default",
+        "no-such-build",
+        "survey",
+    ],
 )
 def test_a_device_is_one_with_targets_and_survey_takes_none(
     *,
@@ -261,7 +304,7 @@ def test_no_newer_release_says_nothing(
 @pytest.mark.parametrize(
     argnames=("arguments", "parsed"),
     argvalues=[
-        (["--short", "stock"], ("stock", "8149", True, None, False)),
+        (["--short", "stock"], ("stock", "", True, None, False)),
         (["stock", "4315", "--short"], ("stock", "4315", True, None, False)),
         (
             ["--verbose", "--device", "biscuit", "unlock", "fireos6"],
@@ -308,22 +351,24 @@ def test_stock_takes_fastboot(
 
 
 @pytest.mark.parametrize(
-    argnames=("arguments", "build"),
+    argnames=("arguments", "device", "build"),
     argvalues=[
-        (["stock"], "8149"),
-        (["stock", "4315"], "4315"),
-        (["unlock", "fireos6"], ""),
+        (["stock"], BISCUIT, "8149"),
+        (["stock", "4315"], BISCUIT, "4315"),
+        (["unlock", "fireos6"], BISCUIT, ""),
+        (["stock"], RADAR, "6436"),
     ],
-    ids=["stock-alone", "stock-with-a-build", "another-target"],
+    ids=["stock-alone", "stock-with-a-build", "another-target", "radar-stock"],
 )
 def test_the_build_each_target_gets(
-    *, arguments: list[str], build: str, monkeypatch: pytest.MonkeyPatch
+    *,
+    arguments: list[str],
+    build: str,
+    device: Device,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(name="build", target=main.ARGUMENTS, value="")
-    monkeypatch.setattr(name="target", target=main.ARGUMENTS, value="")
+    ran(device=device, monkeypatch=monkeypatch)
     monkeypatch.setattr(name="argv", target=sys, value=["firebreak", *arguments])
-    monkeypatch.setattr(name="which", target=main.shutil, value=lambda **_: "adb")
-    monkeypatch.setattr(name="check_user", target=main, value=lambda: sys.exit(1))
     with pytest.raises(SystemExit):
         main.cli()
     assert main.ARGUMENTS.build == build

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from firebreak.plugin import Target
     from firebreak.targets import Deprecated
 
+BUILDS: dict[str, Download] = {}
 CROWN = Device(
     features=frozenset({Feature.BOOT0, Feature.RPMB}),
     models=frozenset({"AEOCW"}),
@@ -28,6 +29,7 @@ CROWN = Device(
     title="Echo Show 8 (1st Generation)",
     twrp_models=frozenset({"Echo Show 8"}),
 )
+DEFAULT_BUILD = None
 DEFAULT_TARGET = None
 SOURCE = Download(
     browser=True,

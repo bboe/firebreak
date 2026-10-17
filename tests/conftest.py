@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import cache, host, ui
+from firebreak.devices import BISCUIT, DEFAULTS, TARGETS
 from firebreak.mediatek import gcpu, usbdl
 
 if TYPE_CHECKING:
@@ -94,6 +95,7 @@ class FakePort:
 
 @pytest.fixture(autouse=True)
 def fresh_session() -> Iterator[None]:
+    ui.ARGUMENTS.target = TARGETS[BISCUIT][DEFAULTS[BISCUIT]]
     ui.ARGUMENTS.verbose = False
     vars(ui.SESSION).update(vars(ui.Session()))
     vars(ui.PROGRESS).update(vars(ui.Progress()))

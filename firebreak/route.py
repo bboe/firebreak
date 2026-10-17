@@ -19,7 +19,7 @@ from firebreak.cache import (
     lock_for,
     unpack,
 )
-from firebreak.devices import biscuit
+from firebreak.devices import BUILDS, biscuit
 from firebreak.emos import stage_emos
 from firebreak.fireos import (
     BOOT_ROOT,
@@ -238,7 +238,7 @@ def needed(*, start: State, table: dict[State, Stage]) -> list[Need]:
 def ota_build() -> None:
     build = ARGUMENTS.build or ARGUMENTS.target.installs.build
     with hold(lock=lock_for(key=build)):
-        updates.download(build=build, builds=biscuit.BUILDS)
+        updates.download(build=build, builds=BUILDS[ARGUMENTS.target.device])
 
 
 def prebuild() -> None:
@@ -364,6 +364,14 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         if current != State.NONE:
             SESSION.short = False
         if current == State.NONE and (ERASED.exists() or SESSION.short) and not resumed:
+            bootrom_device = biscuit.UNLOCK_FROM_BOOTROM.device
+            if target.device != bootrom_device:
+                raise FatalError(
+                    message=f"this {target.device.title} has an erased boot0, which"
+                    " only its bootrom can start it from, and firebreak's bootrom"
+                    f" step supports only the {bootrom_device.title}, so it cannot"
+                    " be started from here."
+                )
             prefetch(
                 needs=dict.fromkeys((
                     *bootrom_needs(),

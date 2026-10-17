@@ -11,8 +11,8 @@ from firebreak.states import State
 
 
 def test_each_device_s_default_is_one_of_its_targets() -> None:
-    assert set(DEFAULTS) == set(TARGETS)
-    assert all(DEFAULTS[device] in targets for device, targets in TARGETS.items())
+    assert set(DEFAULTS) <= set(TARGETS)
+    assert all(DEFAULTS[device] in TARGETS[device] for device in DEFAULTS)
 
 
 def test_each_target_is_named_by_its_key_and_is_for_its_device() -> None:

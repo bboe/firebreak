@@ -95,15 +95,17 @@ amonet-crown v1.1.1 is not needed: it does nothing that v2.0.1 does not.
 A **target** is what a run ends on: its goal state, the OS it installs, and its
 unlock, which stock has none of. A Fire OS 6 target names a build from Amazon's
 updates, which TWRP installs as it is; stock's build is the one named on the
-command line. A Fire OS 5 target names its update package, from which firebreak
-builds a system image to write with dd, with Magisk beside it.
-Each device module holds its own targets, biscuit's three, and its default.
-Every device with a route has a `stock` target and at least one unlock
-target, which is what `--help` lists under the device. Their goal states are
-in `firebreak/states.py`, a module outside the devices package, so a device
-module can name a state without the registry's imports forming a cycle.
-A target's summary is its line in `--help`, which lists each device's commands,
-and the unlock targets under `unlock` with the default first.
+command line, or the device's own default, which its module holds. A Fire OS 5
+target names its update package, from which firebreak builds a system image to
+write with dd, with Magisk beside it.
+Each device module holds its own targets, biscuit's three and radar's `stock`,
+and its default. Every device firebreak can take anywhere has a `stock` target;
+only one it can unlock has an unlock target, so radar names no default and a
+bare `--device radar` is refused. Their goal states are in
+`firebreak/states.py`, a module outside the devices package, so a device module
+can name a state without the registry's imports forming a cycle. A target's
+summary is its line in `--help`, which lists each device's commands, and the
+unlock targets under `unlock` with the default first.
 
 v2.0.0's `main.py` has two branches its plan leaves out: `fixgpt`, a manual
 mode that writes its own table, and a run from the preloader, which leaves

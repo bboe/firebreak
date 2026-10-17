@@ -8,6 +8,7 @@
 ```sh
 simulator/run.sh OUT amonet-biscuit-v1.1.0-bboe
 START=no-light simulator/run.sh OUT amonet-biscuit-v1.1.0-bboe --short
+DEVICE=radar simulator/run.sh OUT stock 6436
 python3 simulator/trace.py OUT.jsonl             # one command per line, for diff
 python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per range
 ```
@@ -43,6 +44,13 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - `START=fastboot`, the default, starts in stock fastboot. `START=no-light`
   erases boot0 and leaves the Dot unplugged. `run.sh` plugs it in when
   firebreak prints "Short the Dot's test point".
+- `DEVICE=biscuit`, the default, makes an Echo Dot (2nd Generation).
+  `DEVICE=radar` makes an Echo (2nd Generation): adb and fastboot name radar,
+  and the stock LK, the model and the USB ids are radar's. A radar run reaches
+  as far as the device plumbing goes: firebreak names the device off its
+  fastboot product and refuses a target that is not for it. The restore itself
+  runs only from a TWRP, which no start state gives, so no device's `stock`
+  reaches it here.
 - firebreak's stdin is `/dev/null`. Its stdout must be unbuffered: without
   `PYTHONUNBUFFERED=1`, the prompt reached the log only at exit, and the Dot
   was never plugged in.
