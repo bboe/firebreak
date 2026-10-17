@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+from typing import TYPE_CHECKING
 
 from firebreak import __version__, updates
 from firebreak.cache import make_cache
@@ -41,6 +42,11 @@ from firebreak.ui import (
 )
 from firebreak.unlocks.targets import DEFAULTS, STOCK, TARGETS
 from firebreak.write_test import EMMC_TARGET
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from firebreak.plugin import Device
 
 CREDITS = """firebreak automates work that other people did first.
 
@@ -96,7 +102,6 @@ def cli() -> None:
         make_cache()
         survey_all(paths=[pathlib.Path(path) for path in options.otas])
         return
-    ARGUMENTS.build = options.build
     ARGUMENTS.verbose = options.verbose
     check_python()
     for tool in ("adb", "fastboot"):
@@ -117,7 +122,27 @@ def cli() -> None:
     ARGUMENTS.target = choose_target(
         device=DEVICES.get(options.device), name=options.command
     )
+    device = ARGUMENTS.target.device
+    if ARGUMENTS.target.name == STOCK:
+        ARGUMENTS.build = options.build or updates.DEFAULT_BUILDS[device]
+        if ARGUMENTS.build not in updates.BUILDS[device]:
+            raise FatalError(
+                message=f"the {device.title} has no stock build {ARGUMENTS.build}:"
+                f" use one of {', '.join(ordered(builds=updates.BUILDS[device]))}"
+            )
     root()
+
+
+def lacking(
+    *, device: Device, options: argparse.Namespace, targets: Iterable[str]
+) -> str:
+    if options.command in targets and options.command not in TARGETS[device]:
+        return f"target {options.command}"
+    if options.build and options.build not in updates.BUILDS[device]:
+        return f"stock build {options.build}"
+    if options.command is None and device not in DEFAULTS:
+        return "default target: name one"
+    return ""
 
 
 def listed(*, label: str, summary: str) -> list[str]:
@@ -147,15 +172,18 @@ def main() -> None:
         )
 
 
-def parsed() -> argparse.Namespace:
-    builds = sorted(
-        updates.BUILDS,
+def ordered(*, builds: Iterable[str]) -> list[str]:
+    return sorted(
+        builds,
         key=lambda build: (
             build not in updates.FIREOS5_BUILDS,
             tuple(map(int, build.split("."))),
         ),
         reverse=True,
     )
+
+
+def parsed() -> argparse.Namespace:
     common_parent = argparse.ArgumentParser(
         add_help=False, argument_default=argparse.SUPPRESS
     )
@@ -232,25 +260,39 @@ commands, which are not targets:
         help="the target, or a command, one of those listed below",
         metavar="TARGET|COMMAND",
     )
-    summaries = {
-        name: target.summary
-        for targets in TARGETS.values()
-        for name, target in targets.items()
-    }
-    for name, summary in sorted(summaries.items()):
+    summaries: dict[str, dict[Device, str]] = {}
+    for device, targets in TARGETS.items():
+        for name, target in targets.items():
+            summaries.setdefault(name, {})[device] = target.summary
+    for name, by_device in sorted(summaries.items()):
         target = commands.add_parser(
             name,
-            description=summary,
+            description=" ".join(
+                f"For the {device.title}: {summary}"
+                for device, summary in by_device.items()
+            )
+            if len(by_device) > 1
+            else next(iter(by_device.values())),
             parents=[common_parent, short_parent, device_parent],
         )
         if name == STOCK:
             target.add_argument(
                 "build",
-                choices=builds,
-                default=updates.DEFAULT_BUILD,
-                help="the build to install, one of "
-                + ", ".join(builds)
-                + f"; {updates.DEFAULT_BUILD} when left out",
+                choices=ordered(
+                    builds={
+                        build for builds in updates.BUILDS.values() for build in builds
+                    }
+                ),
+                default=None,
+                help="the build to install: "
+                + "; ".join(
+                    f"for the {device.title}, one of"
+                    f" {', '.join(ordered(builds=builds))},"
+                    f" {updates.DEFAULT_BUILDS[device]} when left out"
+                    if len(builds) > 1
+                    else f"for the {device.title}, only {next(iter(builds))}"
+                    for device, builds in updates.BUILDS.items()
+                ),
                 metavar="BUILD",
                 nargs="?",
             )
@@ -269,7 +311,7 @@ commands, which are not targets:
         ("short", False),
         ("verbose", False),
     ):
-        setattr(options, option, getattr(options, option, default))
+        setattr(options, option, getattr(options, option, None) or default)
     takes = {REPORT: set(), SURVEY: set(), WRITE_TEST: {"short"}}.get(
         options.command, {"device", "short"}
     )
@@ -277,12 +319,10 @@ commands, which are not targets:
         if getattr(options, option):
             parser.error(message=f"{options.command} takes no --{option}")
     device = DEVICES.get(options.device)
-    if (
-        device
-        and options.command in summaries
-        and options.command not in TARGETS[device]
-    ):
-        parser.error(message=f"the {device.title} has no target {options.command}")
+    if device:
+        lacks = lacking(device=device, options=options, targets=summaries)
+        if lacks:
+            parser.error(message=f"the {device.title} has no {lacks}")
     return options
 
 
@@ -290,7 +330,7 @@ def target_help() -> str:
     lines = []
     for device, targets in TARGETS.items():
         lines.append(f"targets for the {device.title}:")
-        default = DEFAULTS[device]
+        default = DEFAULTS.get(device)
         for target in sorted(
             targets.values(), key=lambda target: (target.name != default, target.name)
         ):

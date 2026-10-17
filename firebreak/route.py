@@ -233,7 +233,7 @@ def needed(*, start: State, table: dict[State, Stage]) -> list[Need]:
 def ota_build() -> None:
     build = ARGUMENTS.build or ARGUMENTS.target.installs.build
     with hold(lock=lock_for(key=build)):
-        updates.download(build=build)
+        updates.download(build=build, device=ARGUMENTS.target.device)
 
 
 def prebuild() -> None:

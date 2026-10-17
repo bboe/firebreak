@@ -10,8 +10,8 @@ from firebreak.updates import BUILDS
 
 
 def test_each_device_s_default_is_one_of_its_targets() -> None:
-    assert set(DEFAULTS) == set(TARGETS)
-    assert all(DEFAULTS[device] in targets for device, targets in TARGETS.items())
+    assert set(DEFAULTS) <= set(TARGETS)
+    assert all(DEFAULTS[device] in TARGETS[device] for device in DEFAULTS)
 
 
 def test_each_target_is_named_by_its_key_and_is_for_its_device() -> None:
@@ -31,12 +31,12 @@ def test_each_target_names_its_goal_its_install_and_its_unlock() -> None:
     } == {
         "amonet-biscuit-v1.1.0": (
             State.AMONET_V1_1_0_BOOTED,
-            FireOs5(package=BUILDS["5.5.5.4"]),
+            FireOs5(package=BUILDS[BISCUIT]["5.5.5.4"]),
             AMONET_BISCUIT_V1_1_0,
         ),
         "amonet-biscuit-v1.1.0-bboe": (
             State.AMONET_V1_1_0_BBOE_BOOTED,
-            FireOs5(package=BUILDS["5.5.5.4"]),
+            FireOs5(package=BUILDS[BISCUIT]["5.5.5.4"]),
             AMONET_BISCUIT_V1_1_0_BBOE,
         ),
         "amonet-biscuit-v2.0.0": (

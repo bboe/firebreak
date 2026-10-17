@@ -229,7 +229,7 @@ def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
 def stage_install_fireos6() -> None:
     amonet_chain()
     build = ARGUMENTS.target.installs.build
-    update_file = updates.download(build=build)
+    update_file = updates.download(build=build, device=ARGUMENTS.target.device)
     zip_path = fetch(download=BOOT_ROOT)
     if "boot_a_x" in partition_table():
         raise FatalError(

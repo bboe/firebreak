@@ -69,12 +69,13 @@ amonet-crown v1.1.1 is not needed: it does nothing that v2.0.1 does not.
 A **target** is what a run ends on: its goal state, the OS it installs, and its
 unlock, which stock has none of. A Fire OS 6 target names a build from Amazon's
 updates, which TWRP installs as it is; stock's build is the one named on the
-command line. A Fire OS 5 target names its update package, from which firebreak
-builds a system image to write with dd, with Magisk beside it.
-`firebreak/unlocks/targets.py` holds the targets by device, biscuit's four,
-and each device's default. Their goal states are biscuit's, in
-`firebreak/devices.py`. A target's summary is its line in `--help`, which
-lists each device's targets, its default first.
+command line, or the device's default, from `firebreak/updates.py`, which
+holds each device's builds. A Fire OS 5 target names its update package, from
+which firebreak builds a system image to write with dd, with Magisk beside it.
+`firebreak/unlocks/targets.py` holds the targets by device, biscuit's four and
+radar's `stock`, and each device's default; radar has none. Their goal states
+are biscuit's, in `firebreak/devices.py`. A target's summary is its line in
+`--help`, which lists each device's targets, its default first.
 
 v2.0.0's `main.py` has two branches its plan leaves out: `fixgpt`, a manual
 mode that writes its own table, and a run from the preloader, which leaves
