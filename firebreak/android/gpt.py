@@ -4,7 +4,7 @@ import dataclasses
 import struct
 import zlib
 
-from firebreak.ui import FatalError
+from firebreak.ui import FatalError, noun
 
 ENTRY_COUNT = 128
 ENTRY_SIZE = 128
@@ -120,7 +120,9 @@ def stock_gpt(*, raw: bytes) -> Table:
     template = raw[SECTOR_SIZE : 2 * SECTOR_SIZE]
     entries = raw[2 * SECTOR_SIZE : 2 * SECTOR_SIZE + ENTRIES_SIZE]
     if not gpt_intact(entries=entries, header=template):
-        raise FatalError(message="neither copy of the Dot's partition table is intact")
+        raise FatalError(
+            message=f"neither copy of the {noun()}'s partition table is intact"
+        )
     return rebuilt_gpt(
         entries=stock_entries(
             entries=entries, last_usable=struct.unpack("<Q", template[48:56])[0]

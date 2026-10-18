@@ -10,7 +10,7 @@ from firebreak.cache import CACHE
 from firebreak.host import DOT_TEMPORARY_DIRECTORY, run
 from firebreak.report import masked
 from firebreak.twrp import no_truncate
-from firebreak.ui import PROGRESS, SESSION
+from firebreak.ui import PROGRESS, SESSION, noun
 
 if TYPE_CHECKING:
     import pathlib
@@ -62,7 +62,7 @@ def emmc_leg(
     node: str,
 ) -> None:
     if not blocks:
-        line("over the eMMC", f"skipped: this Dot has no {EMMC_TARGET} partition")
+        line("over the eMMC", f"skipped: this {noun()} has no {EMMC_TARGET} partition")
         return
     if not chunk:
         line("over the eMMC", "skipped: nothing verified in RAM to write from")
@@ -142,7 +142,7 @@ def emmc_leg(
         "fresh filesystem",
         "yes"
         if formatted.strip().split(sep="\n")[-1] == "formatted"
-        else f"NO: {masked(text=formatted) or '<nothing>'}. A Dot whose"
+        else f"NO: {masked(text=formatted) or '<nothing>'}. One whose"
         f" {EMMC_TARGET} holds no filesystem does not finish booting, so run this"
         " again before restarting it: it formats cache first.",
     )

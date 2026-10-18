@@ -22,7 +22,7 @@ from firebreak.host import (
 from firebreak.plan import SECTOR_SIZE, TABLE_SECTORS, Action, resolve, whole_sectors
 from firebreak.plugin import BOOT0, ClearBoot0Header, Repartition
 from firebreak.twrp import CLEAR_BOOT0, DISK, check_nodes, read_sectors, reboot
-from firebreak.ui import PROGRESS, FatalError, again
+from firebreak.ui import PROGRESS, FatalError, again, noun
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -99,8 +99,8 @@ def carry_out(
         )
     except (FileNotFoundError, KeyError, ValueError) as error:
         raise FatalError(
-            message=f"{unlock.name} does not fit this Dot: {error.args[0]}. Nothing was"
-            " written. " + again()
+            message=f"{unlock.name} does not fit this {noun()}: {error.args[0]}."
+            " Nothing was written. " + again()
         ) from error
     live = partition_map(entries=raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE])
     table = tuple(
@@ -158,7 +158,7 @@ def carry_out(
         raise FatalError(
             message="the kernel does not hold the table that is on the disk:"
             f" {wrong}. A write by that name could land in RAM and verify"
-            " against itself, so the Dot is restarting into recovery. " + again()
+            f" against itself, so the {noun()} is restarting into recovery. " + again()
         )
     checked = check(actions=(*table, *writes))
     PROGRESS.begin(estimate="10 s", label=f"write {unlock.family} v{unlock.version}")
@@ -254,7 +254,7 @@ def read(*, count: int, first: int, node: str) -> str:
     else:
         raise FatalError(
             message=f"{node} did not answer with an md5 of {count} sectors at"
-            f" {first}. Do not restart the Dot. " + again()
+            f" {first}. Do not restart the {noun()}. " + again()
         )
     return digest
 
@@ -306,5 +306,5 @@ def write(*, first: int, node: str, staged: pathlib.Path) -> None:
     ) != md5(data=data):
         raise FatalError(
             message=f"{len(data)} bytes at sector {first} of {node} did not read"
-            " back. Do not restart the Dot. " + again()
+            f" back. Do not restart the {noun()}. " + again()
         )

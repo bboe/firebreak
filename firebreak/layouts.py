@@ -16,6 +16,7 @@ from firebreak.android.gpt import (
 )
 from firebreak.plan import Action
 from firebreak.plugin import Repartition
+from firebreak.ui import noun
 
 if TYPE_CHECKING:
     from firebreak.android.gpt import Table
@@ -106,7 +107,7 @@ def shuffled_gpt(
     template = raw[SECTOR_SIZE : 2 * SECTOR_SIZE]
     entries = raw[2 * SECTOR_SIZE : 2 * SECTOR_SIZE + ENTRIES_SIZE]
     if not gpt_intact(entries=entries, header=template):
-        message = "the Dot's primary partition table is not intact"
+        message = f"the {noun()}'s primary partition table is not intact"
         raise ValueError(message)
     used = used_entries(entries=entries)
     names = [entry_name(entry=entry) for entry in used]
@@ -166,7 +167,7 @@ def unshuffled_gpt(*, raw: bytes, targets: tuple[str, ...]) -> Table:
     template = raw[SECTOR_SIZE : 2 * SECTOR_SIZE]
     entries = raw[2 * SECTOR_SIZE : 2 * SECTOR_SIZE + ENTRIES_SIZE]
     if not gpt_intact(entries=entries, header=template):
-        message = "the Dot's primary partition table is not intact"
+        message = f"the {noun()}'s primary partition table is not intact"
         raise ValueError(message)
     used = used_entries(entries=entries)
     names = [entry_name(entry=entry) for entry in used]

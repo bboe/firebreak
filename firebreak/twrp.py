@@ -17,7 +17,16 @@ from firebreak.host import (
     run,
     stream,
 )
-from firebreak.ui import PROGRESS, SESSION, FatalError, again, asked_for, reseat, say
+from firebreak.ui import (
+    PROGRESS,
+    SESSION,
+    FatalError,
+    again,
+    asked_for,
+    noun,
+    reseat,
+    say,
+)
 
 if TYPE_CHECKING:
     import pathlib
@@ -83,7 +92,7 @@ def check_nodes(*, want: dict[str, int]) -> str:
         if attempt + 1 < PUSH_TRIES:
             reconnect(remote=DISK)
     raise FatalError(
-        message="the Dot did not answer which of its partitions are block"
+        message=f"the {noun()} did not answer which of its partitions are block"
         f" devices: {said!r}. " + again()
     )
 
@@ -118,7 +127,8 @@ def partition_table() -> str:
         if attempt + 1 < PUSH_TRIES:
             reconnect(remote=DISK)
     raise FatalError(
-        message="sgdisk did not print the Dot's partition table:\n" + "\n".join(said)
+        message=f"sgdisk did not print the {noun()}'s partition table:\n"
+        + "\n".join(said)
     )
 
 
@@ -129,7 +139,7 @@ def partitions() -> dict[str, tuple[int, int, int]]:
         if len(field) >= TABLE_FIELDS and all(value.isdigit() for value in field[:3]):
             found[field[-1]] = (int(field[0]), int(field[1]), int(field[2]))
     if "userdata" not in found:
-        raise FatalError(message="no userdata in the Dot's partition table")
+        raise FatalError(message=f"no userdata in the {noun()}'s partition table")
     return found
 
 
@@ -146,7 +156,7 @@ def read_sectors(*, count: int, start: int) -> bytes:
     ).stdout
     if len(raw) != count * 512:
         raise FatalError(
-            message=f"read {len(raw)} bytes of the Dot's partition table,"
+            message=f"read {len(raw)} bytes of the {noun()}'s partition table,"
             f" not {count * 512}"
         )
     return raw
@@ -180,13 +190,13 @@ def sliced_system(*, slices: list[pathlib.Path], system: str) -> str:
         if said.split(sep="\n")[-1] == GUNZIP_FAILED:
             piece.unlink(missing_ok=True)
             return (
-                f"{piece.name} arrived intact but did not unpack on the Dot, so the"
-                " cached image was discarded and the next run rebuilds it"
+                f"{piece.name} arrived intact but did not unpack on the {noun()},"
+                " so the cached image was discarded and the next run rebuilds it"
             )
         if result.returncode:
             return said or f"it exited with {result.returncode}"
         if said.split(sep="\n")[-1] != SLICE_OK:
-            return said or f"the Dot said nothing about {piece.name}"
+            return said or f"the {noun()} said nothing about {piece.name}"
     return ""
 
 
@@ -252,7 +262,7 @@ def streamed_system(*, slices: list[pathlib.Path], system: str) -> str:
     if result.returncode:
         return said or f"it exited with {result.returncode}"
     if said.split(sep="\n")[-1] != STREAM_OK:
-        return said or "the Dot said nothing about the write"
+        return said or f"the {noun()} said nothing about the write"
     return ""
 
 
@@ -263,7 +273,7 @@ def unmount(*, started: bool = False) -> None:
             return
         message = "still mounted: " + left[len("left:") :].strip()
     else:
-        message = "the Dot did not answer what is mounted: " + left
+        message = f"the {noun()} did not answer what is mounted: " + left
     if started:
         raise FatalError(message=message + "; do not reboot")
     raise FatalError(message=message + "; nothing was written")
@@ -275,7 +285,7 @@ def wait_for_twrp() -> None:
         run(arguments=["adb", "wait-for-recovery"], timeout=300)
     except subprocess.TimeoutExpired:
         raise FatalError(
-            message="the Dot did not reach recovery (TWRP) within 5 minutes"
+            message=f"the {noun()} did not reach recovery (TWRP) within 5 minutes"
         ) from None
     deadline = time.monotonic() + 30
     while not adb_shell(command="getprop ro.twrp.version", timeout=30)[
@@ -329,7 +339,7 @@ def write(
         pushed = run(arguments=["adb", "push", path, staged], timeout=120)
         if pushed.returncode != 0:
             raise FatalError(
-                message=f"{label} did not reach the Dot; do not reboot:"
+                message=f"{label} did not reach the {noun()}; do not reboot:"
                 f"\n{pushed.stdout}"
             )
         done = adb_shell(

@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import ui
+from firebreak.devices import BISCUIT, RADAR
+from firebreak.unlocks.targets import TARGETS
 
 if TYPE_CHECKING:
     import pathlib
@@ -149,6 +151,21 @@ def test_mark_falls_back_to_ascii(*, monkeypatch: pytest.MonkeyPatch) -> None:
         value=io.TextIOWrapper(buffer=io.BytesIO(), encoding="ascii"),
     )
     assert ui.mark() == "done"
+
+
+@pytest.mark.parametrize(
+    ("target", "want"),
+    [
+        (TARGETS[BISCUIT]["stock"], "Dot"),
+        (TARGETS[RADAR]["stock"], "Echo"),
+        ("", "Echo"),
+    ],
+)
+def test_noun_names_the_target_s_device(
+    *, monkeypatch: pytest.MonkeyPatch, target: object, want: str
+) -> None:
+    monkeypatch.setattr(name="target", target=ui.ARGUMENTS, value=target)
+    assert ui.noun() == want
 
 
 def test_paint(*, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -23,7 +23,7 @@ from firebreak.bootrom_step import (
 )
 from firebreak.mediatek.usbdl import UsbdlError
 from firebreak.plan import TABLE_SECTORS
-from firebreak.ui import FatalError, again, show
+from firebreak.ui import FatalError, again, noun, show
 from firebreak.write_test import EMMC_TARGET, PATTERN
 
 if TYPE_CHECKING:
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from firebreak.amonet.biscuit_v2_0_0 import Client
 
 LEFT = (
-    "The Dot restarts. With a preloader in boot0 it starts as before; without"
+    "The Echo restarts. With a preloader in boot0 it starts as before; without"
     " one it waits in its bootrom, and a --short run takes it from there."
 )
 READS = 3
@@ -62,7 +62,7 @@ def bootrom_write_test(
     ask_for_short()
     client = bootrom_client(deadline=time.monotonic() + REPLUG_WAIT, erase=None)
     if client is None:
-        raise FatalError(message="the Dot started its preloader. " + again())
+        raise FatalError(message=f"the {noun()} started its preloader. " + again())
     live = exploit(client=client, payload=payload)
     check_emmc(live=live)
     try:
@@ -139,7 +139,9 @@ def region(*, line: Callable[[str, object], None], live: Client) -> int | None:
         return None
     part = partition_map(entries=entries).get(EMMC_TARGET)
     if part is None:
-        line("over the bootrom", f"skipped: this Dot has no {EMMC_TARGET} partition")
+        line(
+            "over the bootrom", f"skipped: this {noun()} has no {EMMC_TARGET} partition"
+        )
         return None
     if part.sectors < REGION_BLOCKS:
         line(
@@ -184,7 +186,7 @@ def wrote(
             "verdict",
             f"THE PAYLOAD STOPPED ANSWERING after a write of {blocks(count=count)}."
             " Either the bytes did not all cross USB, or the card never finished"
-            " the write. Unplug the Dot, then try another cable, port or"
+            f" the write. Unplug the {noun()}, then try another cable, port or"
             " computer: if this repeats, the card is at fault",
         )
         return Outcome.LOST
@@ -203,7 +205,7 @@ def wrote(
             "verdict",
             f"BYTES OF A WRITE OF {blocks(count=count).upper()} DID NOT CROSS"
             " USB: the payload took the next command as the rest of the write, so"
-            " the cable, the port or this computer is at fault. Unplug the Dot",
+            f" the cable, the port or this computer is at fault. Unplug the {noun()}",
         )
         return Outcome.LOST
     line(

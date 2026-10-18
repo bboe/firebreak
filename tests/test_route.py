@@ -502,7 +502,7 @@ def test_a_run_refuses_another_device_before_it_downloads(
         ([route.State.STOCK_BOOTED], "appears to be unmodified"),
         ([route.State.EMOS], "runs EchoMuse's emOS"),
         ([route.State.NO_SYSTEM], "/system is damaged"),
-        ([route.State.NONE], "Waiting for a Dot on USB"),
+        ([route.State.NONE], "Waiting for the Dot on USB"),
         (
             [route.State.STOCK_BOOTED, route.State.NONE],
             "Waiting for the Dot in fastboot mode, with a green ring.",

@@ -44,6 +44,7 @@ from firebreak.ui import (
     FatalError,
     Kind,
     again,
+    noun,
     paint,
     passed,
     show,
@@ -259,7 +260,9 @@ def restore(  # ruff: ignore[complex-structure]
     preloader = work / "boot0.img"
     staged = DOT_TEMPORARY_DIRECTORY / "pl.img"
     if run(arguments=["adb", "push", preloader, staged], timeout=120).returncode != 0:
-        raise FatalError(message="the preloader did not reach the Dot; do not reboot")
+        raise FatalError(
+            message=f"the preloader did not reach the {noun()}; do not reboot"
+        )
     adb_shell(command=Shell.BOOT0.value.format(source=staged))
     wrong = md5_mismatch(
         command="md5sum /dev/block/mmcblk0boot0",
@@ -307,7 +310,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
             version = ""
         elif not version.startswith(TWRP_VERSIONS):
             raise FatalError(
-                message="this needs a TWRP for this Dot: v1.1.0's 3.2.3,"
+                message=f"this needs a TWRP for this {noun()}: v1.1.0's 3.2.3,"
                 f" v2.0.0's 3.7.0, or the {TWRP_VERSION} that firebreak"
                 " installs"
             )
@@ -320,7 +323,9 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
         SESSION.dd = "toybox dd"
     tools = adb_shell(command=Shell.TOOLS.value).split(sep="\n")[-1]
     if not tools.startswith("tools:"):
-        raise FatalError(message="the Dot did not answer which tools it has: " + tools)
+        raise FatalError(
+            message=f"the {noun()} did not answer which tools it has: " + tools
+        )
     if tools != "tools:":
         raise FatalError(message="this TWRP has no" + tools[len("tools:") :])
     named = whole(
@@ -338,7 +343,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
     ):
         size = adb_shell(command=f"blockdev --getsize64 {DISK}")
         if not size.isdigit():
-            raise FatalError(message="could not read the Dot's disk size")
+            raise FatalError(message=f"could not read the {noun()}'s disk size")
         tail = read_sectors(count=33, start=int(size) // 512 - 33)
         raw = raw[:512] + tail[-512:] + tail[:-512]
         show(text="the primary partition table is damaged; using the backup")
@@ -388,9 +393,9 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
     if not boot0.isdigit() or len(preloader) > int(boot0) * 512:
         raise FatalError(message=f"preloader.img does not fit boot0 ({boot0} sectors)")
     (work / "boot0.img").write_bytes(data=preloader.ljust(int(boot0) * 512, b"\0"))
-    passed(message="stock partition table built from this Dot's own")
+    passed(message=f"stock partition table built from this {noun()}'s own")
     warn(
-        text="About to overwrite this Dot's bootloaders, system and data with"
+        text=f"About to overwrite this {noun()}'s bootloaders, system and data with"
         f" stock {build}."
     )
     warn(text="Root is gone afterwards; firebreak puts it back.")
@@ -447,7 +452,8 @@ def wait_for_fastboot() -> None:
                 break
         if time.monotonic() > deadline:
             raise FatalError(
-                message="the Dot did not reach fastboot within 2 minutes. " + again()
+                message=f"the {noun()} did not reach fastboot within 2 minutes. "
+                + again()
             )
         time.sleep(2)
     PROGRESS.end()

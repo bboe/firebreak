@@ -7,7 +7,7 @@ from firebreak.emmc import RPMB_SIZE, EmmcArea
 from firebreak.mediatek.usbdl import UsbdlError
 from firebreak.plan import BOOT0_HEADER, SECTOR_SIZE, whole_sectors
 from firebreak.plugin import BOOT0, FastbootFlash, Reboot, ZeroRpmb
-from firebreak.ui import PROGRESS, FatalError, again
+from firebreak.ui import PROGRESS, FatalError, again, noun
 
 if TYPE_CHECKING:
     from firebreak.emmc import Emmc
@@ -45,7 +45,7 @@ def execute(*, actions: tuple[Action, ...], payload: Emmc) -> None:
         except (OSError, UsbdlError) as error:
             raise FatalError(
                 message=f"{action.kind} ({action.label}) did not go through the"
-                f" bootrom: {error}. Do not unplug the Dot. " + again()
+                f" bootrom: {error}. Do not unplug the {noun()}. " + again()
             ) from error
 
 
@@ -90,7 +90,7 @@ def switch(*, partition: int, payload: Emmc) -> None:
         raise FatalError(
             message=f"area {partition} does not read as itself after the switch: its"
             f" block 0 starts {block[: len(BOOT0_HEADER)]!r} and ends"
-            f" {block[-len(USER_AREA_SIGNATURE) :]!r}. Do not unplug the Dot. "
+            f" {block[-len(USER_AREA_SIGNATURE) :]!r}. Do not unplug the {noun()}. "
             + again()
         )
 
@@ -113,7 +113,7 @@ def write(*, data: bytes, first: int, partition: int, payload: Emmc) -> None:
     if read(count=count, first=first, payload=payload) != data:
         raise FatalError(
             message=f"{len(data)} bytes at block {first} of area {partition} did"
-            " not read back. Do not unplug the Dot. " + again()
+            f" not read back. Do not unplug the {noun()}. " + again()
         )
 
 
@@ -135,5 +135,5 @@ def zero_rpmb(*, action: Action, payload: Emmc) -> None:
     if found != bytes(RPMB_SIZE):
         raise FatalError(
             message=f"the RPMB still holds {found!r} after being zeroed. Do not"
-            " unplug the Dot. " + again()
+            f" unplug the {noun()}. " + again()
         )

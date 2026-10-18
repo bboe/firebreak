@@ -1,10 +1,10 @@
-"""Change the firmware on an Echo Dot (2nd Generation) over USB: root it, or
-return it to stock. It finds where the Dot is, from stock, part way through, or
-on another target, and keeps going until the Dot is on the target: it waits
-while the Dot reboots, and while you take a step it asks for. Stopped, it picks
-up where it left off on the next run. It uses the one Dot on USB; set
-ANDROID_SERIAL when several are. It needs Python 3.9 or later, and adb and
-fastboot from Android platform-tools.
+"""Change the firmware on an Echo Dot (2nd Generation) or an Echo (2nd
+Generation) over USB: root it, or return it to stock. It finds where the Echo
+is, from stock, part way through, or on another target, and keeps going until
+the Echo is on the target: it waits while the Echo reboots, and while you take
+a step it asks for. Stopped, it picks up where it left off on the next run. It
+uses the one Echo on USB; set ANDROID_SERIAL when several are. It needs Python
+3.9 or later, and adb and fastboot from Android platform-tools.
 https://github.com/bboe/firebreak/blob/main/docs/rooting.md says why each
 step is there.
 """
@@ -205,7 +205,7 @@ def parsed() -> argparse.Namespace:
         "--verbose",
         action="store_true",
         help="print each adb and fastboot command, its exit status and the"
-        " time, and each state the Dot reaches",
+        " time, and each state the Echo reaches",
     )
     common_parent.add_argument(
         "--no-update-check",
@@ -227,7 +227,7 @@ def parsed() -> argparse.Namespace:
     short_parent.add_argument(
         "--short",
         action="store_true",
-        help="for a Dot that shows no light and needs its test point shorted:"
+        help="for an Echo that shows no light and needs its test point shorted:"
         " wait for its bootrom, say when the short may come off, then go on",
     )
     device_parent = argparse.ArgumentParser(
@@ -241,20 +241,20 @@ def parsed() -> argparse.Namespace:
         + ", ".join(f"{device.name} for the {device.title}" for device in TARGETS),
     )
     about = {
-        REPORT: "print what the Dot and this computer are, and the Dot's"
-        " partition table, for a support request. It starts the Dot's recovery"
+        REPORT: "print what the Echo and this computer are, and the Echo's"
+        " partition table, for a support request. It starts the Echo's recovery"
         " to read them and writes no partition.",
-        WRITE_TEST: f"write a known pattern over the Dot's {EMMC_TARGET}"
+        WRITE_TEST: f"write a known pattern over the Echo's {EMMC_TARGET}"
         " partition and read it back, which tells a failing eMMC from a failing"
         " USB cable because nothing crosses USB. It leaves a fresh empty"
         " filesystem there, or says it could not.",
         SURVEY: "read each Amazon OTA zip for the tables in docs/devices.md. It"
-        " needs no Dot.",
+        " needs no Echo.",
     }
     parser = argparse.ArgumentParser(
         description=__doc__,
         epilog=f"""{target_help()}
-Run again with another target to move the Dot to it.
+Run again with another target to move the Echo to it.
 
 commands, which are not targets:
 """

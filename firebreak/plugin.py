@@ -20,6 +20,7 @@ class ClearBoot0Header:
 class Device:
     features: frozenset[Feature]
     name: str
+    noun: str
     product: str
     title: str
     layouts: tuple[Layout, ...] = ()
