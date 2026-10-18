@@ -54,8 +54,10 @@ TARGETS = {
                 goal=State.AMONET_V2_0_0_BOOTED,
                 installs=FireOs6(build=AMONET_BISCUIT_V2_0_0_BUILD),
                 name=AMONET_BISCUIT_V2_0_0.name,
-                summary="amonet v2.0.0's own procedure: Fire OS 6"
-                f" {AMONET_BISCUIT_V2_0_0_BUILD} with boot-root.zip's root adb.",
+                summary="boot-root.zip's root adb on the Fire OS 6 already"
+                " installed, which keeps the Dot's setup; with --reset, amonet"
+                f" v2.0.0's own procedure: Fire OS 6 {AMONET_BISCUIT_V2_0_0_BUILD},"
+                " with the Dot erased.",
                 unlock=AMONET_BISCUIT_V2_0_0,
             ),
         )
@@ -77,8 +79,10 @@ TARGETS = {
                 goal=State.AMONET_V2_0_0_BOOTED,
                 installs=FireOs6(build=DEFAULT_BUILDS[RADAR]),
                 name=AMONET_RADAR_V1_0_0.name,
-                summary="amonet-radar v1.0.0's own procedure: Fire OS 6"
-                f" {DEFAULT_BUILDS[RADAR]} with boot-root.zip's root adb.",
+                summary="boot-root.zip's root adb on the Fire OS 6 already"
+                " installed, which keeps the Echo's setup; with --reset,"
+                " amonet-radar v1.0.0's own procedure: Fire OS 6"
+                f" {DEFAULT_BUILDS[RADAR]}, with the Echo erased.",
                 unlock=AMONET_RADAR_V1_0_0,
             ),
         )

@@ -807,17 +807,18 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
 | --- | --- | --- |
 | `amonet-biscuit-v1.1.0-bboe`, the default | amonet v1.1.0, TWRP 3.7.0_9-bboe2, rooted Fire OS 5.5.5.4 | amonet-v1.1.0-bboe-booted |
 | `amonet-biscuit-v1.1.0` | the same, with v1.1.0's own TWRP 3.2.3 | amonet-v1.1.0-booted |
-| `amonet-biscuit-v2.0.0` | amonet v2.0.0's TWRP, Fire OS 6 8146 in both slots, `boot-root.zip` | amonet-v2.0.0-booted |
+| `amonet-biscuit-v2.0.0 [--reset]` | amonet v2.0.0's TWRP, `boot-root.zip` on the Fire OS 6 installed; with `--reset`, or with no Fire OS 6 installed, on Fire OS 6 8146 in both slots | amonet-v2.0.0-booted |
 | `stock [BUILD]` | Amazon's Fire OS 6 `BUILD`, 8149 when left out, the whole Dot erased | stock-booted |
-| `amonet-radar-v1.0.0`, on radar | amonet-radar v1.0.0's TWRP, Fire OS 6 6436 in both slots, `boot-root.zip` | amonet-v2.0.0-booted |
+| `amonet-radar-v1.0.0 [--reset]`, on radar | amonet-radar v1.0.0's TWRP, `boot-root.zip` on the Fire OS 6 installed; with `--reset`, or with no Fire OS 6 installed, on Fire OS 6 6436 in both slots | amonet-v2.0.0-booted |
 | `stock`, on radar | Amazon's Fire OS 6 6436, the whole Echo erased | stock-booted |
 
-- radar's unlock is amonet-radar's own procedure, as the radar XDA thread
-  gives it: the fastbrick, Fire OS 6 installed twice through TWRP, then
-  `boot-root.zip`. The thread's `boot-root.zip` is biscuit's, byte for byte.
-  The thread says a radar can need a power cycle before adb shows after that
-  reboot. radar's default target is `amonet-radar-v1.0.0`, so a bare run, or
-  one with only `--device radar`, unlocks it as a bare run roots a Dot. The
+- radar's unlock with `--reset` is amonet-radar's own procedure, as the
+  radar XDA thread gives it: the fastbrick, Fire OS 6 installed twice through
+  TWRP, then `boot-root.zip`. The thread's `boot-root.zip` is biscuit's, byte
+  for byte. The thread says a radar can need a power cycle before adb shows
+  after that reboot. radar's default target is `amonet-radar-v1.0.0`, so a
+  bare run, or one with only `--device radar`, unlocks it as a bare run roots
+  a Dot. The
   route from amonet v1.1.0 states and the bootrom stay biscuit's.
 
 - Each poll picks the stage for the state found and the target, so a run
@@ -842,9 +843,10 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
 
 ### amonet-biscuit-v2.0.0
 
-- In v2.0.0's TWRP it runs `twrp wipe cache`, `twrp wipe data`, and `twrp
-  install` of the OTA twice, with a reboot into recovery between. Then it
-  runs `twrp install` of `boot-root.zip` and reboots.
+- With `--reset`, in v2.0.0's TWRP it runs `twrp wipe cache`, `twrp wipe
+  data`, and `twrp install` of the OTA twice, with a reboot into recovery
+  between. Then it runs `twrp install` of `boot-root.zip` and reboots. That
+  is the XDA procedure.
 - It pushes the OTA to `/sdcard` before each install. A `/sdcard` on a
   `/data` that did not mount is TWRP's RAM: the push and its read-back pass,
   and the reboot loses the file.
@@ -877,6 +879,32 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
   and the `Updater process ended with RC=` line after it, and goes on only on
   `RC=0`. The `adb reboot` after it also found no device and left the Echo in
   TWRP, so the reboot is tried 3 times, each after `adb wait-for-recovery`.
+- `RC=0` alone does not show that the zip patched anything: a slot with no
+  `default.prop` is skipped, and the zip still ends with 0. So the run also
+  needs the zip's `slot _a: neutering ota updates` line, for the active slot,
+  in TWRP's log, which carries the zip's messages.
+- Without `--reset`, the run skips the wipes and both OTA installs, and
+  installs `boot-root.zip` over the Fire OS 6 already in the slots. The zip
+  finds what it patches in each build: the adbd site by a byte pattern, and
+  the SELinux policy through `magiskpolicy`. Before the zip, the run mounts
+  the active slot's `system` read-only and reads `ro.build.version.name`. A
+  Fire OS 6 build with no OTA in firebreak's list stops the run with nothing
+  written, and says to use `--reset`. The fastbrick takes only the LKs those
+  builds ship, so the kernel boots under the amonet LK it was built beside.
+- A slot with no Fire OS 6 in it, as after the route from amonet v1.1.0,
+  leaves nothing to keep, so the run installs the target's build as
+  `--reset` does, and adds those steps to the total. A read that lacks its
+  `build-ok` marker stops the run: a USB drop must not lead to a wipe. The
+  OTA still downloads in the background in every case, as the stage may need
+  it.
+- Patching in place keeps userdata, so a Dot set up in the Alexa app stays
+  set up. `boot-root.zip`'s own `init.fosflags.sh` keeps adb on, where
+  stock's turns it off once the Dot is registered. Measured on a Dot,
+  2026-10-18: stock 8149, set up in the Alexa app, then the patch in place
+  took 78 s from fastboot to rooted 8149. It kept its saved Wi-Fi network,
+  was online 30 s after boot, with root adb, and still took changes made in
+  the Alexa app. Its voice was not judged: that Dot's link to its microphone
+  board is loose.
 - Fire OS 6 without root for a minute after the install means
   `boot-root.zip` did not take, and the run stops. A single such read during
   the first boot does not stop it.

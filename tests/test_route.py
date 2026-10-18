@@ -337,6 +337,16 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
     assert got == [downloaded]
 
 
+def test_a_reset_route_takes_five_steps(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(name="reset", target=route.ARGUMENTS, value=True)
+    monkeypatch.setattr(
+        name="target",
+        target=route.ARGUMENTS,
+        value=TARGETS[BISCUIT]["amonet-biscuit-v2.0.0"],
+    )
+    assert route.stages()[route.State.AMONET_V2_0_0_TWRP].steps == 5
+
+
 @pytest.mark.parametrize(
     ("name", "start", "needs"),
     [
@@ -812,7 +822,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             ),
             state.AMONET_V2_0_0_TWRP: (
                 route.stage_install_fireos6,
-                5,
+                3,
                 state.AMONET_V2_0_0_BOOTED,
                 frozenset(),
             ),
@@ -911,7 +921,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
     ("name", "totals"),
     [
         ("amonet-biscuit-v1.1.0-bboe", {"stock": 11, "twrp": 9, "v1.1.0": 7}),
-        ("amonet-biscuit-v2.0.0", {"stock": 7, "twrp": 5, "v1.1.0": 9}),
+        ("amonet-biscuit-v2.0.0", {"stock": 5, "twrp": 3, "v1.1.0": 7}),
     ],
 )
 def test_fastboot_counts_the_steps_the_route_takes(

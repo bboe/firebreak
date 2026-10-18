@@ -85,6 +85,10 @@ firebreak stops on it.
   in firmly, and try another cable if it fails again.
 - Do not set up a stock Dot in the Alexa app before you unlock it. On Wi-Fi it
   can update to a build the script does not support.
+- `amonet-biscuit-v2.0.0` and `amonet-radar-v1.0.0` root the Fire OS 6
+  build already installed, and keep the Dot's Wi-Fi and Alexa setup. Unlock
+  it soon after setup, before it can update. `--reset` erases the Dot and
+  installs the target's build instead.
 - [docs/rooting.md][rooting] says why each step is there.
 
 ## Bootloaders

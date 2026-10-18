@@ -12,7 +12,7 @@ import threading
 import time
 from typing import NoReturn, TextIO
 
-ARGUMENTS = argparse.Namespace(build="", target="", verbose=False)
+ARGUMENTS = argparse.Namespace(build="", reset=False, target="", verbose=False)
 BOOT0_EMPTY = (
     "boot0 may hold no preloader until the last step, so an Echo that restarts"
     " before then shows no light and starts nothing: it waits in its bootrom,"

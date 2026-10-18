@@ -25,6 +25,7 @@ from firebreak.cache import make_cache
 from firebreak.emos import child_emos
 from firebreak.host import check_adb, check_python, check_root, check_user
 from firebreak.identify import choose_target
+from firebreak.plugin import FireOs6
 from firebreak.route import root
 from firebreak.support import report, write_test
 from firebreak.survey import survey_all
@@ -72,6 +73,12 @@ ftvdb keeps the Fire OS builds that the tables link to.
   https://ftvdb.com/"""
 DEVICES = {device.name: device for device in TARGETS}
 REPORT = "report"
+RESETS = {
+    name
+    for targets in TARGETS.values()
+    for name, target in targets.items()
+    if isinstance(target.installs, FireOs6) and target.unlock
+}
 SURVEY = "survey"
 WRITE_TEST = "write-test"
 
@@ -123,6 +130,12 @@ def cli() -> None:
     ARGUMENTS.target = choose_target(
         device=DEVICES.get(options.device), name=options.command
     )
+    ARGUMENTS.reset = options.reset
+    if ARGUMENTS.reset and ARGUMENTS.target.name not in RESETS:
+        raise FatalError(
+            message=f"{ARGUMENTS.target.name} takes no --reset: only"
+            f" {', '.join(sorted(RESETS))} install a Fire OS 6 build to erase to."
+        )
     device = ARGUMENTS.target.device
     if ARGUMENTS.target.name == STOCK:
         ARGUMENTS.build = options.build or updates.DEFAULT_BUILDS[device]
@@ -240,6 +253,16 @@ def parsed() -> argparse.Namespace:
         " the Echo: "
         + ", ".join(f"{device.name} for the {device.title}" for device in TARGETS),
     )
+    reset_parent = argparse.ArgumentParser(
+        add_help=False, argument_default=argparse.SUPPRESS
+    )
+    reset_parent.add_argument(
+        "--reset",
+        action="store_true",
+        help="erase userdata and install the target's Fire OS 6 build in both"
+        " slots, where the target otherwise roots the Fire OS 6 already installed"
+        " and keeps the Echo's Wi-Fi and Alexa setup",
+    )
     about = {
         REPORT: "print what the Echo and this computer are, and the Echo's"
         " partition table, for a support request. It starts the Echo's recovery"
@@ -260,7 +283,13 @@ commands, which are not targets:
 """
         + commands_help(about=about),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        parents=[common_parent, fastboot_parent, short_parent, device_parent],
+        parents=[
+            common_parent,
+            fastboot_parent,
+            short_parent,
+            device_parent,
+            reset_parent,
+        ],
         prog="firebreak",
     )
     parser.add_argument(
@@ -287,7 +316,13 @@ commands, which are not targets:
             )
             if len(by_device) > 1
             else next(iter(by_device.values())),
-            parents=[common_parent, fastboot_parent, short_parent, device_parent],
+            parents=[
+                common_parent,
+                fastboot_parent,
+                short_parent,
+                device_parent,
+                *dict.fromkeys(RESETS, (reset_parent,)).get(name, ()),
+            ],
         )
         if name == STOCK:
             target.add_argument(
@@ -323,6 +358,7 @@ commands, which are not targets:
         ("device", None),
         ("fastboot", False),
         ("no_update_check", False),
+        ("reset", False),
         ("short", False),
         ("verbose", False),
     ):
@@ -332,8 +368,10 @@ commands, which are not targets:
         STOCK: {"device", "fastboot", "short"},
         SURVEY: set(),
         WRITE_TEST: {"short"},
-    }.get(options.command, {"device", "short"})
-    for option in sorted({"device", "fastboot", "short"} - takes):
+    }.get(options.command, {"device", "reset", "short"})
+    if options.command in RESETS:
+        takes |= {"reset"}
+    for option in sorted({"device", "fastboot", "reset", "short"} - takes):
         if getattr(options, option):
             parser.error(
                 message=f"{options.command or 'the default target'} takes no --{option}"

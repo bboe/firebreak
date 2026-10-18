@@ -75,6 +75,7 @@ def fireos6(
         target=fireos.ARGUMENTS,
         value=TARGETS[BISCUIT]["amonet-biscuit-v2.0.0"],
     )
+    monkeypatch.setattr(name="reset", target=fireos.ARGUMENTS, value=True)
     waited: list[str] = []
     monkeypatch.setattr(name="amonet_chain", target=fireos, value=lambda: None)
     monkeypatch.setattr(
@@ -92,6 +93,7 @@ def fireos6(
     ]
     adb.answers["boot-root.zip"] = ["Installing\nDone"]
     adb.answers["Installing zip file"] = [ended(rc=0)]
+    adb.answers["neutering ota updates"] = ["1\nzip-ok"]
     return waited
 
 
@@ -352,6 +354,84 @@ def test_fire_os_6_goes_into_both_slots_then_boot_root(
     assert adb.asked[-1] == ["adb", "reboot"]
 
 
+@pytest.mark.parametrize(
+    "said",
+    [
+        "mount-ok\nbuild-ok",
+        "mount-ok\nro.build.version.name=Fire OS 5.5.5.4\nbuild-ok",
+    ],
+)
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_installs_where_no_fire_os_6_is_installed(
+    *,
+    adb: FakeAdb,
+    monkeypatch: pytest.MonkeyPatch,
+    pushed: list[tuple[pathlib.Path, str]],
+    said: str,
+) -> None:
+    monkeypatch.setattr(name="reset", target=fireos.ARGUMENTS, value=False)
+    monkeypatch.setattr(name="steps", target=fireos.PROGRESS, value=3)
+    adb.answers["bcbtool get_active"] = [
+        f"0\n{slot}\nslot-ok" for slot in ("a", "a", "b", "b", "a")
+    ]
+    adb.answers["build-ok"] = [said]
+    fireos.stage_install_fireos6()
+    assert [remote for _, remote in pushed] == [
+        "/sdcard/update.zip",
+        "/sdcard/update.zip",
+        "/sdcard/boot-root.zip",
+    ]
+    assert fireos.PROGRESS.steps == 6
+
+
+@pytest.mark.parametrize(
+    ("said", "stops"),
+    [
+        (
+            "mount-ok\nro.build.version.name=Fire OS 6599.1 (NS6599/8999)\nbuild-ok",
+            r"\(NS6599/8999\), a Fire OS 6 build firebreak does not know.* --reset",
+        ),
+        ("adb: device 'G090' not found", "did not say which Fire OS slot a holds"),
+        ("mount: Invalid argument\nbuild-ok", "did not mount slot a's system"),
+    ],
+)
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_leaves_a_slot_it_cannot_patch_alone(
+    *,
+    adb: FakeAdb,
+    monkeypatch: pytest.MonkeyPatch,
+    pushed: list[tuple[pathlib.Path, str]],
+    said: str,
+    stops: str,
+) -> None:
+    monkeypatch.setattr(name="reset", target=fireos.ARGUMENTS, value=False)
+    adb.answers["build-ok"] = [said]
+    with pytest.raises(FatalError, match=stops):
+        fireos.stage_install_fireos6()
+    assert pushed == []
+    assert adb.commands(holding="twrp wipe") == []
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_patches_the_installed_build_unless_reset(
+    *,
+    adb: FakeAdb,
+    monkeypatch: pytest.MonkeyPatch,
+    pushed: list[tuple[pathlib.Path, str]],
+) -> None:
+    monkeypatch.setattr(name="reset", target=fireos.ARGUMENTS, value=False)
+    adb.answers["bcbtool get_active"] = ["0\nb\nslot-ok"]
+    adb.answers["build-ok"] = [
+        "mount-ok\nro.build.version.name=Fire OS 6574.1 (NS65741/8146)\nbuild-ok"
+    ]
+    fireos.stage_install_fireos6()
+    assert [remote for _, remote in pushed] == ["/sdcard/boot-root.zip"]
+    assert adb.commands(holding="twrp wipe") == []
+    assert "system_b" in adb.commands(holding="build-ok")[0]
+    assert "slot _b:" in adb.commands(holding="neutering")[0]
+    assert adb.asked[-1] == ["adb", "reboot"]
+
+
 @pytest.mark.usefixtures("fireos6")
 def test_fire_os_6_refuses_amonet_v1_1_0_s_table(
     *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
@@ -394,6 +474,17 @@ def test_fire_os_6_stops_when_boot_root_never_ends(
     monkeypatch.setattr(name="monotonic", target=fireos.time, value=lambda: next(clock))
     with pytest.raises(FatalError, match="did not finish installing boot-root"):
         fireos.stage_install_fireos6()
+
+
+@pytest.mark.parametrize("said", ["0\nzip-ok", "adb: device 'G090' not found"])
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_stops_when_boot_root_patched_no_slot(
+    *, adb: FakeAdb, said: str
+) -> None:
+    adb.answers["neutering ota updates"] = [said]
+    with pytest.raises(FatalError, match="ended without patching slot a"):
+        fireos.stage_install_fireos6()
+    assert ["adb", "reboot"] not in adb.asked
 
 
 @pytest.mark.usefixtures("fireos6")
@@ -445,7 +536,7 @@ def test_fire_os_6_waits_out_a_drop_and_a_running_install(*, adb: FakeAdb) -> No
         "0\na\nslot-ok",
     ]
     fireos.stage_install_fireos6()
-    assert len(adb.commands(holding="bcbtool get_active")) == 6
+    assert len(adb.commands(holding="bcbtool get_active")) == 7
 
 
 @pytest.mark.usefixtures("magisk")

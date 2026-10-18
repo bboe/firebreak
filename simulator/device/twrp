@@ -59,6 +59,7 @@ def install(*, path: str) -> int:
     else:
         (RUN / f"root-adb-{active}").touch()
         print("Installing boot-root...")
+        logged(line=f"slot _{active}: neutering ota updates")
     print("Done processing script file")
     logged(line="I:Updater process ended with RC=0")
     return 0

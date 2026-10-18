@@ -57,7 +57,10 @@ BOOT_ROOT = Download(
     url="https://xdaforums.com/attachments/boot-root-zip.6388001/",
 )
 BOOT_ROOT_INSTALL = "Installing zip file '/sdcard/boot-root.zip'"
+BUILD_NAME = "ro.build.version.name="
+BUILD_OK = "build-ok"
 HIDE_WAIT = 60
+MOUNT_OK = "mount-ok"
 SLOT_OK = "slot-ok"
 TWRP = amonet_biscuit_v1_1_0_bboe.RECOVERY
 UPDATER = "com.amazon.device.software.ota"
@@ -207,6 +210,32 @@ def hide_updater() -> None:
         delay *= 2
 
 
+def install_fireos6() -> None:
+    build = ARGUMENTS.target.installs.build
+    update_file = updates.download(build=build, device=ARGUMENTS.target.device)
+    PROGRESS.begin(estimate="10 s", label="wiping cache and data")
+    for part in ("cache", "data"):
+        adb_shell(command="twrp wipe " + part, timeout=120)
+    update = "/sdcard/update.zip"
+    for index, slot in enumerate(iterable=("first", "second")):
+        PROGRESS.begin(
+            estimate="135 s",
+            label=f"installing Fire OS 6 {build}, {slot} slot",
+        )
+        if index:
+            run(arguments=["adb", "reboot", "recovery"], check=True, timeout=60)
+            wait_for_twrp()
+        push_checked(local=update_file, remote=update)
+        before = active_slot()
+        adb_shell(command="twrp install " + update, timeout=600)
+        after = active_slot()
+        if {before, after} != {"a", "b"}:
+            raise FatalError(
+                message=f"installing Fire OS 6 {build} left the"
+                f" active slot {after!r}, where it was {before!r}. " + again()
+            )
+
+
 def install_magisk(*, magisk: pathlib.Path, work: pathlib.Path) -> None:
     database = work / "magisk.db"
     magisk_db(path=database)
@@ -223,6 +252,41 @@ def install_magisk(*, magisk: pathlib.Path, work: pathlib.Path) -> None:
     paths = " ".join(name.decode() for name in names)
     if md5_mismatch(command=f"cd /; cat {paths} | md5sum", want=want):
         raise FatalError(message=f"Magisk 17.3's files did not verify on the {noun()}")
+
+
+def installed_build(*, slot: str) -> str:
+    PROGRESS.begin(estimate="5 s", label="reading the installed Fire OS 6 build")
+    said = adb_shell(
+        command=f"m=/tmp/installed-system; mkdir -p $m; umount $m 2>/dev/null;"
+        f" mount -o ro {BY_NAME}/system_{slot} $m && echo {MOUNT_OK};"
+        " grep -m 1 '^ro.build.version.name=' $m/system/build.prop;"
+        f" umount $m; echo {BUILD_OK}",
+        timeout=60,
+    ).split(sep="\n")
+    if said[-1:] != [BUILD_OK]:
+        raise FatalError(
+            message=f"the {noun()} did not say which Fire OS slot {slot} holds; it"
+            " was not modified. " + again()
+        )
+    if MOUNT_OK not in said:
+        raise FatalError(
+            message=f"the {noun()} did not mount slot {slot}'s system, so this run"
+            f" cannot tell what it holds; the {noun()} was not modified. " + again()
+        )
+    name = next(
+        (line.partition("=")[2] for line in said if line.startswith(BUILD_NAME)), ""
+    )
+    if not name.startswith("Fire OS 6"):
+        return ""
+    build = name.rpartition("/")[2].rstrip(")")
+    if build not in updates.BUILDS[ARGUMENTS.target.device]:
+        raise FatalError(
+            message=f"slot {slot} holds {name}, a Fire OS 6 build firebreak does not"
+            f" know, so it does not patch it; the {noun()} was not modified. Run"
+            f" again with --reset to erase it and install Fire OS 6"
+            f" {ARGUMENTS.target.installs.build}."
+        )
+    return build
 
 
 def reboot_rooted() -> None:
@@ -288,34 +352,17 @@ def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
 
 def stage_install_fireos6() -> None:
     amonet_chain()
-    build = ARGUMENTS.target.installs.build
-    update_file = updates.download(build=build, device=ARGUMENTS.target.device)
     zip_path = fetch(download=BOOT_ROOT)
     if "boot_a_x" in partition_table():
         raise FatalError(
             message="v2.0.0's TWRP runs on amonet v1.1.0's partition table. " + again()
         )
-    PROGRESS.begin(estimate="10 s", label="wiping cache and data")
-    for part in ("cache", "data"):
-        adb_shell(command="twrp wipe " + part, timeout=120)
-    update = "/sdcard/update.zip"
-    for index, slot in enumerate(iterable=("first", "second")):
-        PROGRESS.begin(
-            estimate="135 s",
-            label=f"installing Fire OS 6 {build}, {slot} slot",
-        )
-        if index:
-            run(arguments=["adb", "reboot", "recovery"], check=True, timeout=60)
-            wait_for_twrp()
-        push_checked(local=update_file, remote=update)
-        before = active_slot()
-        adb_shell(command="twrp install " + update, timeout=600)
-        after = active_slot()
-        if {before, after} != {"a", "b"}:
-            raise FatalError(
-                message=f"installing Fire OS 6 {build} left the"
-                f" active slot {after!r}, where it was {before!r}. " + again()
-            )
+    build = "" if ARGUMENTS.reset else installed_build(slot=active_slot())
+    if not build:
+        if not ARGUMENTS.reset and PROGRESS.steps:
+            PROGRESS.steps += 3
+        install_fireos6()
+        build = ARGUMENTS.target.installs.build
     PROGRESS.begin(estimate="10 s", label="installing boot-root")
     push_checked(local=zip_path, remote="/sdcard/boot-root.zip")
     output = adb_shell(command="twrp install /sdcard/boot-root.zip", timeout=300)
@@ -325,7 +372,21 @@ def stage_install_fireos6() -> None:
     ended = boot_root_ended()
     if ended != "I:Updater process ended with RC=0":
         raise FatalError(message="boot-root.zip failed: " + ended)
-    PROGRESS.begin(estimate="60 s", label="waiting for rooted Fire OS 6 to boot")
+    slot = active_slot()
+    patched = adb_shell(
+        command=f"grep -c 'slot _{slot}: neutering ota updates' /tmp/recovery.log;"
+        f" echo {ZIP_OK}",
+        timeout=30,
+    ).split(sep="\n")
+    counted = "".join(patched[-2:-1]).strip()
+    if patched[-1:] != [ZIP_OK] or not counted.isdigit() or not int(counted):
+        raise FatalError(
+            message=f"boot-root.zip ended without patching slot {slot}, which holds"
+            f" Fire OS 6 {build}. " + again()
+        )
+    PROGRESS.begin(
+        estimate="60 s", label=f"waiting for rooted Fire OS 6 {build} to boot"
+    )
     reboot_rooted()
 
 

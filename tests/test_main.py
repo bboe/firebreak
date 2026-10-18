@@ -37,6 +37,7 @@ def parse_into_namespace(*, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def ran(*, device: Device, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="build", target=main.ARGUMENTS, value="")
+    monkeypatch.setattr(name="reset", target=main.ARGUMENTS, value=False)
     monkeypatch.setattr(name="target", target=main.ARGUMENTS, value="")
     monkeypatch.setattr(name="which", target=main.shutil, value=lambda **_: "adb")
     for name in ("check_adb", "check_python", "check_user", "make_cache"):
@@ -313,6 +314,27 @@ def test_options_count_before_or_after_the_target_or_command(
         options.device,
         options.verbose,
     ) == parsed
+
+
+@pytest.mark.parametrize("target", ["amonet-biscuit-v1.1.0-bboe", "stock"])
+def test_reset_is_refused_where_nothing_installs_fire_os_6(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, target: str
+) -> None:
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", target, "--reset"])
+    with pytest.raises(SystemExit):
+        main.parsed()
+    assert "unrecognized arguments: --reset" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("target", ["amonet-biscuit-v2.0.0", "amonet-radar-v1.0.0"])
+def test_reset_reaches_a_fire_os_6_unlock(
+    *, monkeypatch: pytest.MonkeyPatch, target: str
+) -> None:
+    ran(device=RADAR if "radar" in target else BISCUIT, monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", target, "--reset"])
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert main.ARGUMENTS.reset is True
 
 
 @pytest.mark.parametrize("build", [[], ["8338"]])

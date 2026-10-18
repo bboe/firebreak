@@ -204,7 +204,7 @@ def fireos6_stages() -> dict[State, Stage]:
         State.AMONET_V2_0_0_TWRP: Stage(
             needs=(unlock.source, ota_build, BOOT_ROOT),
             run=stage_install_fireos6,
-            steps=5,
+            steps=5 if ARGUMENTS.reset else 3,
             then=State.AMONET_V2_0_0_BOOTED,
         ),
         State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(
