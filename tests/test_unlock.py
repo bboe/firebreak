@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import unlock
-from firebreak.devices import RADAR
+from firebreak.devices import BISCUIT, RADAR
 from firebreak.ui import FatalError
 from firebreak.unlocks.targets import TARGETS
 
@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     import pathlib
 
     from conftest import FakeAdb
+
+    from firebreak.plugin import Device
 
 LK = {"stock": b"S" * 241664, "v1.1.0": b"1" * 372368, "v2.0.0": b"2" * 359744}
 
@@ -208,6 +210,39 @@ def test_a_fastbrick_checks_the_dot_before_it_flashes(  # ruff: ignore[too-many-
     adb.answers["product"] = [product]
     with pytest.raises(FatalError, match=message):
         unlock.stage_fastbrick()
+    assert adb.commands(holding="brick") == []
+
+
+@pytest.mark.parametrize(
+    ("device", "target", "said"),
+    [
+        (BISCUIT, "amonet-biscuit-v2.0.0", "open it as README.md's --short"),
+        (RADAR, "amonet-radar-v1.0.0", "#support-device-unlocking"),
+    ],
+)
+def test_a_fastbrick_refuses_a_bootloader_it_does_not_know(  # ruff: ignore[too-many-arguments]
+    *,
+    adb: FakeAdb,
+    device: Device,
+    monkeypatch: pytest.MonkeyPatch,
+    said: str,
+    target: str,
+    tmp_path: pathlib.Path,
+) -> None:
+    monkeypatch.setattr(
+        name="target", target=unlock.ARGUMENTS, value=TARGETS[device][target]
+    )
+    brick(
+        adb=adb,
+        little_kernel="2c3569d-20260617_045829",
+        monkeypatch=monkeypatch,
+        product=device.product,
+        tmp_path=tmp_path,
+    )
+    with pytest.raises(FatalError, match="2c3569d-20260617_045829") as stopped:
+        unlock.stage_fastbrick()
+    assert "not modified" in stopped.value.message
+    assert said in stopped.value.message
     assert adb.commands(holding="brick") == []
 
 

@@ -27,6 +27,15 @@ AMONET_BISCUIT_V2_0_0 = Unlock(
     family="amonet",
     fastbricks=dict.fromkeys(
         (LK.FIREOS6.value, LK.FIREOS6_4315.value), "bin/fastbrick-20221007.img"
+    )
+    | dict.fromkeys(
+        (
+            LK.FIREOS5.value,
+            "0e1d0d9-20161018_220224",
+            "a828f29-20210822_210511",
+            "beb022a-20211202_231918",
+        ),
+        "bin/fastbrick.img",
     ),
     layout=STOCK_LAYOUT,
     plan=(

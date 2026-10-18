@@ -759,10 +759,15 @@ ring read white.
 ## Unlock: amonet v2.0.0
 
 - The fastbrick image is `fastbrick-20221007.img` when `lk_build_desc` is
-  `63cb91b-20221007_072309` or `41fb3ce-20221007_151724`, else
-  `fastbrick.img`. That one payload takes both bootloaders, where amonet
-  v2.0.0's own map lists only the first. The second ships in 4310, 4313 and
-  4315, which the default image does not unlock.
+  `63cb91b-20221007_072309` or `41fb3ce-20221007_151724`, and
+  `fastbrick.img` for the Fire OS 5 LKs. That one payload takes both Fire OS 6
+  bootloaders, where amonet v2.0.0's own map lists only the first. The second
+  ships in 4310, 4313 and 4315, which the default image does not unlock.
+- Any other LK stops the run before the flash. amonet's map sends it
+  `fastbrick.img`, but a payload is built for its LKs, and no one knows what
+  it does to another. A biscuit on build 8338, device software version
+  13323244164, reported LK `2c3569d-20260617_045829`, which no OTA on ftvdb
+  ships. The eMMC short reaches the bootrom whatever the LK.
 - A flash that returns means the exploit did not start, so it is retried, up to
   10 times. A flash still running after 8 seconds means the exploit is running:
   the script stops fastboot and leaves the Dot to reach TWRP.
@@ -772,8 +777,8 @@ ring read white.
   with amonet-radar v1.0.0. Each unlock names its fastbrick images by LK, so
   the fastboot product is checked against the target's device, not biscuit's.
   radar follows amonet-radar's own map: `fastbrick-20220524.img` for Fire OS
-  5.5.5.4's LK, `59779ca-20220524_183401`, else `fastbrick.img`.
-  `fastbrick.img` unlocked a stock radar on Fire OS 6 LK
+  5.5.5.4's LK, `59779ca-20220524_183401`, and `fastbrick.img` for its two
+  Fire OS 6 LKs. `fastbrick.img` unlocked a stock radar on Fire OS 6 LK
   `63cb91b-20221007_073612` on its second flash.
 
 ## Unlock: a bootloader with no fastbrick image

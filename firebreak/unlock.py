@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import time
 from typing import TYPE_CHECKING
 
@@ -8,11 +9,18 @@ from firebreak import lk_unlock, updates
 from firebreak.android.ota import extract
 from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import CACHE, ERASED, digest, fetch, unpack
-from firebreak.devices import LITTLE_KERNEL_DESCRIPTION, LK, UNLOCK_BUILDS
+from firebreak.devices import BISCUIT, LITTLE_KERNEL_DESCRIPTION, LK, UNLOCK_BUILDS
 from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconnect, run
 from firebreak.recovery import MD5_DIGITS
 from firebreak.twrp import DISK, partitions
-from firebreak.ui import ARGUMENTS, PROGRESS, FatalError, again, asked_for
+from firebreak.ui import (
+    ARGUMENTS,
+    PROGRESS,
+    FatalError,
+    again,
+    asked_for,
+    invocation,
+)
 from firebreak.unlocks import (
     amonet_biscuit_v1_1_0,
     amonet_biscuit_v1_1_0_bboe,
@@ -199,7 +207,20 @@ def stage_fastbrick() -> None:
             message="fastboot did not report the bootloader version;"
             " the Dot was not modified"
         )
-    image = fastbrick.fastbricks.get(little_kernel, "bin/fastbrick.img")
+    image = fastbrick.fastbricks.get(little_kernel)
+    if not image:
+        short = invocation(options=["--short", *sys.argv[1:]])
+        raise FatalError(
+            message=f"no Fire OS that firebreak knows ships the bootloader"
+            f" {little_kernel}, so {fastbrick.name} has no fastbrick for it;"
+            " the Dot was not modified. "
+            + (
+                "Its bootrom can still unlock it: open it as README.md's --short"
+                f" section says, then run {short}."
+                if fastbrick.device == BISCUIT
+                else asked_for()
+            )
+        )
     PROGRESS.begin(estimate="10 s", label=f"unlocking with {fastbrick.name}")
     for attempt in range(10):
         if attempt:

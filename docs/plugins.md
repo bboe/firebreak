@@ -85,7 +85,7 @@ From an amonet v1.1.0 TWRP, firebreak carries out v2.0.0's plan in place of
 its zip: docs/rooting.md has the route. From stock, the fastbrick unlocks
 the Dot instead: each device's fastbrick unlock is in `FASTBRICKS`, in
 `firebreak/unlocks/targets.py`, and an unlock's `fastbricks` maps an LK to
-its image, `bin/fastbrick.img` for any other LK. In the plan, as in
+its image. An LK it does not list stops the run. In the plan, as in
 `main.py`, `FASTBOOT_PLEASE` lands after the preloader, so a bootrom route
 that stops between the two is past a resume and has no fastboot marker. The
 TWRP route leaves that step out.
