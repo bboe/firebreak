@@ -23,7 +23,7 @@ AEOBC = identify.UsbDevice(
     manufacturer="MediaTek",
     product="AEOBC",
     product_id=0x201C,
-    serial="G090LF0964230U8T",
+    serial="G090000000000000",
     vendor_id=0x0E8D,
 )
 AEORD = identify.UsbDevice(
@@ -337,7 +337,7 @@ def test_linux_reads_sysfs(
         "idVendor": "0e8d\n",
         "manufacturer": "MediaTek\n",
         "product": "AEOBC\n",
-        "serial": "G090LF0964230U8T\n",
+        "serial": "G090000000000000\n",
     }.items():
         (dot / name).write_text(text)
     (tmp_path / "1-1:1.0").mkdir()
@@ -380,7 +380,7 @@ def test_macos_reads_the_ioreg_tree(*, monkeypatch: pytest.MonkeyPatch) -> None:
                 "IORegistryEntryChildren": [
                     {
                         "USB Product Name": "AEOBC",
-                        "USB Serial Number": "G090L90971660D6B",
+                        "USB Serial Number": "G090000000000000",
                         "USB Vendor Name": "MediaTek",
                         "idProduct": 0x201C,
                         "idVendor": 0x0E8D,
@@ -396,7 +396,7 @@ def test_macos_reads_the_ioreg_tree(*, monkeypatch: pytest.MonkeyPatch) -> None:
             manufacturer="MediaTek",
             product="AEOBC",
             product_id=0x201C,
-            serial="G090L90971660D6B",
+            serial="G090000000000000",
             vendor_id=0x0E8D,
         )
     ]
@@ -460,7 +460,7 @@ def test_windows_reads_the_bus_reported_name(
 ) -> None:
     asked = answered(
         monkeypatch=monkeypatch,
-        stdout="USB\\VID_0E8D&PID_201C\\G090LF0965270NJ3\tAEOBC\r\n"
+        stdout="USB\\VID_0E8D&PID_201C\\G090000000000000\tAEOBC\r\n"
         "USB\\VID_18D1&PID_D001\\6&2A1B3C&0&2\tEcho (2nd Gen)\n"
         "USB\\VID_ZZZZ&PID_0001\\X\tbad\n"
         "USB\\ROOT_HUB30\\4&1\t\n"
@@ -471,7 +471,7 @@ def test_windows_reads_the_bus_reported_name(
             manufacturer="",
             product="AEOBC",
             product_id=0x201C,
-            serial="G090LF0965270NJ3",
+            serial="G090000000000000",
             vendor_id=0x0E8D,
         ),
         dataclasses.replace(AEORD, manufacturer=""),

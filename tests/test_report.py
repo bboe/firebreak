@@ -60,11 +60,11 @@ def test_labelled_pads_the_label() -> None:
 
 
 def test_masked_hides_guids_and_the_serial(*, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(name="ANDROID_SERIAL", value="G090LF0964230U8T")
-    text = "G090LF0964230U8T 0FC63DAF-8483-4772-8E79-3D69D8477DE4"
+    monkeypatch.setenv(name="ANDROID_SERIAL", value="G090000000000000")
+    text = "G090000000000000 0FC63DAF-8483-4772-8E79-3D69D8477DE4"
     assert report.masked(text=text) == "<serial> <guid>"
     monkeypatch.delenv(name="ANDROID_SERIAL")
-    assert report.masked(text="G090LF0964230U8T") == "G090LF0964230U8T"
+    assert report.masked(text="G090000000000000") == "G090000000000000"
 
 
 def test_mmc_said_claims_nothing_from_a_cut_log() -> None:
