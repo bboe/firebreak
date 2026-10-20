@@ -33,7 +33,7 @@ from firebreak.fireos import (
     system_image,
 )
 from firebreak.host import adb_shell, pyserial_wheel, run
-from firebreak.identify import check_target
+from firebreak.identify import check_target, fastboot_driver_missing
 from firebreak.plugin import FireOs6
 from firebreak.probe import state
 from firebreak.stock import STOCK_STEPS, stage_restore
@@ -72,11 +72,19 @@ AHEAD = {
     State.STOCK_BOOTED: State.STOCK_FASTBOOT,
 }
 DOWNLOADS: list[Need] = []
+DRIVER_CHECK = 10
+DRIVER_MISSES = 2
 FIREOS5_ROOTED = {
     State.ROOTED,
     State.AMONET_V1_1_0_BBOE_BOOTED,
     State.AMONET_V1_1_0_BOOTED,
 }
+NO_FASTBOOT_DRIVER = (
+    "Windows sees a Dot in fastboot mode, but fastboot does not, so its driver"
+    " is missing. Install the drivers from"
+    " https://github.com/bboe/firebreak#windows in an administrator PowerShell."
+    " The run goes on when fastboot sees the Dot."
+)
 TWRPS = frozenset({
     State.AMONET_V1_1_0_TWRP,
     State.AMONET_V2_0_0_TWRP,
@@ -329,6 +337,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
     seen = None
     shown = None
     deadline = None
+    driver_check = 0.0
+    driver_misses = 0
     while True:
         current = state()
         installed = (
@@ -531,6 +541,15 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     message=f"the Dot has been {current.value} for"
                     f" {WAIT // 60} minutes. " + again()
                 )
+            if (
+                current == State.NONE
+                and driver_misses < DRIVER_MISSES
+                and time.monotonic() >= driver_check
+            ):
+                driver_check = time.monotonic() + DRIVER_CHECK
+                driver_misses = driver_misses + 1 if fastboot_driver_missing() else 0
+                if driver_misses == DRIVER_MISSES:
+                    warn(text=NO_FASTBOOT_DRIVER)
             time.sleep(2)
             continue
         if not done:

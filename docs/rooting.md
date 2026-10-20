@@ -1029,13 +1029,20 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   that needs MediaTek's VCOM driver (`cdc-acm.inf`, class Ports, 3.0.1504.0,
   "MediaTek USB Port" in the Microsoft Update Catalog), installed by hand
   with `pnputil /add-driver`; without it `0e8d:0003` is an unknown device.
-- No other mode needs a hand-installed driver. On a Windows machine that rooted
-  a Dot, the driver store held only MediaTek's and Amazon's
-  `FireDevicesUsbDeviceClass`, which serves amonet fastboot (`0bb4:0c01`) and
-  can come through Windows Update. Windows bound adb (`1949:0110` and Fire
-  OS 6's `0e8d:201c`, by its interface class through its own `winusb.inf`) and
-  v1.1.0's TWRP (`18d1:4ee2`) itself. TWRP 3.7.0_9-bboeN is untried on
-  Windows. macOS and Linux need no driver.
+- Stock and amonet fastboot (`0bb4:0c01`) need a driver too. The README
+  installs "Android Bootloader Interface" from the Microsoft Update Catalog.
+  It is Google's USB driver revision 8 under TP-LINK's name, and Microsoft
+  signs its catalog. Its INF binds `0bb4:0c01` to Windows' own `WinUSB.sys`
+  with the Android interface GUID. Google's USB driver r13 does not list
+  `0bb4:0c01`.
+- Without it, `fastboot devices` lists nothing and the run waits. So a run
+  that waits for a Dot on Windows names the missing driver once, when Windows
+  lists `0bb4:0c01` and `fastboot devices` does not, on two checks 10 s apart.
+  Windows lists a new device before its driver binds, so one check is not
+  enough. Each check starts PowerShell, so it runs at most every 10 s.
+- Windows bound adb (`1949:0110` and Fire OS 6's `0e8d:201c`, by its interface
+  class through its own `winusb.inf`) and v1.1.0's TWRP (`18d1:4ee2`) itself.
+  TWRP 3.7.0_9-bboeN is untried on Windows. macOS and Linux need no driver.
 - A port that will not open is named once and retried: udev or a modem
   manager can hold it for a moment. The wait is 60 seconds after the erase,
   and 600 when the run waits for a short.

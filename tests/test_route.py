@@ -449,6 +449,33 @@ def test_a_run_fetches_its_route_s_downloads_before_the_first_stage(
     assert "state: stock-fastboot" in out
 
 
+@pytest.mark.parametrize(
+    ("missing", "warned"),
+    [([True], 1), ([True, False], 0), ([False], 0)],
+)
+def test_a_run_names_a_fastboot_driver_that_stays_missing(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    missing: list[bool],
+    monkeypatch: pytest.MonkeyPatch,
+    run: Run,
+    warned: int,
+) -> None:
+    asked: list[bool] = []
+
+    def check() -> bool:
+        asked.append(missing[len(asked) % len(missing)])
+        return asked[-1]
+
+    monkeypatch.setattr(name="stages", target=route, value=dict)
+    monkeypatch.setattr(name="fastboot_driver_missing", target=route, value=check)
+    run.states = [route.State.NONE] * 30
+    with pytest.raises(RanOutError):
+        route.root()
+    assert said(capsys=capsys).count("so its driver is missing") == warned
+    assert 1 < len(asked) < 10
+
+
 def test_a_run_refuses_another_device_before_it_downloads(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:

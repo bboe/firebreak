@@ -45,7 +45,24 @@ uvx firebreak@latest
 
 ### Windows
 
-Run these in PowerShell. Open a new terminal after the installs.
+Install the drivers from an administrator PowerShell:
+
+```powershell
+cd $env:TEMP
+curl.exe -fo fastboot.cab https://catalog.s.download.windowsupdate.com/d/msdownload/update/driver/drvs/2016/10/20940218_0ae8695c01fb84d1fdea5c9a04baf336ec5b1ba7.cab
+curl.exe -fo mtk.cab https://catalog.s.download.windowsupdate.com/d/msdownload/update/driver/drvs/2016/07/20896845_fdc6bb5aa9a9bac99adf85d931d6c21d1130a96e.cab
+mkdir -Force fastboot, mtk
+expand -F:* fastboot.cab fastboot
+expand -F:* mtk.cab mtk
+pnputil /add-driver fastboot\tplink_winusb.inf /install
+pnputil /add-driver mtk\cdc-acm.inf /install
+Remove-Item -Recurse fastboot.cab, mtk.cab, fastboot, mtk
+```
+
+The drivers have x86 and x64 builds only, so on Windows on ARM the steps that
+use fastboot or the bootrom cannot run.
+
+Then open a new PowerShell, not as administrator, and run these:
 
 ```powershell
 winget install Google.PlatformTools
@@ -57,26 +74,12 @@ uvx --managed-python firebreak@latest
 Store keeps firebreak's files where adb and fastboot cannot see them, and
 firebreak stops on it.
 
-The bootrom step also needs MediaTek's VCOM driver. It runs for `--short`, for a
-Dot on amonet v2.0.0 left in fastboot, and to resume a run stopped while it
-rewrote the bootloader; the script says when. The driver is "MediaTek USB Port"
-3.0.1504.0 from the Microsoft Update Catalog. Install it from an administrator
-PowerShell:
-
-```powershell
-cd $env:TEMP
-curl.exe -o mtk.cab https://catalog.s.download.windowsupdate.com/d/msdownload/update/driver/drvs/2016/07/20896845_fdc6bb5aa9a9bac99adf85d931d6c21d1130a96e.cab
-mkdir mtk; expand -F:* mtk.cab mtk
-pnputil /add-driver mtk\cdc-acm.inf /install
-```
-
-It has x86 and x64 builds only, so Windows on ARM cannot run the bootrom step.
-
 ## Notes
 
 - From stock, the script asks for the fastboot gesture.
 - A ring that stays solid blue at the fastboot gesture can mean a bad USB
-  connection. Unplug, then try again or try another port.
+  connection. Unplug, then try again or try another port. On Windows it can
+  also mean the [drivers](#windows) are missing.
 - Do not set up a stock Dot in the Alexa app before you unlock it. On Wi-Fi it
   can update to a build the script does not support.
 - [docs/rooting.md][rooting] says why each step is there.
@@ -103,8 +106,7 @@ From stock, only the LK decides whether firebreak can unlock a Dot.
 Use `--short` when the Dot shows no light and gives no fastboot. The run reaches
 the Dot's bootrom by shorting its eMMC bus as it powers up, writes amonet
 v1.1.0, and then goes on to the target. It takes any target; `--short` to
-`amonet-biscuit-v2.0.0` has not been run on a Dot. On Windows it needs the [VCOM
-driver](#windows).
+`amonet-biscuit-v2.0.0` has not been run on a Dot.
 
 1. Open the Dot with a Torx T8 screwdriver. Lift the shield's lid off the eMMC
    by its corners; its metal frame stays on the board.

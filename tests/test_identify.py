@@ -33,6 +33,13 @@ AEORD = identify.UsbDevice(
     serial="",
     vendor_id=0x18D1,
 )
+FASTBOOT = identify.UsbDevice(
+    manufacturer="",
+    product="Android",
+    product_id=0x0C01,
+    serial="G090000000000000",
+    vendor_id=0x0BB4,
+)
 KEYBOARD = identify.UsbDevice(
     manufacturer="Apple", product="AEORD", product_id=1, serial="", vendor_id=0x05AC
 )
@@ -94,6 +101,28 @@ def test_a_dot_in_fastboot_is_named_by_its_product(
     assert identify.identify() == identify.Identity(
         device=RADAR, how="fastboot product RADAR"
     )
+
+
+@pytest.mark.parametrize(
+    argnames=("platform", "fastboot", "usb", "want"),
+    argvalues=[
+        ("win32", None, [FASTBOOT], True),
+        ("win32", "biscuit", [FASTBOOT], False),
+        ("win32", None, [AEOBC], False),
+        ("darwin", None, [FASTBOOT], False),
+    ],
+)
+def test_a_fastboot_dot_that_fastboot_cannot_see_lacks_its_driver(
+    *,
+    fastboot: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    usb: list[identify.UsbDevice],
+    want: bool,
+) -> None:
+    connected(fastboot=fastboot, monkeypatch=monkeypatch, usb=usb)
+    monkeypatch.setattr(name="platform", target=identify.sys, value=platform)
+    assert identify.fastboot_driver_missing() is want
 
 
 def test_a_fastboot_with_an_unknown_product_names_no_device(

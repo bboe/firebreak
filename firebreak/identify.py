@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 ECHO_IDS = frozenset({(0x0BB4, 0x0C01), (0x18D1, 0x4EE2), (0x18D1, 0xD001)})
 ECHO_VENDORS = frozenset({0x0E8D, 0x1949})
+FASTBOOT_ID = (0x0BB4, 0x0C01)
 INSTANCE_PARTS = 3
 POLL = 2
 SERIAL_SHOWN = 4
@@ -141,6 +142,16 @@ def echo_devices() -> list[UsbDevice]:
         )
         and (not USER_SERIAL or usb.serial.casefold() == USER_SERIAL.casefold())
     ]
+
+
+def fastboot_driver_missing() -> bool:
+    return (
+        sys.platform == "win32"
+        and any(
+            (usb.vendor_id, usb.product_id) == FASTBOOT_ID for usb in echo_devices()
+        )
+        and not in_fastboot()
+    )
 
 
 def identify(*, found: list[UsbDevice] | None = None) -> Identity:
