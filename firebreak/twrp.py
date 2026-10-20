@@ -17,7 +17,7 @@ from firebreak.host import (
     run,
     stream,
 )
-from firebreak.ui import PROGRESS, SESSION, FatalError, again, asked_for, say
+from firebreak.ui import PROGRESS, SESSION, FatalError, again, asked_for, reseat, say
 
 if TYPE_CHECKING:
     import pathlib
@@ -160,7 +160,7 @@ def reboot(*, estimate: str = "40 s", into: str = "recovery", label: str) -> Non
 def sliced_system(*, slices: list[pathlib.Path], system: str) -> str:
     held = DOT_TEMPORARY_DIRECTORY / "system-slice.gz"
     for index, piece in enumerate(slices):
-        push_checked(local=piece, remote=held)
+        push_checked(advice=reseat() + " ", local=piece, remote=held)
         result = run(
             arguments=[
                 "adb",
@@ -385,7 +385,8 @@ def write_system(
     if said == "its md5 read back did not match":
         slices[0].unlink(missing_ok=True)
         said += ". The cached image was discarded, so the next run rebuilds it"
+    reseated = f" {reseat()}" if all(path.exists() for path in slices) else ""
     raise FatalError(
         message=f"{system} was not written intact after {PUSH_TRIES} tries;"
-        f" the last: {said}. " + asked_for()
+        f" the last: {said}.{reseated} " + asked_for()
     )

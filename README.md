@@ -80,6 +80,9 @@ firebreak stops on it.
 - A ring that stays solid blue at the fastboot gesture can mean a bad USB
   connection. Unplug, then try again or try another port. On Windows it can
   also mean the [drivers](#windows) are missing.
+- A `/system` write that keeps failing with `failed to read copy response: EOF`
+  can mean a poor USB connection. Unplug both ends of the cable, plug them back
+  in firmly, and try another cable if it fails again.
 - Do not set up a stock Dot in the Alexa app before you unlock it. On Wi-Fi it
   can update to a build the script does not support.
 - [docs/rooting.md][rooting] says why each step is there.

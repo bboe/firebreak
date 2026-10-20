@@ -1103,7 +1103,9 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
 - adb answers before MTP is on, as `18d1:d001` in this TWRP. The switch to
   `mtp,adb` puts the Dot back on USB under a new ID. In 3.2.3 the switch
   failed a push with `failed to read copy response: EOF`. So the run waits
-  for `mtp` in `sys.usb.config`, and each push gets 3 tries.
+  for `mtp` in `sys.usb.config`, and each push gets 3 tries. The same error
+  later, while the eMMC writes, comes from a poor USB connection instead: see
+  [Writing Fire OS](#writing-fire-os).
 - This TWRP's `adb shell` returns the exit status. So each device-side step
   is a pushed script, judged by its status. The scripts have `\n` line
   endings.
@@ -1172,6 +1174,18 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   23.4 s against 15.9 s for 256 MiB. The sliced route took 108 s to 109 s
   across a whole install from Windows 11.
 - The partition is then read back by md5: 12 s with 3.2.3.
+- The sliced route needs a sound USB connection. A poor one loses the
+  high-speed link while the eMMC writes. The host sees the Dot disconnect with
+  VBUS still present and enumerates it again, and the push or the shell fails
+  with `failed to read copy response: EOF` or exit 255. Unplugging both ends of
+  the cable and plugging them back in fixes it. `write-test` does not catch it,
+  because its USB leg runs with the eMMC idle. TWRP's switch to MTP gives the
+  same error in its first seconds: see
+  [Install: TWRP 3.7.0_9-bboe2](#install-twrp-370_9-bboe2).
+- So a `/system` write that fails all 3 tries says to plug the cable back in.
+  A write that discarded a slice or the image does not, because the run treats
+  its cache as the fault there. Other pushes do not either: some stage
+  bootloader images, and the Dot loses power when it is unplugged.
 
 ## The boot image
 

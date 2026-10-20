@@ -195,6 +195,19 @@ def test_a_slice_marker_that_is_not_the_last_line_is_a_failure(
     )
 
 
+def test_a_slice_push_that_fails_says_to_reseat_the_cable(
+    *, adb: FakeAdb, slices: list[pathlib.Path]
+) -> None:
+    adb.answers["gunzip"] = [twrp.SLICE_OK]
+    adb.answers["system-slice.gz"] = [
+        (1, "adb: error: failed to read copy response: EOF")
+    ]
+    with pytest.raises(FatalError, match="after 3 tries") as stopped:
+        twrp.sliced_system(slices=slices, system="/s")
+    said = " ".join(explained(error=stopped.value).split())
+    assert "failed to read copy response: EOF. A poor USB connection" in said
+
+
 def test_a_slice_that_arrived_but_does_not_unpack_is_discarded(
     *, adb: FakeAdb, slices: list[pathlib.Path]
 ) -> None:
@@ -355,9 +368,10 @@ def test_a_system_image_that_never_finishes_keeps_the_cache(
 ) -> None:
     adb.answers["echo ready"] = ["ready"]
     adb.answers["gunzip"] = [subprocess.TimeoutExpired(cmd=["adb"], timeout=600)]
-    with pytest.raises(FatalError, match="did not finish"):
+    with pytest.raises(FatalError, match="did not finish") as stopped:
         twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
     assert slices[0].exists()
+    assert "A poor USB connection can cause this" in str(stopped.value)
 
 
 @pytest.mark.usefixtures("carried")
@@ -367,9 +381,10 @@ def test_a_system_image_that_never_verifies_is_discarded(
     adb.answers["echo ready"] = ["ready"]
     adb.answers["gunzip"] = [twrp.STREAM_OK]
     adb.answers["md5sum"] = [md5(data=b"old")]
-    with pytest.raises(FatalError, match="cached image was discarded"):
+    with pytest.raises(FatalError, match="cached image was discarded") as stopped:
         twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
     assert not slices[0].exists()
+    assert "poor USB connection" not in str(stopped.value)
 
 
 @pytest.mark.usefixtures("carried")

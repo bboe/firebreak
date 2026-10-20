@@ -400,9 +400,26 @@ def test_push_checked_fails(  # ruff: ignore[too-many-arguments]
         return completed(return_code=return_code, standard_output="adb: error")
 
     reconnects = pushing(md5=md5, monkeypatch=monkeypatch, push=push)
-    with pytest.raises(expected_exception=FatalError, match=said):
+    with pytest.raises(expected_exception=FatalError, match=said) as stopped:
         host.push_checked(local=local, remote="/tmp/x")
     assert reconnects == ["/tmp/x", "/tmp/x"]
+    assert "poor USB connection" not in str(stopped.value)
+
+
+def test_push_checked_fails_with_its_advice(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    local = tmp_path / "x"
+    local.write_bytes(data=b"x")
+    pushing(
+        md5="",
+        monkeypatch=monkeypatch,
+        push=lambda: completed(return_code=1, standard_output="adb: error"),
+    )
+    with pytest.raises(
+        expected_exception=FatalError, match=r"adb: error\. Reseat it\. If it fails"
+    ):
+        host.push_checked(advice="Reseat it. ", local=local, remote="/tmp/x")
 
 
 def test_pyserial_wheel_gives_the_wheel_when_the_child_cannot_import(

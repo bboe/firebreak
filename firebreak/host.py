@@ -270,7 +270,9 @@ def probe_serial() -> bool:
     return result.returncode == 0
 
 
-def push_checked(*, local: pathlib.Path, remote: str | pathlib.PurePosixPath) -> None:
+def push_checked(
+    *, advice: str = "", local: pathlib.Path, remote: str | pathlib.PurePosixPath
+) -> None:
     for attempt in range(PUSH_TRIES):
         if attempt:
             reconnect(remote=remote)
@@ -291,7 +293,7 @@ def push_checked(*, local: pathlib.Path, remote: str | pathlib.PurePosixPath) ->
             )
     raise FatalError(
         message=f"{remote} did not arrive intact after {PUSH_TRIES} tries;"
-        f" the last: {said}. " + asked_for()
+        f" the last: {said}. {advice}" + asked_for()
     )
 
 

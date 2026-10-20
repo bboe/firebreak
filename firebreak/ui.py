@@ -214,6 +214,13 @@ def program() -> list[str]:
     return [sys.executable, sys.argv[0]]
 
 
+def reseat() -> str:
+    return (
+        "A poor USB connection can cause this. Unplug both ends of the cable and"
+        " plug them back in firmly. " + again()
+    )
+
+
 def say(*, text: str) -> None:
     show(
         text=textwrap.fill(
