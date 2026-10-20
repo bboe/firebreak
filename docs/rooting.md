@@ -12,6 +12,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 | stock-fastboot | `unlock_status` is `false` | amonet v2.0.0 fastbrick |
 | stock-fireos5-fastboot | `unlock_status` is `false`, and `lk_build_desc` is `f379dba-20170906_000423`, Fire OS 5's, which amonet v1.1.0 keeps: Fire OS 5's own fastboot, locked, on a stock Dot or one on amonet v1.1.0 | the same |
 | emos | no adb or fastboot, and one serial port with USB ID `1949:2007` | `/init recovery` at emOS's serial console |
+| no-system | adb answers as `device`, and `adb shell` fails with `exec '/system/bin/sh' failed` | `adb reboot recovery`, for every target |
 | amonet-v2.0.0-booted | Fire OS 6, and `id` or `su -c id` answers uid 0 | `adb reboot recovery`, into v2.0.0's TWRP; ends an `amonet-biscuit-v2.0.0` run |
 | amonet-v2.0.0-twrp | unlocked, `lk_build_desc` is not amonet v1.1.0's, `mtp` in `sys.usb.config` | makes room for amonet v1.1.0 in the table, then reboots so the kernel rereads it |
 | amonet-v2.0.0-twrp-v1.1.0-table | amonet-v2.0.0-twrp, and `sgdisk --print` lists `boot_a_x` | writes amonet v1.1.0's chain and Fire OS 5.5.5.4, preloader last |
@@ -49,6 +50,20 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - `su` answers about 27 seconds into Fire OS 5's first boot, while
   `dumpsys package` still answers `Can't find service: package`. So rooted
   also needs `sys.boot_completed` to be 1.
+- A Dot whose `/system` write stopped part way starts Fire OS 5's kernel, and
+  the ramdisk's adbd answers as `device`. There is no shell, so `adb shell`
+  fails with `exec '/system/bin/sh' failed`, and Fire OS never finishes. A run
+  that waited for it as `booted` stopped after 10 minutes. So that answer reads
+  as no-system, and the run reboots the Dot into recovery. adbd does that with
+  no shell, and the rerun's TWRP stage writes `/system` again. Within one run
+  it cannot happen: the write that stops part way stops the run.
+- A sound boot does not give that answer. Fire OS 5's `init.rc` runs
+  `mount_all` in `on fs`, and starts adbd later, with `class_start core` in
+  `on boot`. Fire OS 6's adbd is `disabled` and starts from the
+  `sys.usb.config` triggers, which run after `late-init`, and `init.aosp.rc`
+  has `/system` mounted by the end of its `fs` stage.
+- adbd's other wording of the failure, if one exists, reads as booted, as
+  before. That costs the 10-minute wait, not a wrong reboot.
 - Each state is acted on at most once per run, so a stale read cannot repeat a
   stage. The downgrade ends with amonet-v1.1.0-fastboot's stage, and counts as
   both.

@@ -501,6 +501,7 @@ def test_a_run_refuses_another_device_before_it_downloads(
         ([route.State.BOOTED], "The Dot is starting Fire OS"),
         ([route.State.STOCK_BOOTED], "appears to be unmodified"),
         ([route.State.EMOS], "runs EchoMuse's emOS"),
+        ([route.State.NO_SYSTEM], "/system is damaged"),
         ([route.State.NONE], "Waiting for a Dot on USB"),
         (
             [route.State.STOCK_BOOTED, route.State.NONE],
@@ -700,6 +701,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             frozenset(),
         ),
         state.EMOS: (route.stage_emos, 1, None, frozenset()),
+        state.NO_SYSTEM: (to_twrp, 1, None, frozenset()),
     } | dict.fromkeys(
         (state.STOCK_FASTBOOT, state.STOCK_FIREOS5_FASTBOOT),
         (route.stage_fastbrick, 2, state.AMONET_V2_0_0_TWRP, frozenset()),

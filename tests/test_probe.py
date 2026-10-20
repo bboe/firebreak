@@ -104,6 +104,14 @@ def test_a_dot_on_no_adb_is_emos_or_nothing(
     assert dot.commands(holding="get-state") == []
 
 
+def test_a_fire_os_with_no_system_has_no_shell(*, dot: FakeAdb) -> None:
+    booted(dot=dot, name="Fire OS 5.5.5.4")
+    dot.answers["sys.boot_completed"] = [
+        "- exec '/system/bin/sh' failed: No such file or directory (2) -"
+    ]
+    assert probe.probe() == State.NO_SYSTEM
+
+
 @pytest.mark.parametrize(
     ("held", "found"),
     [

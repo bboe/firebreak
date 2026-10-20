@@ -64,6 +64,7 @@ class State(enum.Enum):
     BOOTED = "booted"
     EMOS = "emos"
     NONE = "none"
+    NO_SYSTEM = "no-system"
     ROOTED = "rooted"
     STARTING = "starting"
     STOCK_BOOTED = "stock-booted"

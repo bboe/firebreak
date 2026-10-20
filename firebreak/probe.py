@@ -12,6 +12,8 @@ from firebreak.twrp import partition_table
 from firebreak.ui import SESSION, FatalError, explained
 from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v1_1_0_bboe
 
+NO_SHELL = "exec '/system/bin/sh' failed"
+
 
 def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-statements, too-many-branches]
     if in_fastboot():
@@ -51,7 +53,10 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
             return State.AMONET_V1_1_0_TWRP
         return State.AMONET_V1_1_0_BBOE_TWRP
     if adb_state == "device":
-        booted = adb_shell(command="getprop sys.boot_completed", timeout=30) == "1"
+        completed = adb_shell(command="getprop sys.boot_completed", timeout=30)
+        if NO_SHELL in completed:
+            return State.NO_SYSTEM
+        booted = completed == "1"
         if adb_shell(command="getprop ro.build.version.name", timeout=30).startswith(
             "Fire OS 6"
         ):

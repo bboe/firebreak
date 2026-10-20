@@ -435,6 +435,11 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     text="This Dot runs EchoMuse's emOS. Rebooting it into recovery"
                     " through its serial console."
                 )
+            elif current == State.NO_SYSTEM and current not in done:
+                say(
+                    text="This Dot's /system is damaged, so Fire OS cannot start."
+                    " Rebooting it into recovery."
+                )
             elif gesture:
                 say(
                     text="This Dot is in amonet v2.0.0's fastboot. Unplug it, and"
@@ -570,6 +575,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
 def stages() -> dict[State, Stage]:
     table = {
         State.EMOS: Stage(needs=(pyserial_wheel,), run=stage_emos, steps=1, then=None),
+        State.NO_SYSTEM: reboot_stages()[State.BOOTED],
         State.AMONET_V1_1_0_FASTBOOT: Stage(
             needs=(amonet_biscuit_v1_1_0.SOURCE, TWRP),
             run=stage_amonet_v1_1_0_recovery,
