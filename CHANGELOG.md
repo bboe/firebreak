@@ -8,6 +8,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 - `stock 8338` installs Fire OS 6 8338. It is not the default; `stock` with no
   build still installs 8149.
+- A Dot on a bootloader that no fastbrick image unlocks is now unlocked by the
+  bootloader's own code. The run builds a payload from that build's `lk.img`,
+  turns off the lock check, and erases `boot0` to reach the bootrom. Before,
+  every flash returned at once and the run stopped with `the unlock did not
+  start`. 8338 is the first such build.
 - `stock [BUILD] --fastboot` leaves the Dot in fastboot at the end, so the next
   run needs no button held.
 

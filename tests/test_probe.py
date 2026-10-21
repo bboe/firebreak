@@ -8,8 +8,10 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import host, probe
-from firebreak.devices import LK, State
+from firebreak.devices import LK, UNLOCK_BUILDS, State
 from firebreak.ui import FatalError
+
+NO_FASTBRICK = next(iter(UNLOCK_BUILDS))
 
 if TYPE_CHECKING:
     import pathlib
@@ -148,6 +150,7 @@ def test_an_unauthorized_dot_is_stock(*, dot: FakeAdb) -> None:
     [
         ("false", LK.FIREOS5.value, State.STOCK_FIREOS5_FASTBOOT),
         ("false", LK.FIREOS6.value, State.STOCK_FASTBOOT),
+        ("false", NO_FASTBRICK, State.STOCK_NO_FASTBRICK_FASTBOOT),
         ("", LK.FIREOS5.value, State.STARTING),
         ("true", "", State.STARTING),
         ("true", LK.FIREOS5.value, State.AMONET_V1_1_0_FASTBOOT),

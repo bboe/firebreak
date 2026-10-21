@@ -19,7 +19,7 @@ from firebreak.cache import (
     lock_for,
     unpack,
 )
-from firebreak.devices import FASTBOOT_MODE, State
+from firebreak.devices import FASTBOOT_MODE, UNLOCK_BUILDS, State
 from firebreak.emos import stage_emos
 from firebreak.fireos import (
     BOOT_ROOT,
@@ -58,6 +58,7 @@ from firebreak.unlock import (
     stage_amonet_v1_1_0_recovery,
     stage_downgrade,
     stage_fastbrick,
+    stage_unlock,
 )
 from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_0
 
@@ -374,17 +375,21 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     *needed(start=State.AMONET_V1_1_0_FASTBOOT, table=table),
                 ))
             )
+            if not SESSION.short:
+                warn(
+                    text=(
+                        "This run erased boot0"
+                        if done
+                        else "The last run stopped after it erased boot0"
+                    )
+                    + ", so the Dot cannot start until amonet v1.1.0 is written"
+                    " through its bootrom. This run does that, then goes on"
+                    " from v1.1.0's TWRP. If nothing happens within a minute,"
+                    " unplug the Dot and plug it back in.",
+                )
             resumed = True
             done.difference_update(TWRPS)
             done.add(State.AMONET_V1_1_0_FASTBOOT)
-            if not SESSION.short:
-                warn(
-                    text="The last run stopped after it erased boot0, so the Dot"
-                    " cannot start. This run writes amonet v1.1.0 through the"
-                    " bootrom, then goes on from v1.1.0's TWRP. If nothing"
-                    " happens within a minute, unplug the Dot and plug it back"
-                    " in.",
-                )
             left = remaining(start=State.AMONET_V1_1_0_BBOE_TWRP, table=table)
             if left is not None:
                 PROGRESS.steps = PROGRESS.step + (2 if SESSION.short else 3) + left
@@ -471,7 +476,12 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             cache_note()
             return
         if target.unlock is None and (
-            current in {State.STOCK_BOOTED, State.STOCK_FASTBOOT}
+            current
+            in {
+                State.STOCK_BOOTED,
+                State.STOCK_FASTBOOT,
+                State.STOCK_NO_FASTBRICK_FASTBOOT,
+            }
             or (
                 restored
                 and ARGUMENTS.build in updates.FIREOS5_BUILDS
@@ -587,6 +597,12 @@ def stages() -> dict[State, Stage]:
             steps=1,
             then=State.AMONET_V1_1_0_BBOE_TWRP,
         ),
+        State.STOCK_NO_FASTBRICK_FASTBOOT: Stage(
+            needs=(unlock_ota,),
+            run=stage_unlock,
+            steps=2,
+            then=State.AMONET_V1_1_0_BBOE_TWRP,
+        ),
     } | dict.fromkeys(
         (State.STOCK_FASTBOOT, State.STOCK_FIREOS5_FASTBOOT),
         Stage(
@@ -606,3 +622,9 @@ def stages() -> dict[State, Stage]:
 def start_prebuild() -> None:
     with contextlib.suppress(RuntimeError):
         PREBUILDER.start()
+
+
+def unlock_ota() -> None:
+    for build in UNLOCK_BUILDS.values():
+        with hold(lock=lock_for(key=build)):
+            updates.download(build=build)

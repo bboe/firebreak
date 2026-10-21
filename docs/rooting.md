@@ -9,8 +9,9 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 | state | how it is recognised | what the run does |
 | --- | --- | --- |
 | stock-booted | `adb get-state` says `unauthorized`, or Fire OS 6 without root | prints the fastboot gesture, and the + gesture for a Dot already on amonet v2.0.0 |
-| stock-fastboot | `unlock_status` is `false` | amonet v2.0.0 fastbrick |
+| stock-fastboot | `unlock_status` is `false`, and `lk_build_desc` is none of the two below | amonet v2.0.0 fastbrick |
 | stock-fireos5-fastboot | `unlock_status` is `false`, and `lk_build_desc` is `f379dba-20170906_000423`, Fire OS 5's, which amonet v1.1.0 keeps: Fire OS 5's own fastboot, locked, on a stock Dot or one on amonet v1.1.0 | the same |
+| stock-no-fastbrick-fastboot | `unlock_status` is `false`, and `lk_build_desc` is one `UNLOCK_BUILDS` lists: a locked stock Dot on a bootloader no fastbrick image unlocks | unlocks the Dot's own bootloader, then erases boot0 to reach the bootrom |
 | emos | no adb or fastboot, and one serial port with USB ID `1949:2007` | `/init recovery` at emOS's serial console |
 | no-system | adb answers as `device`, and `adb shell` fails with `exec '/system/bin/sh' failed` | `adb reboot recovery`, for every target |
 | amonet-v2.0.0-booted | Fire OS 6, and `id` or `su -c id` answers uid 0 | `adb reboot recovery`, into v2.0.0's TWRP; ends an `amonet-biscuit-v2.0.0` run |
@@ -752,6 +753,26 @@ ring read white.
   the script stops fastboot and leaves the Dot to reach TWRP.
 - `eMMC-RO` or `Device mismatch` means the payload refused, and the Dot is
   unchanged.
+
+## Unlock: a bootloader with no fastbrick image
+
+Amazon shipped bootloaders after amonet's last fastbrick payload. A Dot on one
+of them gives fastboot, but every fastbrick flash returns at once, because the
+payload's locator patterns do not match the new code. Until now such a Dot
+could only be unlocked by shorting its eMMC bus, which means opening it.
+
+- `UNLOCK_BUILDS` lists the bootloaders this unlocks, each keyed by its
+  `lk_build_desc` against the stock build that carries it. 8338 is the only one
+  today. A Dot on one of them reaches `stock-no-fastbrick-fastboot`.
+- The stage needs the stock build's own `lk.img`, and reads only that image out
+  of the OTA. Taking every image would write about 850 MB to reach the 236 KB
+  this needs.
+- It ends by erasing `boot0`, so the Dot falls into its bootrom on the next
+  start, in about 2 seconds and with nothing shorted. The stage sets the same
+  marker the bootrom step sets and stops there. The run then finds the Dot in
+  its bootrom and takes the route it already has, which decides what to write.
+- A stock target stops on such a Dot rather than unlocking it, as it already
+  does on any other locked stock Dot.
 
 ## Targets
 

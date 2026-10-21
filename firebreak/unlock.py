@@ -4,9 +4,11 @@ import subprocess
 import time
 from typing import TYPE_CHECKING
 
+from firebreak import lk_unlock, updates
+from firebreak.android.ota import extract
 from firebreak.bootrom_step import bootrom_step
-from firebreak.cache import ERASED, digest, fetch, unpack
-from firebreak.devices import BISCUIT, LITTLE_KERNEL_DESCRIPTION, LK
+from firebreak.cache import CACHE, ERASED, digest, fetch, unpack
+from firebreak.devices import BISCUIT, LITTLE_KERNEL_DESCRIPTION, LK, UNLOCK_BUILDS
 from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconnect, run
 from firebreak.recovery import MD5_DIGITS
 from firebreak.twrp import DISK, partitions
@@ -19,6 +21,8 @@ from firebreak.unlocks import (
 
 if TYPE_CHECKING:
     import pathlib
+
+UNLOCK_TARGET = "firebreak"
 
 
 def amonet_chain() -> None:
@@ -205,3 +209,33 @@ def stage_fastbrick() -> None:
         message=f"the unlock did not start after 10 attempts, with {image} for"
         f" the bootloader {little_kernel}; the Dot was not modified"
     )
+
+
+def stage_unlock() -> bool:
+    check_product()
+    little_kernel = getvar(name="lk_build_desc")
+    if little_kernel not in UNLOCK_BUILDS:
+        raise FatalError(
+            message=f"the Dot reports the bootloader {little_kernel!r}, which"
+            " this cannot unlock, so nothing was written. " + again()
+        )
+    build = UNLOCK_BUILDS[little_kernel]
+    work = CACHE / ("stock-" + build)
+    work.mkdir(exist_ok=True, parents=True)
+    extract(update=updates.download(build=build), wanted=("lk",), work=work)
+    payload = lk_unlock.write(
+        image=work / "lk.img", path=CACHE / ("unlock-" + build + ".img")
+    )
+    PROGRESS.begin(estimate="10 s", label="unlocking the Dot's own bootloader")
+    run(
+        arguments=["fastboot", "-S", "256M", "flash", UNLOCK_TARGET, str(payload)],
+        timeout=300,
+    )
+    PROGRESS.begin(
+        estimate="5 s", label="erasing boot0 so the Dot falls into its bootrom"
+    )
+    ERASED.touch()
+    failed = erase_by_fastboot()
+    if failed:
+        raise FatalError(message=failed + " " + again())
+    return True

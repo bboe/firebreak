@@ -129,21 +129,29 @@ def decompress(*, data: bytes, kind: int, name: str) -> bytes:
     raise FatalError(message=f"{name} has op type {kind}")
 
 
-def extract(*, update: pathlib.Path, work: pathlib.Path) -> None:
+def extract(
+    *, update: pathlib.Path, wanted: tuple[str, ...] = IMAGES, work: pathlib.Path
+) -> None:
     with zipfile.ZipFile(file=update) as archive:
         if "payload.bin" in archive.namelist():
-            extract_payload(archive=archive, work=work)
+            extract_payload(archive=archive, wanted=wanted, work=work)
         else:
-            extract_blocks(archive=archive, work=work)
+            extract_blocks(archive=archive, wanted=wanted, work=work)
 
 
-def extract_blocks(*, archive: zipfile.ZipFile, work: pathlib.Path) -> None:
+def extract_blocks(
+    *, archive: zipfile.ZipFile, wanted: tuple[str, ...], work: pathlib.Path
+) -> None:
     for name, member in BLOCK_IMAGES.items():
+        if name not in wanted:
+            continue
         data = archive.read(name=member)
         if name != "preloader":
             data += bytes(-len(data) % 4096)
         (work / (name + ".img")).write_bytes(data=data)
         passed(message=f"{name:>{LABEL_WIDTH}} taken from the OTA")
+    if "system" not in wanted:
+        return
     path, sidecar = work / "system.img", work / "system.img.sha256"
     if (
         path.is_file()
@@ -159,10 +167,12 @@ def extract_blocks(*, archive: zipfile.ZipFile, work: pathlib.Path) -> None:
     passed(message=f"{'system':>{LABEL_WIDTH}} built from the transfer list")
 
 
-def extract_payload(*, archive: zipfile.ZipFile, work: pathlib.Path) -> None:
+def extract_payload(
+    *, archive: zipfile.ZipFile, wanted: tuple[str, ...], work: pathlib.Path
+) -> None:
     with archive.open(name="payload.bin") as payload:
         manifest = read_manifest(payload=payload)
-        for name in IMAGES:
+        for name in wanted:
             if name not in manifest.partitions:
                 raise FatalError(message=f"the OTA has no {name} image")
             partition = manifest.partitions[name]

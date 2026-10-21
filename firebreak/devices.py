@@ -45,6 +45,9 @@ RADAR = dataclasses.replace(
 DEVICES = (BISCUIT, CROWN, RADAR)
 
 
+UNLOCK_BUILDS = {"2c3569d-20260617_045829": "8338"}
+
+
 class LK(enum.Enum):
     FIREOS5 = "f379dba-20170906_000423"
     FIREOS6 = "63cb91b-20221007_072309"
@@ -70,3 +73,4 @@ class State(enum.Enum):
     STOCK_BOOTED = "stock-booted"
     STOCK_FASTBOOT = "stock-fastboot"
     STOCK_FIREOS5_FASTBOOT = "stock-fireos5-fastboot"
+    STOCK_NO_FASTBRICK_FASTBOOT = "stock-no-fastbrick-fastboot"

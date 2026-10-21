@@ -524,6 +524,26 @@ def test_a_run_says_what_the_dot_needs(
     assert message in said(capsys=capsys)
 
 
+def test_a_run_that_erased_boot0_itself_does_not_blame_the_last_run(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    table = {
+        route.State.STOCK_NO_FASTBRICK_FASTBOOT: route.Stage(
+            run=lambda: route.ERASED.touch() or True,
+            steps=2,
+            then=route.State.AMONET_V1_1_0_BBOE_TWRP,
+        )
+    }
+    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
+    monkeypatch.setattr(name="bootrom_step", target=route, value=lambda **_: False)
+    run.states = [route.State.STOCK_NO_FASTBRICK_FASTBOOT, route.State.NONE]
+    with pytest.raises(RanOutError):
+        route.root()
+    out = said(capsys=capsys)
+    assert "This run erased boot0" in out
+    assert "The last run stopped" not in out
+
+
 def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
@@ -653,6 +673,25 @@ def test_a_stock_run_ends_on_stock(
     assert message in said(capsys=capsys)
 
 
+def test_a_stock_run_leaves_a_locked_bootloader_alone(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    run.target(build="8338", name="stock")
+    ran: list[str] = []
+    table = {
+        route.State.STOCK_NO_FASTBRICK_FASTBOOT: route.Stage(
+            run=lambda: ran.append("unlock"),
+            steps=2,
+            then=route.State.AMONET_V1_1_0_BBOE_TWRP,
+        )
+    }
+    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
+    run.states = [route.State.STOCK_NO_FASTBRICK_FASTBOOT]
+    route.root()
+    assert ran == []
+    assert "nothing to restore" in said(capsys=capsys)
+
+
 def test_a_stock_run_reboots_fire_os_5_it_has_not_restored(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
@@ -715,6 +754,12 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
         ),
         state.EMOS: (route.stage_emos, 1, None, frozenset()),
         state.NO_SYSTEM: (to_twrp, 1, None, frozenset()),
+        state.STOCK_NO_FASTBRICK_FASTBOOT: (
+            route.stage_unlock,
+            2,
+            state.AMONET_V1_1_0_BBOE_TWRP,
+            frozenset(),
+        ),
     } | dict.fromkeys(
         (state.STOCK_FASTBOOT, state.STOCK_FIREOS5_FASTBOOT),
         (route.stage_fastbrick, 2, state.AMONET_V2_0_0_TWRP, frozenset()),

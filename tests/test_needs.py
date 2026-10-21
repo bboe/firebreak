@@ -146,6 +146,23 @@ def test_each_stage_needs_what_its_code_downloads(
         assert scan.found <= needs <= scan.found | scan.maybe, state
 
 
+@pytest.mark.parametrize("name", sorted(TARGETS[BISCUIT]))
+def test_every_need_a_stage_declares_can_be_called(
+    *, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setattr(
+        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
+    )
+    monkeypatch.setattr(name="download", target=route.updates, value=lambda **_: None)
+    monkeypatch.setattr(name="fetch", target=cache, value=lambda **_: None)
+    monkeypatch.setattr(name="unpack", target=route, value=lambda **_: None)
+    monkeypatch.setattr(name="pyserial_wheel", target=route, value=lambda: None)
+    for state, stage in route.stages().items():
+        for need in stage.needs:
+            if not isinstance(need, cache.Download):
+                assert need() is None, state
+
+
 def value_of(*, node: ast.expr, scope: dict[str, object]) -> object:
     if not all(isinstance(part, PURE) for part in ast.walk(node)):
         return UNRESOLVED

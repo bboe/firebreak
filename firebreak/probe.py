@@ -4,7 +4,13 @@ import hashlib
 import subprocess
 
 from firebreak.cache import digest, unpack
-from firebreak.devices import BY_NAME, LITTLE_KERNEL_DESCRIPTION, LK, State
+from firebreak.devices import (
+    BY_NAME,
+    LITTLE_KERNEL_DESCRIPTION,
+    LK,
+    UNLOCK_BUILDS,
+    State,
+)
 from firebreak.emos import emos
 from firebreak.host import adb_shell, command, getvar, in_fastboot, run, usb_serial
 from firebreak.report import masked
@@ -19,8 +25,11 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
     if in_fastboot():
         unlock = getvar(name="unlock_status").lower()
         if unlock == "false":
-            if getvar(name="lk_build_desc") == LK.FIREOS5.value:
+            little_kernel = getvar(name="lk_build_desc")
+            if little_kernel == LK.FIREOS5.value:
                 return State.STOCK_FIREOS5_FASTBOOT
+            if little_kernel in UNLOCK_BUILDS:
+                return State.STOCK_NO_FASTBRICK_FASTBOOT
             return State.STOCK_FASTBOOT
         if unlock != "true":
             return State.STARTING

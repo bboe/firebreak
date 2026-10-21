@@ -229,6 +229,21 @@ def test_extract_blocks_keeps_the_system_image(
     assert sidecar.read_text() == hashlib.sha256(bytes(2 * BLOCK)).hexdigest()
 
 
+def test_extract_blocks_takes_only_what_was_asked_for(
+    *, tmp_path: pathlib.Path
+) -> None:
+    ota.extract(
+        update=block_ota(
+            new_data=image(name="a", size=BLOCK) + image(name="b", size=2 * BLOCK),
+            path=tmp_path / "ota.zip",
+            transfer="4\n6\n0\n0\nerase 2,0,6\nnew 2,4,6\nnew 2,0,1\nzero 2,1,4\n",
+        ),
+        wanted=("lk",),
+        work=tmp_path,
+    )
+    assert sorted(path.name for path in tmp_path.glob("*.img")) == ["lk.img"]
+
+
 def test_extract_catches_a_short_blob(*, tmp_path: pathlib.Path) -> None:
     body = payload(images=IMAGES, kinds=KINDS, short="system")
     update = write_ota(members={"payload.bin": body}, path=tmp_path / "ota.zip")
