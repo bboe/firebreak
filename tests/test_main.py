@@ -195,6 +195,28 @@ def test_an_option_before_a_command_that_does_not_take_it_is_refused(
     assert "report takes no --short" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    argnames=("arguments", "message"),
+    argvalues=[
+        (["amonet-biscuit-v2.0.0", "--fastboot"], "takes no --fastboot"),
+        (["--fastboot", "report"], "report takes no --fastboot"),
+        (["--fastboot"], "the default target takes no --fastboot"),
+        (["stock", "5.5.0.3", "--fastboot"], "cannot leave the Dot in fastboot"),
+    ],
+)
+def test_fastboot_is_refused_where_it_cannot_be_honoured(
+    *,
+    arguments: list[str],
+    capsys: pytest.CaptureFixture[str],
+    message: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", *arguments])
+    with pytest.raises(SystemExit):
+        main.parsed()
+    assert message in capsys.readouterr().err
+
+
 def test_no_newer_release_says_nothing(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -244,6 +266,16 @@ def test_options_count_before_or_after_the_target_or_command(
         options.device,
         options.verbose,
     ) == parsed
+
+
+@pytest.mark.parametrize("build", [[], ["8338"]])
+def test_stock_takes_fastboot(
+    *, build: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "stock", *build, "--fastboot"]
+    )
+    assert main.parsed().fastboot is True
 
 
 @pytest.mark.parametrize(

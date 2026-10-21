@@ -671,6 +671,19 @@ def test_a_stock_run_reboots_fire_os_5_it_has_not_restored(
     assert "runs stock" not in said(capsys=capsys)
 
 
+def test_a_stock_run_that_parks_in_fastboot_says_so(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    run.target(build="5.5.5.4", name="stock")
+    monkeypatch.setattr(name="stages", target=route, value=dict)
+    monkeypatch.setattr(name="fastboot", target=route.SESSION, value=True)
+    run.states = [route.State.AMONET_V2_0_0_TWRP, route.State.STOCK_FASTBOOT]
+    route.root()
+    out = said(capsys=capsys)
+    assert "waits in fastboot" in out
+    assert "until the orange ring circles" not in out
+
+
 def test_a_v2_0_0_dot_is_told_to_use_its_gesture_and_to_reboot(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:

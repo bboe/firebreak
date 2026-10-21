@@ -480,7 +480,12 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         ):
             if done:
                 PROGRESS.end()
-                if ARGUMENTS.build in updates.FIREOS5_BUILDS:
+                if SESSION.fastboot:
+                    passed(
+                        message=f"Stock {ARGUMENTS.build} is written, and the Dot"
+                        " waits in fastboot."
+                    )
+                elif ARGUMENTS.build in updates.FIREOS5_BUILDS:
                     passed(
                         message=f"Stock {ARGUMENTS.build} is written, and the Dot"
                         " is rebooting into it."

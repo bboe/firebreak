@@ -128,6 +128,7 @@ class Session:
     boot0_marker: pathlib.Path | None = None
     carries: bool | None = None
     dd: str = "dd"
+    fastboot: bool = False
     probing: bool = False
     serial_ready: bool | None = None
     short: bool = False

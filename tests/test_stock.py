@@ -154,6 +154,23 @@ def test_a_fire_os_5_restore_reboots_without_waiting(
     assert restored.asked[-1][-1] == "reboot"
 
 
+def test_a_restore_can_leave_the_dot_in_fastboot(
+    *, monkeypatch: pytest.MonkeyPatch, restored: FakeAdb, tmp_path: pathlib.Path
+) -> None:
+    wrote(monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="fastboot", target=stock.SESSION, value=True)
+    monkeypatch.setattr(name="wait_for_fastboot", target=stock, value=lambda: None)
+    stock.restore(
+        backup_sector=9999,
+        build="8338",
+        files=written(tmp_path=tmp_path),
+        parts=PARTITIONS,
+        work=tmp_path,
+    )
+    assert "rebooting into fastboot" in stock.PROGRESS.line
+    assert restored.asked[-1][-2:] == ["reboot", "bootloader"]
+
+
 @pytest.mark.parametrize(
     ("key", "answer", "said"),
     [
@@ -435,6 +452,50 @@ def test_the_stock_stage_writes_nothing_to_a_dot_it_cannot_check(  # ruff: ignor
     with pytest.raises(FatalError, match=said):
         stock.stage_restore()
     assert twrp == []
+
+
+def test_waiting_for_fastboot_gives_up_when_the_dot_never_arrives(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = iter([0.0, 1.0, 1000.0])
+    monkeypatch.setattr(name="end", target=stock.PROGRESS, value=lambda **_: None)
+    monkeypatch.setattr(name="in_fastboot", target=stock, value=lambda: False)
+    monkeypatch.setattr(name="monotonic", target=stock.time, value=lambda: next(clock))
+    monkeypatch.setattr(name="sleep", target=stock.time, value=lambda _: None)
+    with pytest.raises(FatalError, match="did not reach fastboot"):
+        stock.wait_for_fastboot()
+
+
+def test_waiting_for_fastboot_returns_once_the_dot_arrives(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    answers = iter([False, True])
+    monkeypatch.setattr(name="end", target=stock.PROGRESS, value=lambda **_: None)
+    monkeypatch.setattr(name="in_fastboot", target=stock, value=lambda: next(answers))
+    monkeypatch.setattr(name="sleep", target=stock.time, value=lambda _: None)
+    stock.wait_for_fastboot()
+
+
+def test_waiting_for_fastboot_rides_out_a_slow_fastboot_devices(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    answers: list[object] = [
+        subprocess.TimeoutExpired(cmd=["fastboot", "devices"], timeout=30),
+        False,
+        True,
+    ]
+
+    def asked() -> bool:
+        answer = answers.pop(0)
+        if isinstance(answer, BaseException):
+            raise answer
+        return bool(answer)
+
+    monkeypatch.setattr(name="end", target=stock.PROGRESS, value=lambda **_: None)
+    monkeypatch.setattr(name="in_fastboot", target=stock, value=asked)
+    monkeypatch.setattr(name="sleep", target=stock.time, value=lambda _: None)
+    stock.wait_for_fastboot()
+    assert answers == []
 
 
 def written(*, tmp_path: pathlib.Path) -> dict[str, pathlib.Path]:

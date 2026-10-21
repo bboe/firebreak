@@ -109,6 +109,7 @@ def cli() -> None:
         check_for_update()
     check_adb()
     make_cache()
+    SESSION.fastboot = options.fastboot
     SESSION.short = options.short
     command = {REPORT: report, WRITE_TEST: write_test}.get(options.command)
     if command:
@@ -170,6 +171,15 @@ def parsed() -> argparse.Namespace:
         action="store_true",
         help="do not ask PyPI whether a newer firebreak exists",
     )
+    fastboot_parent = argparse.ArgumentParser(
+        add_help=False, argument_default=argparse.SUPPRESS
+    )
+    fastboot_parent.add_argument(
+        "--fastboot",
+        action="store_true",
+        help="leave the Dot in fastboot at the end instead of letting it start"
+        " the firmware it now holds, so the next run needs no button held",
+    )
     short_parent = argparse.ArgumentParser(
         add_help=False, argument_default=argparse.SUPPRESS
     )
@@ -215,7 +225,7 @@ commands, which are not targets:
 """
         + "\n".join(commands_help),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        parents=[common_parent, short_parent, device_parent],
+        parents=[common_parent, fastboot_parent, short_parent, device_parent],
         prog="firebreak",
     )
     parser.add_argument(
@@ -241,7 +251,7 @@ commands, which are not targets:
         target = commands.add_parser(
             name,
             description=summary,
-            parents=[common_parent, short_parent, device_parent],
+            parents=[common_parent, fastboot_parent, short_parent, device_parent],
         )
         if name == STOCK:
             target.add_argument(
@@ -265,17 +275,28 @@ commands, which are not targets:
     for option, default in (
         ("build", ""),
         ("device", None),
+        ("fastboot", False),
         ("no_update_check", False),
         ("short", False),
         ("verbose", False),
     ):
         setattr(options, option, getattr(options, option, default))
-    takes = {REPORT: set(), SURVEY: set(), WRITE_TEST: {"short"}}.get(
-        options.command, {"device", "short"}
-    )
-    for option in sorted({"device", "short"} - takes):
+    takes = {
+        REPORT: set(),
+        STOCK: {"device", "fastboot", "short"},
+        SURVEY: set(),
+        WRITE_TEST: {"short"},
+    }.get(options.command, {"device", "short"})
+    for option in sorted({"device", "fastboot", "short"} - takes):
         if getattr(options, option):
-            parser.error(message=f"{options.command} takes no --{option}")
+            parser.error(
+                message=f"{options.command or 'the default target'} takes no --{option}"
+            )
+    if options.fastboot and options.build in updates.BOOTROM_BUILDS:
+        parser.error(
+            message=f"stock {options.build} ends in its bootrom over a serial"
+            " port, which cannot leave the Dot in fastboot"
+        )
     device = DEVICES.get(options.device)
     if (
         device

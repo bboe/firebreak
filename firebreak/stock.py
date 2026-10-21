@@ -16,6 +16,7 @@ from firebreak.cache import CACHE, ERASED, digest
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
     adb_shell,
+    in_fastboot,
     md5_mismatch,
     pyserial_wheel,
     run,
@@ -156,6 +157,13 @@ def chain_writes() -> tuple[Step, ...]:
     )
 
 
+def reboot_into_fastboot() -> None:
+    PROGRESS.begin(estimate="20 s", label="rebooting into fastboot")
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        run(arguments=["adb", "reboot", "bootloader"], timeout=60)
+    wait_for_fastboot()
+
+
 def restore(  # ruff: ignore[complex-structure]
     *,
     backup_sector: int,
@@ -254,6 +262,9 @@ def restore(  # ruff: ignore[complex-structure]
     ERASED.unlink(missing_ok=True)
     PROGRESS.end()
 
+    if SESSION.fastboot:
+        reboot_into_fastboot()
+        return
     if build in updates.FIREOS5_BUILDS:
         PROGRESS.begin(estimate="5 s", label=f"rebooting into stock {build}")
     else:
@@ -406,3 +417,17 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
         raise FatalError(
             message="stopped part way. Do not reboot. " + again()
         ) from None
+
+
+def wait_for_fastboot() -> None:
+    deadline = time.monotonic() + 120
+    while True:
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            if in_fastboot():
+                break
+        if time.monotonic() > deadline:
+            raise FatalError(
+                message="the Dot did not reach fastboot within 2 minutes. " + again()
+            )
+        time.sleep(2)
+    PROGRESS.end()

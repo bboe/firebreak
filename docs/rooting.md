@@ -1311,6 +1311,10 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
 
 - Only `stock` takes a `BUILD`, and without one it installs 8149. The run
   downloads the build before it touches the Dot.
+- `--fastboot` leaves the Dot in fastboot at the end, with `adb reboot
+  bootloader` after the last write, so the next run needs no button held. Only
+  `stock` takes it. 5.5.0.3 refuses it, because that restore ends in the
+  bootrom over a serial port and never reaches adb.
 - Fire OS 5.5.3.1 to 5.5.5.4 carry Fire OS 6's anti-rollback versions, so
   they restore as Fire OS 6 does.
 - 5.5.0.3's PL is 3, below RPMB's 5, so its preloader would stop at

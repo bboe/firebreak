@@ -104,6 +104,14 @@ From stock, only the LK decides whether firebreak can unlock a Dot.
 - [docs/devices.md][devices] has each build's preloader, TEE and
   anti-rollback versions.
 
+## `--fastboot`
+
+`stock [BUILD] --fastboot` leaves the Dot in fastboot at the end instead of
+letting it start the Fire OS it now holds. The next run then needs no button
+held, because a Dot already in fastboot is one firebreak can find by itself.
+Only the `stock` target takes it, and not with `5.5.0.3`, which ends in the
+Dot's bootrom over a serial port.
+
 ## `--short`
 
 Use `--short` when the Dot shows no light and gives no fastboot. The run reaches

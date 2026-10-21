@@ -8,6 +8,8 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 - `stock 8338` installs Fire OS 6 8338. It is not the default; `stock` with no
   build still installs 8149.
+- `stock [BUILD] --fastboot` leaves the Dot in fastboot at the end, so the next
+  run needs no button held.
 
 ## 0.6.1 - 2026-10-14
 
