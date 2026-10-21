@@ -2,6 +2,13 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Added
+
+- `stock 8338` installs Fire OS 6 8338. It is not the default; `stock` with no
+  build still installs 8149.
+
 ## 0.6.1 - 2026-10-14
 
 ### Fixed

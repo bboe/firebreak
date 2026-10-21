@@ -86,6 +86,10 @@ BUILDS = {
         path="2026/9/29/9a45cfba-a9ee-4f8f-ba00-fcbffd59e3f1/update-kindle-biscuit_puffin-NS65741_user_8149_0013222532484.bin",
         sha256="4e00fc6d6e2bcf5146e502c7d14e67d2ab47b43c3dcca4e1e9439d24730a6c0b",
     ),
+    "8338": cdn_ota(
+        path="2026/10/14/e5a2c4cb-7834-4c0f-95b1-301a3ab72194/update-kindle-biscuit_puffin-NS6575_user_8338_0013323244164.bin",
+        sha256="c8ea0061e2d117d78c7f9a507dfd435505c324eac7a6ee03499276d9a982ccf0",
+    ),
 }
 
 
