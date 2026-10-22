@@ -39,15 +39,21 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   second as stock-booted, which asked for a gesture `adb` can replace.
 - A Dot unlocked with amonet v2.0.0 that boots Fire OS 6 without root also
   answers `unauthorized`, so it reads as stock-booted. amonet v2.0.0 removes
-  stock fastboot, and the action-button gesture on an amonet v2.0.0 Dot was
-  never tried. So the message also names + at power-on, which starts v2.0.0's
-  TWRP.
+  stock fastboot, and the action-button gesture on an amonet v2.0.0 Echo gives
+  a regular boot, 2026-10-21: a blue ring, then the light blue circle. So the
+  message also names + at power-on, which starts v2.0.0's TWRP. Its unlocked
+  fastboot comes from `adb reboot bootloader` instead, and its ring is every
+  color turning; the white flash before it is also what TWRP shows when it
+  starts, so white alone does not tell the two apart.
 - On a stock Dot with LK `63cb91b`, 2026-10-12, the gesture on one USB port
   of a Mac laptop left a solid blue ring, and the Dot showed nothing on USB.
   On another port the same gesture gave a green ring and fastboot. The same
-  day, from stock 8149, the gesture on the first port went green, so the
-  cause is not known. The gesture's message says to try again or try another
-  port when the ring stays solid blue.
+  day, from stock 8149, the gesture on the first port went green. On a radar,
+  2026-10-21, a solid blue ring turned green once the USB connection came up,
+  so the ring reports the connection and not the mode: the gesture reached
+  stock fastboot either way, and blue means the host end is not working. That
+  also explains the same port differing between days. The gesture's message
+  says to try again or try another port when the ring stays solid blue.
 - `su` answers about 27 seconds into Fire OS 5's first boot, while
   `dumpsys package` still answers `Can't find service: package`. So rooted
   also needs `sys.boot_completed` to be 1.
@@ -816,10 +822,10 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
   radar XDA thread gives it: the fastbrick, Fire OS 6 installed twice through
   TWRP, then `boot-root.zip`. The thread's `boot-root.zip` is biscuit's, byte
   for byte. The thread says a radar can need a power cycle before adb shows
-  after that reboot. radar's default target is `amonet-radar-v1.0.0`, so a
-  bare run, or one with only `--device radar`, unlocks it as a bare run roots
-  a Dot. The
-  route from amonet v1.1.0 states and the bootrom stay biscuit's.
+  after that reboot. radar's default target is `amonet-radar-v1.0.0`, now that
+  both of its targets have run on a radar. So a bare run, or one with only
+  `--device radar`, unlocks it as a bare run roots a Dot. The route from amonet
+  v1.1.0 states and the bootrom stay biscuit's.
 
 - Each poll picks the stage for the state found and the target, so a run
   goes from any state to any target, a rooted Dot included. Every state has
@@ -954,8 +960,15 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
   common case. So stock-fireos5-fastboot's stage plans for the stock table,
   as stock-fastboot's does. Where the probe then finds amonet v1.1.0's
   table, the step counter plans again from there.
-- In v2.0.0's fastboot the run asks for the + button at power-on, which
-  starts v2.0.0's TWRP, and waits for it without limit.
+- In v2.0.0's fastboot, where no target's stages can act, the run sends
+  `fastboot reboot recovery`, which starts v2.0.0's TWRP. Measured on a radar,
+  2026-10-21: the command answered `OKAY` in 0.076 s and adb saw the recovery
+  24 s later. v2.0.0's LK answers `fastboot oem reboot-recovery`, which v1.1.0's
+  LK takes and the `report` command uses, with `unknown command`, so the plain
+  `reboot recovery` is the one to send. A bootloader that refuses it leaves the
+  run asking for the + button at power-on, as it always did, and waiting for
+  TWRP without limit. Only radar's v2.0.0 LK has answered this; biscuit's is
+  the same `63cb91b` build and is expected to, but has not been read.
 - `--short` goes with any target. Its bootrom step writes amonet v1.1.0, and
   the run goes on from amonet v1.1.0's TWRP like any other.
 - Measured on a Dot, 2026-10-04, each with no one touching the Dot:

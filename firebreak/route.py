@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import functools
+import subprocess
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -100,7 +101,7 @@ TWRPS = frozenset({
 @dataclasses.dataclass(frozen=True)
 class Stage:
     run: Callable[[], bool | None]
-    steps: int
+    steps: int | None
     then: State | None
     needs: tuple[Need, ...] = ()
     passes: frozenset[State] = frozenset()
@@ -204,7 +205,7 @@ def fireos6_stages() -> dict[State, Stage]:
         State.AMONET_V2_0_0_TWRP: Stage(
             needs=(unlock.source, ota_build, BOOT_ROOT),
             run=stage_install_fireos6,
-            steps=5 if ARGUMENTS.reset else 3,
+            steps=5 if ARGUMENTS.reset else None,
             then=State.AMONET_V2_0_0_BOOTED,
         ),
         State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: Stage(
@@ -274,6 +275,14 @@ def prefetch(*, needs: Iterable[Need]) -> None:
             fetch(download=need)
 
 
+def reboot_into_recovery() -> bool:
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        return not run(
+            arguments=["fastboot", "reboot", "recovery"], timeout=60
+        ).returncode
+    return False
+
+
 def reboot_stages() -> dict[State, Stage]:
     to_twrp = functools.partial(reboot, label="waiting for recovery")
     return {
@@ -299,7 +308,7 @@ def remaining(*, start: State, table: dict[State, Stage]) -> int | None:
         if start == ARGUMENTS.target.goal:
             return total
         stage = table.get(start)
-        if stage is None or stage.then is None:
+        if stage is None or stage.then is None or stage.steps is None:
             return None
         total += stage.steps
         start = stage.then
@@ -457,11 +466,16 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     " start. Rebooting it into recovery."
                 )
             elif gesture:
-                say(
-                    text=f"This {noun()} is in amonet v2.0.0's fastboot. Unplug it, and"
-                    " hold the + button while you plug it back in: that starts"
-                    " v2.0.0's TWRP."
-                )
+                if reboot_into_recovery():
+                    PROGRESS.begin(
+                        estimate="25 s", label="waiting for v2.0.0 recovery to start"
+                    )
+                else:
+                    say(
+                        text=f"This {noun()} is in amonet v2.0.0's fastboot, which did"
+                        " not take fastboot reboot recovery. Unplug it, and hold the +"
+                        " button while you plug it back in: that starts v2.0.0's TWRP."
+                    )
             elif (
                 current == State.AMONET_V2_0_0_BOOTED
                 and current not in done
@@ -473,8 +487,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 )
             elif current == State.NONE and not done and not PROGRESS.open and guided:
                 show(
-                    text=f"Waiting for the {noun()} in fastboot mode, with a green"
-                    " ring."
+                    text=f"Waiting for the {noun()} in fastboot mode: a green ring on"
+                    " a stock Echo, every color turning on amonet's."
                 )
             elif current == State.NONE and not done and not PROGRESS.open:
                 guided = True

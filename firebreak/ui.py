@@ -64,7 +64,8 @@ class Progress:
         self.step += 1
         about = f"(~{estimate})" if estimate else ""
         total = str(self.steps or "?")
-        self.line = f"[{self.step:>{len(total)}}/{total}] {label:<38} {about:<8} "
+        digits = max(2, len(total))
+        self.line = f"[{self.step:>{digits}}/{total:>{digits}}] {label:<38} {about:<8} "
         self.ts = time.monotonic()
         self.open = True
         if ARGUMENTS.verbose:

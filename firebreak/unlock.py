@@ -187,9 +187,7 @@ def stage_downgrade() -> bool:
         raise FatalError(
             message=f"the {noun()} already runs amonet v1.1.0's bootloader. " + again()
         )
-    PROGRESS.begin(
-        estimate="5 s", label=f"erasing boot0 so the {noun()} falls into its bootrom"
-    )
+    PROGRESS.begin(estimate="5 s", label=f"erasing boot0 for the {noun()}'s bootrom")
     bootrom_step(
         amonet=amonet,
         erase=erase_by_fastboot,
@@ -284,9 +282,7 @@ def stage_unlock() -> bool:
         arguments=["fastboot", "-S", "256M", "flash", UNLOCK_TARGET, str(payload)],
         timeout=300,
     )
-    PROGRESS.begin(
-        estimate="5 s", label=f"erasing boot0 so the {noun()} falls into its bootrom"
-    )
+    PROGRESS.begin(estimate="5 s", label=f"erasing boot0 for the {noun()}'s bootrom")
     ERASED.write_text(ARGUMENTS.target.device.name)
     failed = erase_by_fastboot()
     if failed:

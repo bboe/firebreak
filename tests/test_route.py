@@ -34,7 +34,9 @@ class Run:
         monkeypatch.setattr(
             name="run",
             target=route,
-            value=lambda **_: types.SimpleNamespace(stdout="  -S SIZE[K|M|G]"),
+            value=lambda **_: types.SimpleNamespace(
+                returncode=0, stdout="  -S SIZE[K|M|G]"
+            ),
         )
         monkeypatch.setattr(name="state", target=route, value=self.state)
         monkeypatch.setattr(name="sleep", target=route.time, value=lambda _: None)
@@ -515,7 +517,10 @@ def test_a_run_refuses_another_device_before_it_downloads(
         ([route.State.NONE], "Waiting for the Dot on USB"),
         (
             [route.State.STOCK_BOOTED, route.State.NONE],
-            "Waiting for the Dot in fastboot mode, with a green ring.",
+            (
+                "Waiting for the Dot in fastboot mode: a green ring on a stock"
+                " Echo, every color turning on amonet's."
+            ),
         ),
     ],
 )
@@ -747,8 +752,35 @@ def test_a_v2_0_0_dot_is_told_to_use_its_gesture_and_to_reboot(
     with pytest.raises(RanOutError):
         route.root()
     out = said(capsys=capsys)
-    assert "hold the + button while you plug it back in" in out
+    assert "hold the + button" not in out
+    assert "waiting for v2.0.0 recovery to start" in out
     assert "Rebooting it into recovery." in out
+
+
+def test_a_v2_0_0_dot_that_refuses_the_reboot_is_told_to_use_its_gesture(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    run.target(build="8146", name="stock")
+    table = {
+        route.State.AMONET_V2_0_0_BOOTED: route.Stage(
+            run=lambda: None, steps=1, then=None
+        )
+    }
+    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
+    monkeypatch.setattr(
+        name="run",
+        target=route,
+        value=lambda **o: types.SimpleNamespace(
+            returncode=0 if "--help" in o["arguments"] else 1,
+            stdout="  -S SIZE[K|M|G]",
+        ),
+    )
+    run.states = [route.State.AMONET_V2_0_0_FASTBOOT, route.State.AMONET_V2_0_0_BOOTED]
+    with pytest.raises(RanOutError):
+        route.root()
+    out = said(capsys=capsys)
+    assert "did not take fastboot reboot recovery" in out
+    assert "hold the + button while you plug it back in" in out
 
 
 def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -822,7 +854,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             ),
             state.AMONET_V2_0_0_TWRP: (
                 route.stage_install_fireos6,
-                3,
+                None,
                 state.AMONET_V2_0_0_BOOTED,
                 frozenset(),
             ),
@@ -921,11 +953,11 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
     ("name", "totals"),
     [
         ("amonet-biscuit-v1.1.0-bboe", {"stock": 11, "twrp": 9, "v1.1.0": 7}),
-        ("amonet-biscuit-v2.0.0", {"stock": 5, "twrp": 3, "v1.1.0": 7}),
+        ("amonet-biscuit-v2.0.0", {"stock": None, "twrp": None, "v1.1.0": None}),
     ],
 )
 def test_fastboot_counts_the_steps_the_route_takes(
-    *, monkeypatch: pytest.MonkeyPatch, name: str, totals: dict[str, int]
+    *, monkeypatch: pytest.MonkeyPatch, name: str, totals: dict[str, int | None]
 ) -> None:
     state = route.State
     monkeypatch.setattr(

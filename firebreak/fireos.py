@@ -358,9 +358,9 @@ def stage_install_fireos6() -> None:
             message="v2.0.0's TWRP runs on amonet v1.1.0's partition table. " + again()
         )
     build = "" if ARGUMENTS.reset else installed_build(slot=active_slot())
+    if not ARGUMENTS.reset:
+        PROGRESS.steps = PROGRESS.step + (5 if not build else 2)
     if not build:
-        if not ARGUMENTS.reset and PROGRESS.steps:
-            PROGRESS.steps += 3
         install_fireos6()
         build = ARGUMENTS.target.installs.build
     PROGRESS.begin(estimate="10 s", label="installing boot-root")
@@ -384,9 +384,7 @@ def stage_install_fireos6() -> None:
             message=f"boot-root.zip ended without patching slot {slot}, which holds"
             f" Fire OS 6 {build}. " + again()
         )
-    PROGRESS.begin(
-        estimate="60 s", label=f"waiting for rooted Fire OS 6 {build} to boot"
-    )
+    PROGRESS.begin(estimate="60 s", label=f"waiting for rooted Fire OS 6 {build}")
     reboot_rooted()
 
 
