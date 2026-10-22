@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from firebreak import __version__
 from firebreak.bootrom_write_test import bootrom_write_test
 from firebreak.cache import CACHE
-from firebreak.devices import BY_NAME, FASTBOOT_MODE
+from firebreak.devices import BISCUIT, BY_NAME, FASTBOOT_MODE
 from firebreak.host import (
     adb_shell,
     getvar,
@@ -45,6 +45,7 @@ from firebreak.ui import (
     SUPPORT,
     WAIT,
     invocation,
+    noun,
     program,
     say,
     show,
@@ -104,20 +105,22 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                 line("fastboot " + name, value or "<nothing>")
             if not unlocked:
                 say(
-                    text="This Dot's fastboot did not say whether it is unlocked,"
+                    text=f"This {noun()}'s fastboot did not say whether it is unlocked,"
                     " so this stops rather than guess. Check the cable, and that no"
-                    " other program holds the Dot, then run it again."
+                    f" other program holds the {noun()}, then run it again."
                 )
                 return False
             if unlocked.lower() != "true":
                 say(
-                    text="This Dot's bootloader is locked, so it holds no recovery"
-                    " to collect from and nothing here can give it one. Root it"
-                    f" first: run {invocation(options=[])}, and follow what it"
+                    text=f"This {noun()}'s bootloader is locked, so it holds no"
+                    " recovery to collect from and nothing here can give it one."
+                    f" Root it first: run {invocation(options=[])}, and follow what it"
                     " asks."
                 )
                 return False
-            PROGRESS.begin(estimate="40 s", label="restarting the Dot in its recovery")
+            PROGRESS.begin(
+                estimate="40 s", label=f"restarting the {noun()} in its recovery"
+            )
             run(arguments=["fastboot", "oem", "reboot-recovery"], timeout=60)
         else:
             adb_state = ""
@@ -129,7 +132,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                     :1
                 ].isdigit():
                     say(
-                        text="This Dot is in a recovery that is not TWRP, so it"
+                        text=f"This {noun()} is in a recovery that is not TWRP, so it"
                         " holds nothing to collect from. It is left as it is."
                     )
                     return False
@@ -144,33 +147,35 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
             if adb_state == "device":
                 if "uid=0" not in adb_shell(command="id; su -c id", timeout=30):
                     say(
-                        text="This Dot runs Fire OS without root, so its recovery"
+                        text=f"This {noun()} runs Fire OS without root, so its recovery"
                         " is Amazon's, which holds nothing to collect from. Root it"
                         f" first: run {invocation(options=[])}, and follow what it"
                         " asks."
                     )
                     return False
                 PROGRESS.begin(
-                    estimate="40 s", label="restarting the Dot in its recovery"
+                    estimate="40 s", label=f"restarting the {noun()} in its recovery"
                 )
                 run(arguments=["adb", "reboot", "recovery"], timeout=60)
             else:
                 if not asked:
                     asked = True
                     say(
-                        text="The rest of this report comes from the Dot's recovery."
-                        " Start the Dot in fastboot mode and this goes on by itself. "
+                        text=f"The rest of this report comes from the {noun()}'s"
+                        f" recovery. Start the {noun()} in fastboot mode and this goes"
+                        " on by itself. "
                         + FASTBOOT_MODE
-                        + " A Dot already unlocked with amonet v2.0.0 has no"
+                        + " One already unlocked with amonet v2.0.0 has no"
                         " fastboot: hold the + button instead while you plug it back"
-                        " in, which starts its TWRP. A Dot that shows nothing on USB"
+                        " in, which starts its TWRP. One that shows nothing on USB"
                         " is in its bootrom, and only a root run brings it back."
                         " Ctrl-C stops this."
                     )
                 if waiting != "fastboot":
                     waiting = "fastboot"
                     status(
-                        text="Waiting for the Dot in fastboot mode, with a green ring."
+                        text=f"Waiting for the {noun()} in fastboot mode, with a"
+                        " green ring."
                     )
                 time.sleep(2)
                 continue
@@ -179,7 +184,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
         except subprocess.TimeoutExpired:
             PROGRESS.halt()
             say(
-                text="The Dot did not come back in a recovery that answers adb"
+                text=f"The {noun()} did not come back in a recovery that answers adb"
                 " within 3 minutes. It is most likely in Amazon's recovery, which a"
                 f" root run replaces: run {invocation(options=[])}."
             )
@@ -211,7 +216,7 @@ def report() -> None:
     line("state in recovery", probed())
     for text in dot_details(asked=asked):
         show(text=text)
-    held = CACHE / f"system-{BUILDS['5.5.5.4'].sha256[:12]}" / "md5"
+    held = CACHE / f"system-{BUILDS[BISCUIT]['5.5.5.4'].sha256[:12]}" / "md5"
     want, needs = system_record(text=held.read_text() if held.is_file() else "")
     if needs:
         line("system image", f"{needs} bytes, md5 {want}")
@@ -255,7 +260,7 @@ def write_test() -> None:
     toybox = asked(command="toybox dd --help >/dev/null 2>&1 && echo yes")
     if toybox.split(sep="\n")[-1] == "yes":
         SESSION.dd = "toybox dd"
-    line("dd on the Dot", SESSION.dd)
+    line(f"dd on the {noun()}", SESSION.dd)
     listing = whole(
         marker=LISTING_OK, said=asked(command=f"ls -l {BY_NAME}/; echo {LISTING_OK}")
     )
@@ -268,7 +273,7 @@ def write_test() -> None:
         if listing is None or partitions is None:
             line(
                 "over the eMMC",
-                "skipped: the Dot's partition lists did not arrive whole",
+                f"skipped: the {noun()}'s partition lists did not arrive whole",
             )
         else:
             node = node_names(listing=listing).get(EMMC_TARGET, "")

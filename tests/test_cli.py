@@ -64,7 +64,8 @@ def test_stock_help_lists_the_builds() -> None:
         check=True,
         text=True,
     ).stdout
-    assert all(build in " ".join(output.split()) for build in BUILDS)
+    text = " ".join(output.split())
+    assert all(build in text for builds in BUILDS.values() for build in builds)
 
 
 def test_survey_takes_options_before_it(*, tmp_path: pathlib.Path) -> None:

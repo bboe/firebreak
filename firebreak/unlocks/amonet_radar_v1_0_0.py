@@ -16,6 +16,10 @@ SOURCE = Download(
 AMONET_RADAR_V1_0_0 = dataclasses.replace(
     AMONET_BISCUIT_V2_0_0,
     device=RADAR,
+    fastbricks={"59779ca-20220524_183401": "bin/fastbrick-20220524.img"}
+    | dict.fromkeys(
+        ("41fb3ce-20221007_153017", "63cb91b-20221007_073612"), "bin/fastbrick.img"
+    ),
     plan=tuple(
         dataclasses.replace(WRITE_KAERU, image="bin/radar-kaeru.bin")
         if step == WRITE_KAERU

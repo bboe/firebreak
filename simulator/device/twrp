@@ -6,16 +6,19 @@ import tempfile
 import zipfile
 
 BY_NAME = pathlib.Path("/dev/block/platform/mtk-msdc.0/by-name")
+RECOVERY_LOG = pathlib.Path("/tmp/recovery.log")  # ruff: ignore[hardcoded-temp-file]
 RUN = pathlib.Path("/sim/run")
 WITH_TARGET = 3
 
 
 def install(*, path: str) -> int:
     print(f"Installing zip file '{path}'")
+    logged(line=f"Installing zip file '{path}'")
     try:
         archive = zipfile.ZipFile(path)
     except (OSError, zipfile.BadZipFile):
         print("Invalid zip file format!")
+        logged(line="I:Updater process ended with RC=1")
         return 1
     names = set(archive.namelist())
     active = (RUN / "active").read_text(encoding="utf-8").strip()
@@ -56,8 +59,15 @@ def install(*, path: str) -> int:
     else:
         (RUN / f"root-adb-{active}").touch()
         print("Installing boot-root...")
+        logged(line=f"slot _{active}: neutering ota updates")
     print("Done processing script file")
+    logged(line="I:Updater process ended with RC=0")
     return 0
+
+
+def logged(*, line: str) -> None:
+    with RECOVERY_LOG.open("a", encoding="utf-8") as log:
+        log.write(line + "\n")
 
 
 def main() -> int:

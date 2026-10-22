@@ -1,10 +1,10 @@
-"""Change the firmware on an Echo Dot (2nd Generation) over USB: root it, or
-return it to stock. It finds where the Dot is, from stock, part way through, or
-on another target, and keeps going until the Dot is on the target: it waits
-while the Dot reboots, and while you take a step it asks for. Stopped, it picks
-up where it left off on the next run. It uses the one Dot on USB; set
-ANDROID_SERIAL when several are. It needs Python 3.9 or later, and adb and
-fastboot from Android platform-tools.
+"""Change the firmware on an Echo Dot (2nd Generation) or an Echo (2nd
+Generation) over USB: root it, or return it to stock. It finds where the Echo
+is, from stock, part way through, or on another target, and keeps going until
+the Echo is on the target: it waits while the Echo reboots, and while you take
+a step it asks for. Stopped, it picks up where it left off on the next run. It
+uses the one Echo on USB; set ANDROID_SERIAL when several are. It needs Python
+3.9 or later, and adb and fastboot from Android platform-tools.
 https://github.com/bboe/firebreak/blob/main/docs/rooting.md says why each
 step is there.
 """
@@ -18,12 +18,14 @@ import shutil
 import subprocess
 import sys
 import textwrap
+from typing import TYPE_CHECKING
 
 from firebreak import __version__, updates
 from firebreak.cache import make_cache
 from firebreak.emos import child_emos
 from firebreak.host import check_adb, check_python, check_root, check_user
 from firebreak.identify import choose_target
+from firebreak.plugin import FireOs6
 from firebreak.route import root
 from firebreak.support import report, write_test
 from firebreak.survey import survey_all
@@ -41,6 +43,11 @@ from firebreak.ui import (
 )
 from firebreak.unlocks.targets import DEFAULTS, STOCK, TARGETS
 from firebreak.write_test import EMMC_TARGET
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from firebreak.plugin import Device
 
 CREDITS = """firebreak automates work that other people did first.
 
@@ -66,6 +73,12 @@ ftvdb keeps the Fire OS builds that the tables link to.
   https://ftvdb.com/"""
 DEVICES = {device.name: device for device in TARGETS}
 REPORT = "report"
+RESETS = {
+    name
+    for targets in TARGETS.values()
+    for name, target in targets.items()
+    if isinstance(target.installs, FireOs6) and target.unlock
+}
 SURVEY = "survey"
 WRITE_TEST = "write-test"
 
@@ -96,7 +109,6 @@ def cli() -> None:
         make_cache()
         survey_all(paths=[pathlib.Path(path) for path in options.otas])
         return
-    ARGUMENTS.build = options.build
     ARGUMENTS.verbose = options.verbose
     check_python()
     for tool in ("adb", "fastboot"):
@@ -118,14 +130,53 @@ def cli() -> None:
     ARGUMENTS.target = choose_target(
         device=DEVICES.get(options.device), name=options.command
     )
+    ARGUMENTS.reset = options.reset
+    if ARGUMENTS.reset and ARGUMENTS.target.name not in RESETS:
+        raise FatalError(
+            message=f"{ARGUMENTS.target.name} takes no --reset: only"
+            f" {', '.join(sorted(RESETS))} install a Fire OS 6 build to erase to."
+        )
+    device = ARGUMENTS.target.device
+    if ARGUMENTS.target.name == STOCK:
+        ARGUMENTS.build = options.build or updates.DEFAULT_BUILDS[device]
+        if ARGUMENTS.build not in updates.BUILDS[device]:
+            raise FatalError(
+                message=f"the {device.title} has no stock build {ARGUMENTS.build}:"
+                f" use one of {', '.join(ordered(builds=updates.BUILDS[device]))}"
+            )
     root()
+
+
+def commands_help(*, about: dict[str, str]) -> str:
+    labels = {WRITE_TEST: " [--short]", SURVEY: " OTA [OTA ...]"}
+    return "\n".join(
+        line
+        for name, summary in about.items()
+        for line in listed(label=name + labels.get(name, ""), summary=summary)
+    )
+
+
+def lacking(
+    *, device: Device, options: argparse.Namespace, targets: Iterable[str]
+) -> str:
+    if options.command in targets and options.command not in TARGETS[device]:
+        return f"target {options.command}"
+    if options.build and options.build not in updates.BUILDS[device]:
+        return f"stock build {options.build}"
+    if options.command is None and device not in DEFAULTS:
+        return "default target: name one"
+    return ""
 
 
 def listed(*, label: str, summary: str) -> list[str]:
     return [
         f"  {label}",
         *textwrap.wrap(
-            initial_indent=" " * 6, subsequent_indent=" " * 6, text=summary, width=74
+            break_on_hyphens=False,
+            initial_indent=" " * 6,
+            subsequent_indent=" " * 6,
+            text=summary,
+            width=74,
         ),
     ]
 
@@ -148,15 +199,18 @@ def main() -> None:
         )
 
 
-def parsed() -> argparse.Namespace:
-    builds = sorted(
-        updates.BUILDS,
+def ordered(*, builds: Iterable[str]) -> list[str]:
+    return sorted(
+        builds,
         key=lambda build: (
             build not in updates.FIREOS5_BUILDS,
             tuple(map(int, build.split("."))),
         ),
         reverse=True,
     )
+
+
+def parsed() -> argparse.Namespace:
     common_parent = argparse.ArgumentParser(
         add_help=False, argument_default=argparse.SUPPRESS
     )
@@ -164,7 +218,7 @@ def parsed() -> argparse.Namespace:
         "--verbose",
         action="store_true",
         help="print each adb and fastboot command, its exit status and the"
-        " time, and each state the Dot reaches",
+        " time, and each state the Echo reaches",
     )
     common_parent.add_argument(
         "--no-update-check",
@@ -186,7 +240,7 @@ def parsed() -> argparse.Namespace:
     short_parent.add_argument(
         "--short",
         action="store_true",
-        help="for a Dot that shows no light and needs its test point shorted:"
+        help="for an Echo that shows no light and needs its test point shorted:"
         " wait for its bootrom, say when the short may come off, then go on",
     )
     device_parent = argparse.ArgumentParser(
@@ -199,33 +253,43 @@ def parsed() -> argparse.Namespace:
         " the Echo: "
         + ", ".join(f"{device.name} for the {device.title}" for device in TARGETS),
     )
+    reset_parent = argparse.ArgumentParser(
+        add_help=False, argument_default=argparse.SUPPRESS
+    )
+    reset_parent.add_argument(
+        "--reset",
+        action="store_true",
+        help="erase userdata and install the target's Fire OS 6 build in both"
+        " slots, where the target otherwise roots the Fire OS 6 already installed"
+        " and keeps the Echo's Wi-Fi and Alexa setup",
+    )
     about = {
-        REPORT: "print what the Dot and this computer are, and the Dot's"
-        " partition table, for a support request. It starts the Dot's recovery"
+        REPORT: "print what the Echo and this computer are, and the Echo's"
+        " partition table, for a support request. It starts the Echo's recovery"
         " to read them and writes no partition.",
-        WRITE_TEST: f"write a known pattern over the Dot's {EMMC_TARGET}"
+        WRITE_TEST: f"write a known pattern over the Echo's {EMMC_TARGET}"
         " partition and read it back, which tells a failing eMMC from a failing"
         " USB cable because nothing crosses USB. It leaves a fresh empty"
         " filesystem there, or says it could not.",
         SURVEY: "read each Amazon OTA zip for the tables in docs/devices.md. It"
-        " needs no Dot.",
+        " needs no Echo.",
     }
-    labels = {WRITE_TEST: " [--short]", SURVEY: " OTA [OTA ...]"}
-    commands_help = [
-        line
-        for name, summary in about.items()
-        for line in listed(label=name + labels.get(name, ""), summary=summary)
-    ]
     parser = argparse.ArgumentParser(
         description=__doc__,
         epilog=f"""{target_help()}
-Run again with another target to move the Dot to it.
+Run again with another target to move the Echo to it.
 
 commands, which are not targets:
 """
-        + "\n".join(commands_help),
+        + commands_help(about=about),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        parents=[common_parent, fastboot_parent, short_parent, device_parent],
+        parents=[
+            common_parent,
+            fastboot_parent,
+            short_parent,
+            device_parent,
+            reset_parent,
+        ],
         prog="firebreak",
     )
     parser.add_argument(
@@ -242,25 +306,42 @@ commands, which are not targets:
         help="the target, or a command, one of those listed below",
         metavar="TARGET|COMMAND",
     )
-    summaries = {
-        name: target.summary
-        for targets in TARGETS.values()
-        for name, target in targets.items()
-    }
-    for name, summary in sorted(summaries.items()):
+    summaries = summarized()
+    for name, by_device in sorted(summaries.items()):
         target = commands.add_parser(
             name,
-            description=summary,
-            parents=[common_parent, fastboot_parent, short_parent, device_parent],
+            description=" ".join(
+                f"For the {device.title}: {summary}"
+                for device, summary in by_device.items()
+            )
+            if len(by_device) > 1
+            else next(iter(by_device.values())),
+            parents=[
+                common_parent,
+                fastboot_parent,
+                short_parent,
+                device_parent,
+                *dict.fromkeys(RESETS, (reset_parent,)).get(name, ()),
+            ],
         )
         if name == STOCK:
             target.add_argument(
                 "build",
-                choices=builds,
-                default=updates.DEFAULT_BUILD,
-                help="the build to install, one of "
-                + ", ".join(builds)
-                + f"; {updates.DEFAULT_BUILD} when left out",
+                choices=ordered(
+                    builds={
+                        build for builds in updates.BUILDS.values() for build in builds
+                    }
+                ),
+                default=None,
+                help="the build to install: "
+                + "; ".join(
+                    f"for the {device.title}, one of"
+                    f" {', '.join(ordered(builds=builds))},"
+                    f" {updates.DEFAULT_BUILDS[device]} when left out"
+                    if len(builds) > 1
+                    else f"for the {device.title}, only {next(iter(builds))}"
+                    for device, builds in updates.BUILDS.items()
+                ),
                 metavar="BUILD",
                 nargs="?",
             )
@@ -277,17 +358,20 @@ commands, which are not targets:
         ("device", None),
         ("fastboot", False),
         ("no_update_check", False),
+        ("reset", False),
         ("short", False),
         ("verbose", False),
     ):
-        setattr(options, option, getattr(options, option, default))
+        setattr(options, option, getattr(options, option, None) or default)
     takes = {
         REPORT: set(),
         STOCK: {"device", "fastboot", "short"},
         SURVEY: set(),
         WRITE_TEST: {"short"},
-    }.get(options.command, {"device", "short"})
-    for option in sorted({"device", "fastboot", "short"} - takes):
+    }.get(options.command, {"device", "reset", "short"})
+    if options.command in RESETS:
+        takes |= {"reset"}
+    for option in sorted({"device", "fastboot", "reset", "short"} - takes):
         if getattr(options, option):
             parser.error(
                 message=f"{options.command or 'the default target'} takes no --{option}"
@@ -298,20 +382,26 @@ commands, which are not targets:
             " port, which cannot leave the Dot in fastboot"
         )
     device = DEVICES.get(options.device)
-    if (
-        device
-        and options.command in summaries
-        and options.command not in TARGETS[device]
-    ):
-        parser.error(message=f"the {device.title} has no target {options.command}")
+    if device:
+        lacks = lacking(device=device, options=options, targets=summaries)
+        if lacks:
+            parser.error(message=f"the {device.title} has no {lacks}")
     return options
+
+
+def summarized() -> dict[str, dict[Device, str]]:
+    summaries: dict[str, dict[Device, str]] = {}
+    for device, targets in TARGETS.items():
+        for name, target in targets.items():
+            summaries.setdefault(name, {})[device] = target.summary
+    return summaries
 
 
 def target_help() -> str:
     lines = []
     for device, targets in TARGETS.items():
         lines.append(f"targets for the {device.title}:")
-        default = DEFAULTS[device]
+        default = DEFAULTS.get(device)
         for target in sorted(
             targets.values(), key=lambda target: (target.name != default, target.name)
         ):

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from firebreak.cache import Download
-from firebreak.devices import BISCUIT, STOCK_LAYOUT
+from firebreak.devices import BISCUIT, LK, STOCK_LAYOUT
 from firebreak.plugin import (
     BOOT0,
     FastbootFlash,
@@ -25,6 +25,18 @@ WRITE_KAERU = Write(image="bin/biscuit-kaeru.bin", label="write kaeru", target="
 AMONET_BISCUIT_V2_0_0 = Unlock(
     device=BISCUIT,
     family="amonet",
+    fastbricks=dict.fromkeys(
+        (LK.FIREOS6.value, LK.FIREOS6_4315.value), "bin/fastbrick-20221007.img"
+    )
+    | dict.fromkeys(
+        (
+            LK.FIREOS5.value,
+            "0e1d0d9-20161018_220224",
+            "a828f29-20210822_210511",
+            "beb022a-20211202_231918",
+        ),
+        "bin/fastbrick.img",
+    ),
     layout=STOCK_LAYOUT,
     plan=(
         Repartition(),

@@ -6,6 +6,7 @@ import enum
 import os
 import subprocess
 import time
+import zipfile
 from typing import TYPE_CHECKING
 
 from firebreak import updates
@@ -26,6 +27,8 @@ from firebreak.plan import (
     BOOTLOADER_CONTROL_BLOCK_OFFSET,
     TABLE_SECTORS,
 )
+from firebreak.report import whole
+from firebreak.survey import build_properties
 from firebreak.twrp import (
     DISK,
     clear_boot0,
@@ -41,6 +44,7 @@ from firebreak.ui import (
     FatalError,
     Kind,
     again,
+    noun,
     paint,
     passed,
     show,
@@ -56,6 +60,7 @@ if TYPE_CHECKING:
 
 
 CHAIN_TEE = ("tee2", "tee1")
+NAMED = "device-named"
 STOCK_STEPS = 16
 TWRP_VERSIONS = ("3.2.", "3.7.")
 
@@ -157,6 +162,12 @@ def chain_writes() -> tuple[Step, ...]:
     )
 
 
+def made_for(*, update: pathlib.Path) -> str:
+    with zipfile.ZipFile(file=update) as archive:
+        named = build_properties(archive=archive).get("ro.product.device", "")
+    return named.removesuffix("_puffin")
+
+
 def reboot_into_fastboot() -> None:
     PROGRESS.begin(estimate="20 s", label="rebooting into fastboot")
     with contextlib.suppress(subprocess.TimeoutExpired):
@@ -175,7 +186,7 @@ def restore(  # ruff: ignore[complex-structure]
     unmount()
 
     PROGRESS.begin(estimate="5 s", label="clear the preloader header (boot0)")
-    ERASED.touch()
+    ERASED.write_text(ARGUMENTS.target.device.name)
     clear_boot0()
     PROGRESS.end()
 
@@ -249,7 +260,9 @@ def restore(  # ruff: ignore[complex-structure]
     preloader = work / "boot0.img"
     staged = DOT_TEMPORARY_DIRECTORY / "pl.img"
     if run(arguments=["adb", "push", preloader, staged], timeout=120).returncode != 0:
-        raise FatalError(message="the preloader did not reach the Dot; do not reboot")
+        raise FatalError(
+            message=f"the preloader did not reach the {noun()}; do not reboot"
+        )
     adb_shell(command=Shell.BOOT0.value.format(source=staged))
     wrong = md5_mismatch(
         command="md5sum /dev/block/mmcblk0boot0",
@@ -275,9 +288,17 @@ def restore(  # ruff: ignore[complex-structure]
 
 def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
     build = ARGUMENTS.build
+    device = ARGUMENTS.target.device
     work = CACHE / ("stock-" + build)
     work.mkdir(exist_ok=True, parents=True)
-    extract(update=updates.download(build=build), work=work)
+    update = updates.download(build=build, device=device)
+    made = made_for(update=update)
+    if made != device.name:
+        raise FatalError(
+            message=f"OTA {build} is for {made!r}, not {device.name}, so nothing"
+            " was written"
+        )
+    extract(update=update, work=work)
     deadline = time.monotonic() + 30
     version = ""
     while not version or "mtp" not in adb_shell(command="getprop sys.usb.config"):
@@ -289,7 +310,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
             version = ""
         elif not version.startswith(TWRP_VERSIONS):
             raise FatalError(
-                message="this needs a TWRP for this Dot: v1.1.0's 3.2.3,"
+                message=f"this needs a TWRP for this {noun()}: v1.1.0's 3.2.3,"
                 f" v2.0.0's 3.7.0, or the {TWRP_VERSION} that firebreak"
                 " installs"
             )
@@ -302,14 +323,18 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
         SESSION.dd = "toybox dd"
     tools = adb_shell(command=Shell.TOOLS.value).split(sep="\n")[-1]
     if not tools.startswith("tools:"):
-        raise FatalError(message="the Dot did not answer which tools it has: " + tools)
+        raise FatalError(
+            message=f"the {noun()} did not answer which tools it has: " + tools
+        )
     if tools != "tools:":
         raise FatalError(message="this TWRP has no" + tools[len("tools:") :])
-    device = adb_shell(command="getprop ro.product.device")
-    if device != "biscuit":
+    named = whole(
+        marker=NAMED,
+        said=adb_shell(command=f"getprop ro.product.device; echo {NAMED}"),
+    )
+    if named != device.name:
         raise FatalError(
-            message="this is not an Echo Dot (2nd Gen): TWRP reports the"
-            f" device {device!r}"
+            message=f"this is not an {device.title}: TWRP reports the device {named!r}"
         )
 
     raw = read_sectors(count=TABLE_SECTORS, start=0)
@@ -318,7 +343,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
     ):
         size = adb_shell(command=f"blockdev --getsize64 {DISK}")
         if not size.isdigit():
-            raise FatalError(message="could not read the Dot's disk size")
+            raise FatalError(message=f"could not read the {noun()}'s disk size")
         tail = read_sectors(count=33, start=int(size) // 512 - 33)
         raw = raw[:512] + tail[-512:] + tail[:-512]
         show(text="the primary partition table is damaged; using the backup")
@@ -368,9 +393,9 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
     if not boot0.isdigit() or len(preloader) > int(boot0) * 512:
         raise FatalError(message=f"preloader.img does not fit boot0 ({boot0} sectors)")
     (work / "boot0.img").write_bytes(data=preloader.ljust(int(boot0) * 512, b"\0"))
-    passed(message="stock partition table built from this Dot's own")
+    passed(message=f"stock partition table built from this {noun()}'s own")
     warn(
-        text="About to overwrite this Dot's bootloaders, system and data with"
+        text=f"About to overwrite this {noun()}'s bootloaders, system and data with"
         f" stock {build}."
     )
     warn(text="Root is gone afterwards; firebreak puts it back.")
@@ -427,7 +452,8 @@ def wait_for_fastboot() -> None:
                 break
         if time.monotonic() > deadline:
             raise FatalError(
-                message="the Dot did not reach fastboot within 2 minutes. " + again()
+                message=f"the {noun()} did not reach fastboot within 2 minutes. "
+                + again()
             )
         time.sleep(2)
     PROGRESS.end()

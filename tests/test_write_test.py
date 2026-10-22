@@ -96,7 +96,7 @@ def test_a_card_that_gives_back_something_else_is_blamed() -> None:
     dot = Dot(answers={"-O ^sparse_super": "card:0123  -", "blockdev": "busy"})
     write_test.emmc_leg(asked=dot.ask, blocks=48, chunk=16, line=dot.line, node="/n")
     assert dot.said(label="verdict").startswith("THE eMMC DID NOT GIVE BACK")
-    assert dot.said(label="fresh filesystem").startswith("NO: busy. A Dot whose")
+    assert dot.said(label="fresh filesystem").startswith("NO: busy. One whose")
 
 
 def test_a_card_that_gives_back_what_it_took_is_not_at_fault() -> None:

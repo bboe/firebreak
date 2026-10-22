@@ -8,12 +8,16 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import unlock
+from firebreak.devices import BISCUIT, RADAR
 from firebreak.ui import FatalError
+from firebreak.unlocks.targets import TARGETS
 
 if TYPE_CHECKING:
     import pathlib
 
     from conftest import FakeAdb
+
+    from firebreak.plugin import Device
 
 LK = {"stock": b"S" * 241664, "v1.1.0": b"1" * 372368, "v2.0.0": b"2" * 359744}
 
@@ -23,9 +27,10 @@ def brick(
     adb: FakeAdb,
     little_kernel: str,
     monkeypatch: pytest.MonkeyPatch,
+    product: str = "BISCUIT",
     tmp_path: pathlib.Path,
 ) -> None:
-    adb.answers["product"] = ["product: BISCUIT"]
+    adb.answers["product"] = [f"product: {product}"]
     adb.answers["lk_build_desc"] = [f"lk_build_desc: {little_kernel}"]
     monkeypatch.setattr(name="unpack", target=unlock, value=lambda **_: tmp_path)
 
@@ -76,7 +81,7 @@ def guard(
                 "product": "RADAR",
                 "unlock_status": "true",
             },
-            "reports 'RADAR', not BISCUIT, so nothing was written. firebreak supports",
+            "reports 'RADAR', not BISCUIT, so nothing was written. amonet-biscuit",
         ),
         (
             {
@@ -209,6 +214,39 @@ def test_a_fastbrick_checks_the_dot_before_it_flashes(  # ruff: ignore[too-many-
 
 
 @pytest.mark.parametrize(
+    ("device", "target", "said"),
+    [
+        (BISCUIT, "amonet-biscuit-v2.0.0", "open it as README.md's --short"),
+        (RADAR, "amonet-radar-v1.0.0", "#support-device-unlocking"),
+    ],
+)
+def test_a_fastbrick_refuses_a_bootloader_it_does_not_know(  # ruff: ignore[too-many-arguments]
+    *,
+    adb: FakeAdb,
+    device: Device,
+    monkeypatch: pytest.MonkeyPatch,
+    said: str,
+    target: str,
+    tmp_path: pathlib.Path,
+) -> None:
+    monkeypatch.setattr(
+        name="target", target=unlock.ARGUMENTS, value=TARGETS[device][target]
+    )
+    brick(
+        adb=adb,
+        little_kernel="2c3569d-20260617_045829",
+        monkeypatch=monkeypatch,
+        product=device.product,
+        tmp_path=tmp_path,
+    )
+    with pytest.raises(FatalError, match="2c3569d-20260617_045829") as stopped:
+        unlock.stage_fastbrick()
+    assert "not modified" in stopped.value.message
+    assert said in stopped.value.message
+    assert adb.commands(holding="brick") == []
+
+
+@pytest.mark.parametrize(
     ("said", "message"),
     [
         ("FAILED (remote: 'eMMC-RO')", "eMMC is read-only"),
@@ -264,6 +302,45 @@ def test_a_locked_fastboot_is_left_for_its_own_stage(
     assert unlock.stage_amonet_v1_1_0_recovery() is False
     assert ran == []
     assert "locked fastboot" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("little_kernel", "image"),
+    [
+        ("59779ca-20220524_183401", "bin/fastbrick-20220524.img"),
+        ("63cb91b-20221007_073612", "bin/fastbrick.img"),
+    ],
+)
+def test_a_radar_fastbrick_picks_radar_s_image(
+    *,
+    adb: FakeAdb,
+    image: str,
+    little_kernel: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    monkeypatch.setattr(
+        name="target",
+        target=unlock.ARGUMENTS,
+        value=TARGETS[RADAR]["amonet-radar-v1.0.0"],
+    )
+    brick(
+        adb=adb,
+        little_kernel=little_kernel,
+        monkeypatch=monkeypatch,
+        product="RADAR",
+        tmp_path=tmp_path,
+    )
+    adb.answers[image] = [
+        subprocess.TimeoutExpired(cmd="fastboot", output=b"Writing 'brick'", timeout=8)
+    ]
+    unlock.stage_fastbrick()
+    assert adb.commands(holding=image)
+    adb.answers["product"] = ["product: BISCUIT"]
+    with pytest.raises(
+        FatalError, match=r"amonet-radar-v1\.0\.0 is for the Echo \(2nd"
+    ):
+        unlock.stage_fastbrick()
 
 
 def test_an_lk_read_answered_after_a_reconnect_is_used(

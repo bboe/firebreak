@@ -113,7 +113,7 @@ def test_a_console_that_asks_for_a_password_is_not_answered(
     ("answer", "platform", "said"),
     [
         ("password", "linux", "asks for a password"),
-        ("denied", "linux", "cannot open the Dot over USB"),
+        ("denied", "linux", "cannot open the Echo over USB"),
         ("denied", "darwin", "Another program holds"),
         ("denied", "win32", "Another program holds"),
         ("busy", "linux", "Another program holds"),

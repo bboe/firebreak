@@ -12,9 +12,9 @@ import threading
 import time
 from typing import NoReturn, TextIO
 
-ARGUMENTS = argparse.Namespace(build="", target="", verbose=False)
+ARGUMENTS = argparse.Namespace(build="", reset=False, target="", verbose=False)
 BOOT0_EMPTY = (
-    "boot0 may hold no preloader until the last step, so a Dot that restarts"
+    "boot0 may hold no preloader until the last step, so an Echo that restarts"
     " before then shows no light and starts nothing: it waits in its bootrom,"
     " and firebreak takes it from there by itself when it runs again on this"
     " computer"
@@ -64,7 +64,8 @@ class Progress:
         self.step += 1
         about = f"(~{estimate})" if estimate else ""
         total = str(self.steps or "?")
-        self.line = f"[{self.step:>{len(total)}}/{total}] {label:<38} {about:<8} "
+        digits = max(2, len(total))
+        self.line = f"[{self.step:>{digits}}/{total:>{digits}}] {label:<38} {about:<8} "
         self.ts = time.monotonic()
         self.open = True
         if ARGUMENTS.verbose:
@@ -148,7 +149,7 @@ def asked_for() -> str:
     return (
         f"If it fails the same way, run {invocation(options=['report'])} and"
         " paste what it prints in #support-device-unlocking in the EchoMuse"
-        " Discord, https://discord.gg/vAPHMDvREG: it says what this Dot's eMMC"
+        f" Discord, https://discord.gg/vAPHMDvREG: it says what this {noun()}'s eMMC"
         f" and partitions are. {invocation(options=['write-test'])} then tells"
         " a failing card from a failing cable."
     )
@@ -199,6 +200,11 @@ def mark() -> str:
     except (LookupError, UnicodeEncodeError):
         return "done"
     return "\u2705"
+
+
+def noun() -> str:
+    device = getattr(ARGUMENTS.target, "device", None)
+    return device.noun if device else "Echo"
 
 
 def paint(*, code: ANSIColor, text: str) -> str:

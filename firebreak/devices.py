@@ -15,6 +15,7 @@ CROWN = Device(
     features=frozenset({Feature.BOOT0, Feature.RPMB}),
     models=frozenset({"AEOCW"}),
     name="crown",
+    noun="Echo Show",
     product="CROWN",
     title="Echo Show 8 (1st Generation)",
     twrp_models=frozenset({"Echo Show 8"}),
@@ -32,6 +33,7 @@ BISCUIT = Device(
     layouts=(BOOT_MOVED_LAYOUT, STOCK_LAYOUT),
     models=frozenset({"AEOBC", "Echo Dot (2nd Gen)", "Echo Dot 2nd Gen"}),
     name="biscuit",
+    noun="Dot",
     product="BISCUIT",
     title="Echo Dot (2nd Generation)",
 )
@@ -39,6 +41,7 @@ RADAR = dataclasses.replace(
     BISCUIT,
     models=frozenset({"AEORD", "Echo (2nd Gen)"}),
     name="radar",
+    noun="Echo",
     product="RADAR",
     title="Echo (2nd Generation)",
 )

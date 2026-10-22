@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import ui
+from firebreak.devices import BISCUIT, RADAR
+from firebreak.unlocks.targets import TARGETS
 
 if TYPE_CHECKING:
     import pathlib
@@ -151,6 +153,21 @@ def test_mark_falls_back_to_ascii(*, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ui.mark() == "done"
 
 
+@pytest.mark.parametrize(
+    ("target", "want"),
+    [
+        (TARGETS[BISCUIT]["stock"], "Dot"),
+        (TARGETS[RADAR]["stock"], "Echo"),
+        ("", "Echo"),
+    ],
+)
+def test_noun_names_the_target_s_device(
+    *, monkeypatch: pytest.MonkeyPatch, target: object, want: str
+) -> None:
+    monkeypatch.setattr(name="target", target=ui.ARGUMENTS, value=target)
+    assert ui.noun() == want
+
+
 def test_paint(*, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ui.paint(code=ui.ANSIColor.RED, text="x") == "x"
     tty(monkeypatch=monkeypatch)
@@ -181,10 +198,10 @@ def test_progress_not_a_tty(*, capsys: pytest.CaptureFixture[str]) -> None:
     ui.PROGRESS.end(skipped=True)
     ui.PROGRESS.end()
     lines = capsys.readouterr().out.splitlines()
-    assert lines[0].startswith("[1/2] first")
+    assert lines[0].startswith("[ 1/ 2] first")
     assert "(~1 s)" in lines[0]
     assert "✅   0s" in lines[1]
-    assert lines[2].startswith("[2/2] second")
+    assert lines[2].startswith("[ 2/ 2] second")
     assert "✅ skip" in lines[3]
     assert len(lines) == 4
 
@@ -215,8 +232,8 @@ def test_progress_spins_on_a_tty(
     time.sleep(0.25)
     ui.PROGRESS.end()
     output = capsys.readouterr().out
-    assert output.startswith("[1/?] spin")
-    assert f"{ui.SPINNER[0]}    0s\r[1/?] spin" in output
+    assert output.startswith("[ 1/ ?] spin")
+    assert f"{ui.SPINNER[0]}    0s\r[ 1/ ?] spin" in output
     assert "careful" in output
     assert output.endswith("(0s total)\n")
     assert ui.PROGRESS.ticker is None
@@ -228,7 +245,7 @@ def test_progress_verbose(*, capsys: pytest.CaptureFixture[str]) -> None:
     ui.PROGRESS.end()
     first, second = capsys.readouterr().out.splitlines()
     assert time.strptime(first[:8], "%H:%M:%S")
-    assert first[9:].startswith("[1/?] loud")
+    assert first[9:].startswith("[ 1/ ?] loud")
     assert time.strptime(second[:8], "%H:%M:%S")
 
 

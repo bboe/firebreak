@@ -34,7 +34,9 @@ class Run:
         monkeypatch.setattr(
             name="run",
             target=route,
-            value=lambda **_: types.SimpleNamespace(stdout="  -S SIZE[K|M|G]"),
+            value=lambda **_: types.SimpleNamespace(
+                returncode=0, stdout="  -S SIZE[K|M|G]"
+            ),
         )
         monkeypatch.setattr(name="state", target=route, value=self.state)
         monkeypatch.setattr(name="sleep", target=route.time, value=lambda _: None)
@@ -302,12 +304,12 @@ def test_a_fire_os_5_route_fetches_what_it_needs_and_builds_the_system(
             amonet_biscuit_v2_0_0.SOURCE.name,
             amonet_biscuit_v1_1_0.SOURCE.name,
             *twrp,
-            BUILDS["5.5.5.4"].name,
+            BUILDS[BISCUIT]["5.5.5.4"].name,
             "Magisk-v17.3.zip",
         ]
         * 2
     )
-    assert built == [BUILDS["5.5.5.4"]]
+    assert built == [BUILDS[BISCUIT]["5.5.5.4"]]
     assert shown == ["Finishing the downloads."] * 2
 
 
@@ -337,6 +339,16 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
     assert got == [downloaded]
 
 
+def test_a_reset_route_takes_five_steps(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(name="reset", target=route.ARGUMENTS, value=True)
+    monkeypatch.setattr(
+        name="target",
+        target=route.ARGUMENTS,
+        value=TARGETS[BISCUIT]["amonet-biscuit-v2.0.0"],
+    )
+    assert route.stages()[route.State.AMONET_V2_0_0_TWRP].steps == 5
+
+
 @pytest.mark.parametrize(
     ("name", "start", "needs"),
     [
@@ -348,7 +360,7 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
                 route.pyserial_wheel,
                 amonet_biscuit_v2_0_0.SOURCE,
                 route.TWRP,
-                BUILDS["5.5.5.4"],
+                BUILDS[BISCUIT]["5.5.5.4"],
                 route.MAGISK,
                 route.start_prebuild,
             ],
@@ -502,10 +514,13 @@ def test_a_run_refuses_another_device_before_it_downloads(
         ([route.State.STOCK_BOOTED], "appears to be unmodified"),
         ([route.State.EMOS], "runs EchoMuse's emOS"),
         ([route.State.NO_SYSTEM], "/system is damaged"),
-        ([route.State.NONE], "Waiting for a Dot on USB"),
+        ([route.State.NONE], "Waiting for the Dot on USB"),
         (
             [route.State.STOCK_BOOTED, route.State.NONE],
-            "Waiting for the Dot in fastboot mode, with a green ring.",
+            (
+                "Waiting for the Dot in fastboot mode: a green ring on a stock"
+                " Echo, every color turning on amonet's."
+            ),
         ),
     ],
 )
@@ -555,7 +570,7 @@ def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
             then=route.State.AMONET_V2_0_0_TWRP,
         ),
         route.State.AMONET_V2_0_0_TWRP: route.Stage(
-            needs=(amonet_biscuit_v2_0_0.SOURCE, BUILDS["5.5.5.4"]),
+            needs=(amonet_biscuit_v2_0_0.SOURCE, BUILDS[BISCUIT]["5.5.5.4"]),
             run=lambda: None,
             steps=2,
             then=None,
@@ -567,7 +582,7 @@ def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
         route.root()
     assert run.checked == 1
     assert run.started == 1
-    assert [amonet_biscuit_v2_0_0.SOURCE, BUILDS["5.5.5.4"]] == route.DOWNLOADS
+    assert [amonet_biscuit_v2_0_0.SOURCE, BUILDS[BISCUIT]["5.5.5.4"]] == route.DOWNLOADS
     assert run.prefetched == []
 
 
@@ -737,8 +752,35 @@ def test_a_v2_0_0_dot_is_told_to_use_its_gesture_and_to_reboot(
     with pytest.raises(RanOutError):
         route.root()
     out = said(capsys=capsys)
-    assert "hold the + button while you plug it back in" in out
+    assert "hold the + button" not in out
+    assert "waiting for v2.0.0 recovery to start" in out
     assert "Rebooting it into recovery." in out
+
+
+def test_a_v2_0_0_dot_that_refuses_the_reboot_is_told_to_use_its_gesture(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    run.target(build="8146", name="stock")
+    table = {
+        route.State.AMONET_V2_0_0_BOOTED: route.Stage(
+            run=lambda: None, steps=1, then=None
+        )
+    }
+    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
+    monkeypatch.setattr(
+        name="run",
+        target=route,
+        value=lambda **o: types.SimpleNamespace(
+            returncode=0 if "--help" in o["arguments"] else 1,
+            stdout="  -S SIZE[K|M|G]",
+        ),
+    )
+    run.states = [route.State.AMONET_V2_0_0_FASTBOOT, route.State.AMONET_V2_0_0_BOOTED]
+    with pytest.raises(RanOutError):
+        route.root()
+    out = said(capsys=capsys)
+    assert "did not take fastboot reboot recovery" in out
+    assert "hold the + button while you plug it back in" in out
 
 
 def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -812,7 +854,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             ),
             state.AMONET_V2_0_0_TWRP: (
                 route.stage_install_fireos6,
-                5,
+                None,
                 state.AMONET_V2_0_0_BOOTED,
                 frozenset(),
             ),
@@ -911,11 +953,11 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
     ("name", "totals"),
     [
         ("amonet-biscuit-v1.1.0-bboe", {"stock": 11, "twrp": 9, "v1.1.0": 7}),
-        ("amonet-biscuit-v2.0.0", {"stock": 7, "twrp": 5, "v1.1.0": 9}),
+        ("amonet-biscuit-v2.0.0", {"stock": None, "twrp": None, "v1.1.0": None}),
     ],
 )
 def test_fastboot_counts_the_steps_the_route_takes(
-    *, monkeypatch: pytest.MonkeyPatch, name: str, totals: dict[str, int]
+    *, monkeypatch: pytest.MonkeyPatch, name: str, totals: dict[str, int | None]
 ) -> None:
     state = route.State
     monkeypatch.setattr(

@@ -203,7 +203,7 @@ def test_check_user(*, monkeypatch: pytest.MonkeyPatch) -> None:
         host.check_user()
     linux(group_id=46, groups=[], members=[], monkeypatch=monkeypatch)
     with pytest.raises(
-        expected_exception=FatalError, match="cannot open the Dot over USB"
+        expected_exception=FatalError, match="cannot open the Echo over USB"
     ):
         host.check_user()
 
@@ -228,7 +228,7 @@ def test_check_user_without_plugdev(*, monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(name="getgrnam", target=sys.modules["grp"], value=missing)
     with pytest.raises(
-        expected_exception=FatalError, match="cannot open the Dot over USB"
+        expected_exception=FatalError, match="cannot open the Echo over USB"
     ):
         host.check_user()
 
@@ -275,7 +275,7 @@ def test_devices(*, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_devices_without_permission(*, monkeypatch: pytest.MonkeyPatch) -> None:
     asked = answers(monkeypatch=monkeypatch, replies=["???? no permissions\n"])
     with pytest.raises(
-        expected_exception=FatalError, match="cannot open the Dot over USB"
+        expected_exception=FatalError, match="cannot open the Echo over USB"
     ):
         host.devices(arguments=["adb", "devices"])
     assert len(asked) == 5
@@ -302,7 +302,7 @@ def test_in_fastboot(*, monkeypatch: pytest.MonkeyPatch) -> None:
     answers(monkeypatch=monkeypatch, replies=["S1\tfastboot\n"])
     assert host.in_fastboot()
     answers(monkeypatch=monkeypatch, replies=["S1\tfastboot\nS2\tfastboot\n"])
-    with pytest.raises(expected_exception=FatalError, match="more than one Dot"):
+    with pytest.raises(expected_exception=FatalError, match="more than one Echo"):
         host.in_fastboot()
     monkeypatch.setattr(name="USER_SERIAL", target=host, value="S2")
     assert host.in_fastboot()
@@ -563,7 +563,7 @@ def test_usb_serial(*, monkeypatch: pytest.MonkeyPatch) -> None:
     answers(
         monkeypatch=monkeypatch, replies=[head + "S1 device usb:1\nS2 recovery usb:2\n"]
     )
-    with pytest.raises(expected_exception=FatalError, match="more than one Dot"):
+    with pytest.raises(expected_exception=FatalError, match="more than one Echo"):
         host.usb_serial()
 
 

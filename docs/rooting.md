@@ -39,15 +39,21 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   second as stock-booted, which asked for a gesture `adb` can replace.
 - A Dot unlocked with amonet v2.0.0 that boots Fire OS 6 without root also
   answers `unauthorized`, so it reads as stock-booted. amonet v2.0.0 removes
-  stock fastboot, and the action-button gesture on an amonet v2.0.0 Dot was
-  never tried. So the message also names + at power-on, which starts v2.0.0's
-  TWRP.
+  stock fastboot, and the action-button gesture on an amonet v2.0.0 Echo gives
+  a regular boot, 2026-10-21: a blue ring, then the light blue circle. So the
+  message also names + at power-on, which starts v2.0.0's TWRP. Its unlocked
+  fastboot comes from `adb reboot bootloader` instead, and its ring is every
+  color turning; the white flash before it is also what TWRP shows when it
+  starts, so white alone does not tell the two apart.
 - On a stock Dot with LK `63cb91b`, 2026-10-12, the gesture on one USB port
   of a Mac laptop left a solid blue ring, and the Dot showed nothing on USB.
   On another port the same gesture gave a green ring and fastboot. The same
-  day, from stock 8149, the gesture on the first port went green, so the
-  cause is not known. The gesture's message says to try again or try another
-  port when the ring stays solid blue.
+  day, from stock 8149, the gesture on the first port went green. On a radar,
+  2026-10-21, a solid blue ring turned green once the USB connection came up,
+  so the ring reports the connection and not the mode: the gesture reached
+  stock fastboot either way, and blue means the host end is not working. That
+  also explains the same port differing between days. The gesture's message
+  says to try again or try another port when the ring stays solid blue.
 - `su` answers about 27 seconds into Fire OS 5's first boot, while
   `dumpsys package` still answers `Can't find service: package`. So rooted
   also needs `sys.boot_completed` to be 1.
@@ -165,19 +171,34 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   one with adb `unauthorized`, where `adb devices -l` gives no model. The
   read took about 0.05 s on macOS and 0.8 s on Windows. radar's strings are
   read from its images, not from a radar.
+- When no USB product names the device and adb answers in a recovery, it asks
+  `ro.product.device`. One radar's TWRP 3.7.0_9-0 gave only `Echo` on USB, so
+  without this a run on it waited for a name that never came.
 - A device that matches nothing, or no device, is let through: the checks
   before each write still guard it. The bootrom and the preloader name no
   product, so a Dot that shows no light is left to the bootrom step's own
   check.
 - Two devices can have a target of the same name: `stock`, and the default
   when no target is named. Then the device found chooses which one runs. Until
-  one is found, the run waits, as it waits for a Dot, and says once that an
-  Echo that shows no light never names one. With `--short`, or with
-  `boot0-erased` in the cache, the Echo is in its bootrom, so the run stops at
-  once and asks for `--device`. It never guesses: each unlock writes a
-  preloader made for its own device, and nothing here has run one device's
-  preloader on another. A target name that only one device has, or one
-  `--device` names, is checked as above.
+  one is found, the run waits, as it waits for a Dot. After `NAME_POLLS` polls
+  it says once that an Echo that shows no light never names one, and to run it
+  again with `--device`. It waits first because a stock Echo names no device
+  until the fastboot gesture takes, which is work the person is still doing:
+  saying it at the first poll told them to start over while the run was about
+  to go on by itself. `boot0-erased` holds the device
+  of the run that erased boot0, so a resume takes that device. With a
+  `boot0-erased` that names none, as an older firebreak left it, the Echo is in
+  its bootrom, so the run stops at once and asks for `--device`. It never
+  guesses: each unlock writes a preloader made for its own device, and nothing
+  here has run one device's preloader on another. A target name that only one
+  device has, or one `--device` names, is checked as above.
+- `--short` with no target named takes biscuit, because only biscuit has a
+  bootrom route. That is the one choice, not a guess, so `firebreak --short`
+  stays the command README gives. A target named with `--short`, such as
+  `stock`, is still a name both devices have, so it stops and asks for
+  `--device`. Nothing rests on this narrowing: the bootrom step reads the
+  product out of `lk_a` and `lk_b` and stops, with nothing written, on a
+  product that is not biscuit's.
 - In fastboot, the report also prints `antirback_pl_version`,
   `antirback_tee_version` and `antirback_lk_version`.
 - The report shows only the first 4 characters of a serial number. Amazon's
@@ -744,15 +765,27 @@ ring read white.
 ## Unlock: amonet v2.0.0
 
 - The fastbrick image is `fastbrick-20221007.img` when `lk_build_desc` is
-  `63cb91b-20221007_072309` or `41fb3ce-20221007_151724`, else
-  `fastbrick.img`. That one payload takes both bootloaders, where amonet
-  v2.0.0's own map lists only the first. The second ships in 4310, 4313 and
-  4315, which the default image does not unlock.
+  `63cb91b-20221007_072309` or `41fb3ce-20221007_151724`, and
+  `fastbrick.img` for the Fire OS 5 LKs. That one payload takes both Fire OS 6
+  bootloaders, where amonet v2.0.0's own map lists only the first. The second
+  ships in 4310, 4313 and 4315, which the default image does not unlock.
+- Any other LK stops the run before the flash. amonet's map sends it
+  `fastbrick.img`, but a payload is built for its LKs, and no one knows what
+  it does to another. A biscuit on build 8338, device software version
+  13323244164, reported LK `2c3569d-20260617_045829`, which no OTA on ftvdb
+  ships. The eMMC short reaches the bootrom whatever the LK.
 - A flash that returns means the exploit did not start, so it is retried, up to
   10 times. A flash still running after 8 seconds means the exploit is running:
   the script stops fastboot and leaves the Dot to reach TWRP.
 - `eMMC-RO` or `Device mismatch` means the payload refused, and the Dot is
   unchanged.
+- Each device unlocks with its own amonet: biscuit with amonet v2.0.0, radar
+  with amonet-radar v1.0.0. Each unlock names its fastbrick images by LK, so
+  the fastboot product is checked against the target's device, not biscuit's.
+  radar follows amonet-radar's own map: `fastbrick-20220524.img` for Fire OS
+  5.5.5.4's LK, `59779ca-20220524_183401`, and `fastbrick.img` for its two
+  Fire OS 6 LKs. `fastbrick.img` unlocked a stock radar on Fire OS 6 LK
+  `63cb91b-20221007_073612` on its second flash.
 
 ## Unlock: a bootloader with no fastbrick image
 
@@ -780,8 +813,19 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
 | --- | --- | --- |
 | `amonet-biscuit-v1.1.0-bboe`, the default | amonet v1.1.0, TWRP 3.7.0_9-bboe2, rooted Fire OS 5.5.5.4 | amonet-v1.1.0-bboe-booted |
 | `amonet-biscuit-v1.1.0` | the same, with v1.1.0's own TWRP 3.2.3 | amonet-v1.1.0-booted |
-| `amonet-biscuit-v2.0.0` | amonet v2.0.0's TWRP, Fire OS 6 8146 in both slots, `boot-root.zip` | amonet-v2.0.0-booted |
+| `amonet-biscuit-v2.0.0 [--reset]` | amonet v2.0.0's TWRP, `boot-root.zip` on the Fire OS 6 installed; with `--reset`, or with no Fire OS 6 installed, on Fire OS 6 8146 in both slots | amonet-v2.0.0-booted |
 | `stock [BUILD]` | Amazon's Fire OS 6 `BUILD`, 8149 when left out, the whole Dot erased | stock-booted |
+| `amonet-radar-v1.0.0 [--reset]`, on radar | amonet-radar v1.0.0's TWRP, `boot-root.zip` on the Fire OS 6 installed; with `--reset`, or with no Fire OS 6 installed, on Fire OS 6 6436 in both slots | amonet-v2.0.0-booted |
+| `stock`, on radar | Amazon's Fire OS 6 6436, the whole Echo erased | stock-booted |
+
+- radar's unlock with `--reset` is amonet-radar's own procedure, as the
+  radar XDA thread gives it: the fastbrick, Fire OS 6 installed twice through
+  TWRP, then `boot-root.zip`. The thread's `boot-root.zip` is biscuit's, byte
+  for byte. The thread says a radar can need a power cycle before adb shows
+  after that reboot. radar's default target is `amonet-radar-v1.0.0`, now that
+  both of its targets have run on a radar. So a bare run, or one with only
+  `--device radar`, unlocks it as a bare run roots a Dot. The route from amonet
+  v1.1.0 states and the bootrom stay biscuit's.
 
 - Each poll picks the stage for the state found and the target, so a run
   goes from any state to any target, a rooted Dot included. Every state has
@@ -805,9 +849,10 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
 
 ### amonet-biscuit-v2.0.0
 
-- In v2.0.0's TWRP it runs `twrp wipe cache`, `twrp wipe data`, and `twrp
-  install` of the OTA twice, with a reboot into recovery between. Then it
-  runs `twrp install` of `boot-root.zip` and reboots.
+- With `--reset`, in v2.0.0's TWRP it runs `twrp wipe cache`, `twrp wipe
+  data`, and `twrp install` of the OTA twice, with a reboot into recovery
+  between. Then it runs `twrp install` of `boot-root.zip` and reboots. That
+  is the XDA procedure.
 - It pushes the OTA to `/sdcard` before each install. A `/sdcard` on a
   `/data` that did not mount is TWRP's RAM: the push and its read-back pass,
   and the reboot loses the file.
@@ -816,6 +861,12 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
   inactive slot and makes it active, so the flip would make the second
   install write the same slot again. The run reads `bcbtool get_active`
   before and after each install, and stops unless it changed.
+- A USB drop during `twrp install` ends `adb shell` with 255, but TWRP goes on
+  installing. On a radar, an install that lost adb 17 seconds in finished
+  about 80 seconds later and changed the slot. So the run reads the slot only
+  once adb answers and no `update_engine_sideload` runs, for up to 10
+  minutes. Measured on a radar, 2026-10-17: each install lost adb, the first
+  for about 3 minutes, and the run went on after each.
 - `boot-root.zip` patches both slots. It is an XDA attachment, and XDA sends
   a script a JavaScript challenge in place of the file. So before it touches
   the Dot, the run opens it in the user's browser and waits up to 2 minutes
@@ -828,6 +879,38 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
   macOS the run also looks in `~/.Trash`. When it opened the browser and took
   the file from there, it also deletes a new directory that holds exactly the
   zip's files.
+- `boot-root.zip` goes the same way. On that radar it lost adb 2 seconds in
+  and printed nothing, yet TWRP's log shows it patched both slots. So the run
+  reads TWRP's log until the last `Installing zip file` is `boot-root.zip`'s
+  and the `Updater process ended with RC=` line after it, and goes on only on
+  `RC=0`. The `adb reboot` after it also found no device and left the Echo in
+  TWRP, so the reboot is tried 3 times, each after `adb wait-for-recovery`.
+- `RC=0` alone does not show that the zip patched anything: a slot with no
+  `default.prop` is skipped, and the zip still ends with 0. So the run also
+  needs the zip's `slot _a: neutering ota updates` line, for the active slot,
+  in TWRP's log, which carries the zip's messages.
+- Without `--reset`, the run skips the wipes and both OTA installs, and
+  installs `boot-root.zip` over the Fire OS 6 already in the slots. The zip
+  finds what it patches in each build: the adbd site by a byte pattern, and
+  the SELinux policy through `magiskpolicy`. Before the zip, the run mounts
+  the active slot's `system` read-only and reads `ro.build.version.name`. A
+  Fire OS 6 build with no OTA in firebreak's list stops the run with nothing
+  written, and says to use `--reset`. The fastbrick takes only the LKs those
+  builds ship, so the kernel boots under the amonet LK it was built beside.
+- A slot with no Fire OS 6 in it, as after the route from amonet v1.1.0,
+  leaves nothing to keep, so the run installs the target's build as
+  `--reset` does, and adds those steps to the total. A read that lacks its
+  `build-ok` marker stops the run: a USB drop must not lead to a wipe. The
+  OTA still downloads in the background in every case, as the stage may need
+  it.
+- Patching in place keeps userdata, so a Dot set up in the Alexa app stays
+  set up. `boot-root.zip`'s own `init.fosflags.sh` keeps adb on, where
+  stock's turns it off once the Dot is registered. Measured on a Dot,
+  2026-10-18: stock 8149, set up in the Alexa app, then the patch in place
+  took 78 s from fastboot to rooted 8149. It kept its saved Wi-Fi network,
+  was online 30 s after boot, with root adb, and still took changes made in
+  the Alexa app. Its voice was not judged: that Dot's link to its microphone
+  board is loose.
 - Fire OS 6 without root for a minute after the install means
   `boot-root.zip` did not take, and the run stops. A single such read during
   the first boot does not stop it.
@@ -877,8 +960,15 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
   common case. So stock-fireos5-fastboot's stage plans for the stock table,
   as stock-fastboot's does. Where the probe then finds amonet v1.1.0's
   table, the step counter plans again from there.
-- In v2.0.0's fastboot the run asks for the + button at power-on, which
-  starts v2.0.0's TWRP, and waits for it without limit.
+- In v2.0.0's fastboot, where no target's stages can act, the run sends
+  `fastboot reboot recovery`, which starts v2.0.0's TWRP. Measured on a radar,
+  2026-10-21: the command answered `OKAY` in 0.076 s and adb saw the recovery
+  24 s later. v2.0.0's LK answers `fastboot oem reboot-recovery`, which v1.1.0's
+  LK takes and the `report` command uses, with `unknown command`, so the plain
+  `reboot recovery` is the one to send. A bootloader that refuses it leaves the
+  run asking for the + button at power-on, as it always did, and waiting for
+  TWRP without limit. Only radar's v2.0.0 LK has answered this; biscuit's is
+  the same `63cb91b` build and is expected to, but has not been read.
 - `--short` goes with any target. Its bootrom step writes amonet v1.1.0, and
   the run goes on from amonet v1.1.0's TWRP like any other.
 - Measured on a Dot, 2026-10-04, each with no one touching the Dot:
@@ -1332,6 +1422,24 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
 
 - Only `stock` takes a `BUILD`, and without one it installs 8149. The run
   downloads the build before it touches the Dot.
+- Each device has its own builds. biscuit's and radar's OTAs share build
+  numbers but not firmware, so the run picks the build only after it knows
+  the device. radar has one, 6436, Fire OS 6.5.7.2, its newest. radar has no
+  default target, so `--device radar` without a target is refused.
+- Before it writes anything, the restore checks that the OTA's
+  `ro.product.device`, without `_puffin`, names the device. A wrong entry in
+  the build table would otherwise write one device's bootloaders on another.
+- radar's stock table, boot0 and partitions are biscuit's, except where
+  `userdata` ends, so it takes the same steps. The restore ends `userdata` at
+  the table's last usable sector. One radar with an 8 GB eMMC had `userdata`
+  end 3.7 GiB before that, so its restore would give `userdata` the rest of
+  the disk.
+- Measured on a radar, 2026-10-17: `stock` from amonet-v2.0.0-booted, `[1/17]`
+  to `[17/17]`, in 3 min 37 s once TWRP was up. Its table and
+  `tee2` already matched stock, so those writes were skipped. Stock 6436
+  started 24 s after the reboot, and fastboot then read `unlock_status`
+  `false` with LK `63cb91b-20221007_073612`. `amonet-radar-v1.0.0` rooted it
+  again in 8 min 28 s.
 - `--fastboot` leaves the Dot in fastboot at the end, with `adb reboot
   bootloader` after the last write, so the next run needs no button held. Only
   `stock` takes it. 5.5.0.3 refuses it, because that restore ends in the
