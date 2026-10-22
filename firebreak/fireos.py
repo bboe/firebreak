@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import enum
 import hashlib
 import os
@@ -7,6 +8,7 @@ import pathlib
 import shlex
 import shutil
 import stat
+import subprocess
 import tempfile
 import time
 import zipfile
@@ -29,6 +31,7 @@ from firebreak.cache import (
 from firebreak.devices import BY_NAME, State
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
+    PUSH_TRIES,
     adb_script,
     adb_shell,
     md5_mismatch,
@@ -53,7 +56,9 @@ BOOT_ROOT = Download(
     size=473633,
     url="https://xdaforums.com/attachments/boot-root-zip.6388001/",
 )
+BOOT_ROOT_INSTALL = "Installing zip file '/sdcard/boot-root.zip'"
 HIDE_WAIT = 60
+SLOT_OK = "slot-ok"
 TWRP = amonet_biscuit_v1_1_0_bboe.RECOVERY
 UPDATER = "com.amazon.device.software.ota"
 UPDATE_HOSTS = (
@@ -62,6 +67,7 @@ UPDATE_HOSTS = (
     "amzndigitaldownloads.edgesuite.net",
     "amzdigital-a.akamaihd.com",
 )
+ZIP_OK = "zip-ok"
 
 
 class Shell(enum.Enum):
@@ -99,6 +105,46 @@ sync; umount $m
         "dd if={source} of={target} bs=1048576 2>/dev/null;"
         " sync; echo 3 > /proc/sys/vm/drop_caches"
     )
+
+
+def active_slot() -> str:
+    deadline = time.monotonic() + 600
+    while True:
+        said = adb_shell(
+            command="ps -A | grep -c update_engine_sideload; bcbtool get_active;"
+            f" echo {SLOT_OK}",
+            timeout=30,
+        ).split(sep="\n")
+        if said[:1] == ["0"] and said[2:] == [SLOT_OK]:
+            return said[1]
+        if time.monotonic() > deadline:
+            raise FatalError(
+                message="the Dot did not report its active slot, with no install"
+                " running, within 10 minutes. Leave it powered. " + again()
+            )
+        time.sleep(5)
+
+
+def boot_root_ended() -> str:
+    deadline = time.monotonic() + 300
+    while True:
+        said = adb_shell(
+            command="grep -E '^Installing zip file|Updater process ended with RC='"
+            f" /tmp/recovery.log | tail -2; echo {ZIP_OK}",
+            timeout=30,
+        ).split(sep="\n")
+        if (
+            said[-1:] == [ZIP_OK]
+            and said[-3:-2] == [BOOT_ROOT_INSTALL]
+            and "RC=" in said[-2]
+        ):
+            return said[-2]
+        if time.monotonic() > deadline:
+            raise FatalError(
+                message="TWRP did not finish installing boot-root.zip within 5"
+                " minutes. Leave the Dot powered. " + again()
+            )
+        time.sleep(5)
 
 
 def build_system(*, package: Download, target: pathlib.Path) -> None:
@@ -179,6 +225,20 @@ def install_magisk(*, magisk: pathlib.Path, work: pathlib.Path) -> None:
         raise FatalError(message="Magisk 17.3's files did not verify on the Dot")
 
 
+def reboot_rooted() -> None:
+    for attempt in range(PUSH_TRIES):
+        if attempt:
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                run(arguments=["adb", "wait-for-recovery"], timeout=120)
+        if run(arguments=["adb", "reboot"], timeout=60).returncode == 0:
+            return
+    raise FatalError(
+        message="the Dot did not take adb reboot. boot-root.zip is installed,"
+        " so unplug the Dot's power and plug it back in to start rooted"
+        " Fire OS 6."
+    )
+
+
 def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
     fireos = fetch(download=ARGUMENTS.target.installs.package)
     magisk = fetch(download=MAGISK)
@@ -248,9 +308,9 @@ def stage_install_fireos6() -> None:
             run(arguments=["adb", "reboot", "recovery"], check=True, timeout=60)
             wait_for_twrp()
         push_checked(local=update_file, remote=update)
-        before = adb_shell(command="bcbtool get_active", timeout=30)
+        before = active_slot()
         adb_shell(command="twrp install " + update, timeout=600)
-        after = adb_shell(command="bcbtool get_active", timeout=30)
+        after = active_slot()
         if {before, after} != {"a", "b"}:
             raise FatalError(
                 message=f"installing Fire OS 6 {build} left the"
@@ -262,8 +322,11 @@ def stage_install_fireos6() -> None:
     errors = [line for line in output.split(sep="\n") if "(!) Error" in line]
     if errors:
         raise FatalError(message="boot-root.zip failed: " + errors[0])
+    ended = boot_root_ended()
+    if ended != "I:Updater process ended with RC=0":
+        raise FatalError(message="boot-root.zip failed: " + ended)
     PROGRESS.begin(estimate="60 s", label="waiting for rooted Fire OS 6 to boot")
-    run(arguments=["adb", "reboot"])
+    reboot_rooted()
 
 
 def stage_replace_twrp() -> None:
