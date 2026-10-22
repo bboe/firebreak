@@ -80,11 +80,14 @@ def test_a_child_does_not_check_for_an_update(
     argnames=("arguments", "said"),
     argvalues=[
         (
-            ["--device", "biscuit", "amonet-radar-v1.0.0"],
+            ["--device", "biscuit", "amonet-crown-v2.0.1"],
             "argument TARGET|COMMAND: invalid choice",
         ),
+        (
+            ["--device", "biscuit", "amonet-radar-v1.0.0"],
+            "the Echo Dot (2nd Generation) has no target amonet-radar-v1.0.0",
+        ),
         (["--device", "crown"], "argument --device: invalid choice"),
-        (["--device", "radar"], "the Echo (2nd Generation) has no default target"),
         (
             ["--device", "radar", "stock", "8149"],
             "the Echo (2nd Generation) has no stock build 8149",
@@ -96,8 +99,8 @@ def test_a_child_does_not_check_for_an_update(
     ],
     ids=[
         "unknown-target",
+        "another-device-s-target",
         "device-without-targets",
-        "no-default",
         "no-such-build",
         "survey",
     ],

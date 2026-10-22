@@ -8,10 +8,15 @@ from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import (
     TWRP_VERSION,
 )
 from firebreak.unlocks.amonet_biscuit_v2_0_0 import AMONET_BISCUIT_V2_0_0
+from firebreak.unlocks.amonet_radar_v1_0_0 import AMONET_RADAR_V1_0_0
 from firebreak.updates import BUILDS, DEFAULT_BUILDS
 
 AMONET_BISCUIT_V2_0_0_BUILD = "8146"
-DEFAULTS = {BISCUIT: AMONET_BISCUIT_V1_1_0_BBOE.name}
+DEFAULTS = {
+    BISCUIT: AMONET_BISCUIT_V1_1_0_BBOE.name,
+    RADAR: AMONET_RADAR_V1_0_0.name,
+}
+FASTBRICKS = {BISCUIT: AMONET_BISCUIT_V2_0_0, RADAR: AMONET_RADAR_V1_0_0}
 STOCK = "stock"
 TARGETS = {
     BISCUIT: {
@@ -56,14 +61,26 @@ TARGETS = {
         )
     },
     RADAR: {
-        STOCK: Target(
-            device=RADAR,
-            goal=State.STOCK_BOOTED,
-            installs=FireOs6(build=None),
-            name=STOCK,
-            summary=f"Amazon's Fire OS {DEFAULT_BUILDS[RADAR]}, which erases the"
-            " whole Echo.",
-            unlock=None,
+        target.name: target
+        for target in (
+            Target(
+                device=RADAR,
+                goal=State.STOCK_BOOTED,
+                installs=FireOs6(build=None),
+                name=STOCK,
+                summary=f"Amazon's Fire OS {DEFAULT_BUILDS[RADAR]}, which erases"
+                " the whole Echo.",
+                unlock=None,
+            ),
+            Target(
+                device=RADAR,
+                goal=State.AMONET_V2_0_0_BOOTED,
+                installs=FireOs6(build=DEFAULT_BUILDS[RADAR]),
+                name=AMONET_RADAR_V1_0_0.name,
+                summary="amonet-radar v1.0.0's own procedure: Fire OS 6"
+                f" {DEFAULT_BUILDS[RADAR]} with boot-root.zip's root adb.",
+                unlock=AMONET_RADAR_V1_0_0,
+            ),
         )
     },
 }

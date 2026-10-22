@@ -54,6 +54,7 @@ from firebreak.ui import (
 )
 from firebreak.unlock import (
     amonet_chain,
+    amonet_sources,
     amonet_v2_0_0_payload,
     stage_amonet_v1_1_0_recovery,
     stage_downgrade,
@@ -61,6 +62,7 @@ from firebreak.unlock import (
     stage_unlock,
 )
 from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_0
+from firebreak.unlocks.targets import FASTBRICKS
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -182,26 +184,24 @@ def fireos5_stages() -> dict[State, Stage]:
 
 
 def fireos6_stages() -> dict[State, Stage]:
-    installed = (
-        amonet_biscuit_v2_0_0.SOURCE,
-        *amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0.files.values(),
-    )
+    unlock = ARGUMENTS.target.unlock
+    installed = (unlock.source, *unlock.files.values())
     install = functools.partial(
         recovery.carry_out,
         after=functools.partial(reboot, label="waiting for v2.0.0 recovery to start"),
         guard=amonet_chain,
-        unlock=amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0,
+        unlock=unlock,
         zero=("misc",),
     )
     return {
         State.AMONET_V1_1_0_TWRP: Stage(
-            needs=(*installed, amonet_biscuit_v1_1_0.SOURCE),
+            needs=(*installed, *amonet_sources()),
             run=install,
             steps=4,
             then=State.AMONET_V2_0_0_TWRP,
         ),
         State.AMONET_V2_0_0_TWRP: Stage(
-            needs=(amonet_biscuit_v2_0_0.SOURCE, ota_build, BOOT_ROOT),
+            needs=(unlock.source, ota_build, BOOT_ROOT),
             run=stage_install_fireos6,
             steps=5,
             then=State.AMONET_V2_0_0_BOOTED,
@@ -210,7 +210,7 @@ def fireos6_stages() -> dict[State, Stage]:
             needs=installed, run=install, steps=4, then=State.AMONET_V2_0_0_TWRP
         ),
         State.AMONET_V1_1_0_BBOE_TWRP: Stage(
-            needs=(*installed, amonet_biscuit_v1_1_0.SOURCE),
+            needs=(*installed, *amonet_sources()),
             run=install,
             steps=4,
             then=State.AMONET_V2_0_0_TWRP,
@@ -614,7 +614,7 @@ def stages() -> dict[State, Stage]:
     } | dict.fromkeys(
         (State.STOCK_FASTBOOT, State.STOCK_FIREOS5_FASTBOOT),
         Stage(
-            needs=(amonet_biscuit_v2_0_0.SOURCE,),
+            needs=(FASTBRICKS[ARGUMENTS.target.device].source,),
             run=stage_fastbrick,
             steps=2,
             then=State.AMONET_V2_0_0_TWRP,

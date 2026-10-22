@@ -174,15 +174,25 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   check.
 - Two devices can have a target of the same name: `stock`, and the default
   when no target is named. Then the device found chooses which one runs. Until
-  one is found, the run waits, as it waits for a Dot, and says once that an
-  Echo that shows no light never names one. `boot0-erased` holds the device
-  of the run that erased boot0, so a resume takes that device. With `--short`,
-  or with a `boot0-erased` that names none, as an older firebreak left it, the
-  Echo is in its bootrom, so the run stops at once and asks for `--device`.
-  It never guesses: each unlock writes a
-  preloader made for its own device, and nothing here has run one device's
-  preloader on another. A target name that only one device has, or one
-  `--device` names, is checked as above.
+  one is found, the run waits, as it waits for a Dot. After `NAME_POLLS` polls
+  it says once that an Echo that shows no light never names one, and to run it
+  again with `--device`. It waits first because a stock Echo names no device
+  until the fastboot gesture takes, which is work the person is still doing:
+  saying it at the first poll told them to start over while the run was about
+  to go on by itself. `boot0-erased` holds the device
+  of the run that erased boot0, so a resume takes that device. With a
+  `boot0-erased` that names none, as an older firebreak left it, the Echo is in
+  its bootrom, so the run stops at once and asks for `--device`. It never
+  guesses: each unlock writes a preloader made for its own device, and nothing
+  here has run one device's preloader on another. A target name that only one
+  device has, or one `--device` names, is checked as above.
+- `--short` with no target named takes biscuit, because only biscuit has a
+  bootrom route. That is the one choice, not a guess, so `firebreak --short`
+  stays the command README gives. A target named with `--short`, such as
+  `stock`, is still a name both devices have, so it stops and asks for
+  `--device`. Nothing rests on this narrowing: the bootrom step reads the
+  product out of `lk_a` and `lk_b` and stops, with nothing written, on a
+  product that is not biscuit's.
 - In fastboot, the report also prints `antirback_pl_version`,
   `antirback_tee_version` and `antirback_lk_version`.
 - The report shows only the first 4 characters of a serial number. Amazon's
@@ -758,6 +768,13 @@ ring read white.
   the script stops fastboot and leaves the Dot to reach TWRP.
 - `eMMC-RO` or `Device mismatch` means the payload refused, and the Dot is
   unchanged.
+- Each device unlocks with its own amonet: biscuit with amonet v2.0.0, radar
+  with amonet-radar v1.0.0. Each unlock names its fastbrick images by LK, so
+  the fastboot product is checked against the target's device, not biscuit's.
+  radar follows amonet-radar's own map: `fastbrick-20220524.img` for Fire OS
+  5.5.5.4's LK, `59779ca-20220524_183401`, else `fastbrick.img`. Whether
+  `fastbrick.img` unlocks radar's Fire OS 6 LK, `63cb91b-20221007_073612`, is
+  not known; no radar has run it here.
 
 ## Unlock: a bootloader with no fastbrick image
 
@@ -787,6 +804,16 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
 | `amonet-biscuit-v1.1.0` | the same, with v1.1.0's own TWRP 3.2.3 | amonet-v1.1.0-booted |
 | `amonet-biscuit-v2.0.0` | amonet v2.0.0's TWRP, Fire OS 6 8146 in both slots, `boot-root.zip` | amonet-v2.0.0-booted |
 | `stock [BUILD]` | Amazon's Fire OS 6 `BUILD`, 8149 when left out, the whole Dot erased | stock-booted |
+| `amonet-radar-v1.0.0`, on radar | amonet-radar v1.0.0's TWRP, Fire OS 6 6436 in both slots, `boot-root.zip` | amonet-v2.0.0-booted |
+| `stock`, on radar | Amazon's Fire OS 6 6436, the whole Echo erased | stock-booted |
+
+- radar's unlock is amonet-radar's own procedure, as the radar XDA thread
+  gives it: the fastbrick, Fire OS 6 installed twice through TWRP, then
+  `boot-root.zip`. The thread's `boot-root.zip` is biscuit's, byte for byte.
+  The thread says a radar can need a power cycle before adb shows after that
+  reboot. radar's default target is `amonet-radar-v1.0.0`, so a bare run, or
+  one with only `--device radar`, unlocks it as a bare run roots a Dot. The
+  route from amonet v1.1.0 states and the bootrom stay biscuit's.
 
 - Each poll picks the stage for the state found and the target, so a run
   goes from any state to any target, a rooted Dot included. Every state has

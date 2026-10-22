@@ -159,7 +159,11 @@ def listed(*, label: str, summary: str) -> list[str]:
     return [
         f"  {label}",
         *textwrap.wrap(
-            initial_indent=" " * 6, subsequent_indent=" " * 6, text=summary, width=74
+            break_on_hyphens=False,
+            initial_indent=" " * 6,
+            subsequent_indent=" " * 6,
+            text=summary,
+            width=74,
         ),
     ]
 

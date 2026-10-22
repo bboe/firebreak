@@ -1,13 +1,15 @@
 # The simulator
 
-`simulator/` runs firebreak against a simulated Dot. No Dot, real `adb`, real
-`fastboot` or real serial port takes part.
+`simulator/` runs firebreak against a simulated Dot, or a simulated Echo (2nd
+Generation). No Echo, real `adb`, real `fastboot` or real serial port takes
+part.
 
 ## Running it
 
 ```sh
 simulator/run.sh OUT amonet-biscuit-v1.1.0-bboe
 START=no-light simulator/run.sh OUT amonet-biscuit-v1.1.0-bboe --short
+DEVICE=radar simulator/run.sh OUT amonet-radar-v1.0.0
 python3 simulator/trace.py OUT.jsonl             # one command per line, for diff
 python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per range
 ```
@@ -40,6 +42,10 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   so another case, a link, a trailing slash or a relative path does not get
   past it. It also refuses when `HOME` is not set, and when the `firebreak`
   folder is a link. firebreak would otherwise write the real cache.
+- `DEVICE=radar` makes an Echo (2nd Generation), and `DEVICE=biscuit`, the
+  default, a Dot. A radar has its own product, LKs, stock build, amonet
+  (amonet-radar v1.0.0) and USB names. It has no amonet v1.1.0, and `create`
+  refuses `START=no-light` for it: `bootrom.py` knows only biscuit's payloads.
 - `START=fastboot`, the default, starts in stock fastboot. `START=no-light`
   erases boot0 and leaves the Dot unplugged. `run.sh` plugs it in when
   firebreak prints "Short the Dot's test point".
@@ -198,7 +204,12 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   boot1.
 - `lk_b`, `tee1` and `tee2` take no part in a boot. Only `lk_a` decides the
   LK.
-- The fastbrick writes amonet v2.0.0's chain directly. It runs no exploit.
+- The fastbrick writes the device's amonet chain directly: amonet v2.0.0's,
+  or amonet-radar v1.0.0's. It runs no exploit. It takes the image that the
+  release's own `profile.sh` gives the LK.
+- Each boot into recovery or Fire OS sets `ro.product.device` to the
+  device's name. A radar's stock LK is `63cb91b-20221007_073612`, and its
+  amonet LK says `59779ca-20220524_183401`, read from the release's `lk.bin`.
 - amonet v1.1.0's LK clears `FASTBOOT_PLEASE` in `expdb` when it acts on it.
   This is inferred: `fastboot-step.sh` reaches TWRP with the marker still
   written, so the marker cannot hold the Dot in fastboot.
@@ -340,7 +351,13 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   sees the host's own USB devices. It lists the simulated Dot as `AEOBC`
   when it is booted, adb `unauthorized` too, as `Echo Dot (2nd Gen)` in TWRP
   3.7.0 and as `Echo Dot 2nd Gen` in TWRP 3.2.3, and lists nothing in any
-  other mode.
+  other mode. It lists a radar as `AEORD` when booted, and as `Echo` at
+  `18d1:4ee2` in TWRP, as a user's report from a radar's TWRP 3.7.0_9-0 showed.
+  So firebreak names a radar in TWRP by its `ro.product.device`. That a
+  booted radar lists as `AEORD` at `0e8d:201c` is not measured.
+- `ports.py` also replaces `firebreak.cache.downloads_dir` with `Downloads` in
+  the state folder. With the user's own, a run removed a download from it
+  that the cache held.
 
 ### Leniencies
 

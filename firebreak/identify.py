@@ -23,16 +23,19 @@ from firebreak.host import (
 )
 from firebreak.report import labelled, whole
 from firebreak.ui import SESSION, FatalError, warn
+from firebreak.unlocks.amonet_biscuit_v1_1_0 import AMONET_BISCUIT_V1_1_0
 from firebreak.unlocks.targets import DEFAULTS, TARGETS
 
 if TYPE_CHECKING:
     from firebreak.plugin import Device, Target
 
+BOOTROM_UNLOCK = AMONET_BISCUIT_V1_1_0
 ECHO_IDS = frozenset({(0x0BB4, 0x0C01), (0x18D1, 0x4EE2), (0x18D1, 0xD001)})
 ECHO_VENDORS = frozenset({0x0E8D, 0x1949})
 FASTBOOT_ID = (0x0BB4, 0x0C01)
 INSTANCE_PARTS = 3
 NAMED = "device-named"
+NAME_POLLS = 5
 POLL = 2
 SERIAL_SHOWN = 4
 SYSFS_USB = pathlib.Path("/sys/bus/usb/devices")
@@ -93,6 +96,17 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
         for each, targets in TARGETS.items()
         if device in {None, each} and (wanted := name or DEFAULTS.get(each)) in targets
     ]
+    if name is None and SESSION.short:
+        shorted = [
+            target for target in choices if target.device == BOOTROM_UNLOCK.device
+        ]
+        if not shorted:
+            raise FatalError(
+                message=f"--short reaches an Echo through its bootrom, and only the"
+                f" {BOOTROM_UNLOCK.device.title} has a bootrom route here, so it"
+                f" cannot take the {choices[0].device.title}; nothing was done."
+            )
+        choices = shorted
     if len(choices) == 1:
         check_target(target=choices[0])
         return choices[0]
@@ -100,15 +114,15 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
         f"{target.device.name} for the {target.device.title}" for target in choices
     )
     identity = identify()
-    waited = False
+    polls = 0
     while identity.device is None and not (SESSION.short or ERASED.exists()):
-        if not waited:
+        if polls == NAME_POLLS:
             warn(
-                text="Waiting for the Echo to name its device. One that shows no"
-                f" light never does: stop this and run it again with --device:"
-                f" {devices}."
+                text="Still waiting for the Echo to name its device. It names one"
+                " in fastboot and in a recovery. One that shows no light never"
+                f" names one: stop this and run it again with --device: {devices}."
             )
-            waited = True
+        polls += 1
         time.sleep(POLL)
         identity = identify()
     for target in choices:

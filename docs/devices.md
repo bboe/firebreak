@@ -157,6 +157,26 @@ on ftvdb: Fire OS 5.5.5.4 and Fire OS 6 4305, 4929, 6199, 6208, 6220, 6302,
   image its `63cb91b` LK gets, which amonet's own map does not give it. On
   radar, amonet's map does give it that image, the default `fastbrick.img`.
   Whether that unlocks radar 4305 is not known.
+- Fire OS 5.5.5.1 (675709120) ships LK `beb022a-20211203_021230` and PL
+  `642551b-20211203_021230`, with anti-rollback 0x0005, 0x0102, 0x0001. ftvdb
+  has no OTA for that build, so this row is read from a radar on 2026-10-21
+  and not from an OTA: the LK and PL over fastboot, the build out of
+  `system_a`'s own `build.prop`. 5.5.5.4 keeps that preloader and ships a
+  newer LK. The TEE and the partition hashes are not known.
+- No fastbrick image runs on 5.5.5.1. amonet-radar's map gives any LK it does
+  not list the default `fastbrick.img`, so upstream would flash an image built
+  for another LK; firebreak's `fastbricks` does not list it, so the unlock
+  stops before the flash.
+- Flashing the default `fastbrick.img` at a radar on 5.5.5.1 anyway, on
+  2026-10-21, **unlocked it**, though fastboot said it had failed. `Sending`
+  ended `OKAY` in 3.2 s and then `Writing 'brick'` answered `the command you
+  input is restricted on locked hw`. The payload was already sent by then, so
+  the exploit ran: the next `getvar` never answered, and the Echo came up in
+  amonet-radar v1.0.0's TWRP with amonet's `lk.bin` in both LK slots, its
+  `preloader.img` in boot0 and its `tz.img` in `tee2`. Biscuit 8338 gives that
+  same answer and is not unlocked by it, so the message alone says nothing
+  either way. An unlock reading it as a failure would retry an image that has
+  already run.
 - The preloaders of one row differ between builds only in boot0's GPT, as on
   biscuit.
 - No OTA raises an anti-rollback version, and none is higher than biscuit's.
@@ -184,6 +204,13 @@ partitions each OTA writes, for every build above, read as biscuit's are.
   it falls back to a bundled policy, and only radar 6302's and 6813's stock
   policy, `8f6dd232a590337314bb372e84b84e77`, has one. Nothing here has run
   it on a radar.
+- Biscuit's 8146 and 8149 policy, `885928a0`, has no bundled policy either,
+  and a rooted 8146 Dot's sepolicy is patched, so `magiskpolicy32` patched it.
+  6436's policy has the same header: policy version 30, and the same
+  configuration. It has each type and permission that the rules name.
+  `magiskpolicy32` needs only `libc.so`, `libdl.so` and `libm.so`, and 6436's
+  `/system/lib` has each. If the patch fails anyway, the zip goes on: root
+  works, and `pm`, `am` and `dumpsys` may not.
 - The stock sepolicy md5 of each radar build: 4305 `d88b3344`, 4929
   `88d5111f`, 6199 to 6220 `59fb0d21`, 6302 and 6813 `8f6dd232`, 6425 and
   6436 `ac9825e8`. Build numbers do not follow release order: 6302 is Fire

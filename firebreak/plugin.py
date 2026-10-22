@@ -99,6 +99,7 @@ class Unlock:
     requires: frozenset[Feature]
     source: Download
     version: str
+    fastbricks: dict[str, str] = dataclasses.field(default_factory=dict)
     files: dict[str, Download] = dataclasses.field(default_factory=dict)
     layout: Layout | None = None
 
