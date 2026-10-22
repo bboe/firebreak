@@ -166,11 +166,11 @@ afterwards.
 `report` also names the device and lists its USB devices. An Echo (2nd
 Generation) takes `unlock fireos6`, which roots Fire OS 6 [6436][fireos-6436]
 with amonet-radar v1.0.0, and `stock`, which returns one on amonet to that
-build. Neither is proven on one: `stock` has not run on an Echo at all, and
-the one unlock run that reached root needed the Echo power-cycled by hand at
-its first boot. Both are refused unless the run passes
-`--run-on-unproven-path`. Every other target is for the Echo Dot (2nd
-Generation). The report is the same on other Echo devices and helps add them.
+build. Both have run on an Echo, and neither is proven: the first boot after
+the root needed the Echo power-cycled by hand, which firebreak does not ask
+for. Both are refused unless the run passes `--run-on-unproven-path`. Every
+other target is for the Echo Dot (2nd Generation). The report is the same on
+other Echo devices and helps add them.
 
 `write-test` then tells a failing eMMC from a failing cable. It pushes a
 pattern into the Dot's RAM, then has the Dot write it over its own `cache`

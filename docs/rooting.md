@@ -823,6 +823,8 @@ ring read white.
   the script stops fastboot and leaves the Dot to reach TWRP.
 - `eMMC-RO` or `Device mismatch` means the payload refused, and the Dot is
   unchanged.
+- `fastbrick.img` unlocked a stock radar on its Fire OS 6 LK,
+  `63cb91b-20221007_073612`, on the second flash of that run.
 
 ## Targets
 
@@ -866,6 +868,26 @@ ring read white.
   inactive slot and makes it active, so the flip would make the second
   install write the same slot again. The run reads `bcbtool get_active`
   before and after each install, and stops unless it changed.
+- A USB drop during `twrp install` ends `adb shell` with 255, but TWRP goes on
+  installing. On a radar, an install that lost adb 17 seconds in finished
+  about 80 seconds later and changed the slot. So the run reads the slot only
+  once adb answers and no `update_engine` runs, for up to 10 minutes. TWRP's
+  `ps` is toybox, whose `CMD` column is the kernel's `comm`, cut to 15
+  characters: `update_engine_sideload` prints as `update_engine_s`, so a
+  count of the full name is always 0 and only the shorter name counts the
+  install. Measured on a radar, 2026-10-17: each install lost adb, the first
+  for about 3 minutes, and the run went on after each.
+- The reboot into the rooted system is tried again only while `adb get-state`
+  still says `recovery`. A dropped reply can arrive after the Echo has already
+  acted on the reboot, and a second `adb reboot` then lands on a system that
+  is starting. That interrupts the boot before it marks itself good, and each
+  interrupted boot spends one of the boot control block's tries: after an
+  `unlock fireos6` install a Dot's `misc` read 3 tries on slot b, so three of
+  them would hand the Echo back to the other slot. It also cuts across the
+  `pm hide` of Amazon's OTA app, which the run does once Fire OS 6 is up.
+  `get-state` saying `device` means the reboot took, so the run goes on. Two
+  minutes of no answer at all is not a boot that is working, since the
+  measured first boot is 24 seconds, so the run tries the reboot again.
 - `boot-root.zip` patches both slots. It is an XDA attachment, and XDA sends
   a script a JavaScript challenge in place of the file. So before it touches
   the Dot, the run opens it in the user's browser and waits up to 2 minutes
@@ -878,6 +900,12 @@ ring read white.
   macOS the run also looks in `~/.Trash`. When it opened the browser and took
   the file from there, it also deletes a new directory that holds exactly the
   zip's files.
+- `boot-root.zip` goes the same way. On that radar it lost adb 2 seconds in
+  and printed nothing, yet TWRP's log shows it patched both slots. So the run
+  reads TWRP's log until the last `Installing zip file` is `boot-root.zip`'s
+  and the `Updater process ended with RC=` line after it, and goes on only on
+  `RC=0`. The `adb reboot` after it also found no device and left the Echo in
+  TWRP, so the reboot is tried 3 times, each after `adb wait-for-recovery`.
 - Fire OS 6 without root for a minute after the install means
   `boot-root.zip` did not take, and the run stops. A single such read during
   the first boot does not stop it.
@@ -1389,11 +1417,17 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
 - Before it writes anything, the restore checks that the OTA's
   `ro.product.device`, without `_puffin`, names the device. A wrong entry in
   the build table would otherwise write one device's bootloaders on another.
-- radar's restore has not run on a radar. Its stock table, boot0 and
-  partitions are biscuit's, except where `userdata` ends, so it takes the same
-  steps. The restore ends `userdata` at the table's last usable sector. One
-  radar with an 8 GB eMMC had `userdata` end 3.7 GiB before that, so its
-  restore would give `userdata` the rest of the disk.
+- radar's stock table, boot0 and partitions are biscuit's, except where
+  `userdata` ends, so it takes the same steps. The restore ends `userdata` at
+  the table's last usable sector. One radar with an 8 GB eMMC had `userdata`
+  end 3.7 GiB before that, so its restore would give `userdata` the rest of
+  the disk.
+- Measured on a radar, 2026-10-17: `stock` from amonet-v2.0.0-booted, `[1/17]`
+  to `[17/17]`, in 3 min 37 s once TWRP was up. Its table and
+  `tee2` already matched stock, so those writes were skipped. Stock 6436
+  started 24 s after the reboot, and fastboot then read `unlock_status`
+  `false` with LK `63cb91b-20221007_073612`. `amonet-radar-v1.0.0` rooted it
+  again in 8 min 28 s.
 - `--fastboot` leaves the Dot in fastboot at the end, with `adb reboot
   bootloader` after the last write, so the next run needs no button held. Only
   `stock` takes it. 5.5.0.3 refuses it, because that restore ends in the

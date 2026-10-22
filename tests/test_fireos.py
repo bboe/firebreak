@@ -3,6 +3,8 @@ from __future__ import annotations
 import gzip
 import hashlib
 import io
+import itertools
+import subprocess
 import zipfile
 from typing import TYPE_CHECKING
 
@@ -85,8 +87,11 @@ def fireos6(
     monkeypatch.setattr(
         name="wait_for_twrp", target=fireos, value=lambda: waited.append("twrp")
     )
-    adb.answers["bcbtool get_active"] = ["a", "b", "b", "a"]
+    adb.answers["bcbtool get_active"] = [
+        f"0\n{slot}\nslot-ok" for slot in ("a", "b", "b", "a")
+    ]
     adb.answers["boot-root.zip"] = ["Installing\nDone"]
+    adb.answers["Installing zip file"] = [ended(rc=0)]
     return waited
 
 
@@ -129,6 +134,10 @@ def clock(*, monkeypatch: pytest.MonkeyPatch) -> list[float]:
     monkeypatch.setattr(name="monotonic", target=fireos.time, value=lambda: sum(slept))
     monkeypatch.setattr(name="sleep", target=fireos.time, value=slept.append)
     return slept
+
+
+def ended(*, rc: int) -> str:
+    return f"{fireos.BOOT_ROOT_INSTALL}\nI:Updater process ended with RC={rc}\nzip-ok"
 
 
 def md5(*, data: bytes) -> str:
@@ -303,6 +312,15 @@ def test_fire_os_5_stops_where_a_script_fails(
         fireos.stage_install_fireos()
 
 
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_counts_the_install_by_the_name_ps_prints(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock(monkeypatch=monkeypatch)
+    fireos.stage_install_fireos6()
+    assert "ps -A | grep -c update_engine;" in adb.commands(holding="get_active")[0]
+
+
 def test_fire_os_6_goes_into_both_slots_then_boot_root(
     *, adb: FakeAdb, fireos6: list[str], pushed: list[tuple[pathlib.Path, str]]
 ) -> None:
@@ -314,6 +332,40 @@ def test_fire_os_6_goes_into_both_slots_then_boot_root(
     ]
     assert adb.commands(holding="twrp wipe") == ["twrp wipe cache", "twrp wipe data"]
     assert fireos6 == ["twrp"]
+    assert adb.asked[-1] == ["adb", "reboot"]
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_leaves_a_system_that_already_started_alone(*, adb: FakeAdb) -> None:
+    adb.answers["reboot"] = [(1, "no devices")]
+    adb.answers["get-state"] = ["device"]
+    fireos.stage_install_fireos6()
+    assert adb.commands(holding="reboot") == ["reboot"]
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_reads_the_slot_past_output_adb_merged_in(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock(monkeypatch=monkeypatch)
+    adb.answers["bcbtool get_active"] = [
+        f"ps: unknown option\n0\n{slot}\nslot-ok" for slot in ("a", "b", "b", "a")
+    ]
+    fireos.stage_install_fireos6()
+    assert adb.asked[-1] == ["adb", "reboot"]
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_reboots_again_when_adb_stays_silent(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock(monkeypatch=monkeypatch)
+    adb.answers["reboot"] = [(1, "no devices"), (0, "")]
+    adb.answers["get-state"] = [
+        subprocess.TimeoutExpired(cmd="adb", timeout=30),
+        "error: no devices/emulators found",
+    ]
+    fireos.stage_install_fireos6()
     assert adb.asked[-1] == ["adb", "reboot"]
 
 
@@ -330,10 +382,118 @@ def test_fire_os_6_refuses_amonet_v1_1_0_s_table(
 
 
 @pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_says_to_power_cycle_when_the_reboot_never_goes(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock(monkeypatch=monkeypatch)
+    adb.answers["reboot"] = [(1, "no devices")]
+    adb.answers["get-state"] = ["recovery"]
+    with pytest.raises(FatalError, match=r"boot-root\.zip is installed"):
+        fireos.stage_install_fireos6()
+    assert len(adb.commands(holding="reboot")) == fireos.PUSH_TRIES
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_stops_when_boot_root_ends_badly(*, adb: FakeAdb) -> None:
+    adb.answers["Installing zip file"] = [ended(rc=1)]
+    with pytest.raises(FatalError, match=r"boot-root\.zip failed: I:Updater .* RC=1"):
+        fireos.stage_install_fireos6()
+    assert ["adb", "reboot"] not in adb.asked
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_stops_when_boot_root_is_killed(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock(monkeypatch=monkeypatch)
+    adb.answers["Installing zip file"] = [
+        f"{fireos.BOOT_ROOT_INSTALL}\nI:Updater process ended with signal: 9\nzip-ok"
+    ]
+    with pytest.raises(FatalError, match=r"boot-root\.zip failed: .*signal: 9"):
+        fireos.stage_install_fireos6()
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_stops_when_boot_root_never_ends(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adb.answers["Installing zip file"] = [f"{fireos.BOOT_ROOT_INSTALL}\nzip-ok"]
+    adb.answers["bcbtool get_active"] = [
+        f"0\n{slot}\nslot-ok" for slot in ("a", "b", "b", "a")
+    ]
+    clock = itertools.count(step=100)
+    monkeypatch.setattr(name="monotonic", target=fireos.time, value=lambda: next(clock))
+    with pytest.raises(FatalError, match="did not finish installing boot-root"):
+        fireos.stage_install_fireos6()
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_stops_when_the_slot_never_reads(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = itertools.count(step=400)
+    monkeypatch.setattr(name="monotonic", target=fireos.time, value=lambda: next(clock))
+    adb.answers["bcbtool get_active"] = ["1\na\nslot-ok"]
+    with pytest.raises(FatalError, match="did not report its active slot"):
+        fireos.stage_install_fireos6()
+
+
+@pytest.mark.usefixtures("fireos6")
 def test_fire_os_6_that_leaves_the_slot_alone_stops_the_run(*, adb: FakeAdb) -> None:
-    adb.answers["bcbtool get_active"] = ["a"]
+    adb.answers["bcbtool get_active"] = ["0\na\nslot-ok"]
     with pytest.raises(FatalError, match="left the active slot 'a', where it was 'a'"):
         fireos.stage_install_fireos6()
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_tries_the_reboot_again(*, adb: FakeAdb) -> None:
+    adb.answers["reboot"] = [(1, "no devices"), (0, "")]
+    adb.answers["get-state"] = ["recovery"]
+    fireos.stage_install_fireos6()
+    assert adb.commands(holding="get-state") == ["get-state"]
+    assert adb.asked[-1] == ["adb", "reboot"]
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_waits_for_boot_root_to_end(*, adb: FakeAdb) -> None:
+    adb.answers["Installing zip file"] = [
+        "adb: device 'G090' not found",
+        f"I:Updater process ended with RC=0\n{fireos.BOOT_ROOT_INSTALL}\nzip-ok",
+        ended(rc=0),
+    ]
+    fireos.stage_install_fireos6()
+    assert len(adb.commands(holding="Installing zip file")) == 3
+    assert adb.asked[-1] == ["adb", "reboot"]
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_waits_out_a_drop_and_a_running_install(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock(monkeypatch=monkeypatch)
+    adb.answers["bcbtool get_active"] = [
+        "0\na\nslot-ok",
+        "adb: device 'G090' not found",
+        "1\na\nslot-ok",
+        "0\nb\nslot-ok",
+        "0\nb\nslot-ok",
+        "0\na\nslot-ok",
+    ]
+    fireos.stage_install_fireos6()
+    assert len(adb.commands(holding="bcbtool get_active")) == 6
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_waits_out_an_adb_shell_that_hangs(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock(monkeypatch=monkeypatch)
+    adb.answers["bcbtool get_active"] = [
+        subprocess.TimeoutExpired(cmd="adb", timeout=30),
+        *(f"0\n{slot}\nslot-ok" for slot in ("a", "b", "b", "a")),
+    ]
+    fireos.stage_install_fireos6()
+    assert adb.asked[-1] == ["adb", "reboot"]
 
 
 @pytest.mark.usefixtures("magisk")
