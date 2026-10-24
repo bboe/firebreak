@@ -12,7 +12,7 @@ from firebreak.plan import Action
 from firebreak.plugin import BOOT0, ZeroRpmb
 from firebreak.ui import FatalError
 from firebreak.unlocks.biscuit import (
-    AMONET_BISCUIT_V1_1_0,
+    AMONET_V1_1_0,
     V1_1_0_FLASH_RECOVERY,
 )
 
@@ -115,7 +115,7 @@ def resolved(*, source: pathlib.Path, step: Step) -> Action:
         partitions={"recovery": RECOVERY},
         source=source,
         step=step,
-        unlock=AMONET_BISCUIT_V1_1_0,
+        unlock=AMONET_V1_1_0,
     )
 
 

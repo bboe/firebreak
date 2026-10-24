@@ -3,8 +3,8 @@ from __future__ import annotations
 from firebreak.devices import BISCUIT, State
 from firebreak.plugin import FireOs5, FireOs6
 from firebreak.unlocks.biscuit import (
-    AMONET_BISCUIT_V1_1_0_BBOE,
-    AMONET_BISCUIT_V2_0_1,
+    UNLOCK_TO_FIREOS5,
+    UNLOCK_TO_FIREOS6,
 )
 from firebreak.unlocks.targets import DEFAULTS, TARGETS
 from firebreak.updates import BUILDS
@@ -33,12 +33,12 @@ def test_each_target_names_its_goal_its_install_and_its_unlock() -> None:
         "fireos5": (
             State.AMONET_V1_1_0_BBOE_BOOTED,
             FireOs5(package=BUILDS["5.5.5.4"]),
-            AMONET_BISCUIT_V1_1_0_BBOE,
+            UNLOCK_TO_FIREOS5,
         ),
         "fireos6": (
             State.AMONET_V2_BOOTED,
             FireOs6(build="8146"),
-            AMONET_BISCUIT_V2_0_1,
+            UNLOCK_TO_FIREOS6,
         ),
         "stock": (State.STOCK_BOOTED, FireOs6(build=None), None),
     }

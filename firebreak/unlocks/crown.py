@@ -23,7 +23,7 @@ SOURCE = Download(
     size=44233517,
     url="https://xdaforums.com/attachments/amonet-crown-v2-0-1-zip.6373841/",
 )
-AMONET_CROWN_V2_0_1 = Unlock(
+AMONET_V2_0_1 = Unlock(
     device=CROWN,
     family="amonet",
     plan=(

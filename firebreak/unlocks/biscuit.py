@@ -43,7 +43,7 @@ V1_1_0_SOURCE = Download(
     size=19233351,
     url="https://xdaforums.com/attachments/amonet-biscuit-v1-1-0-zip.6331296/",
 )
-AMONET_BISCUIT_V1_1_0 = Unlock(
+AMONET_V1_1_0 = Unlock(
     device=BISCUIT,
     family="amonet",
     layout=BOOT_MOVED_LAYOUT,
@@ -85,8 +85,8 @@ AMONET_BISCUIT_V1_1_0 = Unlock(
     source=V1_1_0_SOURCE,
     version="1.1.0",
 )
-AMONET_BISCUIT_V1_1_0_BBOE = dataclasses.replace(
-    AMONET_BISCUIT_V1_1_0,
+UNLOCK_TO_FIREOS5 = dataclasses.replace(
+    AMONET_V1_1_0,
     files={"twrp": BBOE_RECOVERY},
     plan=tuple(
         FastbootFlash(
@@ -94,7 +94,7 @@ AMONET_BISCUIT_V1_1_0_BBOE = dataclasses.replace(
         )
         if step == V1_1_0_FLASH_RECOVERY
         else step
-        for step in AMONET_BISCUIT_V1_1_0.plan
+        for step in AMONET_V1_1_0.plan
     ),
     version="1.1.0-bboe",
 )
@@ -111,7 +111,7 @@ V2_0_1_SOURCE = Download(
 )
 V2_0_1_TWRP_VERSION = "3.7.0"
 WRITE_KAERU = Write(image="bin/biscuit-kaeru.bin", label="write kaeru", target="expdb")
-AMONET_BISCUIT_V2_0_1 = Unlock(
+UNLOCK_TO_FIREOS6 = Unlock(
     device=BISCUIT,
     family="amonet",
     layout=STOCK_LAYOUT,

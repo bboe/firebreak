@@ -215,7 +215,7 @@ def carry_v1(*, calls: list[tuple]) -> bool:
         after=lambda: calls.append(("after", recovery.ERASED.exists())),
         before_preloader=lambda: calls.append(("install", recovery.ERASED.exists())),
         guard=lambda: calls.append(("guard",)),
-        unlock=biscuit.AMONET_BISCUIT_V1_1_0,
+        unlock=biscuit.AMONET_V1_1_0,
     )
 
 
@@ -223,7 +223,7 @@ def carry_v2(*, calls: list[tuple]) -> bool:
     return recovery.carry_out(
         after=lambda: calls.append(("after", recovery.ERASED.exists())),
         guard=lambda: calls.append(("guard",)),
-        unlock=biscuit.AMONET_BISCUIT_V2_0_1,
+        unlock=biscuit.UNLOCK_TO_FIREOS6,
         zero=("misc",),
     )
 

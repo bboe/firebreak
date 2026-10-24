@@ -762,7 +762,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
         {
             "after": to_v2_twrp,
             "guard": route.amonet_chain,
-            "unlock": route.biscuit.AMONET_BISCUIT_V2_0_1,
+            "unlock": route.biscuit.UNLOCK_TO_FIREOS6,
             "zero": ("misc",),
         },
     )

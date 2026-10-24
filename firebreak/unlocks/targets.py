@@ -5,9 +5,9 @@ import typing
 from firebreak.devices import BISCUIT, State
 from firebreak.plugin import Device, FireOs5, FireOs6, Target
 from firebreak.unlocks.biscuit import (
-    AMONET_BISCUIT_V1_1_0_BBOE,
-    AMONET_BISCUIT_V2_0_1,
     BBOE_TWRP_VERSION,
+    UNLOCK_TO_FIREOS5,
+    UNLOCK_TO_FIREOS6,
     V2_0_1_TWRP_VERSION,
 )
 from firebreak.updates import BUILDS, DEFAULT_BUILD
@@ -42,7 +42,7 @@ TARGETS = {
                 name=FIREOS5,
                 summary="rooted Fire OS 5.5.5.4 on amonet v1.1.0, with TWRP"
                 f" {BBOE_TWRP_VERSION}.",
-                unlock=AMONET_BISCUIT_V1_1_0_BBOE,
+                unlock=UNLOCK_TO_FIREOS5,
             ),
             Target(
                 device=BISCUIT,
@@ -51,7 +51,7 @@ TARGETS = {
                 name=FIREOS6,
                 summary=f"rooted Fire OS 6 {FIREOS6_BUILD} on amonet v2.0.1,"
                 f" with TWRP {V2_0_1_TWRP_VERSION}.",
-                unlock=AMONET_BISCUIT_V2_0_1,
+                unlock=UNLOCK_TO_FIREOS6,
             ),
         )
     }

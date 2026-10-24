@@ -180,13 +180,13 @@ def fireos5_stages() -> dict[State, Stage]:
 def fireos6_stages() -> dict[State, Stage]:
     installed = (
         biscuit.V2_0_1_SOURCE,
-        *biscuit.AMONET_BISCUIT_V2_0_1.files.values(),
+        *biscuit.UNLOCK_TO_FIREOS6.files.values(),
     )
     install = functools.partial(
         recovery.carry_out,
         after=functools.partial(reboot, label="waiting for v2 recovery to start"),
         guard=amonet_chain,
-        unlock=biscuit.AMONET_BISCUIT_V2_0_1,
+        unlock=biscuit.UNLOCK_TO_FIREOS6,
         zero=("misc",),
     )
     return {
