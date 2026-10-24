@@ -841,6 +841,28 @@ def test_fetch_replaces_a_corrupt_copy(
     assert not (cached / "zip.bin.part").exists()
 
 
+@pytest.mark.usefixtures("cached")
+def test_fetch_waits_less_on_the_mirror_than_on_the_source(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    source = tmp_path / "zip.bin"
+    source.write_bytes(data=BODY)
+    download = dataclasses.replace(item(source=source), mirror=True)
+    monkeypatch.setattr(
+        name="MIRROR", target=cache, value=(tmp_path / "gone").as_uri() + "/"
+    )
+    waited: list[float] = []
+    opened = urllib.request.urlopen
+
+    def recorded(**options: object) -> object:
+        waited.append(options["timeout"])
+        return opened(**options)
+
+    monkeypatch.setattr(name="urlopen", target=urllib.request, value=recorded)
+    assert cache.fetch(download=download).read_bytes() == BODY
+    assert waited == [8, 60]
+
+
 def test_graphical_browser_skips_a_text_browser(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:

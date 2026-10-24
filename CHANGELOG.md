@@ -2,6 +2,14 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Fixed
+
+- A download that the mirror does not answer falls back after 8 seconds rather
+  than 60. A network that drops the packets rather than refusing them stalled a
+  run for a minute per download before it opened your browser.
+
 ## 0.8.0 - 2026-10-24
 
 ### Changed

@@ -34,6 +34,7 @@ LOCKS: dict[object, threading.Lock] = {}
 LOCKS_GUARD = threading.Lock()
 MEGA = 1e6
 MIRROR = "https://l6zdb1htmt.pf994ltf9n.workers.dev/"
+MIRROR_TIMEOUT_SECONDS = 8
 PARTIAL_SUFFIXES = (".crdownload", ".download", ".part", ".tmp")
 SYSTEM_SLICE_BYTES = 128 << 20
 WHERE_FROMS = "com.apple.metadata:kMDItemWhereFroms"
@@ -280,7 +281,12 @@ def fetch(*, download: Download) -> pathlib.Path:
                 discard(paths=copies(checked=set(), download=download))
             return path
         if download.mirror:
-            why = saved(download=download, path=path, url=MIRROR + name)
+            why = saved(
+                download=download,
+                path=path,
+                timeout=MIRROR_TIMEOUT_SECONDS,
+                url=MIRROR + name,
+            )
             if why is None:
                 SESSION.verified.add(path)
                 if download.browser:
@@ -538,12 +544,14 @@ def save(
     return done, total
 
 
-def saved(*, download: Download, path: pathlib.Path, url: str) -> str | None:
+def saved(
+    *, download: Download, path: pathlib.Path, timeout: float = 60, url: str
+) -> str | None:
     name = download.name
     part = CACHE / (name + ".part")
     request = urllib.request.Request(headers={"User-Agent": AGENT}, url=url)
     try:
-        with urllib.request.urlopen(timeout=60, url=request) as response:  # ruff: ignore[multiple-with-statements]
+        with urllib.request.urlopen(timeout=timeout, url=request) as response:  # ruff: ignore[multiple-with-statements]
             with part.open(mode="wb") as part_file:
                 done, total = save(
                     destination=part_file,

@@ -568,6 +568,11 @@ ring read white.
   zip has a second source that a run takes first, and the thread in a browser
   is the fallback. That keeps the route unattended while the first source
   answers.
+- The first source gets 8 seconds, where a source of last resort gets 60. The
+  60 is a socket timeout rather than a deadline for the whole transfer, so it
+  bounds a stall and not a slow link. A refusal, a 403 and a 404 all come back
+  at once; only a network that drops the packets waits out the timeout, and
+  that wait lands in front of the browser the run falls back to.
 - A zip's unpacked tree lives under the name its `Download` carries, and
   `unpack` rebuilds it only when that directory is missing. Re-pinning a zip
   that keeps its old directory name therefore downloads the new archive and
