@@ -65,7 +65,7 @@ def amonet_lk(*, node: str) -> bool:
     return False
 
 
-def amonet_v2_0_0_payload() -> pathlib.Path:
+def amonet_v2_payload() -> pathlib.Path:
     amonet = unpack(download=amonet_biscuit_v2_0_1.SOURCE)
     return amonet / "brom-payload" / "build" / "payload.bin"
 
@@ -161,7 +161,7 @@ def stage_downgrade() -> bool:
     bootrom_step(
         amonet=amonet,
         erase=erase_by_fastboot,
-        payload=amonet_v2_0_0_payload(),
+        payload=amonet_v2_payload(),
         wheel=wheel,
     )
     return stage_amonet_v1_1_0_recovery()

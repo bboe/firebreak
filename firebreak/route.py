@@ -54,7 +54,7 @@ from firebreak.ui import (
 )
 from firebreak.unlock import (
     amonet_chain,
-    amonet_v2_0_0_payload,
+    amonet_v2_payload,
     stage_amonet_v1_1_0_recovery,
     stage_downgrade,
     stage_fastbrick,
@@ -103,7 +103,11 @@ class Stage:
 
 
 def bootrom_needs() -> tuple[Need, ...]:
-    return (amonet_biscuit_v1_1_0.SOURCE, pyserial_wheel, amonet_biscuit_v2_0_1.SOURCE)
+    return (
+        amonet_biscuit_v1_1_0.SOURCE,
+        pyserial_wheel,
+        amonet_biscuit_v2_0_1.SOURCE,
+    )
 
 
 def fireos5_stages() -> dict[State, Stage]:
@@ -168,14 +172,7 @@ def fireos5_stages() -> dict[State, Stage]:
             then=State.AMONET_V1_1_0_BBOE_TWRP,
         ),
     } | {
-        rooted: Stage(
-            needs=(amonet_biscuit_v1_1_0.SOURCE, TWRP)
-            if goal == State.AMONET_V1_1_0_BBOE_BOOTED
-            else (amonet_biscuit_v1_1_0.SOURCE,),
-            run=stage_swap_twrp,
-            steps=1,
-            then=goal,
-        )
+        rooted: Stage(needs=(TWRP,), run=stage_swap_twrp, steps=1, then=goal)
         for rooted in FIREOS5_ROOTED - {goal}
     }
 
@@ -394,7 +391,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             if bootrom_step(
                 amonet=unpack(download=amonet_biscuit_v1_1_0.SOURCE),
                 erase=None,
-                payload=amonet_v2_0_0_payload(),
+                payload=amonet_v2_payload(),
                 wheel=pyserial_wheel(),
             ):
                 stage_amonet_v1_1_0_recovery()

@@ -46,7 +46,7 @@ from firebreak.ui import (
     show,
     warn,
 )
-from firebreak.unlock import amonet_v2_0_0_payload
+from firebreak.unlock import amonet_v2_payload
 from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import TWRP_VERSION
 
 if TYPE_CHECKING:
@@ -239,7 +239,7 @@ def restore(  # ruff: ignore[complex-structure]
             run(arguments=["adb", "shell", "-n", "reboot"], timeout=60)
         stock_preloader(
             build=build,
-            payload=amonet_v2_0_0_payload(),
+            payload=amonet_v2_payload(),
             preloader=(work / "preloader.img").read_bytes(),
             wheel=pyserial_wheel(),
         )

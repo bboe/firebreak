@@ -335,7 +335,7 @@ def test_the_write_test_with_short_goes_through_the_bootrom(
 ) -> None:
     ran: list[dict[str, object]] = []
     monkeypatch.setattr(
-        name="amonet_v2_0_0_payload", target=support, value=lambda: "payload.bin"
+        name="amonet_v2_payload", target=support, value=lambda: "payload.bin"
     )
     monkeypatch.setattr(
         name="bootrom_write_test", target=support, value=lambda **said: ran.append(said)

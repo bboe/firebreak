@@ -158,9 +158,7 @@ def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
         name="getvar", target=unlock, value=lambda **o: answers[o["name"]]
     )
     monkeypatch.setattr(name="bootrom_step", target=unlock, value=lambda **_: True)
-    monkeypatch.setattr(
-        name="amonet_v2_0_0_payload", target=unlock, value=lambda: tmp_path
-    )
+    monkeypatch.setattr(name="amonet_v2_payload", target=unlock, value=lambda: tmp_path)
     monkeypatch.setattr(
         name="stage_amonet_v1_1_0_recovery", target=unlock, value=lambda: False
     )

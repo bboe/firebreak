@@ -22,6 +22,7 @@ SOURCE = Download(
     size=73189204,
     url="https://xdaforums.com/attachments/amonet-biscuit-v2-0-1-zip.6400139/",
 )
+TWRP_VERSION = "3.7.0"
 WRITE_KAERU = Write(image="bin/biscuit-kaeru.bin", label="write kaeru", target="expdb")
 AMONET_BISCUIT_V2_0_1 = Unlock(
     device=BISCUIT,

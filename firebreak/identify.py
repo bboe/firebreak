@@ -15,7 +15,7 @@ from firebreak.devices import DEVICES
 from firebreak.host import USER_SERIAL, command, getvar, in_fastboot
 from firebreak.report import labelled
 from firebreak.ui import SESSION, FatalError, warn
-from firebreak.unlocks.targets import DEFAULTS, TARGETS
+from firebreak.unlocks.targets import DEFAULTS, DEPRECATED, REMOVED_IN, TARGETS
 
 if TYPE_CHECKING:
     from firebreak.plugin import Device, Target
@@ -76,6 +76,14 @@ def check_target(*, target: Target) -> None:
 
 
 def choose_target(*, device: Device | None, name: str | None) -> Target:
+    was = DEPRECATED.get(name or "")
+    if was is not None:
+        warn(
+            text=f"`{name}` goes away in firebreak {REMOVED_IN}: use"
+            f" `firebreak unlock {was.name}` instead, which always takes the"
+            " newest amonet this supports." + (" " + was.note if was.note else "")
+        )
+        device, name = was.device, was.name
     choices = [
         targets[name or DEFAULTS[each]]
         for each, targets in TARGETS.items()

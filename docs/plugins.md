@@ -43,7 +43,7 @@ needs: boot moved for v1.1.0 and its bboe variant, stock for v2.0.0. crown
 lists no layout, because no crown table has been read here, and its unlock
 does not repartition.
 
-`firebreak/unlocks/` holds amonet v1.1.0, its bboe variant, and amonet v2.0.0,
+`firebreak/unlocks/` holds amonet v1.1.0, its bboe variant, and amonet v2.0.1,
 for biscuit, amonet-radar v1.0.0, and amonet-crown v2.0.1. Each plan is
 amonet's `modules/main.py` and then its `fastboot-step.sh`, step for step. The
 bboe variant swaps the recovery image for TWRP 3.7.0_9-bboe2, a download of its
@@ -71,10 +71,12 @@ unlock, which stock has none of. A Fire OS 6 target names a build from Amazon's
 updates, which TWRP installs as it is; stock's build is the one named on the
 command line. A Fire OS 5 target names its update package, from which firebreak
 builds a system image to write with dd, with Magisk beside it.
-`firebreak/unlocks/targets.py` holds the targets by device, biscuit's four,
-and each device's default. Their goal states are biscuit's, in
-`firebreak/devices.py`. A target's summary is its line in `--help`, which
-lists each device's targets, its default first.
+`firebreak/unlocks/targets.py` holds the targets by device, biscuit's three,
+and each device's default. Every device has a `stock` target and at least one
+unlock target, which is what `--help` lists under the device. Their goal states
+are biscuit's, in `firebreak/devices.py`. A target's summary is its line in
+`--help`, which lists each device's commands, and the unlock targets under
+`unlock` with the default first.
 
 v2.0.0's `main.py` has two branches its plan leaves out: `fixgpt`, a manual
 mode that writes its own table, and a run from the preloader, which leaves

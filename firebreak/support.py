@@ -50,7 +50,7 @@ from firebreak.ui import (
     show,
     status,
 )
-from firebreak.unlock import amonet_v2_0_0_payload
+from firebreak.unlock import amonet_v2_payload
 from firebreak.updates import BUILDS
 from firebreak.write_test import (
     EMMC_TARGET,
@@ -245,7 +245,7 @@ def write_test() -> None:
     about_host()
     if SESSION.short:
         bootrom_write_test(
-            line=line, payload=amonet_v2_0_0_payload(), wheel=pyserial_wheel()
+            line=line, payload=amonet_v2_payload(), wheel=pyserial_wheel()
         )
         return
     line("state", probed())

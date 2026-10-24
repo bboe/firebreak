@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import fireos
-from firebreak.devices import BISCUIT, State
+from firebreak.devices import BISCUIT
 from firebreak.ui import FatalError
 from firebreak.unlocks.targets import TARGETS
 
@@ -39,7 +39,7 @@ def fireos5(
     monkeypatch.setattr(
         name="target",
         target=fireos.ARGUMENTS,
-        value=TARGETS[BISCUIT]["amonet-biscuit-v1.1.0-bboe"],
+        value=TARGETS[BISCUIT]["fireos5"],
     )
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(name="fetch", target=fireos, value=lambda **_: tmp_path)
@@ -72,7 +72,7 @@ def fireos6(
     monkeypatch.setattr(
         name="target",
         target=fireos.ARGUMENTS,
-        value=TARGETS[BISCUIT]["amonet-biscuit-v2.0.1"],
+        value=TARGETS[BISCUIT]["fireos6"],
     )
     waited: list[str] = []
     monkeypatch.setattr(name="amonet_chain", target=fireos, value=lambda: None)
@@ -159,44 +159,18 @@ def test_a_boot_root_error_stops_the_run(*, adb: FakeAdb) -> None:
         fireos.stage_install_fireos6()
 
 
-@pytest.mark.parametrize(
-    ("goal", "label"),
-    [
-        (State.AMONET_V1_1_0_BBOE_BOOTED, "TWRP 3.7.0_9-bboe2"),
-        (State.AMONET_V1_1_0_BOOTED, "TWRP 3.2.3"),
-    ],
-)
 def test_a_rooted_dot_swaps_its_twrp_for_the_target_s(
-    *,
-    adb: FakeAdb,
-    goal: State,
-    label: str,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: pathlib.Path,
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
     bboe = tmp_path / "bboe.img"
     bboe.write_bytes(b"B" * 1024)
-    (tmp_path / "bin").mkdir()
-    (tmp_path / "bin" / "twrp.img").write_bytes(b"3" * 1024)
-    monkeypatch.setattr(
-        name="target",
-        target=fireos.ARGUMENTS,
-        value=next(
-            target for target in TARGETS[BISCUIT].values() if target.goal == goal
-        ),
-    )
     monkeypatch.setattr(name="fetch", target=fireos, value=lambda **_: bboe)
-    monkeypatch.setattr(name="unpack", target=fireos, value=lambda **_: tmp_path)
-    held = (
-        bboe
-        if goal == State.AMONET_V1_1_0_BBOE_BOOTED
-        else tmp_path / "bin" / "twrp.img"
-    )
     monkeypatch.setattr(
-        name="read_recovery", target=fireos, value=lambda **_: held.read_bytes()
+        name="read_recovery", target=fireos, value=lambda **_: bboe.read_bytes()
     )
+    label = f"TWRP {fireos.TWRP_VERSION}"
     fireos.stage_swap_twrp()
-    assert adb.asked[0][:3] == ["adb", "push", str(held)]
+    assert adb.asked[0][:3] == ["adb", "push", str(bboe)]
     assert label in fireos.PROGRESS.line
     monkeypatch.setattr(name="read_recovery", target=fireos, value=lambda **_: b"x")
     with pytest.raises(FatalError, match=f"{label} did not verify in recovery"):
