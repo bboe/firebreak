@@ -29,6 +29,20 @@ def parse_into_namespace(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="__call__", target=subparsers, value=call)
 
 
+def test_a_bare_run_says_what_replaced_the_default_and_stops(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak"])
+    with pytest.raises(SystemExit, match="1"):
+        main.parsed()
+    out = " ".join(capsys.readouterr().out.split())
+    assert "The command line arguments have changed" in out
+    assert "is now `firebreak unlock fireos5`" in out
+    assert "the new default is `firebreak unlock fireos6`" in out
+    assert "This warning goes away in firebreak 1.0" in out
+    assert "usage: firebreak" in out
+
+
 def test_a_child_does_not_check_for_an_update(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -44,11 +58,23 @@ def test_a_child_does_not_check_for_an_update(
 
 
 @pytest.mark.parametrize(
+    "name",
+    ["amonet-biscuit-v1.1.0", "amonet-biscuit-v1.1.0-bboe", "amonet-biscuit-v2.0.0"],
+)
+def test_a_deprecated_name_parses_but_is_not_in_the_help(
+    *, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", name])
+    assert main.parsed().command == name
+    assert name not in main.target_help()
+
+
+@pytest.mark.parametrize(
     argnames=("arguments", "said"),
     argvalues=[
         (
             ["--device", "biscuit", "amonet-radar-v1.0.0"],
-            "argument TARGET|COMMAND: invalid choice",
+            "argument COMMAND: invalid choice",
         ),
         (["--device", "radar"], "argument --device: invalid choice"),
         (
@@ -122,7 +148,7 @@ def test_a_refused_user_stops_before_the_update_check(
 
 def test_a_run_checks_for_an_update_once(*, monkeypatch: pytest.MonkeyPatch) -> None:
     checked: list[dict[str, str]] = []
-    monkeypatch.setattr(name="argv", target=sys, value=["firebreak"])
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", "unlock"])
     monkeypatch.setattr(name="which", target=main.shutil, value=lambda **_: "adb")
     monkeypatch.setattr(name="check_user", target=main, value=lambda: None)
     monkeypatch.setattr(name="check_adb", target=main, value=lambda: sys.exit(1))
@@ -198,9 +224,8 @@ def test_an_option_before_a_command_that_does_not_take_it_is_refused(
 @pytest.mark.parametrize(
     argnames=("arguments", "message"),
     argvalues=[
-        (["amonet-biscuit-v2.0.1", "--fastboot"], "takes no --fastboot"),
+        (["unlock", "fireos6", "--fastboot"], "unlock takes no --fastboot"),
         (["--fastboot", "report"], "report takes no --fastboot"),
-        (["--fastboot"], "the default target takes no --fastboot"),
         (["stock", "5.5.0.3", "--fastboot"], "cannot leave the Dot in fastboot"),
     ],
 )
@@ -230,17 +255,15 @@ def test_no_newer_release_says_nothing(
 @pytest.mark.parametrize(
     argnames=("arguments", "parsed"),
     argvalues=[
-        ([], (None, "", False, None, False)),
-        (["--short"], (None, "", True, None, False)),
         (["--short", "stock"], ("stock", "8149", True, None, False)),
         (["stock", "4315", "--short"], ("stock", "4315", True, None, False)),
         (
-            ["--verbose", "--device", "biscuit", "amonet-biscuit-v2.0.1"],
-            ("amonet-biscuit-v2.0.1", "", False, "biscuit", True),
+            ["--verbose", "--device", "biscuit", "unlock", "fireos6"],
+            ("unlock", "", False, "biscuit", True),
         ),
         (
-            ["amonet-biscuit-v2.0.1", "--device", "biscuit", "--verbose"],
-            ("amonet-biscuit-v2.0.1", "", False, "biscuit", True),
+            ["unlock", "fireos6", "--device", "biscuit", "--verbose"],
+            ("unlock", "", False, "biscuit", True),
         ),
         (["--short", "write-test"], ("write-test", "", True, None, False)),
         (["write-test", "--short"], ("write-test", "", True, None, False)),
@@ -283,7 +306,7 @@ def test_stock_takes_fastboot(
     argvalues=[
         (["stock"], "8149"),
         (["stock", "4315"], "4315"),
-        (["amonet-biscuit-v2.0.1"], ""),
+        (["fireos6"], ""),
     ],
     ids=["stock-alone", "stock-with-a-build", "another-target"],
 )
@@ -301,9 +324,11 @@ def test_the_build_each_target_gets(
 
 
 def test_the_help_lists_each_device_s_targets_its_default_first() -> None:
-    assert main.target_help().splitlines()[:3] == [
-        "targets for the Echo Dot (2nd Generation):",
-        "  amonet-biscuit-v1.1.0-bboe, the default",
-        "      rooted Fire OS 5.5.5.4 on amonet v1.1.0, with TWRP 3.7.0_9-bboe2.",
-    ]
-    assert "  stock [BUILD]" in main.target_help().splitlines()
+    lines = main.target_help().splitlines()
+    assert lines[0] == "commands for the Echo Dot (2nd Generation):"
+    assert lines.index("  stock [BUILD]") < lines.index(
+        "  unlock [TARGET], where TARGET is one of:"
+    )
+    assert lines[lines.index("  unlock [TARGET], where TARGET is one of:") + 1] == (
+        "    fireos6, the default"
+    )

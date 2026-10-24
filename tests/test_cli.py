@@ -48,7 +48,7 @@ def test_help(*, command: list[str]) -> None:
 
 def test_only_stock_takes_a_build() -> None:
     finished = subprocess.run(
-        args=[sys.executable, "-m", "firebreak", "amonet-biscuit-v2.0.1", "8146"],
+        args=[sys.executable, "-m", "firebreak", "unlock", "fireos6", "8146"],
         capture_output=True,
         check=False,
         text=True,

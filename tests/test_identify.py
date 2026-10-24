@@ -94,6 +94,30 @@ def test_a_booted_dot_is_named_by_its_usb_product(
     )
 
 
+@pytest.mark.parametrize(
+    argnames=("name", "chosen", "said"),
+    argvalues=[
+        ("amonet-biscuit-v1.1.0-bboe", "fireos5", ""),
+        ("amonet-biscuit-v1.1.0", "fireos5", "TWRP 3.2.3"),
+        ("amonet-biscuit-v2.0.0", "fireos6", "kaeru boots the active slot"),
+    ],
+)
+def test_a_deprecated_name_takes_the_target_that_replaced_it(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    chosen: str,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    said: str,
+) -> None:
+    connected(monkeypatch=monkeypatch, usb=[AEOBC])
+    assert identify.choose_target(device=None, name=name) == TARGETS[BISCUIT][chosen]
+    warned = capsys.readouterr().out
+    assert f"`{name}` goes away in firebreak 1.0" in " ".join(warned.split())
+    assert f"use `firebreak unlock {chosen}` instead" in " ".join(warned.split())
+    assert said in " ".join(warned.split())
+
+
 def test_a_dot_in_fastboot_is_named_by_its_product(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -148,8 +172,7 @@ def test_a_name_one_device_has_is_checked_against_it(
 ) -> None:
     connected(monkeypatch=monkeypatch, usb=usb)
     assert (
-        identify.choose_target(device=None, name=None)
-        == (TARGETS[BISCUIT]["amonet-biscuit-v1.1.0-bboe"])
+        identify.choose_target(device=None, name=None) == (TARGETS[BISCUIT]["fireos6"])
     )
     connected(monkeypatch=monkeypatch, usb=[AEORD])
     with pytest.raises(FatalError, match="this is an Echo \\(2nd Generation\\)"):
@@ -158,7 +181,7 @@ def test_a_name_one_device_has_is_checked_against_it(
 
 @pytest.mark.parametrize(
     argnames=("name", "chosen"),
-    argvalues=[(None, "amonet-biscuit-v1.1.0-bboe"), ("stock", "stock")],
+    argvalues=[(None, "fireos6"), ("stock", "stock")],
     ids=["default", "stock"],
 )
 def test_a_name_two_devices_share_is_chosen_by_the_device(

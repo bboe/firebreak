@@ -168,14 +168,7 @@ def fireos5_stages() -> dict[State, Stage]:
             then=State.AMONET_V1_1_0_BBOE_TWRP,
         ),
     } | {
-        rooted: Stage(
-            needs=(amonet_biscuit_v1_1_0.SOURCE, TWRP)
-            if goal == State.AMONET_V1_1_0_BBOE_BOOTED
-            else (amonet_biscuit_v1_1_0.SOURCE,),
-            run=stage_swap_twrp,
-            steps=1,
-            then=goal,
-        )
+        rooted: Stage(needs=(TWRP,), run=stage_swap_twrp, steps=1, then=goal)
         for rooted in FIREOS5_ROOTED - {goal}
     }
 
