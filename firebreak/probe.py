@@ -8,7 +8,6 @@ from firebreak.devices import (
     BY_NAME,
     LITTLE_KERNEL_DESCRIPTION,
     LK,
-    UNLOCK_BUILDS,
     State,
 )
 from firebreak.emos import emos
@@ -28,8 +27,6 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
             little_kernel = getvar(name="lk_build_desc")
             if little_kernel == LK.FIREOS5.value:
                 return State.STOCK_FIREOS5_FASTBOOT
-            if little_kernel in UNLOCK_BUILDS:
-                return State.STOCK_NO_FASTBRICK_FASTBOOT
             return State.STOCK_FASTBOOT
         if unlock != "true":
             return State.STARTING
@@ -38,7 +35,7 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
             return State.STARTING
         if little_kernel == LK.FIREOS5.value:
             return State.AMONET_V1_1_0_FASTBOOT
-        return State.AMONET_V2_0_0_FASTBOOT
+        return State.AMONET_V2_FASTBOOT
     adb_state = ""
     if usb_serial():
         adb_state = run(arguments=["adb", "get-state"], timeout=30).stdout
@@ -56,8 +53,8 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
             return State.STARTING
         if little_kernel != LK.FIREOS5.value:
             if "boot_a_x" in partition_table():
-                return State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE
-            return State.AMONET_V2_0_0_TWRP
+                return State.AMONET_V2_TWRP_V1_1_0_TABLE
+            return State.AMONET_V2_TWRP
         if version != amonet_biscuit_v1_1_0_bboe.TWRP_VERSION:
             return State.AMONET_V1_1_0_TWRP
         return State.AMONET_V1_1_0_BBOE_TWRP
@@ -70,7 +67,7 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
             "Fire OS 6"
         ):
             if "uid=0" in adb_shell(command="id; su -c id", timeout=30):
-                return State.AMONET_V2_0_0_BOOTED
+                return State.AMONET_V2_BOOTED
             return State.STOCK_BOOTED
         if booted and "uid=0" in adb_shell(command="su -c id", timeout=30):
             return rooted()

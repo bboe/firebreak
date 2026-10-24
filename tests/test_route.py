@@ -7,7 +7,7 @@ import pytest
 
 from firebreak import route, ui
 from firebreak.devices import BISCUIT
-from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_0
+from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_1
 from firebreak.unlocks.targets import TARGETS
 from firebreak.updates import BUILDS
 
@@ -102,7 +102,7 @@ class Run:
 @pytest.fixture
 def run(*, monkeypatch: pytest.MonkeyPatch) -> Run:
     found = Run(monkeypatch=monkeypatch)
-    found.target(name="amonet-biscuit-v1.1.0-bboe")
+    found.target(name="fireos5")
     return found
 
 
@@ -129,7 +129,7 @@ def test_a_background_failure_is_left_for_the_run_to_meet(
     monkeypatch.setattr(
         name="target",
         target=route.ARGUMENTS,
-        value=TARGETS[BISCUIT]["amonet-biscuit-v1.1.0"],
+        value=TARGETS[BISCUIT]["fireos5"],
     )
     route.prebuild()
     route.predownload()
@@ -144,10 +144,10 @@ def test_a_bootrom_build_restores_with_the_bootrom_s_downloads_and_steps(
     *, build: str, extra: int, monkeypatch: pytest.MonkeyPatch, steps: int
 ) -> None:
     monkeypatch.setattr(name="build", target=route.ARGUMENTS, value=build)
-    stage = route.restore_stages()[route.State.AMONET_V2_0_0_TWRP]
+    stage = route.restore_stages()[route.State.AMONET_V2_TWRP]
     assert (
         stage.needs[1:]
-        == ((amonet_biscuit_v2_0_0.SOURCE, route.pyserial_wheel)[:extra])
+        == ((amonet_biscuit_v2_0_1.SOURCE, route.pyserial_wheel)[:extra])
     )
     assert stage.steps == steps
 
@@ -174,8 +174,11 @@ def test_a_browser_download_comes_first(*, monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(
         name="fetch", target=route, value=lambda **o: fetched.append(o["download"].name)
     )
-    route.prefetch(needs=[amonet_biscuit_v2_0_0.SOURCE, route.BOOT_ROOT])
-    assert fetched == [route.BOOT_ROOT.name, amonet_biscuit_v2_0_0.SOURCE.name]
+    route.prefetch(needs=[amonet_biscuit_v1_1_0.SOURCE, amonet_biscuit_v2_0_1.SOURCE])
+    assert fetched == [
+        amonet_biscuit_v2_0_1.SOURCE.name,
+        amonet_biscuit_v1_1_0.SOURCE.name,
+    ]
 
 
 def test_a_dot_at_its_goal_has_its_updater_hidden(
@@ -192,9 +195,9 @@ def test_a_dot_at_its_goal_has_its_updater_hidden(
 def test_a_dot_at_v2_0_0_s_goal_says_it_has_root_adb(
     *, capsys: pytest.CaptureFixture[str], run: Run
 ) -> None:
-    run.target(name="amonet-biscuit-v2.0.0")
+    run.target(name="fireos6")
     run.said["getprop ro.build.version.name"] = "Fire OS 6.5.7.4"
-    run.states = [route.State.AMONET_V2_0_0_BOOTED]
+    run.states = [route.State.AMONET_V2_BOOTED]
     route.root()
     assert "rooted: Fire OS 6.5.7.4, with root adb" in said(capsys=capsys)
 
@@ -203,14 +206,14 @@ def test_a_dot_at_v2_0_0_s_goal_says_it_has_root_adb(
     ("name", "states", "done", "message"),
     [
         (
-            "amonet-biscuit-v2.0.0",
+            "fireos6",
             [route.State.STOCK_BOOTED],
-            [route.State.AMONET_V2_0_0_TWRP],
+            [route.State.AMONET_V2_TWRP],
             "boot-root.zip did not take",
         ),
-        ("amonet-biscuit-v1.1.0-bboe", [route.State.BOOTED], [], "has not finished"),
+        ("fireos5", [route.State.BOOTED], [], "has not finished"),
         (
-            "amonet-biscuit-v1.1.0-bboe",
+            "fireos5",
             [route.State.STARTING],
             [],
             "the Dot has been starting for 10 minutes",
@@ -241,7 +244,7 @@ def test_a_fire_os_5_restore_left_in_twrp_is_not_reported_as_written(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
     run.target(build="5.5.5.4", name="stock")
-    twrp = route.State.AMONET_V2_0_0_TWRP
+    twrp = route.State.AMONET_V2_TWRP
     table = {
         twrp: route.Stage(
             passes=frozenset({twrp}), run=lambda: None, steps=1, then=None
@@ -256,18 +259,14 @@ def test_a_fire_os_5_restore_left_in_twrp_is_not_reported_as_written(
         route.root()
 
 
-@pytest.mark.parametrize(
-    ("name", "twrp"),
-    [("amonet-biscuit-v1.1.0", []), ("amonet-biscuit-v1.1.0-bboe", [route.TWRP.name])],
-)
 def test_a_fire_os_5_route_fetches_what_it_needs_and_builds_the_system(
-    *, monkeypatch: pytest.MonkeyPatch, name: str, twrp: list[str]
+    *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     fetched: list[str] = []
     built: list[object] = []
     shown: list[str] = []
     monkeypatch.setattr(
-        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
+        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT]["fireos5"]
     )
     monkeypatch.setattr(
         name="unpack",
@@ -292,16 +291,14 @@ def test_a_fire_os_5_route_fetches_what_it_needs_and_builds_the_system(
     )
     table = route.stages()
     route.prefetch(needs=route.needed(start=route.State.STOCK_FASTBOOT, table=table))
-    route.prefetch(
-        needs=route.needed(start=route.State.AMONET_V2_0_0_TWRP, table=table)
-    )
+    route.prefetch(needs=route.needed(start=route.State.AMONET_V2_TWRP, table=table))
     prebuilder.join(timeout=5)
     assert (
         fetched
         == [
-            amonet_biscuit_v2_0_0.SOURCE.name,
+            amonet_biscuit_v2_0_1.SOURCE.name,
             amonet_biscuit_v1_1_0.SOURCE.name,
-            *twrp,
+            route.TWRP.name,
             BUILDS["5.5.5.4"].name,
             "Magisk-v17.3.zip",
         ]
@@ -314,7 +311,7 @@ def test_a_fire_os_5_route_fetches_what_it_needs_and_builds_the_system(
 @pytest.mark.parametrize(
     ("name", "build", "downloaded"),
     [
-        ("amonet-biscuit-v2.0.0", "", "8146"),
+        ("fireos6", "", "8146"),
         ("stock", "4315", "4315"),
     ],
 )
@@ -332,7 +329,7 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
         name="download", target=route.updates, value=lambda **o: got.append(o["build"])
     )
     route.prefetch(
-        needs=route.needed(start=route.State.AMONET_V2_0_0_TWRP, table=route.stages())
+        needs=route.needed(start=route.State.AMONET_V2_TWRP, table=route.stages())
     )
     assert got == [downloaded]
 
@@ -341,53 +338,40 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
     ("name", "start", "needs"),
     [
         (
-            "amonet-biscuit-v1.1.0-bboe",
-            route.State.AMONET_V2_0_0_FASTBOOT,
+            "fireos5",
+            route.State.AMONET_V2_FASTBOOT,
             [
                 amonet_biscuit_v1_1_0.SOURCE,
                 route.pyserial_wheel,
-                amonet_biscuit_v2_0_0.SOURCE,
+                amonet_biscuit_v2_0_1.SOURCE,
                 route.TWRP,
                 BUILDS["5.5.5.4"],
                 route.MAGISK,
                 route.start_prebuild,
             ],
         ),
+        ("fireos5", route.State.AMONET_V1_1_0_BOOTED, [route.TWRP]),
+        ("fireos5", route.State.ROOTED, [route.TWRP]),
+        ("fireos5", route.State.EMOS, [route.pyserial_wheel]),
         (
-            "amonet-biscuit-v1.1.0",
-            route.State.AMONET_V1_1_0_BOOTED,
-            [],
-        ),
-        (
-            "amonet-biscuit-v1.1.0",
-            route.State.ROOTED,
-            [amonet_biscuit_v1_1_0.SOURCE],
-        ),
-        (
-            "amonet-biscuit-v1.1.0-bboe",
-            route.State.ROOTED,
-            [amonet_biscuit_v1_1_0.SOURCE, route.TWRP],
-        ),
-        ("amonet-biscuit-v1.1.0", route.State.EMOS, [route.pyserial_wheel]),
-        (
-            "amonet-biscuit-v2.0.0",
+            "fireos6",
             route.State.AMONET_V1_1_0_TWRP,
             [
-                amonet_biscuit_v2_0_0.SOURCE,
+                amonet_biscuit_v2_0_1.SOURCE,
                 amonet_biscuit_v1_1_0.SOURCE,
                 route.ota_build,
                 route.BOOT_ROOT,
             ],
         ),
         (
-            "amonet-biscuit-v2.0.0",
+            "fireos6",
             route.State.STOCK_FASTBOOT,
-            [amonet_biscuit_v2_0_0.SOURCE, route.ota_build, route.BOOT_ROOT],
+            [amonet_biscuit_v2_0_1.SOURCE, route.ota_build, route.BOOT_ROOT],
         ),
         (
-            "amonet-biscuit-v2.0.0",
+            "fireos6",
             route.State.STOCK_FIREOS5_FASTBOOT,
-            [amonet_biscuit_v2_0_0.SOURCE, route.ota_build, route.BOOT_ROOT],
+            [amonet_biscuit_v2_0_1.SOURCE, route.ota_build, route.BOOT_ROOT],
         ),
         ("stock", route.State.AMONET_V1_1_0_TWRP, [route.ota_build]),
     ],
@@ -408,16 +392,16 @@ def test_a_route_needs_only_its_own_stages_downloads(
 def test_a_run_after_boot0_was_erased_goes_through_the_bootrom(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
-    run.target(name="amonet-biscuit-v2.0.0")
+    run.target(name="fireos6")
     route.ERASED.touch()
     monkeypatch.setattr(name="stages", target=route, value=route.stages)
-    run.states = [route.State.NONE, route.State.AMONET_V2_0_0_BOOTED]
+    run.states = [route.State.NONE, route.State.AMONET_V2_BOOTED]
     run.said["getprop ro.build.version.name"] = "Fire OS 6.5.7.4"
     route.root()
     assert run.fetched == ["v1.1.0 recovery"]
     assert {
         amonet_biscuit_v1_1_0.SOURCE,
-        amonet_biscuit_v2_0_0.SOURCE,
+        amonet_biscuit_v2_0_1.SOURCE,
         route.BOOT_ROOT,
     } <= set(run.prefetched[0])
     assert run.stepped[0]["erase"] is None
@@ -430,7 +414,7 @@ def test_a_run_fetches_its_route_s_downloads_before_the_first_stage(
     ran: list[str] = []
     table = {
         route.State.STOCK_FASTBOOT: route.Stage(
-            needs=(amonet_biscuit_v2_0_0.SOURCE,),
+            needs=(amonet_biscuit_v2_0_1.SOURCE,),
             run=lambda: ran.append("fastbrick"),
             steps=2,
             then=route.State.AMONET_V1_1_0_BBOE_BOOTED,
@@ -444,7 +428,7 @@ def test_a_run_fetches_its_route_s_downloads_before_the_first_stage(
     assert ran == ["fastbrick"]
     assert run.checked == 1
     assert run.started == 0
-    assert run.prefetched == [[amonet_biscuit_v2_0_0.SOURCE]]
+    assert run.prefetched == [[amonet_biscuit_v2_0_1.SOURCE]]
     assert "Keep the Dot plugged in" in out
     assert "state: stock-fastboot" in out
 
@@ -484,7 +468,7 @@ def test_a_run_refuses_another_device_before_it_downloads(
 
     table = {
         route.State.STOCK_FASTBOOT: route.Stage(
-            needs=(amonet_biscuit_v2_0_0.SOURCE,), run=lambda: None, steps=2, then=None
+            needs=(amonet_biscuit_v2_0_1.SOURCE,), run=lambda: None, steps=2, then=None
         )
     }
     monkeypatch.setattr(name="stages", target=route, value=lambda: table)
@@ -528,7 +512,7 @@ def test_a_run_that_erased_boot0_itself_does_not_blame_the_last_run(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
     table = {
-        route.State.STOCK_NO_FASTBRICK_FASTBOOT: route.Stage(
+        route.State.STOCK_FASTBOOT: route.Stage(
             run=lambda: route.ERASED.touch() or True,
             steps=2,
             then=route.State.AMONET_V1_1_0_BBOE_TWRP,
@@ -536,7 +520,7 @@ def test_a_run_that_erased_boot0_itself_does_not_blame_the_last_run(
     }
     monkeypatch.setattr(name="stages", target=route, value=lambda: table)
     monkeypatch.setattr(name="bootrom_step", target=route, value=lambda **_: False)
-    run.states = [route.State.STOCK_NO_FASTBRICK_FASTBOOT, route.State.NONE]
+    run.states = [route.State.STOCK_FASTBOOT, route.State.NONE]
     with pytest.raises(RanOutError):
         route.root()
     out = said(capsys=capsys)
@@ -549,13 +533,13 @@ def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
 ) -> None:
     table = {
         route.State.STOCK_FASTBOOT: route.Stage(
-            needs=(amonet_biscuit_v2_0_0.SOURCE,),
+            needs=(amonet_biscuit_v2_0_1.SOURCE,),
             run=lambda: None,
             steps=2,
-            then=route.State.AMONET_V2_0_0_TWRP,
+            then=route.State.AMONET_V2_TWRP,
         ),
-        route.State.AMONET_V2_0_0_TWRP: route.Stage(
-            needs=(amonet_biscuit_v2_0_0.SOURCE, BUILDS["5.5.5.4"]),
+        route.State.AMONET_V2_TWRP: route.Stage(
+            needs=(amonet_biscuit_v2_0_1.SOURCE, BUILDS["5.5.5.4"]),
             run=lambda: None,
             steps=2,
             then=None,
@@ -567,7 +551,7 @@ def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
         route.root()
     assert run.checked == 1
     assert run.started == 1
-    assert [amonet_biscuit_v2_0_0.SOURCE, BUILDS["5.5.5.4"]] == route.DOWNLOADS
+    assert [BUILDS["5.5.5.4"]] == route.DOWNLOADS
     assert run.prefetched == []
 
 
@@ -580,8 +564,8 @@ def test_a_stage_counts_its_passes_unless_it_returns_false(
 ) -> None:
     ran: list[str] = []
     states = iter([
-        route.State.AMONET_V2_0_0_FASTBOOT,
-        route.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+        route.State.AMONET_V2_FASTBOOT,
+        route.State.AMONET_V2_TWRP_V1_1_0_TABLE,
     ])
 
     def state() -> route.State:
@@ -591,13 +575,13 @@ def test_a_stage_counts_its_passes_unless_it_returns_false(
         return found
 
     table = {
-        route.State.AMONET_V2_0_0_FASTBOOT: route.Stage(
-            passes=frozenset({route.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE}),
+        route.State.AMONET_V2_FASTBOOT: route.Stage(
+            passes=frozenset({route.State.AMONET_V2_TWRP_V1_1_0_TABLE}),
             run=lambda: ran.append("first") or returned,
             steps=1,
             then=None,
         ),
-        route.State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: route.Stage(
+        route.State.AMONET_V2_TWRP_V1_1_0_TABLE: route.Stage(
             run=lambda: ran.append("second"), steps=1, then=None
         ),
     }
@@ -617,7 +601,7 @@ def test_a_stage_counts_its_passes_unless_it_returns_false(
     monkeypatch.setattr(
         name="target",
         target=route.ARGUMENTS,
-        value=TARGETS[BISCUIT]["amonet-biscuit-v1.1.0-bboe"],
+        value=TARGETS[BISCUIT]["fireos5"],
     )
     with pytest.raises(KeyboardInterrupt):
         route.root()
@@ -644,7 +628,7 @@ def test_a_stock_fire_os_5_run_ends_after_the_restore(
 ) -> None:
     run.target(build="5.5.5.4", name="stock")
     monkeypatch.setattr(name="stages", target=route, value=dict)
-    run.states = [route.State.AMONET_V2_0_0_TWRP, route.State.NONE]
+    run.states = [route.State.AMONET_V2_TWRP, route.State.NONE]
     route.root()
     out = said(capsys=capsys)
     assert "Stock 5.5.5.4 is written" in out
@@ -655,7 +639,7 @@ def test_a_stock_fire_os_5_run_ends_after_the_restore(
     ("states", "message"),
     [
         ([route.State.STOCK_BOOTED], "nothing to restore"),
-        ([route.State.AMONET_V2_0_0_TWRP, route.State.STOCK_BOOTED], "runs stock 8146"),
+        ([route.State.AMONET_V2_TWRP, route.State.STOCK_BOOTED], "runs stock 8146"),
     ],
 )
 def test_a_stock_run_ends_on_stock(
@@ -679,14 +663,14 @@ def test_a_stock_run_leaves_a_locked_bootloader_alone(
     run.target(build="8338", name="stock")
     ran: list[str] = []
     table = {
-        route.State.STOCK_NO_FASTBRICK_FASTBOOT: route.Stage(
+        route.State.STOCK_FASTBOOT: route.Stage(
             run=lambda: ran.append("unlock"),
             steps=2,
             then=route.State.AMONET_V1_1_0_BBOE_TWRP,
         )
     }
     monkeypatch.setattr(name="stages", target=route, value=lambda: table)
-    run.states = [route.State.STOCK_NO_FASTBRICK_FASTBOOT]
+    run.states = [route.State.STOCK_FASTBOOT]
     route.root()
     assert ran == []
     assert "nothing to restore" in said(capsys=capsys)
@@ -716,7 +700,7 @@ def test_a_stock_run_that_parks_in_fastboot_says_so(
     run.target(build="5.5.5.4", name="stock")
     monkeypatch.setattr(name="stages", target=route, value=dict)
     monkeypatch.setattr(name="fastboot", target=route.SESSION, value=True)
-    run.states = [route.State.AMONET_V2_0_0_TWRP, route.State.STOCK_FASTBOOT]
+    run.states = [route.State.AMONET_V2_TWRP, route.State.STOCK_FASTBOOT]
     route.root()
     out = said(capsys=capsys)
     assert "waits in fastboot" in out
@@ -728,12 +712,10 @@ def test_a_v2_0_0_dot_is_told_to_use_its_gesture_and_to_reboot(
 ) -> None:
     run.target(build="8146", name="stock")
     table = {
-        route.State.AMONET_V2_0_0_BOOTED: route.Stage(
-            run=lambda: None, steps=1, then=None
-        )
+        route.State.AMONET_V2_BOOTED: route.Stage(run=lambda: None, steps=1, then=None)
     }
     monkeypatch.setattr(name="stages", target=route, value=lambda: table)
-    run.states = [route.State.AMONET_V2_0_0_FASTBOOT, route.State.AMONET_V2_0_0_BOOTED]
+    run.states = [route.State.AMONET_V2_FASTBOOT, route.State.AMONET_V2_BOOTED]
     with pytest.raises(RanOutError):
         route.root()
     out = said(capsys=capsys)
@@ -744,7 +726,7 @@ def test_a_v2_0_0_dot_is_told_to_use_its_gesture_and_to_reboot(
 def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) -> None:
     state = route.State
     to_twrp = (route.reboot, {"label": "waiting for recovery"})
-    to_v2_0_0_twrp = (route.reboot, {"label": "waiting for v2.0.0 recovery to start"})
+    to_v2_twrp = (route.reboot, {"label": "waiting for v2 recovery to start"})
     shared = {
         state.AMONET_V1_1_0_FASTBOOT: (
             route.stage_amonet_v1_1_0_recovery,
@@ -754,21 +736,15 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
         ),
         state.EMOS: (route.stage_emos, 1, None, frozenset()),
         state.NO_SYSTEM: (to_twrp, 1, None, frozenset()),
-        state.STOCK_NO_FASTBRICK_FASTBOOT: (
-            route.stage_unlock,
-            2,
-            state.AMONET_V1_1_0_BBOE_TWRP,
-            frozenset(),
-        ),
     } | dict.fromkeys(
         (state.STOCK_FASTBOOT, state.STOCK_FIREOS5_FASTBOOT),
-        (route.stage_fastbrick, 2, state.AMONET_V2_0_0_TWRP, frozenset()),
+        (route.stage_fastbrick, 2, state.AMONET_V2_TWRP, frozenset()),
     )
     reboots = {
-        state.AMONET_V2_0_0_BOOTED: (
-            to_v2_0_0_twrp,
+        state.AMONET_V2_BOOTED: (
+            to_v2_twrp,
             1,
-            state.AMONET_V2_0_0_TWRP,
+            state.AMONET_V2_TWRP,
             frozenset(),
         ),
         state.BOOTED: (to_twrp, 1, None, frozenset()),
@@ -789,37 +765,37 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
     install = (
         route.recovery.carry_out,
         {
-            "after": to_v2_0_0_twrp,
+            "after": to_v2_twrp,
             "guard": route.amonet_chain,
-            "unlock": route.amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0,
+            "unlock": route.amonet_biscuit_v2_0_1.AMONET_BISCUIT_V2_0_1,
             "zero": ("misc",),
         },
     )
     routes = {
-        "amonet-biscuit-v2.0.0": shared
+        "fireos6": shared
         | {
             state.AMONET_V1_1_0_BBOE_TWRP: (
                 install,
                 4,
-                state.AMONET_V2_0_0_TWRP,
+                state.AMONET_V2_TWRP,
                 frozenset(),
             ),
             state.AMONET_V1_1_0_TWRP: (
                 install,
                 4,
-                state.AMONET_V2_0_0_TWRP,
+                state.AMONET_V2_TWRP,
                 frozenset(),
             ),
-            state.AMONET_V2_0_0_TWRP: (
+            state.AMONET_V2_TWRP: (
                 route.stage_install_fireos6,
                 5,
-                state.AMONET_V2_0_0_BOOTED,
+                state.AMONET_V2_BOOTED,
                 frozenset(),
             ),
-            state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: (
+            state.AMONET_V2_TWRP_V1_1_0_TABLE: (
                 install,
                 4,
-                state.AMONET_V2_0_0_TWRP,
+                state.AMONET_V2_TWRP,
                 frozenset(),
             ),
         }
@@ -830,7 +806,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
         )
         | reboots,
     }
-    for name in ("amonet-biscuit-v1.1.0", "amonet-biscuit-v1.1.0-bboe"):
+    for name in ("fireos5", "fireos5"):
         goal = TARGETS[BISCUIT][name].goal
         chain = (
             route.recovery.carry_out,
@@ -866,25 +842,25 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
                     state.AMONET_V1_1_0_BBOE_TWRP,
                     frozenset(),
                 ),
-                state.AMONET_V2_0_0_BOOTED: reboots[state.AMONET_V2_0_0_BOOTED],
-                state.AMONET_V2_0_0_FASTBOOT: (
+                state.AMONET_V2_BOOTED: reboots[state.AMONET_V2_BOOTED],
+                state.AMONET_V2_FASTBOOT: (
                     route.stage_downgrade,
                     2,
                     state.AMONET_V1_1_0_BBOE_TWRP,
                     frozenset({
                         state.AMONET_V1_1_0_FASTBOOT,
-                        state.AMONET_V2_0_0_FASTBOOT,
-                        state.AMONET_V2_0_0_TWRP,
-                        state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+                        state.AMONET_V2_FASTBOOT,
+                        state.AMONET_V2_TWRP,
+                        state.AMONET_V2_TWRP_V1_1_0_TABLE,
                     }),
                 ),
-                state.AMONET_V2_0_0_TWRP: (
+                state.AMONET_V2_TWRP: (
                     chain,
                     2,
-                    state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+                    state.AMONET_V2_TWRP_V1_1_0_TABLE,
                     frozenset(),
                 ),
-                state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: (chain, 7, goal, frozenset()),
+                state.AMONET_V2_TWRP_V1_1_0_TABLE: (chain, 7, goal, frozenset()),
             }
             | {
                 rooted: (route.stage_swap_twrp, 1, goal, frozenset())
@@ -910,8 +886,8 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
 @pytest.mark.parametrize(
     ("name", "totals"),
     [
-        ("amonet-biscuit-v1.1.0-bboe", {"stock": 11, "twrp": 9, "v1.1.0": 7}),
-        ("amonet-biscuit-v2.0.0", {"stock": 7, "twrp": 5, "v1.1.0": 9}),
+        ("fireos5", {"stock": 11, "twrp": 9, "v1.1.0": 7}),
+        ("fireos6", {"stock": 7, "twrp": 5, "v1.1.0": 9}),
     ],
 )
 def test_fastboot_counts_the_steps_the_route_takes(
@@ -923,8 +899,8 @@ def test_fastboot_counts_the_steps_the_route_takes(
     )
     table = route.stages()
     starts = {
-        state.AMONET_V2_0_0_TWRP: totals["twrp"],
-        state.AMONET_V2_0_0_TWRP_V1_1_0_TABLE: totals["v1.1.0"],
+        state.AMONET_V2_TWRP: totals["twrp"],
+        state.AMONET_V2_TWRP_V1_1_0_TABLE: totals["v1.1.0"],
         state.STOCK_FASTBOOT: totals["stock"],
         state.STOCK_FIREOS5_FASTBOOT: totals["stock"],
     }
@@ -937,7 +913,7 @@ def test_stock_that_does_not_start_after_the_restore_stops_the_run(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
     run.target(build="8146", name="stock")
-    twrp = route.State.AMONET_V2_0_0_TWRP
+    twrp = route.State.AMONET_V2_TWRP
     table = {
         twrp: route.Stage(
             passes=frozenset({twrp}), run=lambda: None, steps=1, then=None
@@ -953,13 +929,13 @@ def test_stock_that_does_not_start_after_the_restore_stops_the_run(
 def test_the_background_downloads_leave_the_browser_to_the_run(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
-    run.target(name="amonet-biscuit-v2.0.0")
+    run.target(name="fireos6")
     monkeypatch.setattr(name="stages", target=route, value=route.stages)
-    run.states = [route.State.AMONET_V2_0_0_FASTBOOT]
+    run.states = [route.State.AMONET_V2_FASTBOOT]
     with pytest.raises(RanOutError):
         route.root()
     assert run.started == 1
-    assert list(route.DOWNLOADS) == [amonet_biscuit_v2_0_0.SOURCE, route.ota_build]
+    assert list(route.DOWNLOADS) == [route.ota_build]
 
 
 def test_the_session_has_no_marker_while_the_first_probe_runs(
@@ -1005,7 +981,7 @@ def test_the_session_takes_the_marker_after_the_first_probe(
     monkeypatch.setattr(
         name="target",
         target=route.ARGUMENTS,
-        value=TARGETS[BISCUIT]["amonet-biscuit-v1.1.0-bboe"],
+        value=TARGETS[BISCUIT]["fireos5"],
     )
     with pytest.raises(KeyboardInterrupt):
         route.root()

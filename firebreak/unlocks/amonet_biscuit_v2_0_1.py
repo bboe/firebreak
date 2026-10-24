@@ -15,14 +15,15 @@ from firebreak.plugin import (
 )
 
 SOURCE = Download(
-    directory="v2",
-    name="amonet-biscuit-v2.0.0.zip",
-    sha256="98297293701082bc7272efe077f941c56fc7b6e1f27ef6f2e93b6e4c6fc7b62d",
-    url="https://github.com/hkfuertes/amazon_device_biscuit/releases/download/none"
-    "/amonet-biscuit-v2.0.0.zip",
+    browser=True,
+    directory="v2.0.1",
+    name="amonet-biscuit-v2.0.1.zip",
+    sha256="93ec0d8816857406c9d53d11378256f055da2d8b658fea016d3114a8bd6b19b6",
+    size=73189204,
+    url="https://xdaforums.com/attachments/amonet-biscuit-v2-0-1-zip.6400139/",
 )
 WRITE_KAERU = Write(image="bin/biscuit-kaeru.bin", label="write kaeru", target="expdb")
-AMONET_BISCUIT_V2_0_0 = Unlock(
+AMONET_BISCUIT_V2_0_1 = Unlock(
     device=BISCUIT,
     family="amonet",
     layout=STOCK_LAYOUT,
@@ -49,5 +50,5 @@ AMONET_BISCUIT_V2_0_0 = Unlock(
     ),
     requires=frozenset({Feature.AB_SLOTS, Feature.BOOT0, Feature.RPMB}),
     source=SOURCE,
-    version="2.0.0",
+    version="2.0.1",
 )

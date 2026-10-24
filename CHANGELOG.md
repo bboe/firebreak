@@ -2,6 +2,40 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+- Unlocking is its own command: `firebreak unlock [TARGET]`, where TARGET is
+  `fireos5` or `fireos6`. Each takes the newest amonet firebreak supports for
+  that Fire OS, so a target no longer names a version. `unlock` with no target
+  takes `fireos6`.
+- `firebreak` with no target no longer unlocks the Dot. It warns which command
+  replaced the old default and prints the help. The warning goes away in
+  firebreak 1.0.
+- `amonet-biscuit-v1.1.0`, `amonet-biscuit-v1.1.0-bboe` and
+  `amonet-biscuit-v2.0.0` still work and name the command to use instead. They
+  go away in firebreak 1.0. `amonet-biscuit-v1.1.0` installs TWRP
+  3.7.0_9-bboe2 rather than amonet's own TWRP 3.2.3, and
+  `amonet-biscuit-v2.0.0` writes amonet v2.0.1; both say so.
+- amonet v2.0.1 replaces v2.0.0. v2.0.1's kaeru boots the active slot, where
+  v2.0.0's boots `boot_a` whatever slot is active. Its zip is only on the XDA
+  thread, so unlocking a stock Dot now opens your browser and waits for the
+  download.
+- A Dot on 8338's bootloader is unlocked by amonet v2.0.1's own fastbrick
+  payload for it. 0.7.0 patched that bootloader's own `lk.img` instead, which
+  also erased `boot0` to reach the bootrom; nothing erases `boot0` before the
+  exploit runs now.
+- The `amonet-v2.0.0-*` states `--verbose` prints are now `amonet-v2-*`, and
+  the messages that named amonet v2.0.0's chain name amonet v2. Both releases
+  write the same `lk.bin`, `preloader.img`, `twrp.img` and `tz.img`, so the
+  state a Dot reaches does not say which one unlocked it.
+
+### Removed
+
+- No target installs amonet's own TWRP 3.2.3. A Dot already running it reaches
+  `fireos5` with one write to `recovery`, and needs no stock restore.
+
 ## 0.7.0 - 2026-10-21
 
 ### Added

@@ -4,7 +4,7 @@ import dataclasses
 
 from firebreak.cache import Download
 from firebreak.devices import RADAR
-from firebreak.unlocks.amonet_biscuit_v2_0_0 import AMONET_BISCUIT_V2_0_0, WRITE_KAERU
+from firebreak.unlocks.amonet_biscuit_v2_0_1 import AMONET_BISCUIT_V2_0_1, WRITE_KAERU
 
 SOURCE = Download(
     directory="radar-v1.0.0",
@@ -14,13 +14,13 @@ SOURCE = Download(
     "/radar-backup-20260918/amonet-radar-v1.0.0.zip",
 )
 AMONET_RADAR_V1_0_0 = dataclasses.replace(
-    AMONET_BISCUIT_V2_0_0,
+    AMONET_BISCUIT_V2_0_1,
     device=RADAR,
     plan=tuple(
         dataclasses.replace(WRITE_KAERU, image="bin/radar-kaeru.bin")
         if step == WRITE_KAERU
         else step
-        for step in AMONET_BISCUIT_V2_0_0.plan
+        for step in AMONET_BISCUIT_V2_0_1.plan
     ),
     source=SOURCE,
     version="1.0.0",

@@ -1,4 +1,4 @@
-"""Change the firmware on an Echo Dot (2nd Generation) over USB: root it, or
+"""Change the firmware on an Echo Dot (2nd Generation) over USB: unlock it, or
 return it to stock. It finds where the Dot is, from stock, part way through, or
 on another target, and keeps going until the Dot is on the target: it waits
 while the Dot reboots, and while you take a step it asks for. Stopped, it picks
@@ -39,7 +39,15 @@ from firebreak.ui import (
     upgrade,
     warn,
 )
-from firebreak.unlocks.targets import DEFAULTS, STOCK, TARGETS
+from firebreak.unlocks.targets import (
+    DEFAULTS,
+    DEPRECATED,
+    FIREOS5,
+    FIREOS6,
+    REMOVED_IN,
+    STOCK,
+    TARGETS,
+)
 from firebreak.write_test import EMMC_TARGET
 
 CREDITS = """firebreak automates work that other people did first.
@@ -67,7 +75,122 @@ ftvdb keeps the Fire OS builds that the tables link to.
 DEVICES = {device.name: device for device in TARGETS}
 REPORT = "report"
 SURVEY = "survey"
+UNLOCK = "unlock"
 WRITE_TEST = "write-test"
+
+
+def build_parser() -> argparse.ArgumentParser:
+    builds = sorted(
+        updates.BUILDS,
+        key=lambda build: (
+            build not in updates.FIREOS5_BUILDS,
+            tuple(map(int, build.split("."))),
+        ),
+        reverse=True,
+    )
+    about = {
+        REPORT: "print what the Dot and this computer are, and the Dot's"
+        " partition table, for a support request. It starts the Dot's recovery"
+        " to read them and writes no partition.",
+        SURVEY: "read each Amazon OTA zip for the tables in docs/devices.md. It"
+        " needs no Dot.",
+        UNLOCK: "unlock the Dot and root it, to TARGET or to the newest Fire OS"
+        " firebreak supports when TARGET is left out.",
+        WRITE_TEST: f"write a known pattern over the Dot's {EMMC_TARGET}"
+        " partition and read it back, which tells a failing eMMC from a failing"
+        " USB cable because nothing crosses USB. It leaves a fresh empty"
+        " filesystem there, or says it could not.",
+    }
+    labels = {
+        SURVEY: " OTA [OTA ...]",
+        UNLOCK: " [TARGET]",
+        WRITE_TEST: " [--short]",
+    }
+    parents = option_parents()
+    every = ["--device", "--fastboot", "--no-update-check", "--short", "--verbose"]
+    uses = {
+        REPORT: ["--no-update-check", "--verbose"],
+        STOCK: every,
+        SURVEY: ["--no-update-check", "--verbose"],
+        UNLOCK: every,
+        WRITE_TEST: ["--no-update-check", "--short", "--verbose"],
+        **dict.fromkeys(DEPRECATED, every),
+    }
+    described = dict(about)
+    described.update({
+        name: target.summary
+        for targets in TARGETS.values()
+        for name, target in targets.items()
+    })
+    described.update({
+        name: f"goes away in firebreak {REMOVED_IN}: use"
+        f" `firebreak {UNLOCK} {was.name}` instead."
+        + (" " + was.note if was.note else "")
+        for name, was in DEPRECATED.items()
+    })
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=f"""{target_help()}
+
+Run it again with another command or target to move the Dot to it.
+
+other commands:
+"""
+        + "\n".join(
+            line
+            for name in sorted(about)
+            if name != UNLOCK
+            for line in listed(label=name + labels.get(name, ""), summary=about[name])
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[parents[name] for name in sorted(["--credits", *every])],
+        prog="firebreak",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"firebreak {__version__}"
+    )
+    commands = parser.add_subparsers(
+        dest="command",
+        help="the command to run, one of those listed below",
+        metavar="COMMAND",
+    )
+    for name in sorted(uses):
+        made = commands.add_parser(
+            name,
+            description=described[name],
+            parents=[parents[each] for each in sorted(uses[name])],
+        )
+        if name == STOCK:
+            made.add_argument(
+                "build",
+                choices=builds,
+                default=updates.DEFAULT_BUILD,
+                help="the build to install, one of "
+                + ", ".join(builds)
+                + f"; {updates.DEFAULT_BUILD} when left out",
+                metavar="BUILD",
+                nargs="?",
+            )
+        elif name == SURVEY:
+            made.add_argument(
+                "otas", help="an Amazon OTA zip", metavar="OTA", nargs="+"
+            )
+        elif name == UNLOCK:
+            made.add_argument(
+                "target",
+                choices=unlock_targets(),
+                help="the target to unlock to, one of "
+                + ", ".join(unlock_targets())
+                + "; the newest Fire OS when left out",
+                metavar="TARGET",
+                nargs="?",
+            )
+    return parser
+
+
+def canonical(*, name: str | None) -> str | None:
+    was = DEPRECATED.get(name or "")
+    return was.name if was else name
 
 
 def check_for_update() -> None:
@@ -116,7 +239,8 @@ def cli() -> None:
         command()
         return
     ARGUMENTS.target = choose_target(
-        device=DEVICES.get(options.device), name=options.command
+        device=DEVICES.get(options.device),
+        name=options.target if options.command == UNLOCK else options.command,
     )
     root()
 
@@ -148,129 +272,62 @@ def main() -> None:
         )
 
 
-def parsed() -> argparse.Namespace:
-    builds = sorted(
-        updates.BUILDS,
-        key=lambda build: (
-            build not in updates.FIREOS5_BUILDS,
-            tuple(map(int, build.split("."))),
+def option_parents() -> dict[str, argparse.ArgumentParser]:
+    made: dict[str, argparse.ArgumentParser] = {}
+    for name, summary in (
+        (
+            "--fastboot",
+            (
+                "leave the Dot in fastboot at the end instead of letting it"
+                " start the firmware it now holds, so the next run needs no"
+                " button held"
+            ),
         ),
-        reverse=True,
-    )
-    common_parent = argparse.ArgumentParser(
+        ("--no-update-check", "do not ask PyPI whether a newer firebreak exists"),
+        (
+            "--short",
+            (
+                "for a Dot that shows no light and needs its test point"
+                " shorted: wait for its bootrom, say when the short may come"
+                " off, then go on"
+            ),
+        ),
+        (
+            "--verbose",
+            (
+                "print each adb and fastboot command, its exit status and the"
+                " time, and each state the Dot reaches"
+            ),
+        ),
+    ):
+        made[name] = argparse.ArgumentParser(
+            add_help=False, argument_default=argparse.SUPPRESS
+        )
+        made[name].add_argument(name, action="store_true", help=summary)
+    made["--credits"] = argparse.ArgumentParser(
         add_help=False, argument_default=argparse.SUPPRESS
     )
-    common_parent.add_argument(
-        "--verbose",
-        action="store_true",
-        help="print each adb and fastboot command, its exit status and the"
-        " time, and each state the Dot reaches",
-    )
-    common_parent.add_argument(
-        "--no-update-check",
-        action="store_true",
-        help="do not ask PyPI whether a newer firebreak exists",
-    )
-    fastboot_parent = argparse.ArgumentParser(
-        add_help=False, argument_default=argparse.SUPPRESS
-    )
-    fastboot_parent.add_argument(
-        "--fastboot",
-        action="store_true",
-        help="leave the Dot in fastboot at the end instead of letting it start"
-        " the firmware it now holds, so the next run needs no button held",
-    )
-    short_parent = argparse.ArgumentParser(
-        add_help=False, argument_default=argparse.SUPPRESS
-    )
-    short_parent.add_argument(
-        "--short",
-        action="store_true",
-        help="for a Dot that shows no light and needs its test point shorted:"
-        " wait for its bootrom, say when the short may come off, then go on",
-    )
-    device_parent = argparse.ArgumentParser(
-        add_help=False, argument_default=argparse.SUPPRESS
-    )
-    device_parent.add_argument(
-        "--device",
-        choices=DEVICES,
-        help="the device the target is for, which firebreak otherwise reads from"
-        " the Echo: "
-        + ", ".join(f"{device.name} for the {device.title}" for device in TARGETS),
-    )
-    about = {
-        REPORT: "print what the Dot and this computer are, and the Dot's"
-        " partition table, for a support request. It starts the Dot's recovery"
-        " to read them and writes no partition.",
-        WRITE_TEST: f"write a known pattern over the Dot's {EMMC_TARGET}"
-        " partition and read it back, which tells a failing eMMC from a failing"
-        " USB cable because nothing crosses USB. It leaves a fresh empty"
-        " filesystem there, or says it could not.",
-        SURVEY: "read each Amazon OTA zip for the tables in docs/devices.md. It"
-        " needs no Dot.",
-    }
-    labels = {WRITE_TEST: " [--short]", SURVEY: " OTA [OTA ...]"}
-    commands_help = [
-        line
-        for name, summary in about.items()
-        for line in listed(label=name + labels.get(name, ""), summary=summary)
-    ]
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        epilog=f"""{target_help()}
-Run again with another target to move the Dot to it.
-
-commands, which are not targets:
-"""
-        + "\n".join(commands_help),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        parents=[common_parent, fastboot_parent, short_parent, device_parent],
-        prog="firebreak",
-    )
-    parser.add_argument(
+    made["--credits"].add_argument(
         "--credits",
         action="version",
         help="print who did the work firebreak builds on, and stop",
         version=CREDITS,
     )
-    parser.add_argument(
-        "--version", action="version", version=f"firebreak {__version__}"
+    made["--device"] = argparse.ArgumentParser(
+        add_help=False, argument_default=argparse.SUPPRESS
     )
-    commands = parser.add_subparsers(
-        dest="command",
-        help="the target, or a command, one of those listed below",
-        metavar="TARGET|COMMAND",
+    made["--device"].add_argument(
+        "--device",
+        choices=DEVICES,
+        help="the device the command is for, which firebreak otherwise reads from"
+        " the Echo: "
+        + ", ".join(f"{device.name} for the {device.title}" for device in TARGETS),
     )
-    summaries = {
-        name: target.summary
-        for targets in TARGETS.values()
-        for name, target in targets.items()
-    }
-    for name, summary in sorted(summaries.items()):
-        target = commands.add_parser(
-            name,
-            description=summary,
-            parents=[common_parent, fastboot_parent, short_parent, device_parent],
-        )
-        if name == STOCK:
-            target.add_argument(
-                "build",
-                choices=builds,
-                default=updates.DEFAULT_BUILD,
-                help="the build to install, one of "
-                + ", ".join(builds)
-                + f"; {updates.DEFAULT_BUILD} when left out",
-                metavar="BUILD",
-                nargs="?",
-            )
-    commands.add_parser(REPORT, description=about[REPORT], parents=[common_parent])
-    commands.add_parser(
-        WRITE_TEST, description=about[WRITE_TEST], parents=[common_parent, short_parent]
-    )
-    commands.add_parser(
-        SURVEY, description=about[SURVEY], parents=[common_parent]
-    ).add_argument("otas", help="an Amazon OTA zip", metavar="OTA", nargs="+")
+    return made
+
+
+def parsed() -> argparse.Namespace:
+    parser = build_parser()
     options = parser.parse_args()
     for option, default in (
         ("build", ""),
@@ -278,9 +335,19 @@ commands, which are not targets:
         ("fastboot", False),
         ("no_update_check", False),
         ("short", False),
+        ("target", None),
         ("verbose", False),
     ):
         setattr(options, option, getattr(options, option, default))
+    if options.command is None:
+        warn(
+            text="The command line arguments have changed. What used to be the"
+            f" default is now `firebreak {UNLOCK} {FIREOS5}`, and the new"
+            f" default is `firebreak {UNLOCK} {FIREOS6}`. This warning goes"
+            f" away in firebreak {REMOVED_IN}."
+        )
+        parser.print_help()
+        sys.exit(1)
     takes = {
         REPORT: set(),
         STOCK: {"device", "fastboot", "short"},
@@ -289,9 +356,7 @@ commands, which are not targets:
     }.get(options.command, {"device", "short"})
     for option in sorted({"device", "fastboot", "short"} - takes):
         if getattr(options, option):
-            parser.error(
-                message=f"{options.command or 'the default target'} takes no --{option}"
-            )
+            parser.error(message=f"{options.command} takes no --{option}")
     if options.fastboot and options.build in updates.BOOTROM_BUILDS:
         parser.error(
             message=f"stock {options.build} ends in its bootrom over a serial"
@@ -300,8 +365,8 @@ commands, which are not targets:
     device = DEVICES.get(options.device)
     if (
         device
-        and options.command in summaries
-        and options.command not in TARGETS[device]
+        and options.command in target_names()
+        and canonical(name=options.command) not in TARGETS[device]
     ):
         parser.error(message=f"the {device.title} has no target {options.command}")
     return options
@@ -310,16 +375,39 @@ commands, which are not targets:
 def target_help() -> str:
     lines = []
     for device, targets in TARGETS.items():
-        lines.append(f"targets for the {device.title}:")
+        lines.append(f"commands for the {device.title}:")
         default = DEFAULTS[device]
-        for target in sorted(
-            targets.values(), key=lambda target: (target.name != default, target.name)
-        ):
-            label = target.name + (" [BUILD]" if target.name == STOCK else "")
-            if target.name == default:
-                label += ", the default"
-            lines.extend(listed(label=label, summary=target.summary))
+        for name in sorted({STOCK, UNLOCK}):
+            if name == STOCK:
+                lines.extend(
+                    listed(label=STOCK + " [BUILD]", summary=targets[STOCK].summary)
+                )
+                continue
+            lines.append(f"  {UNLOCK} [TARGET], where TARGET is one of:")
+            for target in sorted(
+                (target for target in targets.values() if target.unlock),
+                key=lambda target: (target.name != default, target.name),
+            ):
+                label = target.name + (
+                    ", the default" if target.name == default else ""
+                )
+                lines.extend(
+                    "  " + line for line in listed(label=label, summary=target.summary)
+                )
     return "\n".join(lines)
+
+
+def target_names() -> set[str]:
+    return {name for targets in TARGETS.values() for name in targets} | set(DEPRECATED)
+
+
+def unlock_targets() -> list[str]:
+    return sorted({
+        name
+        for targets in TARGETS.values()
+        for name, target in targets.items()
+        if target.unlock
+    })
 
 
 if __name__ == "__main__":

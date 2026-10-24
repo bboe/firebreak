@@ -161,7 +161,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                         text="The rest of this report comes from the Dot's recovery."
                         " Start the Dot in fastboot mode and this goes on by itself. "
                         + FASTBOOT_MODE
-                        + " A Dot already unlocked with amonet v2.0.0 has no"
+                        + " A Dot already unlocked with amonet v2 has no"
                         " fastboot: hold the + button instead while you plug it back"
                         " in, which starts its TWRP. A Dot that shows nothing on USB"
                         " is in its bootrom, and only a root run brings it back."

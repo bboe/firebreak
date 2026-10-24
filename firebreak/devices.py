@@ -45,13 +45,11 @@ RADAR = dataclasses.replace(
 DEVICES = (BISCUIT, CROWN, RADAR)
 
 
-UNLOCK_BUILDS = {"2c3569d-20260617_045829": "8338"}
-
-
 class LK(enum.Enum):
     FIREOS5 = "f379dba-20170906_000423"
     FIREOS6 = "63cb91b-20221007_072309"
     FIREOS6_4315 = "41fb3ce-20221007_151724"
+    FIREOS6_8338 = "2c3569d-20260617_045829"
 
 
 class State(enum.Enum):
@@ -60,10 +58,10 @@ class State(enum.Enum):
     AMONET_V1_1_0_BOOTED = "amonet-v1.1.0-booted"
     AMONET_V1_1_0_FASTBOOT = "amonet-v1.1.0-fastboot"
     AMONET_V1_1_0_TWRP = "amonet-v1.1.0-twrp"
-    AMONET_V2_0_0_BOOTED = "amonet-v2.0.0-booted"
-    AMONET_V2_0_0_FASTBOOT = "amonet-v2.0.0-fastboot"
-    AMONET_V2_0_0_TWRP = "amonet-v2.0.0-twrp"
-    AMONET_V2_0_0_TWRP_V1_1_0_TABLE = "amonet-v2.0.0-twrp-v1.1.0-table"
+    AMONET_V2_BOOTED = "amonet-v2-booted"
+    AMONET_V2_FASTBOOT = "amonet-v2-fastboot"
+    AMONET_V2_TWRP = "amonet-v2-twrp"
+    AMONET_V2_TWRP_V1_1_0_TABLE = "amonet-v2-twrp-v1.1.0-table"
     BOOTED = "booted"
     EMOS = "emos"
     NONE = "none"
@@ -73,4 +71,3 @@ class State(enum.Enum):
     STOCK_BOOTED = "stock-booted"
     STOCK_FASTBOOT = "stock-fastboot"
     STOCK_FIREOS5_FASTBOOT = "stock-fireos5-fastboot"
-    STOCK_NO_FASTBRICK_FASTBOOT = "stock-no-fastbrick-fastboot"

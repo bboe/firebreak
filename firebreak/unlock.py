@@ -4,11 +4,9 @@ import subprocess
 import time
 from typing import TYPE_CHECKING
 
-from firebreak import lk_unlock, updates
-from firebreak.android.ota import extract
 from firebreak.bootrom_step import bootrom_step
-from firebreak.cache import CACHE, ERASED, digest, fetch, unpack
-from firebreak.devices import BISCUIT, LITTLE_KERNEL_DESCRIPTION, LK, UNLOCK_BUILDS
+from firebreak.cache import ERASED, digest, fetch, unpack
+from firebreak.devices import BISCUIT, LITTLE_KERNEL_DESCRIPTION, LK
 from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconnect, run
 from firebreak.recovery import MD5_DIGITS
 from firebreak.twrp import DISK, partitions
@@ -16,13 +14,11 @@ from firebreak.ui import PROGRESS, FatalError, again, asked_for
 from firebreak.unlocks import (
     amonet_biscuit_v1_1_0,
     amonet_biscuit_v1_1_0_bboe,
-    amonet_biscuit_v2_0_0,
+    amonet_biscuit_v2_0_1,
 )
 
 if TYPE_CHECKING:
     import pathlib
-
-UNLOCK_TARGET = "firebreak"
 
 
 def amonet_chain() -> None:
@@ -35,7 +31,7 @@ def amonet_chain() -> None:
     if any(amonet_lk(node=f"{DISK}p{part[slot][0]}") for slot in ("lk_a", "lk_b")):
         return
     raise FatalError(
-        message="neither lk_a nor lk_b holds amonet v2.0.0's or v1.1.0's LK, so"
+        message="neither lk_a nor lk_b holds amonet v2's or v1.1.0's LK, so"
         " this Dot is locked and the recovery it started is one amonet left"
         " behind. Nothing was written. Unlock it first: unplug the USB cable,"
         " hold the action button, plug it back in, and let go when the ring"
@@ -44,7 +40,7 @@ def amonet_chain() -> None:
 
 
 def amonet_lk(*, node: str) -> bool:
-    for download in (amonet_biscuit_v2_0_0.SOURCE, amonet_biscuit_v1_1_0.SOURCE):
+    for download in (amonet_biscuit_v2_0_1.SOURCE, amonet_biscuit_v1_1_0.SOURCE):
         local = unpack(download=download) / "bin" / "lk.bin"
         want = digest(kind="md5", path=local)
         for attempt in range(PUSH_TRIES):
@@ -70,7 +66,7 @@ def amonet_lk(*, node: str) -> bool:
 
 
 def amonet_v2_0_0_payload() -> pathlib.Path:
-    amonet = unpack(download=amonet_biscuit_v2_0_0.SOURCE)
+    amonet = unpack(download=amonet_biscuit_v2_0_1.SOURCE)
     return amonet / "brom-payload" / "build" / "payload.bin"
 
 
@@ -110,7 +106,7 @@ def stage_amonet_v1_1_0_recovery() -> bool:
         PROGRESS.note(
             message="The Dot came back in its own locked fastboot rather than"
             " amonet's, which accepts nothing this needs. This run unlocks it again"
-            " and goes on from v2.0.0's recovery."
+            " and goes on from v2's recovery."
         )
         return False
     if unlocked != "true":
@@ -172,7 +168,7 @@ def stage_downgrade() -> bool:
 
 
 def stage_fastbrick() -> None:
-    amonet = unpack(download=amonet_biscuit_v2_0_0.SOURCE)
+    amonet = unpack(download=amonet_biscuit_v2_0_1.SOURCE)
     check_product()
     little_kernel = getvar(name="lk_build_desc")
     if not little_kernel and getvar(name="pl_build_desc"):
@@ -183,7 +179,9 @@ def stage_fastbrick() -> None:
     image = "bin/fastbrick.img"
     if little_kernel in {LK.FIREOS6.value, LK.FIREOS6_4315.value}:
         image = "bin/fastbrick-20221007.img"
-    PROGRESS.begin(estimate="10 s", label="unlocking with amonet v2.0.0")
+    elif little_kernel == LK.FIREOS6_8338.value:
+        image = "bin/fastbrick-20260617.img"
+    PROGRESS.begin(estimate="10 s", label="unlocking with amonet v2.0.1")
     for attempt in range(10):
         if attempt:
             time.sleep(2)
@@ -201,41 +199,9 @@ def stage_fastbrick() -> None:
                 message="the payload rejected this device; it was not modified"
             )
         if started:
-            PROGRESS.begin(
-                estimate="40 s", label="waiting for v2.0.0 recovery to start"
-            )
+            PROGRESS.begin(estimate="40 s", label="waiting for v2 recovery to start")
             return
     raise FatalError(
         message=f"the unlock did not start after 10 attempts, with {image} for"
         f" the bootloader {little_kernel}; the Dot was not modified"
     )
-
-
-def stage_unlock() -> bool:
-    check_product()
-    little_kernel = getvar(name="lk_build_desc")
-    if little_kernel not in UNLOCK_BUILDS:
-        raise FatalError(
-            message=f"the Dot reports the bootloader {little_kernel!r}, which"
-            " this cannot unlock, so nothing was written. " + again()
-        )
-    build = UNLOCK_BUILDS[little_kernel]
-    work = CACHE / ("stock-" + build)
-    work.mkdir(exist_ok=True, parents=True)
-    extract(update=updates.download(build=build), wanted=("lk",), work=work)
-    payload = lk_unlock.write(
-        image=work / "lk.img", path=CACHE / ("unlock-" + build + ".img")
-    )
-    PROGRESS.begin(estimate="10 s", label="unlocking the Dot's own bootloader")
-    run(
-        arguments=["fastboot", "-S", "256M", "flash", UNLOCK_TARGET, str(payload)],
-        timeout=300,
-    )
-    PROGRESS.begin(
-        estimate="5 s", label="erasing boot0 so the Dot falls into its bootrom"
-    )
-    ERASED.touch()
-    failed = erase_by_fastboot()
-    if failed:
-        raise FatalError(message=failed + " " + again())
-    return True

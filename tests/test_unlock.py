@@ -38,7 +38,7 @@ def guard(
     held = {f"{unlock.DISK}p{numbers[slot]}": data for slot, data in slots.items()}
     releases = {
         unlock.amonet_biscuit_v1_1_0.SOURCE.name: LK["v1.1.0"],
-        unlock.amonet_biscuit_v2_0_0.SOURCE.name: LK["v2.0.0"],
+        unlock.amonet_biscuit_v2_0_1.SOURCE.name: LK["v2.0.0"],
     }
 
     def unpacked(*, download: object) -> pathlib.Path:
@@ -314,75 +314,6 @@ def test_an_lk_read_that_never_answers_stops_before_anything_is_written(
     assert len(adb.commands(holding="md5sum")) == unlock.PUSH_TRIES
 
 
-def test_an_unlock_flashes_its_payload_then_erases_boot0(
-    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-) -> None:
-    order: list[str] = []
-    flashed: list[list[str]] = []
-    erased = tmp_path / "boot0-erased"
-    monkeypatch.setattr(name="CACHE", target=unlock, value=tmp_path)
-    monkeypatch.setattr(name="ERASED", target=unlock, value=erased)
-    monkeypatch.setattr(name="check_product", target=unlock, value=lambda: None)
-    monkeypatch.setattr(name="extract", target=unlock, value=lambda **_: None)
-    monkeypatch.setattr(
-        name="getvar", target=unlock, value=lambda **_: next(iter(unlock.UNLOCK_BUILDS))
-    )
-    monkeypatch.setattr(
-        name="download", target=unlock.updates, value=lambda **_: tmp_path / "ota.bin"
-    )
-    monkeypatch.setattr(
-        name="write", target=unlock.lk_unlock, value=lambda **o: o["path"]
-    )
-
-    def flash(**options: object) -> None:
-        order.append("flash")
-        flashed.append(options["arguments"])  # type: ignore[arg-type]
-
-    monkeypatch.setattr(name="run", target=unlock, value=flash)
-    monkeypatch.setattr(
-        name="erase_by_fastboot", target=unlock, value=lambda: order.append("erase")
-    )
-    assert unlock.stage_unlock() is True
-    assert flashed[0][:5] == ["fastboot", "-S", "256M", "flash", unlock.UNLOCK_TARGET]
-    assert order == ["flash", "erase"]
-    assert erased.exists()
-
-
-def test_an_unlock_refuses_a_bootloader_it_cannot_patch(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(name="check_product", target=unlock, value=lambda: None)
-    monkeypatch.setattr(name="getvar", target=unlock, value=lambda **_: "")
-    with pytest.raises(FatalError, match="which this cannot unlock"):
-        unlock.stage_unlock()
-
-
-def test_an_unlock_that_cannot_erase_boot0_keeps_the_marker_it_was_left(
-    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-) -> None:
-    erased = tmp_path / "boot0-erased"
-    monkeypatch.setattr(name="CACHE", target=unlock, value=tmp_path)
-    monkeypatch.setattr(name="ERASED", target=unlock, value=erased)
-    monkeypatch.setattr(name="check_product", target=unlock, value=lambda: None)
-    monkeypatch.setattr(name="extract", target=unlock, value=lambda **_: None)
-    monkeypatch.setattr(
-        name="getvar", target=unlock, value=lambda **_: next(iter(unlock.UNLOCK_BUILDS))
-    )
-    monkeypatch.setattr(
-        name="download", target=unlock.updates, value=lambda **_: tmp_path / "ota.bin"
-    )
-    monkeypatch.setattr(
-        name="write", target=unlock.lk_unlock, value=lambda **o: o["path"]
-    )
-    monkeypatch.setattr(name="run", target=unlock, value=lambda **_: None)
-    monkeypatch.setattr(
-        name="erase_by_fastboot", target=unlock, value=lambda: "fastboot reboot failed"
-    )
-    with pytest.raises(FatalError, match="fastboot reboot failed"):
-        unlock.stage_unlock()
-    assert erased.exists()
-
-
 def test_an_unlocked_fastboot_takes_v1_1_0_to_its_recovery(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
@@ -434,6 +365,7 @@ def test_erasing_boot0_that_fails_leaves_no_marker(
         (unlock.LK.FIREOS5.value, "bin/fastbrick.img"),
         (unlock.LK.FIREOS6.value, "bin/fastbrick-20221007.img"),
         (unlock.LK.FIREOS6_4315.value, "bin/fastbrick-20221007.img"),
+        (unlock.LK.FIREOS6_8338.value, "bin/fastbrick-20260617.img"),
     ],
 )
 def test_the_fastbrick_picks_the_image_for_the_bootloader(

@@ -23,10 +23,9 @@ from firebreak.cache import (
     hold,
     slice_path,
     system_sliced,
-    unpack,
     write_slices,
 )
-from firebreak.devices import BY_NAME, State
+from firebreak.devices import BY_NAME
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
     adb_script,
@@ -39,7 +38,7 @@ from firebreak.probe import read_recovery
 from firebreak.twrp import partition_table, wait_for_twrp, write_system
 from firebreak.ui import ARGUMENTS, PROGRESS, SESSION, FatalError, again, warn
 from firebreak.unlock import amonet_chain
-from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v1_1_0_bboe
+from firebreak.unlocks import amonet_biscuit_v1_1_0_bboe
 from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import TWRP_VERSION
 
 if TYPE_CHECKING:
@@ -233,7 +232,7 @@ def stage_install_fireos6() -> None:
     zip_path = fetch(download=BOOT_ROOT)
     if "boot_a_x" in partition_table():
         raise FatalError(
-            message="v2.0.0's TWRP runs on amonet v1.1.0's partition table. " + again()
+            message="v2's TWRP runs on amonet v1.1.0's partition table. " + again()
         )
     PROGRESS.begin(estimate="10 s", label="wiping cache and data")
     for part in ("cache", "data"):
@@ -293,16 +292,8 @@ def stage_replace_twrp() -> None:
 
 
 def stage_swap_twrp() -> None:
-    image, label = (
-        unpack(download=amonet_biscuit_v1_1_0.SOURCE) / "bin" / "twrp.img",
-        "TWRP 3.2.3",
-    )
-    if ARGUMENTS.target.goal == State.AMONET_V1_1_0_BBOE_BOOTED:
-        image, label = (
-            fetch(download=TWRP),
-            f"TWRP {TWRP_VERSION}",
-        )
-    PROGRESS.begin(estimate="10 s", label=f"writing {label} to recovery")
+    image = fetch(download=TWRP)
+    PROGRESS.begin(estimate="10 s", label=f"writing TWRP {TWRP_VERSION} to recovery")
     remote = "/data/local/tmp/recovery.img"
     run(arguments=["adb", "push", image, remote], check=True, timeout=120)
     write = Shell.WRITE.value.format(source=remote, target=f"{BY_NAME}/recovery")
@@ -312,8 +303,8 @@ def stage_swap_twrp() -> None:
         read_recovery(size=size), usedforsecurity=False
     ).hexdigest() != digest(kind="md5", path=image):
         raise FatalError(
-            message=f"{label} did not verify in recovery. Leave the Dot running. "
-            + again()
+            message=f"TWRP {TWRP_VERSION} did not verify in recovery. Leave the"
+            " Dot running. " + again()
         )
 
 
