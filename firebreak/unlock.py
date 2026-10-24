@@ -6,12 +6,11 @@ from typing import TYPE_CHECKING
 
 from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import ERASED, digest, fetch, unpack
-from firebreak.devices import BISCUIT, LITTLE_KERNEL_DESCRIPTION, LK
+from firebreak.devices import BISCUIT, LITTLE_KERNEL_DESCRIPTION, LK, biscuit
 from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconnect, run
 from firebreak.recovery import MD5_DIGITS
 from firebreak.twrp import DISK, partitions
 from firebreak.ui import PROGRESS, FatalError, again, asked_for
-from firebreak.unlocks import biscuit
 
 if TYPE_CHECKING:
     import pathlib

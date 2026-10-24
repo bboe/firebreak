@@ -10,9 +10,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import identify
-from firebreak.devices import BISCUIT, CROWN, RADAR
+from firebreak.devices import BISCUIT, CROWN, DEFAULTS, RADAR, TARGETS
 from firebreak.ui import FatalError
-from firebreak.unlocks.targets import DEFAULTS, TARGETS
 
 if TYPE_CHECKING:
     import pathlib

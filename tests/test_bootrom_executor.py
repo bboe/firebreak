@@ -6,12 +6,12 @@ import pytest
 
 from firebreak import bootrom, plan
 from firebreak.android.gpt import Partition
+from firebreak.devices.biscuit import UNLOCK_TO_FIREOS5
 from firebreak.emmc import EmmcArea
 from firebreak.mediatek.usbdl import ProtocolMismatchError
 from firebreak.plan import Action
 from firebreak.plugin import BOOT0, FastbootFlash, ZeroRpmb
 from firebreak.ui import FatalError
-from firebreak.unlocks.biscuit import UNLOCK_TO_FIREOS5
 
 if TYPE_CHECKING:
     import pathlib

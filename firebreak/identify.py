@@ -11,11 +11,11 @@ import xml.parsers.expat
 from typing import TYPE_CHECKING
 
 from firebreak.cache import ERASED
-from firebreak.devices import DEVICES
+from firebreak.devices import DEFAULTS, DEPRECATED, DEVICES, TARGETS
 from firebreak.host import USER_SERIAL, command, getvar, in_fastboot
 from firebreak.report import labelled
+from firebreak.targets import REMOVED_IN
 from firebreak.ui import SESSION, FatalError, warn
-from firebreak.unlocks.targets import DEFAULTS, DEPRECATED, REMOVED_IN, TARGETS
 
 if TYPE_CHECKING:
     from firebreak.plugin import Device, Target

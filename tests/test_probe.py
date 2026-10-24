@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import host, probe
-from firebreak.devices import LK, State
+from firebreak.devices import LK
+from firebreak.states import State
 from firebreak.ui import FatalError
 
 if TYPE_CHECKING:

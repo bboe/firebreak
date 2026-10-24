@@ -6,10 +6,8 @@ import types
 import pytest
 
 from firebreak import route, ui
-from firebreak.devices import BISCUIT
-from firebreak.unlocks import biscuit
-from firebreak.unlocks.targets import TARGETS
-from firebreak.updates import BUILDS
+from firebreak.devices import BISCUIT, TARGETS, biscuit
+from firebreak.devices.biscuit import BUILDS
 
 
 class RanOutError(Exception):

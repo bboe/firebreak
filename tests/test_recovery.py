@@ -13,10 +13,10 @@ from test_gpt import raw as gpt_raw
 
 from firebreak import plan, recovery
 from firebreak.android.gpt import Partition, partition_map
+from firebreak.devices import biscuit
 from firebreak.plan import Action
 from firebreak.plugin import BOOT0
 from firebreak.ui import FatalError, explained
-from firebreak.unlocks import biscuit
 
 if TYPE_CHECKING:
     import pathlib

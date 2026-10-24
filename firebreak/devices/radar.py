@@ -1,11 +1,23 @@
 from __future__ import annotations
 
 import dataclasses
+from typing import TYPE_CHECKING
 
 from firebreak.cache import Download
-from firebreak.devices import RADAR
-from firebreak.unlocks.biscuit import UNLOCK_TO_FIREOS6, WRITE_KAERU
+from firebreak.devices.biscuit import BISCUIT, UNLOCK_TO_FIREOS6, WRITE_KAERU
 
+DEFAULT_TARGET = None
+if TYPE_CHECKING:
+    from firebreak.plugin import Target
+    from firebreak.targets import Deprecated
+
+RADAR = dataclasses.replace(
+    BISCUIT,
+    models=frozenset({"AEORD", "Echo (2nd Gen)"}),
+    name="radar",
+    product="RADAR",
+    title="Echo (2nd Generation)",
+)
 SOURCE = Download(
     browser=True,
     directory="radar-v1.0.0",
@@ -27,3 +39,5 @@ AMONET_V1_0_0 = dataclasses.replace(
     source=SOURCE,
     version="1.0.0",
 )
+TARGETS: tuple[Target, ...] = ()
+WAS_CALLED: dict[str, Deprecated] = {}

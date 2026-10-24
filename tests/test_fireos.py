@@ -9,9 +9,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import fireos
-from firebreak.devices import BISCUIT
+from firebreak.devices import BISCUIT, TARGETS, biscuit
 from firebreak.ui import FatalError
-from firebreak.unlocks.targets import TARGETS
 
 if TYPE_CHECKING:
     import pathlib
@@ -168,7 +167,7 @@ def test_a_rooted_dot_swaps_its_twrp_for_the_target_s(
     monkeypatch.setattr(
         name="read_recovery", target=fireos, value=lambda **_: bboe.read_bytes()
     )
-    label = f"TWRP {fireos.BBOE_TWRP_VERSION}"
+    label = f"TWRP {biscuit.BBOE_TWRP_VERSION}"
     fireos.stage_swap_twrp()
     assert adb.asked[0][:3] == ["adb", "push", str(bboe)]
     assert label in fireos.PROGRESS.line

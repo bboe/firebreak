@@ -9,11 +9,17 @@ import pytest
 
 from firebreak import plan
 from firebreak.android import gpt
-from firebreak.devices import BISCUIT, BOOT_MOVED_LAYOUT, STOCK_LAYOUT
+from firebreak.devices.biscuit import (
+    BISCUIT,
+    BOOT_MOVED_LAYOUT,
+    STOCK_LAYOUT,
+    UNLOCK_FROM_BOOTROM,
+    UNLOCK_TO_FIREOS5,
+    UNLOCK_TO_FIREOS6,
+)
+from firebreak.devices.crown import AMONET_V2_0_1
+from firebreak.devices.radar import AMONET_V1_0_0
 from firebreak.plugin import BOOT0, Device, ResetBcb, Unlock, Write
-from firebreak.unlocks.biscuit import UNLOCK_TO_FIREOS5, UNLOCK_TO_FIREOS6
-from firebreak.unlocks.crown import AMONET_V2_0_1
-from firebreak.unlocks.radar import AMONET_V1_0_0
 
 if TYPE_CHECKING:
     import pathlib
@@ -327,6 +333,7 @@ def test_crown_v2_0_1_matches_amonet(*, source: pathlib.Path) -> None:
 @pytest.mark.parametrize(
     argnames="unlock",
     argvalues=[
+        UNLOCK_FROM_BOOTROM,
         UNLOCK_TO_FIREOS5,
         UNLOCK_TO_FIREOS6,
         AMONET_V1_0_0,
@@ -449,7 +456,18 @@ def test_the_held_layout_is_reverted_before_the_wanted_one_is_applied() -> None:
     assert raw == b"table+out+in"
 
 
-def test_v1_1_0_bboe_from_stock_matches_amonet(*, source: pathlib.Path) -> None:
+def test_v1_1_0_from_a_shuffled_table_skips_the_shuffle(
+    *, source: pathlib.Path
+) -> None:
+    stock = biscuit_table(layout=BISCUIT_STOCK)
+    shuffled = plan.resolve(raw=stock, source=source, unlock=UNLOCK_TO_FIREOS5)[1]
+    actions = plan.resolve(raw=shuffled.data, source=source, unlock=UNLOCK_TO_FIREOS5)
+    want = amonet_writes(recovery=TWRP_SIZE)
+    assert described(actions=actions) == [*want[:1], *want[4:]]
+    assert actions[-2].image.name == "twrp.img"
+
+
+def test_v1_1_0_from_stock_matches_amonet(*, source: pathlib.Path) -> None:
     actions = plan.resolve(
         raw=biscuit_table(layout=BISCUIT_STOCK),
         source=source,
@@ -476,25 +494,14 @@ def test_v1_1_0_bboe_from_stock_matches_amonet(*, source: pathlib.Path) -> None:
     assert actions[0].partition is actions[1].partition is actions[14].partition is None
 
 
-def test_v1_1_0_from_a_shuffled_table_skips_the_shuffle(
-    *, source: pathlib.Path
-) -> None:
-    stock = biscuit_table(layout=BISCUIT_STOCK)
-    shuffled = plan.resolve(raw=stock, source=source, unlock=UNLOCK_TO_FIREOS5)[1]
-    actions = plan.resolve(raw=shuffled.data, source=source, unlock=UNLOCK_TO_FIREOS5)
-    want = amonet_writes(recovery=TWRP_SIZE)
-    assert described(actions=actions) == [*want[:1], *want[4:]]
-    assert actions[-2].image.name == "twrp.img"
-
-
-def test_v1_1_0_from_stock_matches_amonet(*, source: pathlib.Path) -> None:
+def test_v1_1_0_from_the_bootrom_matches_amonet(*, source: pathlib.Path) -> None:
     actions = plan.resolve(
         raw=biscuit_table(layout=BISCUIT_STOCK),
         source=source,
-        unlock=UNLOCK_TO_FIREOS5,
+        unlock=UNLOCK_FROM_BOOTROM,
     )
-    assert described(actions=actions) == amonet_writes(recovery=TWRP_SIZE)
-    assert actions[17].image.name == "twrp.img"
+    assert described(actions=actions) == amonet_writes(recovery=9000448)
+    assert actions[17].image == source / "bin" / "twrp.img"
 
 
 def test_v2_0_0_from_a_shuffled_table_matches_amonet(*, source: pathlib.Path) -> None:

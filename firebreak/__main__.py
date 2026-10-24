@@ -19,14 +19,16 @@ import subprocess
 import sys
 import textwrap
 
-from firebreak import __version__, updates
+from firebreak import __version__
 from firebreak.cache import make_cache
+from firebreak.devices import DEFAULTS, DEPRECATED, TARGETS, biscuit
 from firebreak.emos import child_emos
 from firebreak.host import check_adb, check_python, check_root, check_user
 from firebreak.identify import choose_target
 from firebreak.route import root
 from firebreak.support import report, write_test
 from firebreak.survey import survey_all
+from firebreak.targets import FIREOS5, FIREOS6, REMOVED_IN, STOCK
 from firebreak.ui import (
     ARGUMENTS,
     SESSION,
@@ -38,15 +40,6 @@ from firebreak.ui import (
     stop,
     upgrade,
     warn,
-)
-from firebreak.unlocks.targets import (
-    DEFAULTS,
-    DEPRECATED,
-    FIREOS5,
-    FIREOS6,
-    REMOVED_IN,
-    STOCK,
-    TARGETS,
 )
 from firebreak.write_test import EMMC_TARGET
 
@@ -81,9 +74,9 @@ WRITE_TEST = "write-test"
 
 def build_parser() -> argparse.ArgumentParser:
     builds = sorted(
-        updates.BUILDS,
+        biscuit.BUILDS,
         key=lambda build: (
-            build not in updates.FIREOS5_BUILDS,
+            build not in biscuit.FIREOS5_BUILDS,
             tuple(map(int, build.split("."))),
         ),
         reverse=True,
@@ -166,10 +159,10 @@ other commands:
             made.add_argument(
                 "build",
                 choices=builds,
-                default=updates.DEFAULT_BUILD,
+                default=biscuit.DEFAULT_BUILD,
                 help="the build to install, one of "
                 + ", ".join(builds)
-                + f"; {updates.DEFAULT_BUILD} when left out",
+                + f"; {biscuit.DEFAULT_BUILD} when left out",
                 metavar="BUILD",
                 nargs="?",
             )
@@ -369,7 +362,7 @@ def parsed() -> argparse.Namespace:
     for option in sorted({"device", "fastboot", "short"} - takes):
         if getattr(options, option):
             parser.error(message=f"{options.command} takes no --{option}")
-    if options.fastboot and options.build in updates.BOOTROM_BUILDS:
+    if options.fastboot and options.build in biscuit.BOOTROM_BUILDS:
         parser.error(
             message=f"stock {options.build} ends in its bootrom over a serial"
             " port, which cannot leave the Dot in fastboot"

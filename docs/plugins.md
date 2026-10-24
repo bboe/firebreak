@@ -16,8 +16,8 @@ it out.
 
 ## Devices and unlocks
 
-`firebreak/devices.py` gives biscuit's name and its features: A/B slots, a
-boot0 and an RPMB. radar, the Echo (2nd Generation), has the same features.
+`firebreak/devices/biscuit.py` gives biscuit's name and its features: A/B
+slots, a boot0 and an RPMB. radar, the Echo (2nd Generation), has the same features.
 crown, the Echo Show 8 (1st Generation), has a boot0 and an RPMB, but one slot.
 An unlock lists the features it requires, and resolution refuses a pairing that
 lacks one before anything is written.
@@ -35,6 +35,12 @@ A device also gives its product, the name its LKs and its fastboot report:
 `BISCUIT`, `RADAR` and `CROWN`. It is not always the codename in capitals:
 amonet-crown v1.1.1's LK names `CHECKERS`.
 
+A device gives the words that ask for fastboot mode, because the gesture is the
+device's own: biscuit's names an action button and a light ring, which radar
+has too and inherits. crown gives none, so nothing claims a button it may not
+have. A run asks through the target's device; the report, which waits for
+whatever is plugged in, asks with biscuit's.
+
 A device also lists the partition table layouts a Dot may carry: for biscuit,
 boot moved, the table amonet v1.1.0 makes, and stock. radar lists the same
 two. Its stock table is biscuit's except where `userdata` ends, and its amonet
@@ -43,15 +49,31 @@ needs: boot moved for v1.1.0 and its bboe variant, stock for v2.0.0. crown
 lists no layout, because no crown table has been read here, and its unlock
 does not repartition.
 
-`firebreak/unlocks/` holds one module per device, named for it: `biscuit.py`
-carries amonet v1.1.0, its bboe variant and amonet v2.0.1, with `crown.py` and
-`radar.py` carrying one release each. A device's own module is where its next
-amonet release goes, so a release no longer has a file of its own and a
-constant that two releases would share, such as a zip or a TWRP version, says
-in its name which release it belongs to. Each plan is amonet's
-`modules/main.py` and then its `fastboot-step.sh`, step for step. The bboe
-variant swaps the recovery image for TWRP 3.7.0_9-bboe2, a download of its
-own, which is why an unlock carries `files` beside its archive.
+`firebreak/devices/` holds one module per device, named for it, and everything
+about that device is in it: the device, its LK build descriptions, its layouts,
+the words that ask for fastboot mode, its stock builds and the OTA each one
+downloads, its unlocks and its targets. `firebreak/updates.py` keeps only what
+every device shares: Amazon's CDN, the pin an OTA is built from, and the
+caching a build's download goes through, which takes the builds to look in
+rather than reading one device's. Every caller passes biscuit's, because the
+routes are biscuit's. A second device must pass its own, and nothing yet
+fails a run that forgets to. `biscuit.py` carries amonet v1.1.0's
+chain and amonet v2.0.1, with `crown.py` and `radar.py` carrying one each. A
+device's own module is where its next amonet release goes, so a release has no
+file of its own and a constant that two releases would share, such as a zip or
+a TWRP version, says in its name which release it belongs to.
+`firebreak/devices/registry.py` gathers what the core asks for across devices,
+and the package re-exports it, so `DEVICES`, `TARGETS`, `DEPRECATED` and
+`DEFAULTS` are assembled from each module rather than listed twice. A device
+module declares its own `TARGETS`, `WAS_CALLED` and `DEFAULT_TARGET`; a device
+with no target yet declares them empty. Each plan is amonet's
+`modules/main.py` and then its `fastboot-step.sh`, step for step. The Fire
+OS 5 unlock writes TWRP 3.7.0_9-bboe2, a download of its own, which is why
+an unlock carries `files` beside its archive. The bootrom route writes the
+same chain, but stops at the reboot, before any fastboot step. So it has an
+unlock of its own, beside the first in `biscuit.py`: the same plan with
+amonet's own TWRP out of the zip, and nothing to download. One step is all
+that separates the two, so the second is built from the first.
 
 amonet-radar v1.0.0 runs biscuit v2.0.0's scripts and payload byte for byte,
 and its `main.py` differs only in file names and one log line. So its plan is
@@ -75,12 +97,13 @@ unlock, which stock has none of. A Fire OS 6 target names a build from Amazon's
 updates, which TWRP installs as it is; stock's build is the one named on the
 command line. A Fire OS 5 target names its update package, from which firebreak
 builds a system image to write with dd, with Magisk beside it.
-`firebreak/unlocks/targets.py` holds the targets by device, biscuit's three,
-and each device's default. Every device has a `stock` target and at least one
-unlock target, which is what `--help` lists under the device. Their goal states
-are biscuit's, in `firebreak/devices.py`. A target's summary is its line in
-`--help`, which lists each device's commands, and the unlock targets under
-`unlock` with the default first.
+Each device module holds its own targets, biscuit's three, and its default.
+Every device with a route has a `stock` target and at least one unlock
+target, which is what `--help` lists under the device. Their goal states are
+in `firebreak/states.py`, a module outside the devices package, so a device
+module can name a state without the registry's imports forming a cycle.
+A target's summary is its line in `--help`, which lists each device's commands,
+and the unlock targets under `unlock` with the default first.
 
 v2.0.0's `main.py` has two branches its plan leaves out: `fixgpt`, a manual
 mode that writes its own table, and a run from the preloader, which leaves
@@ -131,7 +154,7 @@ it reaches the bootrom.
 
 `firebreak/layouts.py` holds each layout and both ways across it, so the
 shuffle and its undo sit together. A layout's numbers are the device's:
-biscuit's is in `firebreak/devices.py`.
+biscuit's are in `firebreak/devices/biscuit.py`.
 
 Stock is the table the factory wrote, whatever Fire OS runs on it. Its layout
 describes any table with the device's stock partition count, 16 on biscuit,

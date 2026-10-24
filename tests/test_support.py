@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import identify, support
-from firebreak.devices import RADAR
+from firebreak.devices import RADAR, biscuit
 from firebreak.identify import Identity, UsbDevice
 
 if TYPE_CHECKING:
@@ -191,7 +191,7 @@ def test_a_report_reads_the_dot_s_recovery(
     shown: list[str],
 ) -> None:
     if built:
-        held = support.CACHE / f"system-{support.BUILDS['5.5.5.4'].sha256[:12]}" / "md5"
+        held = support.CACHE / f"system-{biscuit.BUILDS['5.5.5.4'].sha256[:12]}" / "md5"
         held.parent.mkdir(parents=True)
         held.write_text("abc 2 1\n")
     monkeypatch.setattr(name="into_recovery", target=support, value=lambda **_: True)

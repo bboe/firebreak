@@ -11,6 +11,7 @@ from firebreak import bootrom_step
 from firebreak.amonet.payload import BLOCK_SIZE, PAYLOAD_MAGIC, Command
 from firebreak.android import gpt
 from firebreak.bootrom import USER_AREA_SIGNATURE
+from firebreak.devices.biscuit import UNLOCK_FROM_BOOTROM, UNLOCK_TO_FIREOS5
 from firebreak.mediatek.usbdl import (
     HandshakeTimeoutError,
     ProductId,
@@ -20,7 +21,6 @@ from firebreak.mediatek.usbdl import (
 from firebreak.plan import Action
 from firebreak.plugin import FastbootFlash
 from firebreak.ui import FatalError, explained
-from firebreak.unlocks.biscuit import UNLOCK_TO_FIREOS5
 
 if TYPE_CHECKING:
     import pathlib
@@ -645,7 +645,7 @@ def test_one_bootloader_cut_short_still_names_the_dot(*, rig: Rig) -> None:
 
 
 def test_the_bootrom_unlock_downloads_nothing_and_keeps_every_step() -> None:
-    unlock = bootrom_step.BOOTLOADER_UNLOCK
+    unlock = UNLOCK_FROM_BOOTROM
     whole = UNLOCK_TO_FIREOS5.plan
     assert not unlock.files
     assert UNLOCK_TO_FIREOS5.files

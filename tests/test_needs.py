@@ -9,9 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import cache, plan, route, unlock, updates
-from firebreak.devices import BISCUIT
-from firebreak.unlocks import biscuit
-from firebreak.unlocks.targets import TARGETS
+from firebreak.devices import BISCUIT, TARGETS, biscuit
 
 if TYPE_CHECKING:
     from collections.abc import Callable

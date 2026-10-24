@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from firebreak.devices import BISCUIT, State
-from firebreak.plugin import FireOs5, FireOs6
-from firebreak.unlocks.biscuit import (
+from firebreak.devices import BISCUIT, DEFAULTS, TARGETS
+from firebreak.devices.biscuit import (
+    BUILDS,
     UNLOCK_TO_FIREOS5,
     UNLOCK_TO_FIREOS6,
 )
-from firebreak.unlocks.targets import DEFAULTS, TARGETS
-from firebreak.updates import BUILDS
+from firebreak.plugin import FireOs5, FireOs6
+from firebreak.states import State
 
 
 def test_each_device_s_default_is_one_of_its_targets() -> None:

@@ -22,6 +22,7 @@ class Device:
     name: str
     product: str
     title: str
+    fastboot_mode: str = ""
     layouts: tuple[Layout, ...] = ()
     models: frozenset[str] = frozenset()
     twrp_models: frozenset[str] = frozenset()

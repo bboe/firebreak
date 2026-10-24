@@ -13,6 +13,7 @@ from firebreak.android.gpt import SECTOR_SIZE, gpt_intact, stock_gpt
 from firebreak.android.ota import extract
 from firebreak.bootrom_step import stock_preloader
 from firebreak.cache import CACHE, ERASED, digest
+from firebreak.devices import biscuit
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
     adb_shell,
@@ -47,7 +48,6 @@ from firebreak.ui import (
     warn,
 )
 from firebreak.unlock import amonet_v2_payload
-from firebreak.unlocks.biscuit import BBOE_TWRP_VERSION
 
 if TYPE_CHECKING:
     import pathlib
@@ -233,7 +233,7 @@ def restore(  # ruff: ignore[complex-structure]
             sector=parts[step.partition].first,
         )
 
-    if build in updates.BOOTROM_BUILDS:
+    if build in biscuit.BOOTROM_BUILDS:
         PROGRESS.begin(estimate="5 s", label="rebooting into the bootrom")
         with contextlib.suppress(subprocess.TimeoutExpired):
             run(arguments=["adb", "shell", "-n", "reboot"], timeout=60)
@@ -265,7 +265,7 @@ def restore(  # ruff: ignore[complex-structure]
     if SESSION.fastboot:
         reboot_into_fastboot()
         return
-    if build in updates.FIREOS5_BUILDS:
+    if build in biscuit.FIREOS5_BUILDS:
         PROGRESS.begin(estimate="5 s", label=f"rebooting into stock {build}")
     else:
         PROGRESS.begin(estimate="90 s", label=f"waiting for stock {build} to start")
@@ -277,7 +277,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
     build = ARGUMENTS.build
     work = CACHE / ("stock-" + build)
     work.mkdir(exist_ok=True, parents=True)
-    extract(update=updates.download(build=build), work=work)
+    extract(update=updates.download(build=build, builds=biscuit.BUILDS), work=work)
     deadline = time.monotonic() + 30
     version = ""
     while not version or "mtp" not in adb_shell(command="getprop sys.usb.config"):
@@ -290,7 +290,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
         elif not version.startswith(TWRP_VERSIONS):
             raise FatalError(
                 message="this needs a TWRP for this Dot: v1.1.0's 3.2.3,"
-                f" v2's 3.7.0, or the {BBOE_TWRP_VERSION} that firebreak"
+                f" v2's 3.7.0, or the {biscuit.BBOE_TWRP_VERSION} that firebreak"
                 " installs"
             )
     if (

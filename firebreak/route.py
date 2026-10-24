@@ -19,7 +19,7 @@ from firebreak.cache import (
     lock_for,
     unpack,
 )
-from firebreak.devices import FASTBOOT_MODE, State
+from firebreak.devices import biscuit
 from firebreak.emos import stage_emos
 from firebreak.fireos import (
     BOOT_ROOT,
@@ -36,6 +36,7 @@ from firebreak.host import adb_shell, pyserial_wheel, run
 from firebreak.identify import check_target, fastboot_driver_missing
 from firebreak.plugin import FireOs6
 from firebreak.probe import state
+from firebreak.states import State
 from firebreak.stock import STOCK_STEPS, stage_restore
 from firebreak.twrp import reboot
 from firebreak.ui import (
@@ -59,7 +60,6 @@ from firebreak.unlock import (
     stage_downgrade,
     stage_fastbrick,
 )
-from firebreak.unlocks import biscuit
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -238,7 +238,7 @@ def needed(*, start: State, table: dict[State, Stage]) -> list[Need]:
 def ota_build() -> None:
     build = ARGUMENTS.build or ARGUMENTS.target.installs.build
     with hold(lock=lock_for(key=build)):
-        updates.download(build=build)
+        updates.download(build=build, builds=biscuit.BUILDS)
 
 
 def prebuild() -> None:
@@ -302,7 +302,7 @@ def remaining(*, start: State, table: dict[State, Stage]) -> int | None:
 
 
 def restore_stages() -> dict[State, Stage]:
-    bootrom = ARGUMENTS.build in updates.BOOTROM_BUILDS
+    bootrom = ARGUMENTS.build in biscuit.BOOTROM_BUILDS
     return {
         twrp: Stage(
             needs=(
@@ -425,7 +425,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 say(
                     text="This Dot appears to be unmodified. To unlock and root it,"
                     " start it in fastboot mode. "
-                    + FASTBOOT_MODE
+                    + target.device.fastboot_mode
                     + " A Dot already unlocked with amonet v2 has no fastboot:"
                     " hold the + button instead while you plug it back in, which"
                     " starts its TWRP."
@@ -462,7 +462,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 say(
                     text="Waiting for a Dot on USB. Connect it with a USB cable."
                     " A Dot that runs Amazon's own software needs fastboot mode. "
-                    + FASTBOOT_MODE
+                    + target.device.fastboot_mode
                     + " Ctrl-C stops the script."
                 )
         if current == State.AMONET_V2_BOOTED == target.goal:
@@ -474,7 +474,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             current in {State.STOCK_BOOTED, State.STOCK_FASTBOOT}
             or (
                 restored
-                and ARGUMENTS.build in updates.FIREOS5_BUILDS
+                and ARGUMENTS.build in biscuit.FIREOS5_BUILDS
                 and current not in TWRPS
             )
         ):
@@ -485,7 +485,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                         message=f"Stock {ARGUMENTS.build} is written, and the Dot"
                         " waits in fastboot."
                     )
-                elif ARGUMENTS.build in updates.FIREOS5_BUILDS:
+                elif ARGUMENTS.build in biscuit.FIREOS5_BUILDS:
                     passed(
                         message=f"Stock {ARGUMENTS.build} is written, and the Dot"
                         " is rebooting into it."

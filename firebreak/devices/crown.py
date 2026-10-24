@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from firebreak.cache import Download
-from firebreak.devices import CROWN
 from firebreak.plugin import (
     BOOT0,
     ClearBoot0Header,
+    Device,
     FastbootFlash,
     Feature,
     ForceFastboot,
@@ -14,6 +16,19 @@ from firebreak.plugin import (
     ZeroRpmb,
 )
 
+if TYPE_CHECKING:
+    from firebreak.plugin import Target
+    from firebreak.targets import Deprecated
+
+CROWN = Device(
+    features=frozenset({Feature.BOOT0, Feature.RPMB}),
+    models=frozenset({"AEOCW"}),
+    name="crown",
+    product="CROWN",
+    title="Echo Show 8 (1st Generation)",
+    twrp_models=frozenset({"Echo Show 8"}),
+)
+DEFAULT_TARGET = None
 SOURCE = Download(
     browser=True,
     directory="crown-v2.0.1",
@@ -51,3 +66,5 @@ AMONET_V2_0_1 = Unlock(
     source=SOURCE,
     version="2.0.1",
 )
+TARGETS: tuple[Target, ...] = ()
+WAS_CALLED: dict[str, Deprecated] = {}

@@ -10,7 +10,7 @@ import zipfile
 import pytest
 
 from firebreak import __version__
-from firebreak.updates import BUILDS
+from firebreak.devices.biscuit import BUILDS
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ZIPAPP = ROOT / "build" / "firebreak.pyz"

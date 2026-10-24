@@ -4,18 +4,13 @@ import hashlib
 import subprocess
 
 from firebreak.cache import digest, unpack
-from firebreak.devices import (
-    BY_NAME,
-    LITTLE_KERNEL_DESCRIPTION,
-    LK,
-    State,
-)
+from firebreak.devices import BY_NAME, LITTLE_KERNEL_DESCRIPTION, LK, biscuit
 from firebreak.emos import emos
 from firebreak.host import adb_shell, command, getvar, in_fastboot, run, usb_serial
 from firebreak.report import masked
+from firebreak.states import State
 from firebreak.twrp import partition_table
 from firebreak.ui import SESSION, FatalError, explained
-from firebreak.unlocks import biscuit
 
 NO_SHELL = "exec '/system/bin/sh' failed"
 
