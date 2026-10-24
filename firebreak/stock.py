@@ -47,7 +47,7 @@ from firebreak.ui import (
     warn,
 )
 from firebreak.unlock import amonet_v2_payload
-from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import TWRP_VERSION
+from firebreak.unlocks.biscuit import BBOE_TWRP_VERSION
 
 if TYPE_CHECKING:
     import pathlib
@@ -290,7 +290,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
         elif not version.startswith(TWRP_VERSIONS):
             raise FatalError(
                 message="this needs a TWRP for this Dot: v1.1.0's 3.2.3,"
-                f" v2's 3.7.0, or the {TWRP_VERSION} that firebreak"
+                f" v2's 3.7.0, or the {BBOE_TWRP_VERSION} that firebreak"
                 " installs"
             )
     if (

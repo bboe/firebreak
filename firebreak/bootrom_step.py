@@ -42,7 +42,7 @@ from firebreak.ui import (
     status,
     warn,
 )
-from firebreak.unlocks import amonet_biscuit_v1_1_0
+from firebreak.unlocks import biscuit
 
 if TYPE_CHECKING:
     import pathlib
@@ -123,7 +123,7 @@ def await_port_gone(*, deadline: float, name: str) -> None:
 
 def bootloader_plan(*, amonet: pathlib.Path, live: Emmc) -> tuple[Action, ...]:
     check_emmc(live=live)
-    unlock = amonet_biscuit_v1_1_0.AMONET_BISCUIT_V1_1_0
+    unlock = biscuit.AMONET_BISCUIT_V1_1_0
     try:
         raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
     except (OSError, UsbdlError) as error:

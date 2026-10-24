@@ -10,7 +10,7 @@ import pytest
 
 from firebreak import cache, plan, route, unlock, updates
 from firebreak.devices import BISCUIT
-from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_1
+from firebreak.unlocks import biscuit
 from firebreak.unlocks.targets import TARGETS
 
 if TYPE_CHECKING:
@@ -76,8 +76,8 @@ class Scan:
             self.found |= set(bound["unlock"].files.values())
             return
         if function is unlock.amonet_lk:
-            self.found.add(amonet_biscuit_v2_0_1.SOURCE)
-            self.maybe.add(amonet_biscuit_v1_1_0.SOURCE)
+            self.found.add(biscuit.V2_0_1_SOURCE)
+            self.maybe.add(biscuit.V1_1_0_SOURCE)
             return
         if not inspect.isfunction(function) or not function.__module__.startswith(
             "firebreak"

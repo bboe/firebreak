@@ -4,10 +4,11 @@ import typing
 
 from firebreak.devices import BISCUIT, State
 from firebreak.plugin import Device, FireOs5, FireOs6, Target
-from firebreak.unlocks import amonet_biscuit_v2_0_1
-from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import (
+from firebreak.unlocks.biscuit import (
     AMONET_BISCUIT_V1_1_0_BBOE,
-    TWRP_VERSION,
+    AMONET_BISCUIT_V2_0_1,
+    BBOE_TWRP_VERSION,
+    V2_0_1_TWRP_VERSION,
 )
 from firebreak.updates import BUILDS, DEFAULT_BUILD
 
@@ -40,7 +41,7 @@ TARGETS = {
                 installs=FireOs5(package=BUILDS["5.5.5.4"]),
                 name=FIREOS5,
                 summary="rooted Fire OS 5.5.5.4 on amonet v1.1.0, with TWRP"
-                f" {TWRP_VERSION}.",
+                f" {BBOE_TWRP_VERSION}.",
                 unlock=AMONET_BISCUIT_V1_1_0_BBOE,
             ),
             Target(
@@ -49,8 +50,8 @@ TARGETS = {
                 installs=FireOs6(build=FIREOS6_BUILD),
                 name=FIREOS6,
                 summary=f"rooted Fire OS 6 {FIREOS6_BUILD} on amonet v2.0.1,"
-                f" with TWRP {amonet_biscuit_v2_0_1.TWRP_VERSION}.",
-                unlock=amonet_biscuit_v2_0_1.AMONET_BISCUIT_V2_0_1,
+                f" with TWRP {V2_0_1_TWRP_VERSION}.",
+                unlock=AMONET_BISCUIT_V2_0_1,
             ),
         )
     }
@@ -67,7 +68,7 @@ DEPRECATED = {
     "amonet-biscuit-v1.1.0": Deprecated(
         device=BISCUIT,
         name=FIREOS5,
-        note=f"It now installs TWRP {TWRP_VERSION} rather than amonet's own"
+        note=f"It now installs TWRP {BBOE_TWRP_VERSION} rather than amonet's own"
         " TWRP 3.2.3.",
     ),
     "amonet-biscuit-v1.1.0-bboe": Deprecated(device=BISCUIT, name=FIREOS5),

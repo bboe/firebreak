@@ -38,8 +38,8 @@ from firebreak.probe import read_recovery
 from firebreak.twrp import partition_table, wait_for_twrp, write_system
 from firebreak.ui import ARGUMENTS, PROGRESS, SESSION, FatalError, again, warn
 from firebreak.unlock import amonet_chain
-from firebreak.unlocks import amonet_biscuit_v1_1_0_bboe
-from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import TWRP_VERSION
+from firebreak.unlocks import biscuit
+from firebreak.unlocks.biscuit import BBOE_TWRP_VERSION
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -54,7 +54,7 @@ BOOT_ROOT = Download(
     url="https://xdaforums.com/attachments/boot-root-zip.6388001/",
 )
 HIDE_WAIT = 60
-TWRP = amonet_biscuit_v1_1_0_bboe.RECOVERY
+TWRP = biscuit.BBOE_RECOVERY
 UPDATER = "com.amazon.device.software.ota"
 UPDATE_HOSTS = (
     "updates.amazon.com",
@@ -270,7 +270,7 @@ def stage_replace_twrp() -> None:
     twrp = fetch(download=TWRP)
     PROGRESS.begin(
         estimate="40 s",
-        label=f"waiting for TWRP {TWRP_VERSION}",
+        label=f"waiting for TWRP {BBOE_TWRP_VERSION}",
     )
     remote = DOT_TEMPORARY_DIRECTORY / TWRP.name
     push_checked(local=twrp, remote=remote)
@@ -286,15 +286,17 @@ def stage_replace_twrp() -> None:
     )
     if md5_mismatch(command=read_back, timeout=120, want=digest(kind="md5", path=twrp)):
         raise FatalError(
-            message=f"TWRP {TWRP_VERSION} did not verify in recovery. Leave the Dot"
-            " running. " + again()
+            message=f"TWRP {BBOE_TWRP_VERSION} did not verify in recovery. Leave the"
+            " Dot running. " + again()
         )
     run(arguments=["adb", "reboot", "recovery"], check=True, timeout=60)
 
 
 def stage_swap_twrp() -> None:
     image = fetch(download=TWRP)
-    PROGRESS.begin(estimate="10 s", label=f"writing TWRP {TWRP_VERSION} to recovery")
+    PROGRESS.begin(
+        estimate="10 s", label=f"writing TWRP {BBOE_TWRP_VERSION} to recovery"
+    )
     remote = "/data/local/tmp/recovery.img"
     run(arguments=["adb", "push", image, remote], check=True, timeout=120)
     write = Shell.WRITE.value.format(source=remote, target=f"{BY_NAME}/recovery")
@@ -304,7 +306,7 @@ def stage_swap_twrp() -> None:
         read_recovery(size=size), usedforsecurity=False
     ).hexdigest() != digest(kind="md5", path=image):
         raise FatalError(
-            message=f"TWRP {TWRP_VERSION} did not verify in recovery. Leave the"
+            message=f"TWRP {BBOE_TWRP_VERSION} did not verify in recovery. Leave the"
             " Dot running. " + again()
         )
 

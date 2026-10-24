@@ -4,7 +4,7 @@ import dataclasses
 
 from firebreak.cache import Download
 from firebreak.devices import RADAR
-from firebreak.unlocks.amonet_biscuit_v2_0_1 import AMONET_BISCUIT_V2_0_1, WRITE_KAERU
+from firebreak.unlocks.biscuit import AMONET_BISCUIT_V2_0_1, WRITE_KAERU
 
 SOURCE = Download(
     browser=True,

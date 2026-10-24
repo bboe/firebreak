@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from firebreak.devices import BISCUIT, State
 from firebreak.plugin import FireOs5, FireOs6
-from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import AMONET_BISCUIT_V1_1_0_BBOE
-from firebreak.unlocks.amonet_biscuit_v2_0_1 import AMONET_BISCUIT_V2_0_1
+from firebreak.unlocks.biscuit import (
+    AMONET_BISCUIT_V1_1_0_BBOE,
+    AMONET_BISCUIT_V2_0_1,
+)
 from firebreak.unlocks.targets import DEFAULTS, TARGETS
 from firebreak.updates import BUILDS
 

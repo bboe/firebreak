@@ -11,9 +11,9 @@ from firebreak.mediatek.usbdl import ProtocolMismatchError
 from firebreak.plan import Action
 from firebreak.plugin import BOOT0, ZeroRpmb
 from firebreak.ui import FatalError
-from firebreak.unlocks.amonet_biscuit_v1_1_0 import (
+from firebreak.unlocks.biscuit import (
     AMONET_BISCUIT_V1_1_0,
-    FLASH_RECOVERY,
+    V1_1_0_FLASH_RECOVERY,
 )
 
 if TYPE_CHECKING:
@@ -403,7 +403,7 @@ def test_every_action_switches_its_area_even_when_it_has_not_changed(
 def test_steps_the_bootrom_cannot_run_stop_the_plan_first(
     *, payload: FakePayload, tmp_path: pathlib.Path
 ) -> None:
-    flash = resolved(source=tmp_path, step=FLASH_RECOVERY)
+    flash = resolved(source=tmp_path, step=V1_1_0_FLASH_RECOVERY)
     assert (flash.kind, flash.offset is None, flash.image is None) == (
         "FastbootFlash",
         False,

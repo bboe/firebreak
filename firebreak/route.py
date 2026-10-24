@@ -59,7 +59,7 @@ from firebreak.unlock import (
     stage_downgrade,
     stage_fastbrick,
 )
-from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_1
+from firebreak.unlocks import biscuit
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -104,9 +104,9 @@ class Stage:
 
 def bootrom_needs() -> tuple[Need, ...]:
     return (
-        amonet_biscuit_v1_1_0.SOURCE,
+        biscuit.V1_1_0_SOURCE,
         pyserial_wheel,
-        amonet_biscuit_v2_0_1.SOURCE,
+        biscuit.V2_0_1_SOURCE,
     )
 
 
@@ -121,8 +121,8 @@ def fireos5_stages() -> dict[State, Stage]:
     unlock = ARGUMENTS.target.unlock
     fireos = (ARGUMENTS.target.installs.package, MAGISK, start_prebuild)
     chained = (
-        amonet_biscuit_v2_0_1.SOURCE,
-        amonet_biscuit_v1_1_0.SOURCE,
+        biscuit.V2_0_1_SOURCE,
+        biscuit.V1_1_0_SOURCE,
         unlock.source,
         *unlock.files.values(),
         *fireos,
@@ -179,25 +179,25 @@ def fireos5_stages() -> dict[State, Stage]:
 
 def fireos6_stages() -> dict[State, Stage]:
     installed = (
-        amonet_biscuit_v2_0_1.SOURCE,
-        *amonet_biscuit_v2_0_1.AMONET_BISCUIT_V2_0_1.files.values(),
+        biscuit.V2_0_1_SOURCE,
+        *biscuit.AMONET_BISCUIT_V2_0_1.files.values(),
     )
     install = functools.partial(
         recovery.carry_out,
         after=functools.partial(reboot, label="waiting for v2 recovery to start"),
         guard=amonet_chain,
-        unlock=amonet_biscuit_v2_0_1.AMONET_BISCUIT_V2_0_1,
+        unlock=biscuit.AMONET_BISCUIT_V2_0_1,
         zero=("misc",),
     )
     return {
         State.AMONET_V1_1_0_TWRP: Stage(
-            needs=(*installed, amonet_biscuit_v1_1_0.SOURCE),
+            needs=(*installed, biscuit.V1_1_0_SOURCE),
             run=install,
             steps=4,
             then=State.AMONET_V2_TWRP,
         ),
         State.AMONET_V2_TWRP: Stage(
-            needs=(amonet_biscuit_v2_0_1.SOURCE, ota_build, BOOT_ROOT),
+            needs=(biscuit.V2_0_1_SOURCE, ota_build, BOOT_ROOT),
             run=stage_install_fireos6,
             steps=5,
             then=State.AMONET_V2_BOOTED,
@@ -206,7 +206,7 @@ def fireos6_stages() -> dict[State, Stage]:
             needs=installed, run=install, steps=4, then=State.AMONET_V2_TWRP
         ),
         State.AMONET_V1_1_0_BBOE_TWRP: Stage(
-            needs=(*installed, amonet_biscuit_v1_1_0.SOURCE),
+            needs=(*installed, biscuit.V1_1_0_SOURCE),
             run=install,
             steps=4,
             then=State.AMONET_V2_TWRP,
@@ -306,7 +306,7 @@ def restore_stages() -> dict[State, Stage]:
     return {
         twrp: Stage(
             needs=(
-                (ota_build, amonet_biscuit_v2_0_1.SOURCE, pyserial_wheel)
+                (ota_build, biscuit.V2_0_1_SOURCE, pyserial_wheel)
                 if bootrom
                 else (ota_build,)
             ),
@@ -389,7 +389,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             if left is not None:
                 PROGRESS.steps = PROGRESS.step + (2 if SESSION.short else 3) + left
             if bootrom_step(
-                amonet=unpack(download=amonet_biscuit_v1_1_0.SOURCE),
+                amonet=unpack(download=biscuit.V1_1_0_SOURCE),
                 erase=None,
                 payload=amonet_v2_payload(),
                 wheel=pyserial_wheel(),
@@ -582,7 +582,7 @@ def stages() -> dict[State, Stage]:
         State.EMOS: Stage(needs=(pyserial_wheel,), run=stage_emos, steps=1, then=None),
         State.NO_SYSTEM: reboot_stages()[State.BOOTED],
         State.AMONET_V1_1_0_FASTBOOT: Stage(
-            needs=(amonet_biscuit_v1_1_0.SOURCE, TWRP),
+            needs=(biscuit.V1_1_0_SOURCE, TWRP),
             run=stage_amonet_v1_1_0_recovery,
             steps=1,
             then=State.AMONET_V1_1_0_BBOE_TWRP,
@@ -590,7 +590,7 @@ def stages() -> dict[State, Stage]:
     } | dict.fromkeys(
         (State.STOCK_FASTBOOT, State.STOCK_FIREOS5_FASTBOOT),
         Stage(
-            needs=(amonet_biscuit_v2_0_1.SOURCE,),
+            needs=(biscuit.V2_0_1_SOURCE,),
             run=stage_fastbrick,
             steps=2,
             then=State.AMONET_V2_TWRP,

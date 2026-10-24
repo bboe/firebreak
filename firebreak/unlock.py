@@ -11,11 +11,7 @@ from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconn
 from firebreak.recovery import MD5_DIGITS
 from firebreak.twrp import DISK, partitions
 from firebreak.ui import PROGRESS, FatalError, again, asked_for
-from firebreak.unlocks import (
-    amonet_biscuit_v1_1_0,
-    amonet_biscuit_v1_1_0_bboe,
-    amonet_biscuit_v2_0_1,
-)
+from firebreak.unlocks import biscuit
 
 if TYPE_CHECKING:
     import pathlib
@@ -40,7 +36,7 @@ def amonet_chain() -> None:
 
 
 def amonet_lk(*, node: str) -> bool:
-    for download in (amonet_biscuit_v2_0_1.SOURCE, amonet_biscuit_v1_1_0.SOURCE):
+    for download in (biscuit.V2_0_1_SOURCE, biscuit.V1_1_0_SOURCE):
         local = unpack(download=download) / "bin" / "lk.bin"
         want = digest(kind="md5", path=local)
         for attempt in range(PUSH_TRIES):
@@ -66,7 +62,7 @@ def amonet_lk(*, node: str) -> bool:
 
 
 def amonet_v2_payload() -> pathlib.Path:
-    amonet = unpack(download=amonet_biscuit_v2_0_1.SOURCE)
+    amonet = unpack(download=biscuit.V2_0_1_SOURCE)
     return amonet / "brom-payload" / "build" / "payload.bin"
 
 
@@ -113,11 +109,11 @@ def stage_amonet_v1_1_0_recovery() -> bool:
         raise FatalError(
             message="the Dot's fastboot did not say whether it is unlocked. " + again()
         )
-    amonet = unpack(download=amonet_biscuit_v1_1_0.SOURCE)
-    twrp = fetch(download=amonet_biscuit_v1_1_0_bboe.RECOVERY)
+    amonet = unpack(download=biscuit.V1_1_0_SOURCE)
+    twrp = fetch(download=biscuit.BBOE_RECOVERY)
     PROGRESS.begin(
         estimate="30 s",
-        label=f"waiting for TWRP {amonet_biscuit_v1_1_0_bboe.TWRP_VERSION}",
+        label=f"waiting for TWRP {biscuit.BBOE_TWRP_VERSION}",
     )
     run(
         arguments=["fastboot", "-S", "256M", "flash", "tee2", "bin/tz.img"],
@@ -140,7 +136,7 @@ def stage_amonet_v1_1_0_recovery() -> bool:
 
 
 def stage_downgrade() -> bool:
-    amonet = unpack(download=amonet_biscuit_v1_1_0.SOURCE)
+    amonet = unpack(download=biscuit.V1_1_0_SOURCE)
     wheel = pyserial_wheel()
     if getvar(name="unlock_status").lower() != "true":
         raise FatalError(message="not in amonet's fastboot")
@@ -168,7 +164,7 @@ def stage_downgrade() -> bool:
 
 
 def stage_fastbrick() -> None:
-    amonet = unpack(download=amonet_biscuit_v2_0_1.SOURCE)
+    amonet = unpack(download=biscuit.V2_0_1_SOURCE)
     check_product()
     little_kernel = getvar(name="lk_build_desc")
     if not little_kernel and getvar(name="pl_build_desc"):

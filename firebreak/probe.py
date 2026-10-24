@@ -15,7 +15,7 @@ from firebreak.host import adb_shell, command, getvar, in_fastboot, run, usb_ser
 from firebreak.report import masked
 from firebreak.twrp import partition_table
 from firebreak.ui import SESSION, FatalError, explained
-from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v1_1_0_bboe
+from firebreak.unlocks import biscuit
 
 NO_SHELL = "exec '/system/bin/sh' failed"
 
@@ -55,7 +55,7 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
             if "boot_a_x" in partition_table():
                 return State.AMONET_V2_TWRP_V1_1_0_TABLE
             return State.AMONET_V2_TWRP
-        if version != amonet_biscuit_v1_1_0_bboe.TWRP_VERSION:
+        if version != biscuit.BBOE_TWRP_VERSION:
             return State.AMONET_V1_1_0_TWRP
         return State.AMONET_V1_1_0_BBOE_TWRP
     if adb_state == "device":
@@ -97,8 +97,8 @@ def read_recovery(*, size: int) -> bytes:
 
 
 def rooted() -> State:
-    bboe = amonet_biscuit_v1_1_0_bboe.RECOVERY
-    image = unpack(download=amonet_biscuit_v1_1_0.SOURCE) / "bin" / "twrp.img"
+    bboe = biscuit.BBOE_RECOVERY
+    image = unpack(download=biscuit.V1_1_0_SOURCE) / "bin" / "twrp.img"
     size = image.stat().st_size
     data = read_recovery(size=max(bboe.size, size))
     if hashlib.sha256(data[: bboe.size]).hexdigest() == bboe.sha256:

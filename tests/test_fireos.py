@@ -168,7 +168,7 @@ def test_a_rooted_dot_swaps_its_twrp_for_the_target_s(
     monkeypatch.setattr(
         name="read_recovery", target=fireos, value=lambda **_: bboe.read_bytes()
     )
-    label = f"TWRP {fireos.TWRP_VERSION}"
+    label = f"TWRP {fireos.BBOE_TWRP_VERSION}"
     fireos.stage_swap_twrp()
     assert adb.asked[0][:3] == ["adb", "push", str(bboe)]
     assert label in fireos.PROGRESS.line

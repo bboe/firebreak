@@ -11,11 +11,13 @@ from firebreak import plan
 from firebreak.android import gpt
 from firebreak.devices import BISCUIT, BOOT_MOVED_LAYOUT, STOCK_LAYOUT
 from firebreak.plugin import BOOT0, Device, ResetBcb, Unlock, Write
-from firebreak.unlocks.amonet_biscuit_v1_1_0 import AMONET_BISCUIT_V1_1_0
-from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import AMONET_BISCUIT_V1_1_0_BBOE
-from firebreak.unlocks.amonet_biscuit_v2_0_1 import AMONET_BISCUIT_V2_0_1
-from firebreak.unlocks.amonet_crown_v2_0_1 import AMONET_CROWN_V2_0_1
-from firebreak.unlocks.amonet_radar_v1_0_0 import AMONET_RADAR_V1_0_0
+from firebreak.unlocks.biscuit import (
+    AMONET_BISCUIT_V1_1_0,
+    AMONET_BISCUIT_V1_1_0_BBOE,
+    AMONET_BISCUIT_V2_0_1,
+)
+from firebreak.unlocks.crown import AMONET_CROWN_V2_0_1
+from firebreak.unlocks.radar import AMONET_RADAR_V1_0_0
 
 if TYPE_CHECKING:
     import pathlib

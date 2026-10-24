@@ -36,10 +36,10 @@ def recoveries(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> No
     (tmp_path / "v1" / "bin").mkdir(parents=True)
     (tmp_path / "v1" / "bin" / "twrp.img").write_bytes(TWRP_3_2_3)
     monkeypatch.setattr(
-        name="RECOVERY",
-        target=probe.amonet_biscuit_v1_1_0_bboe,
+        name="BBOE_RECOVERY",
+        target=probe.biscuit,
         value=dataclasses.replace(
-            probe.amonet_biscuit_v1_1_0_bboe.RECOVERY,
+            probe.biscuit.BBOE_RECOVERY,
             sha256=hashlib.sha256(TWRP_BBOE).hexdigest(),
             size=len(TWRP_BBOE),
         ),
@@ -220,7 +220,7 @@ def test_the_recovery_read_names_the_partition_by_name(*, dot: FakeAdb) -> None:
     [
         ("3.2.3-0", LK.FIREOS5.value, "boot_a", State.AMONET_V1_1_0_TWRP),
         (
-            probe.amonet_biscuit_v1_1_0_bboe.TWRP_VERSION,
+            probe.biscuit.BBOE_TWRP_VERSION,
             LK.FIREOS5.value,
             "boot_a",
             State.AMONET_V1_1_0_BBOE_TWRP,

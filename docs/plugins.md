@@ -12,7 +12,7 @@ it out.
   variant are two unlocks, not one with a parameter.
 - A field arrives with the code that reads it.
 - A step every unlock can use lives in `firebreak/plugin.py`. A step only one
-  release uses lives in that release's module, as a class the core calls.
+  release uses lives in that device's module, as a class the core calls.
 
 ## Devices and unlocks
 
@@ -43,10 +43,14 @@ needs: boot moved for v1.1.0 and its bboe variant, stock for v2.0.0. crown
 lists no layout, because no crown table has been read here, and its unlock
 does not repartition.
 
-`firebreak/unlocks/` holds amonet v1.1.0, its bboe variant, and amonet v2.0.1,
-for biscuit, amonet-radar v1.0.0, and amonet-crown v2.0.1. Each plan is
-amonet's `modules/main.py` and then its `fastboot-step.sh`, step for step. The
-bboe variant swaps the recovery image for TWRP 3.7.0_9-bboe2, a download of its
+`firebreak/unlocks/` holds one module per device, named for it: `biscuit.py`
+carries amonet v1.1.0, its bboe variant and amonet v2.0.1, with `crown.py` and
+`radar.py` carrying one release each. A device's own module is where its next
+amonet release goes, so a release no longer has a file of its own and a
+constant that two releases would share, such as a zip or a TWRP version, says
+in its name which release it belongs to. Each plan is amonet's
+`modules/main.py` and then its `fastboot-step.sh`, step for step. The bboe
+variant swaps the recovery image for TWRP 3.7.0_9-bboe2, a download of its
 own, which is why an unlock carries `files` beside its archive.
 
 amonet-radar v1.0.0 runs biscuit v2.0.0's scripts and payload byte for byte,

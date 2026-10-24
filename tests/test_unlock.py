@@ -37,8 +37,8 @@ def guard(
     numbers = {"lk_a": 3, "lk_b": 5}
     held = {f"{unlock.DISK}p{numbers[slot]}": data for slot, data in slots.items()}
     releases = {
-        unlock.amonet_biscuit_v1_1_0.SOURCE.name: LK["v1.1.0"],
-        unlock.amonet_biscuit_v2_0_1.SOURCE.name: LK["v2.0.0"],
+        unlock.biscuit.V1_1_0_SOURCE.name: LK["v1.1.0"],
+        unlock.biscuit.V2_0_1_SOURCE.name: LK["v2.0.0"],
     }
 
     def unpacked(*, download: object) -> pathlib.Path:
