@@ -175,10 +175,10 @@ def stage_fastbrick() -> None:
     amonet = unpack(download=amonet_biscuit_v2_0_0.SOURCE)
     check_product()
     little_kernel = getvar(name="lk_build_desc")
-    if not little_kernel:
+    if not little_kernel and getvar(name="pl_build_desc"):
         raise FatalError(
-            message="fastboot did not report the bootloader version;"
-            " the Dot was not modified"
+            message="fastboot reported the preloader version but not the"
+            " bootloader's; the Dot was not modified. " + again()
         )
     image = "bin/fastbrick.img"
     if little_kernel in {LK.FIREOS6.value, LK.FIREOS6_4315.value}:

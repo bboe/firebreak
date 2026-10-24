@@ -184,10 +184,15 @@ def test_a_fastboot_that_never_says_whether_it_is_unlocked_stops_cleanly(
 
 
 @pytest.mark.parametrize(
-    ("product", "little_kernel", "message"),
+    ("product", "little_kernel", "preloader", "message"),
     [
-        ("product: crown", "x", "reports 'crown', not BISCUIT"),
-        ("product: BISCUIT", "", "did not report the bootloader version"),
+        ("product: crown", "x", "", "reports 'crown', not BISCUIT"),
+        (
+            "product: BISCUIT",
+            "",
+            "pl_build_desc: bd7ae89-20221003_215949",
+            "reported the preloader version but not the bootloader",
+        ),
     ],
 )
 def test_a_fastbrick_checks_the_dot_before_it_flashes(  # ruff: ignore[too-many-arguments]
@@ -196,6 +201,7 @@ def test_a_fastbrick_checks_the_dot_before_it_flashes(  # ruff: ignore[too-many-
     little_kernel: str,
     message: str,
     monkeypatch: pytest.MonkeyPatch,
+    preloader: str,
     product: str,
     tmp_path: pathlib.Path,
 ) -> None:
@@ -203,6 +209,7 @@ def test_a_fastbrick_checks_the_dot_before_it_flashes(  # ruff: ignore[too-many-
         adb=adb, little_kernel=little_kernel, monkeypatch=monkeypatch, tmp_path=tmp_path
     )
     adb.answers["product"] = [product]
+    adb.answers["pl_build_desc"] = [preloader]
     with pytest.raises(FatalError, match=message):
         unlock.stage_fastbrick()
     assert adb.commands(holding="brick") == []
@@ -423,6 +430,7 @@ def test_erasing_boot0_that_fails_leaves_no_marker(
 @pytest.mark.parametrize(
     ("little_kernel", "image"),
     [
+        ("", "bin/fastbrick.img"),
         (unlock.LK.FIREOS5.value, "bin/fastbrick.img"),
         (unlock.LK.FIREOS6.value, "bin/fastbrick-20221007.img"),
         (unlock.LK.FIREOS6_4315.value, "bin/fastbrick-20221007.img"),

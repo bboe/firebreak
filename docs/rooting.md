@@ -748,6 +748,21 @@ ring read white.
   `fastbrick.img`. That one payload takes both bootloaders, where amonet
   v2.0.0's own map lists only the first. The second ships in 4310, 4313 and
   4315, which the default image does not unlock.
+- An LK older than Fire OS 5.5.0.3 reports no `lk_build_desc` at all, and no
+  `pl_build_desc` either. The stage reads both and takes `bin/fastbrick.img`
+  where neither answers, as amonet v2.0.0's own script does on an empty field,
+  and as an unrecognised non-empty LK already did. `pl_build_desc` is absent
+  before 5.5.0.3 and present in every build after it, so a Dot that gives it
+  without `lk_build_desc` is not an old bootloader, and the stage stops there
+  without writing. `getvar` returns an empty string alike for a timed-out read,
+  a variable the LK does not implement, and one it implements but leaves blank,
+  so the stage cannot tell those apart.
+- The unlocked branch of `probe` still reads an empty `lk_build_desc` as
+  `starting`, because amonet's own LK reports the field: an empty read there
+  is a Dot part way through a boot, not an old bootloader.
+- On a stock Dot that reported neither field, 2026-10-24: rooted Fire OS
+  5.5.5.4 in 8m06s, where the earlier refusal had stopped the run before it
+  wrote a partition.
 - A flash that returns means the exploit did not start, so it is retried, up to
   10 times. A flash still running after 8 seconds means the exploit is running:
   the script stops fastboot and leaves the Dot to reach TWRP.

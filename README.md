@@ -103,6 +103,9 @@ From stock, only the LK decides whether firebreak can unlock a Dot.
 
 - [docs/devices.md][devices] has each build's preloader, TEE and
   anti-rollback versions.
+- An LK older than 5.5.0.3 reports none of these, and so no `lk_build_desc`
+  and no `pl_build_desc`. firebreak unlocks such a Dot with the default
+  fastbrick image, which amonet v2.0.0's own map gives an LK it does not know.
 
 ## `--fastboot`
 
