@@ -4,17 +4,20 @@ firebreak unlocks an Echo Dot (2nd Generation) over USB, moves it between amonet
 targets, or returns it to stock. Run it again with another target to move the
 Dot. A stopped run picks up where it left off.
 
-Unlocking a stock Dot needs `amonet-biscuit-v2.0.1.zip`, which is only on
-[the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/).
-The run opens your browser for it and waits, because the thread refuses an
-unattended download. Moving an already-unlocked Dot between targets needs it
-too, because the run checks the bootloader against the copy in that zip, and
-so do the runs that go through the Dot's bootrom: `--short`, a resume after
-`boot0` was erased, and `stock 5.5.0.3`.
+Unlocking a stock Dot needs `amonet-biscuit-v2.0.1.zip`, which amonet publishes
+only on
+[its XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/).
+A run downloads it unattended. If that fails, the run says so and opens your
+browser for the thread instead, because the thread itself refuses an
+unattended download. Either way the zip is checked against a pinned hash.
+Moving an already-unlocked Dot between targets
+needs that zip too, because the run checks the bootloader against the copy in
+it, and so do the runs that go through the Dot's bootrom: `--short`, a resume
+after `boot0` was erased, and `stock 5.5.0.3`.
 
 | target | the Dot ends with | time |
 | --- | --- | --- |
-| `unlock fireos6` (default) | rooted Fire OS 6 [8146][fireos-8146] on amonet v2.0.1, TWRP 3.7.0; opens your browser to download `boot-root.zip` from [the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/) | about 5 min from `unlock fireos5` |
+| `unlock fireos6` (default) | rooted Fire OS 6 [8146][fireos-8146] on amonet v2.0.1, TWRP 3.7.0; also needs `boot-root.zip` | about 5 min from `unlock fireos5` |
 | `unlock fireos5` | rooted Fire OS [5.5.5.4][fireos-5554] on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
 | `stock [BUILD]` | stock Fire OS at that build, with the Dot erased: Fire OS 6 [8149][fireos-8149] when left out, or Fire OS 5 from [5.5.0.3][fireos-5503] to [5.5.5.4][fireos-5554] | about 3 min from `unlock fireos5` |
 

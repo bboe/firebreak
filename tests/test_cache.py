@@ -750,6 +750,45 @@ def test_fetch_from_the_browser_survives_a_vanished_file(
         cache.fetch(download=browser_item())
 
 
+def test_fetch_from_the_mirror(
+    *, cached: pathlib.Path, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    served = tmp_path / "mirror"
+    served.mkdir()
+    (served / "zip.bin").write_bytes(data=BODY)
+    download = dataclasses.replace(
+        item(source=served / "zip.bin"),
+        browser=True,
+        mirror=True,
+        url="https://xdaforums.com/attachments/zip-bin.1/",
+    )
+    monkeypatch.setattr(name="MIRROR", target=cache, value=served.as_uri() + "/")
+    # browser=True with no browser patched means a fallback would fail the test.
+    path = cache.fetch(download=download)
+    assert path == cached / "zip.bin"
+    assert path.read_bytes() == BODY
+
+
+def test_fetch_from_the_mirror_falls_back_to_the_source(
+    *,
+    cached: pathlib.Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    source = tmp_path / "zip.bin"
+    source.write_bytes(data=BODY)
+    download = dataclasses.replace(item(source=source), mirror=True)
+    monkeypatch.setattr(
+        name="MIRROR", target=cache, value=(tmp_path / "gone").as_uri() + "/"
+    )
+    path = cache.fetch(download=download)
+    assert path == cached / "zip.bin"
+    assert path.read_bytes() == BODY
+    assert "the mirror did not serve zip.bin" in capsys.readouterr().out
+    assert not (cached / "zip.bin.part").exists()
+
+
 @pytest.mark.usefixtures("cached")
 def test_fetch_keeps_directories_when_the_trash_already_held_it(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path

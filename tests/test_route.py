@@ -7,7 +7,11 @@ import pytest
 
 from firebreak import route, ui
 from firebreak.devices import BISCUIT
-from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_1
+from firebreak.unlocks import (
+    amonet_biscuit_v1_1_0,
+    amonet_biscuit_v1_1_0_bboe,
+    amonet_biscuit_v2_0_1,
+)
 from firebreak.unlocks.targets import TARGETS
 from firebreak.updates import BUILDS
 
@@ -172,10 +176,12 @@ def test_a_browser_download_comes_first(*, monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(
         name="fetch", target=route, value=lambda **o: fetched.append(o["download"].name)
     )
-    route.prefetch(needs=[amonet_biscuit_v1_1_0.SOURCE, amonet_biscuit_v2_0_1.SOURCE])
+    route.prefetch(
+        needs=[amonet_biscuit_v1_1_0_bboe.RECOVERY, amonet_biscuit_v2_0_1.SOURCE]
+    )
     assert fetched == [
         amonet_biscuit_v2_0_1.SOURCE.name,
-        amonet_biscuit_v1_1_0.SOURCE.name,
+        amonet_biscuit_v1_1_0_bboe.RECOVERY.name,
     ]
 
 

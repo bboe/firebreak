@@ -17,6 +17,7 @@ from firebreak.plugin import (
 SOURCE = Download(
     browser=True,
     directory="crown-v2.0.1",
+    mirror=True,
     name="amonet-crown-v2.0.1.zip",
     sha256="5db974c321ae2f4586f7c51c95b7bdffb61ef85bde05ce7e62f78196a984c24f",
     size=44233517,

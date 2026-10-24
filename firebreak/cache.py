@@ -23,14 +23,17 @@ from xml.parsers.expat import ExpatError
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterator
 
+from firebreak import __version__
 from firebreak.ui import SESSION, FatalError, again, passed, show, warn
 
+AGENT = f"firebreak/{__version__}"
 BROWSER_POLL_SECONDS = 2
 BROWSER_WAIT_SECONDS = 120
 GZIP_MAGIC = b"\x1f\x8b"
 LOCKS: dict[object, threading.Lock] = {}
 LOCKS_GUARD = threading.Lock()
 MEGA = 1e6
+MIRROR = "https://l6zdb1htmt.pf994ltf9n.workers.dev/"
 PARTIAL_SUFFIXES = (".crdownload", ".download", ".part", ".tmp")
 SYSTEM_SLICE_BYTES = 128 << 20
 WHERE_FROMS = "com.apple.metadata:kMDItemWhereFroms"
@@ -43,6 +46,7 @@ class Download:
     url: str
     browser: bool = False
     directory: str = ""
+    mirror: bool = False
     size: int = 0
 
 
@@ -275,32 +279,21 @@ def fetch(*, download: Download) -> pathlib.Path:
             if download.browser:
                 discard(paths=copies(checked=set(), download=download))
             return path
+        if download.mirror:
+            why = saved(download=download, path=path, url=MIRROR + name)
+            if why is None:
+                SESSION.verified.add(path)
+                if download.browser:
+                    discard(paths=copies(checked=set(), download=download))
+                return path
+            warn(text=f"the mirror did not serve {name}: {why} Trying its source.")
         if download.browser:
             browser_fetch(download=download, path=path)
             SESSION.verified.add(path)
             return path
-        part = CACHE / (name + ".part")
-        try:
-            with urllib.request.urlopen(timeout=60, url=download.url) as response:  # ruff: ignore[multiple-with-statements]
-                with part.open(mode="wb") as part_file:
-                    done, total = save(
-                        destination=part_file,
-                        label="downloading " + name,
-                        response=response,
-                    )
-        except (OSError, http.client.HTTPException) as error:
-            part.unlink(missing_ok=True)
-            raise FatalError(message=f"downloading {name} failed: {error!r}") from error
-        if total and done != total:
-            part.unlink()
-            raise FatalError(
-                message=f"downloading {name} stopped after {done} of {total} bytes. "
-                + again()
-            )
-        if digest(kind="sha256", path=part) != want:
-            part.unlink()
-            raise FatalError(message=f"{name} does not hash to {want}")
-        part.replace(target=path)
+        why = saved(download=download, path=path, url=download.url)
+        if why is not None:
+            raise FatalError(message=why)
         SESSION.verified.add(path)
         return path
 
@@ -543,6 +536,31 @@ def save(
     if loud:
         print()
     return done, total
+
+
+def saved(*, download: Download, path: pathlib.Path, url: str) -> str | None:
+    name = download.name
+    part = CACHE / (name + ".part")
+    request = urllib.request.Request(headers={"User-Agent": AGENT}, url=url)
+    try:
+        with urllib.request.urlopen(timeout=60, url=request) as response:  # ruff: ignore[multiple-with-statements]
+            with part.open(mode="wb") as part_file:
+                done, total = save(
+                    destination=part_file,
+                    label="downloading " + name,
+                    response=response,
+                )
+    except (OSError, http.client.HTTPException) as error:
+        part.unlink(missing_ok=True)
+        return f"downloading {name} failed: {error!r}"
+    if total and done != total:
+        part.unlink()
+        return f"downloading {name} stopped after {done} of {total} bytes. " + again()
+    if digest(kind="sha256", path=part) != download.sha256:
+        part.unlink()
+        return f"{name} does not hash to {download.sha256}"
+    part.replace(target=path)
+    return None
 
 
 def served(

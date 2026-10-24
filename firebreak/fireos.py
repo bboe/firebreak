@@ -47,6 +47,7 @@ if TYPE_CHECKING:
 
 BOOT_ROOT = Download(
     browser=True,
+    mirror=True,
     name="boot-root.zip",
     sha256="de49cc88b27a8e77cf97cf0156bee50e4ddc0e116c41aaede06b494e38397be0",
     size=473633,

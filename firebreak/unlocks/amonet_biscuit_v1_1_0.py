@@ -21,11 +21,13 @@ FLASH_RECOVERY = FastbootFlash(
 )
 PAYLOAD_SEEK = 223207
 SOURCE = Download(
+    browser=True,
     directory="v1",
+    mirror=True,
     name="amonet-biscuit-v1.1.0.zip",
     sha256="bd4d3a18b6b6e9ff6e49a4739159a81020673202795cb3959f7c9ff24351b663",
-    url="https://github.com/hkfuertes/amazon_device_biscuit/releases/download/none"
-    "/amonet-biscuit-v1.1.0.zip",
+    size=19233351,
+    url="https://xdaforums.com/attachments/amonet-biscuit-v1-1-0-zip.6331296/",
 )
 
 

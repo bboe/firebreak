@@ -16,11 +16,12 @@ from firebreak.plugin import (
 
 SOURCE = Download(
     browser=True,
-    directory="v2.0.1",
+    directory="v2.0.1-2",
+    mirror=True,
     name="amonet-biscuit-v2.0.1.zip",
-    sha256="93ec0d8816857406c9d53d11378256f055da2d8b658fea016d3114a8bd6b19b6",
-    size=73189204,
-    url="https://xdaforums.com/attachments/amonet-biscuit-v2-0-1-zip.6400139/",
+    sha256="ea9cada067783a0d83f025bdd669fd5689148f555054475c7c70c634c542f3b5",
+    size=73550504,
+    url="https://xdaforums.com/attachments/amonet-biscuit-v2-0-1-zip.6400450/",
 )
 TWRP_VERSION = "3.7.0"
 WRITE_KAERU = Write(image="bin/biscuit-kaeru.bin", label="write kaeru", target="expdb")

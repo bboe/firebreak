@@ -562,21 +562,32 @@ ring read white.
   `unlock fireos6` from stock fastboot does not fetch it. Were `lk_a`
   to match neither, the check would fetch it itself.
 - Every unlock from stock fetches amonet v2.0.1's zip, because the fastbrick
-  payload for the Dot's bootloader is in it. The zip is an XDA attachment, so
-  that download needs a browser, and the bootrom step names it too: a Dot
-  whose `boot0` is erased cannot be revived without it. Nothing else the
-  bootrom step uses from that zip is new, so a source GitHub serves would
-  make this route unattended again.
+  payload for the Dot's bootloader is in it. The bootrom step names it too: a
+  Dot whose `boot0` is erased cannot be revived without it. amonet publishes
+  it only as an XDA attachment, which refuses an unattended download, so the
+  zip has a second source that a run takes first, and the thread in a browser
+  is the fallback. That keeps the route unattended while the first source
+  answers.
+- A zip's unpacked tree lives under the name its `Download` carries, and
+  `unpack` rebuilds it only when that directory is missing. Re-pinning a zip
+  that keeps its old directory name therefore downloads the new archive and
+  goes on using the old tree. v2.0.1's name carries a `-2` for that reason.
+- A download sends firebreak's own `User-Agent`. Cloudflare answers
+  `Python-urllib` with a 403 and the body `error code: 1010`, which bans a
+  request by its browser signature. Amazon's CDN, GitHub and PyPI all serve
+  that agent as well, so every download sends it rather than only the ones
+  that need it.
 - The run downloads nothing while it waits for a Dot it has not seen. That Dot
   can be another device, or can need nothing. A Dot that waits where the next
   state is known starts the downloads in a background thread: an unmodified
   Dot, booted, comes back in its own fastboot after the gesture, and amonet
   v2.0.0's fastboot comes back as its TWRP. So the downloads overlap the
   gesture.
-- `boot-root.zip` comes through the browser, so the background thread never
+- `boot-root.zip` may come through the browser, so the background thread never
   fetches it. The main thread fetches it before the other downloads, so the
-  one step that needs the user comes first and does not land in the gesture's
-  instructions.
+  one step that can need the user comes first and does not land in the
+  gesture's instructions. The ordering still holds now that the browser is
+  only a fallback: it stops mattering when no download needs a browser at all.
 - The run names the device before it starts that thread, and again before the
   first stage. A device plugged in after the run started is then refused
   before the route's downloads. The probe of a rooted Fire OS 5 Dot still
