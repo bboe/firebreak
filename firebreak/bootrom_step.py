@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import re
 import subprocess
 import sys
@@ -27,7 +28,7 @@ from firebreak.mediatek.usbdl import (
     mediatek_ports,
 )
 from firebreak.plan import TABLE_SECTORS, Action, resolve
-from firebreak.plugin import BOOT0, Write
+from firebreak.plugin import BOOT0, FastbootFlash, Write
 from firebreak.ui import (
     MINUTE,
     PROGRESS,
@@ -53,6 +54,17 @@ if TYPE_CHECKING:
     from firebreak.emmc import Emmc
 
 
+BOOTLOADER_UNLOCK = dataclasses.replace(
+    biscuit.UNLOCK_TO_FIREOS5,
+    files={},
+    plan=tuple(
+        FastbootFlash(image="bin/twrp.img", label="write TWRP", target="recovery")
+        if isinstance(step, FastbootFlash) and step.image == "twrp"
+        else step
+        for step in biscuit.UNLOCK_TO_FIREOS5.plan
+    ),
+    version="1.1.0",
+)
 BOOTROM_STEP_TIMEOUT = 30 * MINUTE
 BOOTROM_WRITE_TIMEOUT = 30
 LK_PRODUCT = re.compile(pattern=rb"\0product\0([A-Z0-9_]+)\0")
@@ -123,7 +135,7 @@ def await_port_gone(*, deadline: float, name: str) -> None:
 
 def bootloader_plan(*, amonet: pathlib.Path, live: Emmc) -> tuple[Action, ...]:
     check_emmc(live=live)
-    unlock = biscuit.AMONET_V1_1_0
+    unlock = BOOTLOADER_UNLOCK
     try:
         raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
     except (OSError, UsbdlError) as error:

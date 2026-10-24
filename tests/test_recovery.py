@@ -215,7 +215,7 @@ def carry_v1(*, calls: list[tuple]) -> bool:
         after=lambda: calls.append(("after", recovery.ERASED.exists())),
         before_preloader=lambda: calls.append(("install", recovery.ERASED.exists())),
         guard=lambda: calls.append(("guard",)),
-        unlock=biscuit.AMONET_V1_1_0,
+        unlock=biscuit.UNLOCK_TO_FIREOS5,
     )
 
 

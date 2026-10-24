@@ -18,7 +18,9 @@ from firebreak.mediatek.usbdl import (
     UsbdlError,
 )
 from firebreak.plan import Action
+from firebreak.plugin import FastbootFlash
 from firebreak.ui import FatalError, explained
+from firebreak.unlocks.biscuit import UNLOCK_TO_FIREOS5
 
 if TYPE_CHECKING:
     import pathlib
@@ -640,6 +642,23 @@ def test_one_bootloader_cut_short_still_names_the_dot(*, rig: Rig) -> None:
     rig.lks[LK_FIRST["lk_a"]] = bytes(512)
     assert step(rig=rig) is True
     assert rig.written == [WRITES]
+
+
+def test_the_bootrom_unlock_downloads_nothing_and_keeps_every_step() -> None:
+    unlock = bootrom_step.BOOTLOADER_UNLOCK
+    whole = UNLOCK_TO_FIREOS5.plan
+    assert not unlock.files
+    assert UNLOCK_TO_FIREOS5.files
+    assert [step.image for step in unlock.plan if isinstance(step, FastbootFlash)] == [
+        "bin/tz.img",
+        "bin/twrp.img",
+    ]
+    assert len(unlock.plan) == len(whole)
+    swapped = [
+        (before, after) for before, after in zip(whole, unlock.plan) if before != after
+    ]
+    assert [after.image for _, after in swapped] == ["bin/twrp.img"]
+    assert unlock.version == "1.1.0"
 
 
 @pytest.mark.parametrize("tty", [False, True])

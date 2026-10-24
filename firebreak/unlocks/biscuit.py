@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import dataclasses
-
 from firebreak.cache import Download
 from firebreak.devices import BISCUIT, BOOT_MOVED_LAYOUT, STOCK_LAYOUT
 from firebreak.plugin import (
@@ -27,13 +25,6 @@ BBOE_RECOVERY = Download(
     f"v{BBOE_TWRP_VERSION}/twrp-v{BBOE_TWRP_VERSION}-biscuit.img",
 )
 PAYLOAD_SEEK = 223207
-
-
-V1_1_0_FLASH_RECOVERY = FastbootFlash(
-    image="bin/twrp.img", label="write TWRP", target="recovery"
-)
-
-
 V1_1_0_SOURCE = Download(
     browser=True,
     directory="v1",
@@ -43,9 +34,10 @@ V1_1_0_SOURCE = Download(
     size=19233351,
     url="https://xdaforums.com/attachments/amonet-biscuit-v1-1-0-zip.6331296/",
 )
-AMONET_V1_1_0 = Unlock(
+UNLOCK_TO_FIREOS5 = Unlock(
     device=BISCUIT,
     family="amonet",
+    files={"twrp": BBOE_RECOVERY},
     layout=BOOT_MOVED_LAYOUT,
     plan=(
         ClearBoot0Header(),
@@ -78,24 +70,13 @@ AMONET_V1_1_0 = Unlock(
         ),
         Reboot(),
         FastbootFlash(image="bin/tz.img", label="write the TEE", target="tee2"),
-        V1_1_0_FLASH_RECOVERY,
+        FastbootFlash(
+            image="twrp", label="write TWRP " + BBOE_TWRP_VERSION, target="recovery"
+        ),
         Reboot(into="recovery", label="reboot into recovery"),
     ),
     requires=frozenset({Feature.AB_SLOTS, Feature.BOOT0, Feature.RPMB}),
     source=V1_1_0_SOURCE,
-    version="1.1.0",
-)
-UNLOCK_TO_FIREOS5 = dataclasses.replace(
-    AMONET_V1_1_0,
-    files={"twrp": BBOE_RECOVERY},
-    plan=tuple(
-        FastbootFlash(
-            image="twrp", label="write TWRP " + BBOE_TWRP_VERSION, target="recovery"
-        )
-        if step == V1_1_0_FLASH_RECOVERY
-        else step
-        for step in AMONET_V1_1_0.plan
-    ),
     version="1.1.0-bboe",
 )
 
