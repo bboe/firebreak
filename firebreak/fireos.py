@@ -233,7 +233,7 @@ def stage_install_fireos6() -> None:
     zip_path = fetch(download=BOOT_ROOT)
     if "boot_a_x" in partition_table():
         raise FatalError(
-            message="v2.0.0's TWRP runs on amonet v1.1.0's partition table. " + again()
+            message="v2's TWRP runs on amonet v1.1.0's partition table. " + again()
         )
     PROGRESS.begin(estimate="10 s", label="wiping cache and data")
     for part in ("cache", "data"):

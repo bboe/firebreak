@@ -13,7 +13,7 @@ from firebreak.devices import BISCUIT, BOOT_MOVED_LAYOUT, STOCK_LAYOUT
 from firebreak.plugin import BOOT0, Device, ResetBcb, Unlock, Write
 from firebreak.unlocks.amonet_biscuit_v1_1_0 import AMONET_BISCUIT_V1_1_0
 from firebreak.unlocks.amonet_biscuit_v1_1_0_bboe import AMONET_BISCUIT_V1_1_0_BBOE
-from firebreak.unlocks.amonet_biscuit_v2_0_0 import AMONET_BISCUIT_V2_0_0
+from firebreak.unlocks.amonet_biscuit_v2_0_1 import AMONET_BISCUIT_V2_0_1
 from firebreak.unlocks.amonet_crown_v2_0_1 import AMONET_CROWN_V2_0_1
 from firebreak.unlocks.amonet_radar_v1_0_0 import AMONET_RADAR_V1_0_0
 
@@ -229,7 +229,7 @@ def test_a_half_shuffled_table_is_refused(*, source: pathlib.Path) -> None:
 
 
 def test_a_repartition_without_a_layout_is_refused(*, source: pathlib.Path) -> None:
-    unlock = dataclasses.replace(AMONET_BISCUIT_V2_0_0, layout=None)
+    unlock = dataclasses.replace(AMONET_BISCUIT_V2_0_1, layout=None)
     with pytest.raises(ValueError, match="repartitions but names no layout"):
         plan.resolve(
             raw=biscuit_table(layout=BISCUIT_STOCK), source=source, unlock=unlock
@@ -331,7 +331,7 @@ def test_crown_v2_0_1_matches_amonet(*, source: pathlib.Path) -> None:
     argvalues=[
         AMONET_BISCUIT_V1_1_0,
         AMONET_BISCUIT_V1_1_0_BBOE,
-        AMONET_BISCUIT_V2_0_0,
+        AMONET_BISCUIT_V2_0_1,
         AMONET_RADAR_V1_0_0,
     ],
     ids=lambda unlock: unlock.name,
@@ -491,7 +491,7 @@ def test_v2_0_0_from_a_shuffled_table_matches_amonet(*, source: pathlib.Path) ->
     actions = plan.resolve(
         raw=biscuit_table(layout=BISCUIT_SHUFFLED),
         source=source,
-        unlock=AMONET_BISCUIT_V2_0_0,
+        unlock=AMONET_BISCUIT_V2_0_1,
     )
     assert described(actions=actions) == amonet_v2_writes()
     restored = gpt.partition_map(entries=actions[0].data[2 * SECTOR :])
@@ -513,7 +513,7 @@ def test_v2_0_0_from_stock_leaves_the_table(*, source: pathlib.Path) -> None:
     actions = plan.resolve(
         raw=biscuit_table(layout=BISCUIT_STOCK),
         source=source,
-        unlock=AMONET_BISCUIT_V2_0_0,
+        unlock=AMONET_BISCUIT_V2_0_1,
     )
     assert described(actions=actions) == amonet_v2_writes()[2:]
 
@@ -522,7 +522,7 @@ def test_v2_0_0_undoes_v1_1_0s_shuffle_byte_for_byte(*, source: pathlib.Path) ->
     stock = biscuit_table(layout=BISCUIT_STOCK)
     shuffle = plan.resolve(raw=stock, source=source, unlock=AMONET_BISCUIT_V1_1_0)
     actions = plan.resolve(
-        raw=shuffle[1].data, source=source, unlock=AMONET_BISCUIT_V2_0_0
+        raw=shuffle[1].data, source=source, unlock=AMONET_BISCUIT_V2_0_1
     )
     assert actions[0].data == stock
     assert actions[1].data == gpt.rebuilt_gpt(entries=stock[1024:], raw=stock).backup

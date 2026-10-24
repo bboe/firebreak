@@ -4,11 +4,16 @@ firebreak unlocks an Echo Dot (2nd Generation) over USB, moves it between amonet
 targets, or returns it to stock. Run it again with another target to move the
 Dot. A stopped run picks up where it left off.
 
+Unlocking a stock Dot needs `amonet-biscuit-v2.0.1.zip`, which is only on
+[the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/).
+The run opens your browser for it and waits, because the thread refuses an
+unattended download. A Dot that is already unlocked does not need it.
+
 | target | the Dot ends with | time |
 | --- | --- | --- |
 | `amonet-biscuit-v1.1.0-bboe` (default) | rooted Fire OS [5.5.5.4][fireos-5554] on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
 | `amonet-biscuit-v1.1.0` | the same, with amonet v1.1.0's TWRP 3.2.3 | about 10 s from `amonet-biscuit-v1.1.0-bboe` |
-| `amonet-biscuit-v2.0.0` | rooted Fire OS 6 [8146][fireos-8146] on amonet v2.0.0; opens your browser to download `boot-root.zip` from [the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/) | about 5 min from `amonet-biscuit-v1.1.0-bboe` |
+| `amonet-biscuit-v2.0.1` | rooted Fire OS 6 [8146][fireos-8146] on amonet v2.0.1; opens your browser to download `boot-root.zip` from [the amonet XDA thread](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/) | about 5 min from `amonet-biscuit-v1.1.0-bboe` |
 | `stock [BUILD]` | stock Fire OS at that build, with the Dot erased: Fire OS 6 [8149][fireos-8149] when left out, or Fire OS 5 from [5.5.0.3][fireos-5503] to [5.5.5.4][fireos-5554] | about 3 min from `amonet-biscuit-v1.1.0-bboe` |
 
 ## Run it
@@ -105,7 +110,7 @@ From stock, only the LK decides whether firebreak can unlock a Dot.
   anti-rollback versions.
 - An LK older than 5.5.0.3 reports none of these, and so no `lk_build_desc`
   and no `pl_build_desc`. firebreak unlocks such a Dot with the default
-  fastbrick image, which amonet v2.0.0's own map gives an LK it does not know.
+  fastbrick image, which amonet v2.0.1's own map gives an LK it does not know.
 
 ## `--fastboot`
 
@@ -120,7 +125,7 @@ Dot's bootrom over a serial port.
 Use `--short` when the Dot shows no light and gives no fastboot. The run reaches
 the Dot's bootrom by shorting its eMMC bus as it powers up, writes amonet
 v1.1.0, and then goes on to the target. It takes any target; `--short` to
-`amonet-biscuit-v2.0.0` has not been run on a Dot.
+`amonet-biscuit-v2.0.1` has not been run on a Dot.
 
 1. Open the Dot with a Torx T8 screwdriver. Lift the shield's lid off the eMMC
    by its corners; its metal frame stays on the board.

@@ -11,13 +11,12 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 | stock-booted | `adb get-state` says `unauthorized`, or Fire OS 6 without root | prints the fastboot gesture, and the + gesture for a Dot already on amonet v2.0.0 |
 | stock-fastboot | `unlock_status` is `false`, and `lk_build_desc` is none of the two below | amonet v2.0.0 fastbrick |
 | stock-fireos5-fastboot | `unlock_status` is `false`, and `lk_build_desc` is `f379dba-20170906_000423`, Fire OS 5's, which amonet v1.1.0 keeps: Fire OS 5's own fastboot, locked, on a stock Dot or one on amonet v1.1.0 | the same |
-| stock-no-fastbrick-fastboot | `unlock_status` is `false`, and `lk_build_desc` is one `UNLOCK_BUILDS` lists: a locked stock Dot on a bootloader no fastbrick image unlocks | unlocks the Dot's own bootloader, then erases boot0 to reach the bootrom |
 | emos | no adb or fastboot, and one serial port with USB ID `1949:2007` | `/init recovery` at emOS's serial console |
 | no-system | adb answers as `device`, and `adb shell` fails with `exec '/system/bin/sh' failed` | `adb reboot recovery`, for every target |
-| amonet-v2.0.0-booted | Fire OS 6, and `id` or `su -c id` answers uid 0 | `adb reboot recovery`, into v2.0.0's TWRP; ends an `amonet-biscuit-v2.0.0` run |
-| amonet-v2.0.0-twrp | unlocked, `lk_build_desc` is not amonet v1.1.0's, `mtp` in `sys.usb.config` | makes room for amonet v1.1.0 in the table, then reboots so the kernel rereads it |
-| amonet-v2.0.0-twrp-v1.1.0-table | amonet-v2.0.0-twrp, and `sgdisk --print` lists `boot_a_x` | writes amonet v1.1.0's chain and Fire OS 5.5.5.4, preloader last |
-| amonet-v2.0.0-fastboot | unlocked, `lk_build_desc` is not amonet v1.1.0's | downgrade to amonet v1.1.0 through the bootrom |
+| amonet-v2-booted | Fire OS 6, and `id` or `su -c id` answers uid 0 | `adb reboot recovery`, into v2.0.0's TWRP; ends an `amonet-biscuit-v2.0.0` run |
+| amonet-v2-twrp | unlocked, `lk_build_desc` is not amonet v1.1.0's, `mtp` in `sys.usb.config` | makes room for amonet v1.1.0 in the table, then reboots so the kernel rereads it |
+| amonet-v2-twrp-v1.1.0-table | amonet-v2-twrp, and `sgdisk --print` lists `boot_a_x` | writes amonet v1.1.0's chain and Fire OS 5.5.5.4, preloader last |
+| amonet-v2-fastboot | unlocked, `lk_build_desc` is not amonet v1.1.0's | downgrade to amonet v1.1.0 through the bootrom |
 | amonet-v1.1.0-fastboot | `unlock_status` is `true`, and `lk_build_desc` is `f379dba-20170906_000423` | amonet v1.1.0 TEE and TWRP 3.7.0_9-bboe2, then recovery |
 | amonet-v1.1.0-twrp | recovery, amonet v1.1.0's `lk_build_desc`, another `ro.twrp.version`, `mtp` in `sys.usb.config` | writes TWRP 3.7.0_9-bboe2 to `recovery`, reboots into it |
 | amonet-v1.1.0-bboe-twrp | recovery, amonet v1.1.0's `lk_build_desc`, `ro.twrp.version` 3.7.0_9-bboe2, `mtp` in `sys.usb.config` | Fire OS 5.5.5.4, boot and /system patches, Magisk 17.3 |
@@ -192,7 +191,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   Dot's serial number. Measured on a Dot with emOS 0.10 on amonet v2.0.0.
 - That shell's `/init recovery` reboots into the bootloader's TWRP, and the
   port goes away within a second. From v2.0.0's TWRP, 20 s later, the root
-  goes on as from amonet-v2.0.0-twrp. `stock` takes the same path: from emOS
+  goes on as from amonet-v2-twrp. `stock` takes the same path: from emOS
   0.10 on amonet v1.1.0 with TWRP 3.7.0_9-bboe2 it restored 8146 in 3 min
   3 s.
 - Finding the port by USB ID needs pyserial, so the probe runs a child that
@@ -769,25 +768,25 @@ ring read white.
 - `eMMC-RO` or `Device mismatch` means the payload refused, and the Dot is
   unchanged.
 
-## Unlock: a bootloader with no fastbrick image
+## Unlock: the 8338 bootloader
 
-Amazon shipped bootloaders after amonet's last fastbrick payload. A Dot on one
-of them gives fastboot, but every fastbrick flash returns at once, because the
-payload's locator patterns do not match the new code. Until now such a Dot
-could only be unlocked by shorting its eMMC bus, which means opening it.
+Amazon shipped 8338's bootloader after amonet v2.0.0's last fastbrick payload.
+A Dot on it gave fastboot, but every fastbrick flash returned at once, because
+the payload's locator patterns did not match the new code. firebreak carried
+its own route for it: read the stock build's `lk.img` out of the OTA, patch the
+lock check, flash it, then erase `boot0` to fall into the bootrom.
 
-- `UNLOCK_BUILDS` lists the bootloaders this unlocks, each keyed by its
-  `lk_build_desc` against the stock build that carries it. 8338 is the only one
-  today. A Dot on one of them reaches `stock-no-fastbrick-fastboot`.
-- The stage needs the stock build's own `lk.img`, and reads only that image out
-  of the OTA. Taking every image would write about 850 MB to reach the 236 KB
-  this needs.
-- It ends by erasing `boot0`, so the Dot falls into its bootrom on the next
-  start, in about 2 seconds and with nothing shorted. The stage sets the same
-  marker the bootrom step sets and stops there. The run then finds the Dot in
-  its bootrom and takes the route it already has, which decides what to write.
-- A stock target stops on such a Dot rather than unlocking it, as it already
-  does on any other locked stock Dot.
+amonet v2.0.1 ships `bin/fastbrick-20260617.img` for that bootloader, so the
+ordinary fastbrick stage now covers it and the bespoke route is gone, along
+with `lk_unlock`, `UNLOCK_BUILDS` and the `stock-no-fastbrick-fastboot` state.
+
+- The payload's tail is byte-derived from the LK it targets, which is how the
+  mapping can be checked without a Dot. Of the 33,951 distinct 16-byte windows
+  in `fastbrick-20260617.img`'s last 137,684 bytes, 33,950 appear in 8338's
+  `lk.img`, against 30,851 in 8149's. `fastbrick-20221007.img`'s tail is the
+  mirror of that: 33,950 in 8149's and 30,851 in 8338's.
+- A Dot on 8338 now reaches `stock-fastboot` and takes the same stage as every
+  other locked stock Dot, so nothing erases `boot0` before the exploit runs.
 
 ## Targets
 
@@ -795,7 +794,7 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
 | --- | --- | --- |
 | `amonet-biscuit-v1.1.0-bboe`, the default | amonet v1.1.0, TWRP 3.7.0_9-bboe2, rooted Fire OS 5.5.5.4 | amonet-v1.1.0-bboe-booted |
 | `amonet-biscuit-v1.1.0` | the same, with v1.1.0's own TWRP 3.2.3 | amonet-v1.1.0-booted |
-| `amonet-biscuit-v2.0.0` | amonet v2.0.0's TWRP, Fire OS 6 8146 in both slots, `boot-root.zip` | amonet-v2.0.0-booted |
+| `amonet-biscuit-v2.0.0` | amonet v2.0.0's TWRP, Fire OS 6 8146 in both slots, `boot-root.zip` | amonet-v2-booted |
 | `stock [BUILD]` | Amazon's Fire OS 6 `BUILD`, 8149 when left out, the whole Dot erased | stock-booted |
 
 - Each poll picks the stage for the state found and the target, so a run
@@ -881,10 +880,10 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
   `0e8d:2000`, takes boot0 as intact: it stops the bootrom step, deletes the
   marker, and goes on polling. On a Dot rebooted from Fire OS 6 with the
   marker set by hand, the run said so 2 s later and ended at
-  amonet-v2.0.0-booted, with nothing written.
+  amonet-v2-booted, with nothing written.
 - An amonet v1.1.0 Dot started in fastboot reads as stock-fireos5-fastboot,
   and the fastbrick leaves it in v2.0.0's TWRP on amonet v1.1.0's partition
-  table. The probe reads that as amonet-v2.0.0-twrp-v1.1.0-table, and for
+  table. The probe reads that as amonet-v2-twrp-v1.1.0-table, and for
   `amonet-biscuit-v2.0.0` the run carries out the plan there first. The
   amonet v2.0.0 install itself stops if `boot_a_x` is still there, or if
   `sgdisk` prints no `userdata`.
@@ -903,9 +902,9 @@ could only be unlocked by shorting its eMMC bus, which means opening it.
 | amonet-v1.1.0-bboe-booted | amonet-biscuit-v1.1.0 | 9 s |
 | amonet-v1.1.0-booted | amonet-biscuit-v1.1.0-bboe | 9 s |
 | amonet-v1.1.0-bboe-booted | amonet-biscuit-v2.0.0 | 5 min 11 s, on 2026-10-09, by the plan: recovery 28 s, boot0 under 1 s, the table 1 s, the writes 5 s with TWRP 3 s of it, the preloader under 1 s, recovery 19 s, the wipes 4 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s. The zip took 5 min 22 s, its install 19 s and its reboot 19 s |
-| amonet-v2.0.0-booted | amonet-biscuit-v1.1.0 | 8 min 28 s through the bootrom, which this starting state no longer uses, kept to compare against: recovery 19 s, the downgrade 43 s, TWRP 27 s, the install 86 s, Fire OS 5's first boot 321 s, TWRP 3.2.3 7 s |
-| amonet-v2.0.0-booted | amonet-biscuit-v1.1.0-bboe | 7 min 42 s, with no bootrom: recovery 19 s, the table 1 s, recovery 19 s, boot0 under 1 s, the chain 6 s, `misc` under 1 s, userdata 4 s, `/system` 79 s, the boot image 3 s, Magisk 1 s, the preloader under 1 s, Fire OS 5's first boot 321 s |
-| stock-fastboot | amonet-biscuit-v1.1.0-bboe | 8 min 3 s, with no bootrom: the fastbrick, then the same route as from amonet-v2.0.0-booted |
+| amonet-v2-booted | amonet-biscuit-v1.1.0 | 8 min 28 s through the bootrom, which this starting state no longer uses, kept to compare against: recovery 19 s, the downgrade 43 s, TWRP 27 s, the install 86 s, Fire OS 5's first boot 321 s, TWRP 3.2.3 7 s |
+| amonet-v2-booted | amonet-biscuit-v1.1.0-bboe | 7 min 42 s, with no bootrom: recovery 19 s, the table 1 s, recovery 19 s, boot0 under 1 s, the chain 6 s, `misc` under 1 s, userdata 4 s, `/system` 79 s, the boot image 3 s, Magisk 1 s, the preloader under 1 s, Fire OS 5's first boot 321 s |
+| stock-fastboot | amonet-biscuit-v1.1.0-bboe | 8 min 3 s, with no bootrom: the fastbrick, then the same route as from amonet-v2-booted |
 | amonet-v1.1.0-bboe-booted | stock 8146 | 3 min 11 s: recovery 30 s, `system_a` 81 s, the rest under 7 s each, stock's first boot 32 s |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
@@ -1004,7 +1003,7 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   stock LK and keeps its build string, so an amonet v2.0.0 Dot and a locked
   stock 8146 both read `63cb91b-20221007_072309`; `unlock_status` is in
   fastboot only. The `stock` target writes no `recovery`, so a restored Dot
-  keeps the TWRP it had, and the probe would read that as amonet-v2.0.0-twrp.
+  keeps the TWRP it had, and the probe would read that as amonet-v2-twrp.
 - A locked Dot cannot reach that state, so the reading above is a gap in the
   logic and not a route. Measured twice on a Dot restored to stock 8146 with an
   amonet TWRP left in `recovery`, v2.0.0's and 3.7.0_9-bboe2's:
@@ -1067,7 +1066,7 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   not `true`, or whose `product` is not `BISCUIT`. Every unlocked amonet LK
   answers this fastboot. Without the `product` check, an Echo (2nd
   Generation) on amonet-radar, whose LK says `RADAR`, would read as
-  amonet-v2.0.0-fastboot, and a run would erase its boot0 and write
+  amonet-v2-fastboot, and a run would erase its boot0 and write
   biscuit's preloader and LK to it. This is read from the code and the LK
   images, not seen on a radar.
 - It runs `fastboot erase boot0` and `fastboot reboot`, and the Dot drops into
@@ -1410,7 +1409,7 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   `toybox dd`.
 - Measured on a Dot, 2026-10-04, before `stock` was a target: `stock 8146` from
   amonet-v1.1.0-booted, through v1.1.0's TWRP 3.2.3, in 6 min 9 s; from
-  amonet-v2.0.0-booted, through v2.0.0's TWRP, in 2 min 59 s; from
+  amonet-v2-booted, through v2.0.0's TWRP, in 2 min 59 s; from
   amonet-v1.1.0-bboe-booted in 1 min 52 s. Each was rooted again after the
   fastboot gesture: to `amonet-biscuit-v2.0.0` in 7 steps,
   `amonet-biscuit-v1.1.0` in 10, `amonet-biscuit-v1.1.0-bboe` in 9, as the

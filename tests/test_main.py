@@ -198,7 +198,7 @@ def test_an_option_before_a_command_that_does_not_take_it_is_refused(
 @pytest.mark.parametrize(
     argnames=("arguments", "message"),
     argvalues=[
-        (["amonet-biscuit-v2.0.0", "--fastboot"], "takes no --fastboot"),
+        (["amonet-biscuit-v2.0.1", "--fastboot"], "takes no --fastboot"),
         (["--fastboot", "report"], "report takes no --fastboot"),
         (["--fastboot"], "the default target takes no --fastboot"),
         (["stock", "5.5.0.3", "--fastboot"], "cannot leave the Dot in fastboot"),
@@ -235,12 +235,12 @@ def test_no_newer_release_says_nothing(
         (["--short", "stock"], ("stock", "8149", True, None, False)),
         (["stock", "4315", "--short"], ("stock", "4315", True, None, False)),
         (
-            ["--verbose", "--device", "biscuit", "amonet-biscuit-v2.0.0"],
-            ("amonet-biscuit-v2.0.0", "", False, "biscuit", True),
+            ["--verbose", "--device", "biscuit", "amonet-biscuit-v2.0.1"],
+            ("amonet-biscuit-v2.0.1", "", False, "biscuit", True),
         ),
         (
-            ["amonet-biscuit-v2.0.0", "--device", "biscuit", "--verbose"],
-            ("amonet-biscuit-v2.0.0", "", False, "biscuit", True),
+            ["amonet-biscuit-v2.0.1", "--device", "biscuit", "--verbose"],
+            ("amonet-biscuit-v2.0.1", "", False, "biscuit", True),
         ),
         (["--short", "write-test"], ("write-test", "", True, None, False)),
         (["write-test", "--short"], ("write-test", "", True, None, False)),
@@ -283,7 +283,7 @@ def test_stock_takes_fastboot(
     argvalues=[
         (["stock"], "8149"),
         (["stock", "4315"], "4315"),
-        (["amonet-biscuit-v2.0.0"], ""),
+        (["amonet-biscuit-v2.0.1"], ""),
     ],
     ids=["stock-alone", "stock-with-a-build", "another-target"],
 )

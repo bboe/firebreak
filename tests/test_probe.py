@@ -8,10 +8,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import host, probe
-from firebreak.devices import LK, UNLOCK_BUILDS, State
+from firebreak.devices import LK, State
 from firebreak.ui import FatalError
-
-NO_FASTBRICK = next(iter(UNLOCK_BUILDS))
 
 if TYPE_CHECKING:
     import pathlib
@@ -78,7 +76,7 @@ def recovery(
 @pytest.mark.parametrize(
     ("name", "root", "found"),
     [
-        ("Fire OS 6.5.7.4", "uid=0(root)", State.AMONET_V2_0_0_BOOTED),
+        ("Fire OS 6.5.7.4", "uid=0(root)", State.AMONET_V2_BOOTED),
         ("Fire OS 6.5.7.4", "Permission denied", State.STOCK_BOOTED),
         ("Fire OS 5.5.5.4", "Permission denied", State.BOOTED),
     ],
@@ -150,11 +148,11 @@ def test_an_unauthorized_dot_is_stock(*, dot: FakeAdb) -> None:
     [
         ("false", LK.FIREOS5.value, State.STOCK_FIREOS5_FASTBOOT),
         ("false", LK.FIREOS6.value, State.STOCK_FASTBOOT),
-        ("false", NO_FASTBRICK, State.STOCK_NO_FASTBRICK_FASTBOOT),
+        ("false", LK.FIREOS6_8338.value, State.STOCK_FASTBOOT),
         ("", LK.FIREOS5.value, State.STARTING),
         ("true", "", State.STARTING),
         ("true", LK.FIREOS5.value, State.AMONET_V1_1_0_FASTBOOT),
-        ("TRUE", LK.FIREOS6.value, State.AMONET_V2_0_0_FASTBOOT),
+        ("TRUE", LK.FIREOS6.value, State.AMONET_V2_FASTBOOT),
     ],
 )
 def test_fastboot_is_read_from_its_unlock_and_bootloader(
@@ -227,12 +225,12 @@ def test_the_recovery_read_names_the_partition_by_name(*, dot: FakeAdb) -> None:
             "boot_a",
             State.AMONET_V1_1_0_BBOE_TWRP,
         ),
-        ("3.7.0_9-0", LK.FIREOS6.value, "boot_a", State.AMONET_V2_0_0_TWRP),
+        ("3.7.0_9-0", LK.FIREOS6.value, "boot_a", State.AMONET_V2_TWRP),
         (
             "3.7.0_9-0",
             LK.FIREOS6.value,
             "boot_a_x",
-            State.AMONET_V2_0_0_TWRP_V1_1_0_TABLE,
+            State.AMONET_V2_TWRP_V1_1_0_TABLE,
         ),
         ("", LK.FIREOS5.value, "boot_a", State.STARTING),
         ("3.2.3-0", "", "boot_a", State.STARTING),

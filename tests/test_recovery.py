@@ -16,7 +16,7 @@ from firebreak.android.gpt import Partition, partition_map
 from firebreak.plan import Action
 from firebreak.plugin import BOOT0
 from firebreak.ui import FatalError, explained
-from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_0
+from firebreak.unlocks import amonet_biscuit_v1_1_0, amonet_biscuit_v2_0_1
 
 if TYPE_CHECKING:
     import pathlib
@@ -223,7 +223,7 @@ def carry_v2(*, calls: list[tuple]) -> bool:
     return recovery.carry_out(
         after=lambda: calls.append(("after", recovery.ERASED.exists())),
         guard=lambda: calls.append(("guard",)),
-        unlock=amonet_biscuit_v2_0_0.AMONET_BISCUIT_V2_0_0,
+        unlock=amonet_biscuit_v2_0_1.AMONET_BISCUIT_V2_0_1,
         zero=("misc",),
     )
 

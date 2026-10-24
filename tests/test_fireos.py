@@ -72,7 +72,7 @@ def fireos6(
     monkeypatch.setattr(
         name="target",
         target=fireos.ARGUMENTS,
-        value=TARGETS[BISCUIT]["amonet-biscuit-v2.0.0"],
+        value=TARGETS[BISCUIT]["amonet-biscuit-v2.0.1"],
     )
     waited: list[str] = []
     monkeypatch.setattr(name="amonet_chain", target=fireos, value=lambda: None)

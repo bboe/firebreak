@@ -2,6 +2,23 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+- The `amonet-biscuit-v2.0.0` target is now `amonet-biscuit-v2.0.1`. v2.0.1's
+  kaeru boots the active slot, where v2.0.0's boots `boot_a` whatever slot is
+  active. Its zip is only on the XDA thread, so unlocking a stock Dot now opens
+  your browser and waits for the download.
+- A Dot on 8338's bootloader is unlocked by amonet v2.0.1's own fastbrick
+  payload for it. 0.7.0 patched that bootloader's own `lk.img` instead, which
+  also erased `boot0` to reach the bootrom; nothing erases `boot0` before the
+  exploit runs now.
+- The `amonet-v2.0.0-*` states `--verbose` prints are now `amonet-v2-*`, and
+  the messages that named amonet v2.0.0's chain name amonet v2. Both releases
+  write the same `lk.bin`, `preloader.img`, `twrp.img` and `tz.img`, so the
+  state a Dot reaches does not say which one unlocked it.
+
 ## 0.7.0 - 2026-10-21
 
 ### Added

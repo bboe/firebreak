@@ -290,7 +290,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
         elif not version.startswith(TWRP_VERSIONS):
             raise FatalError(
                 message="this needs a TWRP for this Dot: v1.1.0's 3.2.3,"
-                f" v2.0.0's 3.7.0, or the {TWRP_VERSION} that firebreak"
+                f" v2's 3.7.0, or the {TWRP_VERSION} that firebreak"
                 " installs"
             )
     if (
