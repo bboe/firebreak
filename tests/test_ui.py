@@ -199,7 +199,9 @@ def test_progress_spins_in_ascii(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="stdout", target=sys, value=stream)
     monkeypatch.setattr(name="isatty", target=stream, value=lambda: True)
     ui.PROGRESS.begin(label="spin")
-    time.sleep(0.15)
+    deadline = time.monotonic() + 10
+    while b"|" not in stream.buffer.getvalue() and time.monotonic() < deadline:
+        time.sleep(0.02)
     ui.PROGRESS.end()
     assert b"spin" in stream.buffer.getvalue()
     assert b"|" in stream.buffer.getvalue()
