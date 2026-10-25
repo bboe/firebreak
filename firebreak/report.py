@@ -5,6 +5,7 @@ import re
 from typing import TYPE_CHECKING
 
 from firebreak.twrp import DISK, TABLE_FIELDS, TABLE_OK
+from firebreak.ui import title
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -14,7 +15,7 @@ BOOT_OK = "boot-ok"
 EMMC_BOOT_AREAS = ("boot0", "boot1")
 EMMC_FIELDS = ("name", "manfid", "oemid", "date", "prv", "life_time", "pre_eol_info")
 GUID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
-LEFT_IN_RECOVERY = "The Dot stays in its recovery: adb reboot starts it again."
+LEFT_IN_RECOVERY = "The Echo stays in its recovery: adb reboot starts it again."
 LISTING_OK = "listing-ok"
 LOG_OK = "log-ok"
 MMC_LOG = 'dmesg | grep -iE "mmc|msdc" | tail -60'
@@ -134,7 +135,11 @@ def partition_rows(*, names: dict[str, str] | None, printed: str) -> list[str]:
         return [*said, "", "That is not a whole table, so no name was matched to it."]
     said = said[:-1]
     if names is None:
-        return [*said, "", "The Dot's names did not arrive whole, so none was matched."]
+        return [
+            *said,
+            "",
+            f"The {title()}'s names did not arrive whole, so none was matched.",
+        ]
     held: dict[str, list[str]] = {}
     for name, target in sorted(names.items()):
         key = node_held(target=target) if node_order(node=target) else target
@@ -161,7 +166,12 @@ def system_a_rows(
     *, names: dict[str, str] | None, needs: int, partitions: str | None
 ) -> list[tuple[str, str]]:
     if names is None or partitions is None:
-        return [("system_a", "unknown: the Dot's partition lists did not arrive whole")]
+        return [
+            (
+                "system_a",
+                f"unknown: the {title()}'s partition lists did not arrive whole",
+            )
+        ]
     holds = node_sizes(partitions=partitions).get(
         node_held(target=names.get("system_a", "")), 0
     )

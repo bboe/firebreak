@@ -1,10 +1,10 @@
-"""Change the firmware on an Echo Dot (2nd Generation) over USB: unlock it, or
-return it to stock. It finds where the Dot is, from stock, part way through, or
-on another target, and keeps going until the Dot is on the target: it waits
-while the Dot reboots, and while you take a step it asks for. Stopped, it picks
-up where it left off on the next run. It uses the one Dot on USB; set
-ANDROID_SERIAL when several are. It needs Python 3.9 or later, and adb and
-fastboot from Android platform-tools.
+"""Change the firmware on an Echo Dot (2nd Generation) or an Echo (2nd
+Generation) over USB: unlock it, or return it to stock. It finds where the Echo
+is, from stock, part way through, or on another target, and keeps going until
+the Echo is on the target: it waits while the Echo reboots, and while you take
+a step it asks for. Stopped, it picks up where it left off on the next run. It
+uses the one Echo on USB; set ANDROID_SERIAL when several are. It needs Python
+3.9 or later, and adb and fastboot from Android platform-tools.
 https://github.com/bboe/firebreak/blob/main/docs/rooting.md says why each
 step is there.
 """
@@ -88,14 +88,14 @@ WRITE_TEST = "write-test"
 def build_parser() -> argparse.ArgumentParser:
     builds = ordered(builds={build for each in BUILDS.values() for build in each})
     about = {
-        REPORT: "print what the Dot and this computer are, and the Dot's"
-        " partition table, for a support request. It starts the Dot's recovery"
+        REPORT: "print what the Echo and this computer are, and the Echo's"
+        " partition table, for a support request. It starts the Echo's recovery"
         " to read them and writes no partition.",
         SURVEY: "read each Amazon OTA zip for the tables in docs/devices.md. It"
-        " needs no Dot.",
-        UNLOCK: "unlock the Dot and root it, to TARGET or to the newest Fire OS"
+        " needs no Echo.",
+        UNLOCK: "unlock the Echo and root it, to TARGET or to the newest Fire OS"
         " firebreak supports when TARGET is left out.",
-        WRITE_TEST: f"write a known pattern over the Dot's {EMMC_TARGET}"
+        WRITE_TEST: f"write a known pattern over the Echo's {EMMC_TARGET}"
         " partition and read it back, which tells a failing eMMC from a failing"
         " USB cable because nothing crosses USB. It leaves a fresh empty"
         " filesystem there, or says it could not.",
@@ -150,7 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=__doc__,
         epilog=f"""{target_help()}
 
-Run it again with another of these to move the Dot there.
+Run it again with another of these to move the Echo there.
 
 other commands:
 """
@@ -328,7 +328,7 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
         (
             "--fastboot",
             (
-                "leave the Dot in fastboot at the end instead of letting it"
+                "leave the Echo in fastboot at the end instead of letting it"
                 " start the firmware it now holds, so the next run needs no"
                 " button held"
             ),
@@ -344,7 +344,7 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
         (
             "--short",
             (
-                "for a Dot that shows no light and needs its test point"
+                "for an Echo that shows no light and needs its test point"
                 " shorted: wait for its bootrom, say when the short may come"
                 " off, then go on"
             ),
@@ -353,7 +353,7 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
             "--verbose",
             (
                 "print each adb and fastboot command, its exit status and the"
-                " time, and each state the Dot reaches"
+                " time, and each state the Echo reaches"
             ),
         ),
     ):
@@ -446,7 +446,7 @@ def parsed() -> argparse.Namespace:
     if options.fastboot and options.build in biscuit.BOOTROM_BUILDS:
         parser.error(
             message=f"stock {options.build} ends in its bootrom over a serial"
-            " port, which cannot leave the Dot in fastboot"
+            " port, which cannot leave the Echo in fastboot"
         )
     device = named
     wanted = options.target if options.command == UNLOCK else options.command

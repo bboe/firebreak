@@ -155,7 +155,10 @@ def test_a_boot_image_that_does_not_verify_stops_fire_os_5(
     *, adb: FakeAdb, fireos5: list[dict[str, object]]
 ) -> None:
     adb.answers["bs=4096 count=2"] = [""]
-    with pytest.raises(FatalError, match="did not verify on the Dot: read nothing"):
+    with pytest.raises(
+        FatalError,
+        match=r"did not verify on the Echo Dot \(2nd Generation\): read nothing",
+    ):
         fireos.stage_install_fireos()
     assert len(fireos5) == 1
 

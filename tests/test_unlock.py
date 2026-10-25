@@ -330,7 +330,7 @@ def test_a_too_new_bootloader_names_the_bootrom_only_for_the_dot(
     with pytest.raises(FatalError) as refused:
         unlock.newer_than_known(little_kernel="abcdef0-20991231_235959")
     assert "--short" not in refused.value.message
-    assert refused.value.message.endswith("the Dot was not modified.")
+    assert refused.value.message.endswith("the Echo (2nd Generation) was not modified.")
 
 
 def test_an_lk_read_answered_after_a_reconnect_is_used(

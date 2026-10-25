@@ -43,7 +43,7 @@ command -v timeout >/dev/null || { echo "run.sh needs timeout (coreutils)" >&2; 
 if [ "$start" = no-light ]; then
     (
         trap 'exit 0' TERM
-        until grep -q "Short the Dot's test point" "$out.log"; do sleep 0.5; done
+        until grep -q "test point and plug it in" "$out.log"; do sleep 0.5; done
         "$python" "$here/dot.py" plug >/dev/null
     ) &
     plugger=$!
@@ -60,5 +60,5 @@ cp "$work/trace.jsonl" "$out.jsonl"
 python3 "$here/trace.py" "$out.jsonl" > "$out.txt"
 "$python" "$here/dot.py" snapshot > "$out.snapshot"
 "$python" "$here/dot.py" table "$out.table"
-echo "$target: exit $status, $(grep -c '"tool"' "$out.jsonl") calls, $(grep -m1 -oE 'The Dot (is [a-z]*|runs [a-z]* [0-9.]*)' "$out.log" || echo 'no verdict')"
+echo "$target: exit $status, $(grep -c '"tool"' "$out.jsonl") calls, $(grep -m1 -oE 'The Echo[A-Za-z0-9 ()]* (is [a-z]*|runs [a-z]* [0-9.]*)' "$out.log" || echo 'no verdict')"
 exit $status

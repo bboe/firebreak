@@ -247,7 +247,7 @@ def test_into_recovery_reaches_twrp_from_where_the_dot_is(
     if start == "device":
         assert ["adb", "reboot", "recovery"] in fake.ran
     if start == "nothing":
-        assert out.count("comes from the Dot's recovery") == 1
+        assert out.count("comes from the Echo Dot (2nd Generation)'s recovery") == 1
 
 
 @pytest.mark.parametrize(

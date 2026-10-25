@@ -21,22 +21,23 @@ from firebreak.ui import (
     invocation,
     program,
     show,
+    title,
 )
 
 AS_ROOT = (
     "run this as your own user, not as root or with sudo: the downloads would"
-    " belong to root, and on Linux udev rules let a user open the Dot"
+    " belong to root, and on Linux udev rules let a user open the Echo"
 )
 DOT_TEMPORARY_DIRECTORY = pathlib.PurePosixPath("/tmp")  # ruff: ignore[hardcoded-temp-file]
 MORE_THAN_ONE = (
-    "more than one Dot on USB: set ANDROID_SERIAL to one's serial (adb"
+    "more than one Echo on USB: set ANDROID_SERIAL to one's serial (adb"
     " devices lists them)"
 )
 NEW_GROUP = """this shell predates its user joining plugdev. Log in again, or run:
 
 adb kill-server
 """
-NO_ACCESS = """this user cannot open the Dot over USB. These commands let it:
+NO_ACCESS = """this user cannot open the Echo over USB. These commands let it:
 
 sudo groupadd -f plugdev
 sudo tee /etc/udev/rules.d/51-echo-dot.rules >/dev/null <<'EOF'
@@ -305,14 +306,14 @@ def pyserial_wheel() -> pathlib.Path | None:
 
 def reconnect(*, remote: str | pathlib.PurePosixPath) -> None:
     PROGRESS.note(
-        message=f"{remote} did not arrive; waiting for the Dot to reconnect to try"
-        " again."
+        message=f"{remote} did not arrive; waiting for the {title()} to reconnect"
+        " to try again."
     )
     try:
         run(arguments=["adb", "wait-for-recovery"], timeout=120)
     except subprocess.TimeoutExpired:
         raise FatalError(
-            message="the Dot did not reconnect over USB in recovery"
+            message=f"the {title()} did not reconnect over USB in recovery"
         ) from None
     time.sleep(5)
 
@@ -399,7 +400,7 @@ def usb_serial() -> str | None:
         if ":" in USER_SERIAL:
             raise FatalError(
                 message="ANDROID_SERIAL names a network device;"
-                " this needs the Dot on USB"
+                f" this needs the {title()} on USB"
             )
         devices(arguments=["adb", "devices", "-l"])
         return USER_SERIAL

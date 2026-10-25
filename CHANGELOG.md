@@ -21,6 +21,10 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
+- A message names the device it is about, by the name help already gives it:
+  a run on an Echo (2nd Generation) says so where every run said Dot. Help,
+  and the notices that print before a run knows which device is plugged in,
+  say Echo, which fits any of them.
 - The fastbrick takes the payload map and the archive of the device's own
   unlock, and checks the product fastboot reports against the device the
   target is for. An Echo (2nd Generation) on Fire OS 5.5.5.4 takes

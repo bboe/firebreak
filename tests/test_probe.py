@@ -166,7 +166,7 @@ def test_probed_prints_an_unreadable_state_plain_and_masked(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     message = (
-        "sgdisk did not print the Dot's table:\n"
+        "sgdisk did not print the Echo Dot (2nd Generation)'s table:\n"
         "Disk identifier (GUID): 0FC63DAF-8483-4772-8E79-3D69D8477DE4"
     )
 
@@ -175,7 +175,8 @@ def test_probed_prints_an_unreadable_state_plain_and_masked(
 
     monkeypatch.setattr(name="state", target=probe, value=state)
     assert probe.probed() == (
-        "<unreadable: ERROR: sgdisk did not print the Dot's table:>"
+        "<unreadable: ERROR: sgdisk did not print the Echo Dot (2nd Generation)'s"
+        " table:>"
     )
     monkeypatch.setattr(name="state", target=probe, value=lambda: State.NONE)
     assert probe.probed() == State.NONE.value

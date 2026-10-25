@@ -14,7 +14,7 @@ from typing import NoReturn, TextIO
 
 ARGUMENTS = argparse.Namespace(build="", target="", verbose=False)
 BOOT0_EMPTY = (
-    "boot0 may hold no preloader until the last step, so a Dot that restarts"
+    "boot0 may hold no preloader until the last step, so an Echo that restarts"
     " before then shows no light and starts nothing: it waits in its bootrom,"
     " and firebreak takes it from there by itself when it runs again on this"
     " computer"
@@ -148,7 +148,7 @@ def asked_for() -> str:
     return (
         f"If it fails the same way, run {invocation(options=['report'])} and"
         " paste what it prints in #support-device-unlocking in the EchoMuse"
-        " Discord, https://discord.gg/vAPHMDvREG: it says what this Dot's eMMC"
+        f" Discord, https://discord.gg/vAPHMDvREG: it says what this {title()}'s eMMC"
         f" and partitions are. {invocation(options=['write-test'])} then tells"
         " a failing card from a failing cable."
     )
@@ -224,8 +224,11 @@ def reseat() -> str:
 
 def say(*, text: str) -> None:
     show(
-        text=textwrap.fill(
-            break_long_words=False, break_on_hyphens=False, text=text, width=79
+        text="\n\n".join(
+            textwrap.fill(
+                break_long_words=False, break_on_hyphens=False, text=part, width=79
+            )
+            for part in text.split(sep="\n\n")
         )
     )
 
@@ -266,6 +269,10 @@ def stop(*, error: FatalError) -> NoReturn:
     if error.prefix and color(stream=sys.stderr):
         text = f"\033[{ANSIColor.RED.value}m{text}\033[0m"
     raise SystemExit(text)
+
+
+def title() -> str:
+    return ARGUMENTS.target.device.title if ARGUMENTS.target else "Echo"
 
 
 def upgrade() -> tuple[str, str]:

@@ -39,7 +39,7 @@ from firebreak.host import (
 )
 from firebreak.probe import read_recovery
 from firebreak.twrp import partition_table, wait_for_twrp, write_system
-from firebreak.ui import ARGUMENTS, PROGRESS, SESSION, FatalError, again, warn
+from firebreak.ui import ARGUMENTS, PROGRESS, SESSION, FatalError, again, title, warn
 from firebreak.unlock import amonet_chain
 
 if TYPE_CHECKING:
@@ -115,7 +115,7 @@ def active_slot() -> str:
             return said[-2]
         if time.monotonic() > deadline:
             raise FatalError(
-                message="the Dot did not report its active slot, with no install"
+                message=f"the {title()} did not report its active slot, with no install"
                 " running, within 10 minutes. Leave it powered. " + again()
             )
         time.sleep(5)
@@ -137,7 +137,7 @@ def boot_root_ended() -> str:
         if time.monotonic() > deadline:
             raise FatalError(
                 message="TWRP did not finish installing boot-root.zip within 5"
-                " minutes. Leave the Dot powered. " + again()
+                f" minutes. Leave the {title()} powered. " + again()
             )
         time.sleep(5)
 
@@ -195,7 +195,7 @@ def hide_updater() -> None:
             )
         if delay == 1:
             warn(
-                text=f"{UPDATER} is not hidden yet. The Dot may still be"
+                text=f"{UPDATER} is not hidden yet. The {title()} may still be"
                 " starting, so this tries again for up to a minute."
             )
         time.sleep(min(delay, left))
@@ -217,7 +217,7 @@ def install_magisk(*, magisk: pathlib.Path, work: pathlib.Path) -> None:
     ).hexdigest()
     paths = " ".join(name.decode() for name in names)
     if md5_mismatch(command=f"cd /; cat {paths} | md5sum", want=want):
-        raise FatalError(message="Magisk 17.3's files did not verify on the Dot")
+        raise FatalError(message=f"Magisk 17.3's files did not verify on the {title()}")
 
 
 def polled(*, command: str) -> list[str]:
@@ -234,8 +234,8 @@ def reboot_rooted() -> None:
         if run(arguments=["adb", "reboot"], timeout=60).returncode == 0:
             return
     raise FatalError(
-        message="the Dot did not take adb reboot. boot-root.zip is installed,"
-        " so unplug the Dot's power and plug it back in to start rooted"
+        message=f"the {title()} did not take adb reboot. boot-root.zip is installed,"
+        f" so unplug the {title()}'s power and plug it back in to start rooted"
         " Fire OS 6."
     )
 
@@ -278,7 +278,8 @@ def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
         )
         if wrong:
             raise FatalError(
-                message="the patched boot image did not verify on the Dot" + wrong
+                message=f"the patched boot image did not verify on the {title()}"
+                + wrong
             )
 
         install_magisk(magisk=magisk, work=work)
@@ -351,7 +352,7 @@ def stage_replace_twrp() -> None:
     if md5_mismatch(command=read_back, timeout=120, want=digest(kind="md5", path=twrp)):
         raise FatalError(
             message=f"TWRP {biscuit.BBOE_TWRP_VERSION} did not verify in"
-            " recovery. Leave the Dot running. " + again()
+            f" recovery. Leave the {title()} running. " + again()
         )
     run(arguments=["adb", "reboot", "recovery"], check=True, timeout=60)
 
@@ -371,7 +372,7 @@ def stage_swap_twrp() -> None:
     ).hexdigest() != digest(kind="md5", path=image):
         raise FatalError(
             message=f"TWRP {biscuit.BBOE_TWRP_VERSION} did not verify in"
-            " recovery. Leave the Dot running. " + again()
+            f" recovery. Leave the {title()} running. " + again()
         )
 
 

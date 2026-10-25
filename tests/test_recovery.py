@@ -446,7 +446,10 @@ def test_a_plan_that_does_not_resolve_stops_before_anything_is_written(
     monkeypatch.setattr(name="read_sectors", target=recovery, value=lambda **_: b"")
     monkeypatch.setattr(name="resolve", target=recovery, value=unresolvable)
     monkeypatch.setattr(name="unpack", target=recovery, value=lambda **_: tmp_path)
-    with pytest.raises(FatalError, match="does not fit this Dot: biscuit has no"):
+    with pytest.raises(
+        FatalError,
+        match=r"does not fit this Echo Dot \(2nd Generation\): biscuit has no",
+    ):
         carry_v1(calls=[])
     assert not recovery.ERASED.exists()
 
@@ -646,7 +649,7 @@ def test_amonet_v1_1_0_writes_a_table_that_moves_its_targets_alone(
             "reboot",
             (),
             False,
-            {"label": "waiting for recovery to reread table"},
+            {"label": "waiting for TWRP to reread table"},
         ),
     ]
 
@@ -727,7 +730,9 @@ def test_amonet_v2_0_0_that_does_not_fit_writes_nothing(
         target=recovery,
         value=lambda **_: pytest.fail("boot0 changed"),
     )
-    with pytest.raises(FatalError, match="does not fit this Dot") as stopped:
+    with pytest.raises(
+        FatalError, match=r"does not fit this Echo Dot \(2nd Generation\)"
+    ) as stopped:
         carry_v2(calls=[])
     said = " ".join(explained(error=stopped.value).split())
     assert "Nothing was written." in said

@@ -22,7 +22,8 @@ crown, the Echo Show 8 (1st Generation), has a boot0 and an RPMB, but one slot.
 An unlock lists the features it requires, and resolution refuses a pairing that
 lacks one before anything is written.
 
-A device has a title for messages, such as `Echo Dot (2nd Generation)`, and the
+A device has a title, the name a message calls it by, such as
+`Echo Dot (2nd Generation)`, and the
 USB product strings its builds report, its models: `AEOBC` and its TWRPs' model
 names for biscuit, and `AEOCW` for crown. Crown's TWRP reports `Echo Show 8`,
 which later Echo Show 8 generations can report too. So that name is one of

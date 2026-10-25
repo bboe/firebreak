@@ -185,7 +185,11 @@ def test_a_restore_can_leave_the_dot_in_fastboot(
         ("grep -c", "2", "still sees amonet's partitions"),
         (f" {PARTITIONS['userdata'].size // 1024} mmcblk0p12$", "", "not its stock"),
         ("echo formatted", "mke2fs: failed", "did not format"),
-        ("pl.img", (1, "adb: error"), "the preloader did not reach the Dot"),
+        (
+            "pl.img",
+            (1, "adb: error"),
+            r"the preloader did not reach the Echo Dot \(2nd Generation\)",
+        ),
         (
             "md5sum /dev/block/mmcblk0boot0",
             "0" * 32 + "  boot0",
@@ -350,7 +354,10 @@ def test_the_stock_stage_builds_its_images_from_the_dot(
     assert (work / "boot0.img").read_bytes() == PRELOADER
     assert stock.SESSION.dd == "toybox dd"
     out = capsys.readouterr().out
-    assert "stock partition table built from this Dot's own" in out
+    assert (
+        "stock partition table built from this Echo Dot (2nd Generation)'s own table"
+        in out
+    )
     assert "Starting now." in out
 
 
@@ -478,14 +485,22 @@ def test_the_stock_stage_waits_for_twrp_to_finish_starting(
 @pytest.mark.parametrize(
     ("key", "answer", "said"),
     [
-        ("ro.twrp.version", "2.8.7.0", "this needs a TWRP for this Dot"),
+        (
+            "ro.twrp.version",
+            "2.8.7.0",
+            r"this needs a TWRP for this Echo Dot \(2nd Generation\)",
+        ),
         ("for t in sgdisk", "nothing", "did not answer which tools it has: nothing"),
         ("for t in sgdisk", "tools: sgdisk", "this TWRP has no sgdisk"),
         ("ro.product.device", "crown\ndevice-named", "the device 'crown'"),
         ("ro.product.device", "biscuit", "which device this is came back cut"),
         ("echo block", "", "is not a block device"),
         ("mmcblk0boot0/size", "4", r"preloader\.img does not fit boot0 \(4 sectors\)"),
-        ("blockdev --getsize64", "", "could not read the Dot's disk size"),
+        (
+            "blockdev --getsize64",
+            "",
+            r"could not read the Echo Dot \(2nd Generation\)'s disk size",
+        ),
     ],
 )
 def test_the_stock_stage_writes_nothing_to_a_dot_it_cannot_check(  # ruff: ignore[too-many-arguments]

@@ -179,8 +179,9 @@ def test_a_dot_at_its_goal_has_its_updater_hidden(
 ) -> None:
     run.states = [route.State.AMONET_V1_1_0_BBOE_BOOTED]
     route.root()
-    assert "The Dot is rooted: Fire OS 5.5.5.4, SELinux Permissive" in said(
-        capsys=capsys
+    assert (
+        "The Echo Dot (2nd Generation) is rooted: Fire OS 5.5.5.4, SELinux Permissive"
+        in said(capsys=capsys)
     )
     assert run.started == 0
 
@@ -209,7 +210,7 @@ def test_a_dot_at_v2_0_0_s_goal_says_it_has_root_adb(
             "fireos5",
             [route.State.STARTING],
             [],
-            "the Dot has been starting for 10 minutes",
+            r"the Echo Dot \(2nd Generation\) has been starting for 10 minutes",
         ),
     ],
 )
@@ -422,7 +423,7 @@ def test_a_run_fetches_its_route_s_downloads_before_the_first_stage(
     assert run.checked == 1
     assert run.started == 0
     assert run.prefetched == [[biscuit.V2_0_1_SOURCE]]
-    assert "Keep the Dot plugged in" in out
+    assert "Keep the Echo Dot (2nd Generation) plugged in" in out
     assert "state: stock-fastboot" in out
 
 
@@ -475,14 +476,17 @@ def test_a_run_refuses_another_device_before_it_downloads(
 @pytest.mark.parametrize(
     ("states", "message"),
     [
-        ([route.State.BOOTED], "The Dot is starting Fire OS"),
+        ([route.State.BOOTED], "The Echo Dot (2nd Generation) is starting Fire OS"),
         ([route.State.STOCK_BOOTED], "appears to be unmodified"),
         ([route.State.EMOS], "runs EchoMuse's emOS"),
         ([route.State.NO_SYSTEM], "/system is damaged"),
-        ([route.State.NONE], "Waiting for a Dot on USB"),
+        ([route.State.NONE], "Waiting for the Echo Dot (2nd Generation) on USB"),
         (
             [route.State.STOCK_BOOTED, route.State.NONE],
-            "Waiting for the Dot in fastboot mode, with a green ring.",
+            (
+                "Waiting for the Echo Dot (2nd Generation) in fastboot mode, with"
+                " a green ring."
+            ),
         ),
     ],
 )
@@ -713,13 +717,13 @@ def test_a_v2_0_0_dot_is_told_to_use_its_gesture_and_to_reboot(
         route.root()
     out = said(capsys=capsys)
     assert "hold the + button while you plug it back in" in out
-    assert "Rebooting it into recovery." in out
+    assert "Rebooting it into TWRP." in out
 
 
 def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) -> None:
     state = route.State
-    to_twrp = (route.reboot, {"label": "waiting for recovery"})
-    to_v2_twrp = (route.reboot, {"label": "waiting for v2 recovery to start"})
+    to_recovery = (route.reboot, {"label": "waiting for recovery"})
+    to_twrp = (route.reboot, {"label": "waiting for TWRP to start"})
     shared = {
         state.AMONET_V1_1_0_FASTBOOT: (
             route.stage_amonet_v1_1_0_recovery,
@@ -728,20 +732,20 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             frozenset(),
         ),
         state.EMOS: (route.stage_emos, 1, None, frozenset()),
-        state.NO_SYSTEM: (to_twrp, 1, None, frozenset()),
+        state.NO_SYSTEM: (to_recovery, 1, None, frozenset()),
     } | dict.fromkeys(
         (state.STOCK_FASTBOOT, state.STOCK_FIREOS5_FASTBOOT),
         (route.stage_fastbrick, 2, state.AMONET_V2_TWRP, frozenset()),
     )
     reboots = {
         state.AMONET_V2_BOOTED: (
-            to_v2_twrp,
+            to_twrp,
             1,
             state.AMONET_V2_TWRP,
             frozenset(),
         ),
-        state.BOOTED: (to_twrp, 1, None, frozenset()),
-        state.ROOTED: (to_twrp, 1, state.AMONET_V1_1_0_TWRP, frozenset()),
+        state.BOOTED: (to_recovery, 1, None, frozenset()),
+        state.ROOTED: (to_recovery, 1, state.AMONET_V1_1_0_TWRP, frozenset()),
         state.AMONET_V1_1_0_BOOTED: (
             to_twrp,
             1,
@@ -758,7 +762,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
     install = (
         route.recovery.carry_out,
         {
-            "after": to_v2_twrp,
+            "after": to_twrp,
             "guard": route.amonet_chain,
             "unlock": route.biscuit.UNLOCK_TO_FIREOS6,
             "zero": ("misc",),

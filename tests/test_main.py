@@ -317,7 +317,7 @@ def test_an_unproven_target_goes_on_only_when_asked(
             ["--run-on-unproven-path", "report"],
             "report takes no --run-on-unproven-path",
         ),
-        (["stock", "5.5.0.3", "--fastboot"], "cannot leave the Dot in fastboot"),
+        (["stock", "5.5.0.3", "--fastboot"], "cannot leave the Echo in fastboot"),
     ],
 )
 def test_fastboot_is_refused_where_it_cannot_be_honoured(

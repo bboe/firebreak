@@ -163,7 +163,11 @@ def test_a_dot_with_no_cache_is_skipped() -> None:
     emmc = Emmc(name="userdata")
     assert run_legs(emmc=emmc) == (
         True,
-        {"over the bootrom": ["skipped: this Dot has no cache partition"]},
+        {
+            "over the bootrom": [
+                "skipped: this Echo Dot (2nd Generation) has no cache partition"
+            ]
+        },
     )
     assert emmc.writes == []
 
@@ -235,7 +239,7 @@ def test_a_silent_payload_says_to_unplug() -> None:
     synced, said = run_legs(emmc=Emmc(mode="stuck"))
     assert not synced
     assert "STOPPED ANSWERING after a write of 34 blocks" in str(said["verdict"])
-    assert "Unplug the Dot" in str(said["verdict"])
+    assert "Unplug the Echo Dot (2nd Generation)" in str(said["verdict"])
 
 
 def test_a_table_that_is_not_intact_is_skipped() -> None:

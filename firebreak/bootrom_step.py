@@ -41,6 +41,7 @@ from firebreak.ui import (
     paint,
     show,
     status,
+    title,
     warn,
 )
 
@@ -67,7 +68,7 @@ SHORT_WAIT = 5
 
 def ask_for_short() -> None:
     warn(
-        text="Short the Dot's test point and plug it in. The run waits for"
+        text=f"Short the {title()}'s test point and plug it in. The run waits for"
         " its bootrom, then says when the short may come off.",
     )
     status(text="Waiting for the bootrom.")
@@ -84,7 +85,7 @@ def await_amonet_fastboot() -> None:
         except subprocess.TimeoutExpired:
             pass
         time.sleep(2)
-    raise FatalError(message="the Dot did not come back in v1.1.0's fastboot")
+    raise FatalError(message=f"the {title()} did not come back in v1.1.0's fastboot")
 
 
 def await_bootrom_port(
@@ -113,7 +114,7 @@ def await_bootrom_port(
                 say_missed_short(count=missed)
         if time.monotonic() >= deadline:
             raise FatalError(
-                message="the Dot's bootrom did not show up as a serial port.\n"
+                message=f"the {title()}'s bootrom did not show up as a serial port.\n"
                 + no_port_help()
             )
         time.sleep(PORT_POLL_INTERVAL)
@@ -131,8 +132,8 @@ def bootloader_plan(*, amonet: pathlib.Path, live: Emmc) -> tuple[Action, ...]:
         raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
     except (OSError, UsbdlError) as error:
         raise FatalError(
-            message=f"the Dot's partition table could not be read: {error}."
-            f" {unwritten()} Unplug the Dot. " + again()
+            message=f"the {title()}'s partition table could not be read: {error}."
+            f" {unwritten()} Unplug the {title()}. " + again()
         ) from error
     entries = raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE]
     if gpt_intact(entries=entries, header=raw[SECTOR_SIZE : 2 * SECTOR_SIZE]):
@@ -141,7 +142,7 @@ def bootloader_plan(*, amonet: pathlib.Path, live: Emmc) -> tuple[Action, ...]:
         resolved = resolve(raw=raw, source=amonet, unlock=unlock)
     except (FileNotFoundError, KeyError, ValueError) as error:
         raise FatalError(
-            message=f"{unlock.name} does not fit this Dot: {error.args[0]}."
+            message=f"{unlock.name} does not fit this {title()}: {error.args[0]}."
             f" {unwritten()} " + again()
         ) from error
     kinds = [action.kind for action in resolved]
@@ -171,26 +172,27 @@ def bootrom_client(
                 client.port.close()
             if SESSION.short:
                 raise FatalError(
-                    message=f"the Dot's bootrom did not answer ({error})."
-                    f" {unwritten()} Unplug the Dot. " + again()
+                    message=f"the {title()}'s bootrom did not answer ({error})."
+                    f" {unwritten()} Unplug the {title()}. " + again()
                 ) from error
             PROGRESS.note(
-                message=f"The Dot's bootrom did not answer ({error}). Unplug the Dot"
-                " and plug it back in; the run goes on when its bootrom returns."
+                message=f"The {title()}'s bootrom did not answer ({error}). Unplug"
+                f" the {title()} and plug it back in; the run goes on when its"
+                " bootrom returns."
             )
             await_port_gone(deadline=overall, name=port.name)
             if time.monotonic() >= overall:
                 raise FatalError(
-                    message="the Dot's bootrom never answered a handshake."
-                    f" {unwritten()} Unplug the Dot. " + again()
+                    message=f"the {title()}'s bootrom never answered a handshake."
+                    f" {unwritten()} Unplug the {title()}. " + again()
                 ) from error
             deadline = min(overall, time.monotonic() + REPLUG_WAIT)
         except UsbdlError as error:
             with contextlib.suppress(OSError):
                 client.port.close()
             raise FatalError(
-                message=f"the Dot's bootrom did not answer as one: {error}."
-                f" {unwritten()} Unplug the Dot. " + again()
+                message=f"the {title()}'s bootrom did not answer as one: {error}."
+                f" {unwritten()} Unplug the {title()}. " + again()
             ) from error
         else:
             return client
@@ -214,14 +216,14 @@ def bootrom_step(
         ask_for_short()
     else:
         poke_live_payload()
-        PROGRESS.begin(estimate="40 s", label="waiting for the Dot to restart")
+        PROGRESS.begin(estimate="40 s", label=f"waiting for the {title()} to restart")
     client = bootrom_client(
         deadline=time.monotonic() + (60 if erase else 600), erase=erase
     )
     if client is None:
         ERASED.unlink(missing_ok=True)
         PROGRESS.note(
-            message="The Dot started its preloader, so boot0 is intact and it"
+            message=f"The {title()} started its preloader, so boot0 is intact and it"
             " needs no bootrom step."
         )
         return False
@@ -245,8 +247,8 @@ def check_bootloaders(*, entries: bytes, live: Emmc, want: str) -> None:
         part = parts.get(slot)
         if part is None:
             raise FatalError(
-                message=f"the Dot's partition table has no {slot}."
-                f" {unwritten()} Unplug the Dot. " + asked_for()
+                message=f"the {title()}'s partition table has no {slot}."
+                f" {unwritten()} Unplug the {title()}. " + asked_for()
             )
         try:
             held = bootrom.read(
@@ -256,23 +258,23 @@ def check_bootloaders(*, entries: bytes, live: Emmc, want: str) -> None:
             )
         except (OSError, UsbdlError) as error:
             raise FatalError(
-                message=f"the Dot's {slot} could not be read: {error}."
-                f" {unwritten()} Unplug the Dot. " + again()
+                message=f"the {title()}'s {slot} could not be read: {error}."
+                f" {unwritten()} Unplug the {title()}. " + again()
             ) from error
         named.update(found.decode() for found in LK_PRODUCT.findall(held))
     other = sorted(named - {want})
     if other:
         raise FatalError(
-            message=f"the Dot's bootloader names its product {', '.join(other)},"
+            message=f"the {title()}'s bootloader names its product {', '.join(other)},"
             f" not {want}, so it is not an Echo Dot (2nd Generation)."
-            f" {unwritten()} Unplug it: firebreak supports only the Echo Dot"
-            " (2nd Generation)."
+            f" {unwritten()} Unplug it: firebreak's bootrom step supports only the"
+            " Echo Dot (2nd Generation)."
         )
     if want not in named:
         raise FatalError(
             message="neither lk_a nor lk_b holds a bootloader that names its"
-            " product, so this run cannot tell that the Dot is an Echo Dot (2nd"
-            f" Generation). {unwritten()} Unplug the Dot. " + asked_for()
+            " product, so this run cannot tell that this is an Echo Dot (2nd"
+            f" Generation). {unwritten()} Unplug the {title()}. " + asked_for()
         )
 
 
@@ -290,8 +292,8 @@ def check_emmc(*, live: Emmc) -> None:
             f"block 0 of its user area ends {block[-len(wanted) :]!r}, not {wanted!r}"
         )
     raise FatalError(
-        message=f"the Dot's eMMC did not answer{short_hint()}: {said}."
-        f" {unwritten()} Unplug the Dot. " + again()
+        message=f"the {title()}'s eMMC did not answer{short_hint()}: {said}."
+        f" {unwritten()} Unplug the {title()}. " + again()
     )
 
 
@@ -319,12 +321,12 @@ def exploit(*, client: Bootrom, payload: pathlib.Path) -> Client:
     except NotReadyError as error:
         raise FatalError(
             message=f"the payload did not start{short_hint()}: {error}."
-            f" {unwritten()} Unplug the Dot. " + again()
+            f" {unwritten()} Unplug the {title()}. " + again()
         ) from error
     except (OSError, UsbdlError) as error:
         raise FatalError(
-            message=f"the exploit did not go through the Dot's bootrom: {error}."
-            f" {unwritten()} Unplug the Dot. " + again()
+            message=f"the exploit did not go through the {title()}'s bootrom: {error}."
+            f" {unwritten()} Unplug the {title()}. " + again()
         ) from error
     return live
 
@@ -383,7 +385,7 @@ def say_missed_short(*, count: int) -> None:
         kind=Kind.WARN,
         text=paint(
             code=ANSIColor.RED,
-            text=f"Short {count} missed: the Dot started normally. Unplug, short,"
+            text=f"Short {count} missed: the {title()} started normally. Unplug, short,"
             " and plug it in again.",
         ),
     )
@@ -403,7 +405,7 @@ def stock_preloader(
     client = bootrom_client(deadline=time.monotonic() + MINUTE, erase=None)
     if client is None:
         raise FatalError(
-            message="the Dot started a preloader, so boot0 was not clear and the"
+            message=f"the {title()} started a preloader, so boot0 was not clear and the"
             " RPMB was not zeroed. " + again()
         )
     live = exploit(client=client, payload=payload)

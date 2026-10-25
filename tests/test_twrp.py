@@ -244,7 +244,7 @@ def test_a_slice_the_dot_says_nothing_about_is_a_failure(
     adb.answers["md5sum"] = [md5(data=slices[0].read_bytes())]
     assert (
         twrp.sliced_system(slices=slices, system="/s")
-        == "the Dot said nothing about system.00.gz"
+        == "the Echo Dot (2nd Generation) said nothing about system.00.gz"
     )
 
 
@@ -275,7 +275,9 @@ def test_a_staged_write_that_does_not_reach_the_dot_stops_it(
 ) -> None:
     adb.answers["md5sum"] = [md5(data=b"old")]
     adb.answers[str(twrp.DOT_TEMPORARY_DIRECTORY / image.name)] = [(1, "no space")]
-    with pytest.raises(FatalError, match="did not reach the Dot"):
+    with pytest.raises(
+        FatalError, match=r"did not reach the Echo Dot \(2nd Generation\)"
+    ):
         twrp.write(estimate="5 s", label="table", path=image, sector=8)
 
 
@@ -358,7 +360,9 @@ def test_a_stream_the_dot_says_nothing_about_is_a_failure(
 ) -> None:
     adb.answers["echo ready"] = ["ready"]
     adb.answers["gunzip"] = [""]
-    with pytest.raises(FatalError, match="the Dot said nothing"):
+    with pytest.raises(
+        FatalError, match=r"the Echo Dot \(2nd Generation\) said nothing"
+    ):
         twrp.write_system(blocks=2, slices=slices, system="/s", want="new")
 
 

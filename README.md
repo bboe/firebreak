@@ -2,7 +2,7 @@
 
 firebreak unlocks an Echo Dot (2nd Generation) over USB, moves it between amonet
 targets, or returns it to stock. Run it again with another target to move the
-Dot. A stopped run picks up where it left off.
+device. A stopped run picks up where it left off.
 
 Unlocking a stock Dot needs `amonet-biscuit-v2.0.1.zip`, which amonet publishes
 only on
@@ -15,11 +15,11 @@ needs that zip too, because the run checks the bootloader against the copy in
 it, and so do the runs that go through the Dot's bootrom: `--short`, a resume
 after `boot0` was erased, and `stock 5.5.0.3`.
 
-| target | the Dot ends with | time |
+| target | the device ends with | time |
 | --- | --- | --- |
 | `unlock fireos6` (default) | rooted Fire OS 6 [8146][fireos-8146] on amonet v2.0.1, TWRP 3.7.0; also needs `boot-root.zip`. On an Echo (2nd Generation), rooted Fire OS 6 [6436][fireos-6436] on amonet-radar v1.0.0 | about 5 min from `unlock fireos5` |
 | `unlock fireos5` | rooted Fire OS [5.5.5.4][fireos-5554] on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
-| `stock [BUILD]` | stock Fire OS at that build, with the Dot erased: Fire OS 6 [8149][fireos-8149] when left out, or Fire OS 5 from [5.5.0.3][fireos-5503] to [5.5.5.4][fireos-5554] | about 3 min from `unlock fireos5` |
+| `stock [BUILD]` | stock Fire OS at that build, with the device erased: Fire OS 6 [8149][fireos-8149] when left out, or Fire OS 5 from [5.5.0.3][fireos-5503] to [5.5.5.4][fireos-5554] | about 3 min from `unlock fireos5` |
 
 `unlock` takes the newest amonet that firebreak supports for that Fire OS, so
 a target no longer names an amonet version. `unlock` with no target takes
@@ -93,20 +93,21 @@ firebreak stops on it.
 
 ## Notes
 
-- From stock, the script asks for the fastboot gesture.
-- A ring that stays solid blue at the fastboot gesture can mean a bad USB
-  connection. Unplug, then try again or try another port. On Windows it can
-  also mean the [drivers](#windows) are missing.
+- From stock, firebreak asks for the fastboot gesture.
+- A ring that stays solid blue at the fastboot gesture can mean a cable that
+  carries power but no data, or a bad USB connection. Try another cable, then
+  another port. On Windows it can also mean the [drivers](#windows) are
+  missing.
 - A `/system` write that keeps failing with `failed to read copy response: EOF`
   can mean a poor USB connection. Unplug both ends of the cable, plug them back
   in firmly, and try another cable if it fails again.
-- Do not set up a stock Dot in the Alexa app before you unlock it. On Wi-Fi it
-  can update to a build the script does not support.
+- Do not connect a stock device to Wi-Fi before you unlock it. Amazon can
+  update it to a build firebreak does not support.
 - [docs/rooting.md][rooting] says why each step is there.
 
 ## Bootloaders
 
-From stock, only the LK decides whether firebreak can unlock a Dot.
+From stock, only the LK decides whether firebreak can unlock a device.
 `fastboot getvar lk_build_desc` reads it.
 
 | `lk_build_desc` | ships in |
@@ -126,9 +127,9 @@ From stock, only the LK decides whether firebreak can unlock a Dot.
 
 ## `--fastboot`
 
-`stock [BUILD] --fastboot` leaves the Dot in fastboot at the end instead of
+`stock [BUILD] --fastboot` leaves the device in fastboot at the end instead of
 letting it start the Fire OS it now holds. The next run then needs no button
-held, because a Dot already in fastboot is one firebreak can find by itself.
+held, because a device already in fastboot is one firebreak can find by itself.
 Only the `stock` target takes it, and not with `5.5.0.3`, which ends in the
 Dot's bootrom over a serial port.
 
@@ -147,20 +148,20 @@ v1.1.0, and then goes on to the target. It takes any target; `--short` to
    board](https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/)). Do not
    use C52, which is a capacitor.
 3. With the Dot unplugged, run `uvx firebreak@latest unlock fireos5 --short`.
-4. When the script prints "Short the Dot's test point and plug it in", hold a
-   wire from that passive to the shield frame beside it, which is ground, and
-   plug the Dot in. A Dot plugged in before that message can go unseen. On
-   "Short … missed", unplug it and try again.
-5. Take the wire off when the script prints "The short may come off now".
+4. When firebreak prints "Short … test point and plug it in", hold a wire from
+   that passive to the shield frame beside it, which is ground, and plug the Dot
+   in. A Dot plugged in before that message can go unseen. On "Short … missed",
+   unplug it and try again.
+5. Take the wire off when firebreak prints "The short may come off now".
 
 ## Reporting a problem
 
 When a run fails, run firebreak again with the `report` command, as in
 `uvx firebreak@latest report`, then please stop by `#support-device-unlocking`
 in the [EchoMuse Discord](https://discord.gg/vAPHMDvREG) and paste what it
-prints. It starts the Dot's recovery, prints what the Dot, its eMMC and this
-computer are, and the Dot's partition table, and writes no partition. A Dot
-already in a recovery stays there, and the Dot is left in its recovery
+prints. It starts the device's recovery, prints what the device, its eMMC and
+this computer are, and the device's partition table, and writes no partition. A
+device already in a recovery stays there, and it is left in its recovery
 afterwards.
 
 `report` also names the device and lists its USB devices. An Echo (2nd

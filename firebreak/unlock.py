@@ -16,7 +16,7 @@ from firebreak.devices import (
 from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconnect, run
 from firebreak.recovery import MD5_DIGITS
 from firebreak.twrp import DISK, partitions
-from firebreak.ui import ARGUMENTS, PROGRESS, FatalError, again, asked_for
+from firebreak.ui import ARGUMENTS, PROGRESS, FatalError, again, asked_for, title
 
 if TYPE_CHECKING:
     import pathlib
@@ -29,13 +29,13 @@ def amonet_chain() -> None:
     for slot in ("lk_a", "lk_b"):
         if slot not in part:
             raise FatalError(
-                message=f"the Dot's partition table has no {slot}. " + again()
+                message=f"the {title()}'s partition table has no {slot}. " + again()
             )
     if any(amonet_lk(node=f"{DISK}p{part[slot][0]}") for slot in ("lk_a", "lk_b")):
         return
     raise FatalError(
         message="neither lk_a nor lk_b holds an amonet LK for this device, so"
-        " this Dot is locked and the recovery it started is one amonet left"
+        f" this {title()} is locked and the recovery it started is one amonet left"
         " behind. Nothing was written. Unlock it first: unplug the USB cable,"
         " hold the action button, plug it back in, and let go when the ring"
         " turns green. " + again()
@@ -115,8 +115,8 @@ def newer_than_known(*, little_kernel: str) -> None:
         return
     if not LITTLE_KERNEL_DESCRIPTION.fullmatch(string=little_kernel):
         raise FatalError(
-            message="the Dot did not report a bootloader version firebreak can"
-            " read; the Dot was not modified. " + again()
+            message=f"the {title()} did not report a bootloader version firebreak"
+            f" can read; the {title()} was not modified. " + again()
         )
     newest = max((each.split(sep="-")[1] for each in known), default="")
     if little_kernel.split(sep="-")[1] < newest:
@@ -131,7 +131,7 @@ def newer_than_known(*, little_kernel: str) -> None:
         message=f"the bootloader {little_kernel} is no older than any firebreak"
         f" has a payload for on the {ARGUMENTS.target.device.title}, and a"
         " fastbrick payload only unlocks the bootloaders it was built for, so"
-        f" the Dot was not modified.{bootrom}"
+        f" the {title()} was not modified.{bootrom}"
     )
 
 
@@ -144,14 +144,15 @@ def stage_amonet_v1_1_0_recovery() -> bool:
         time.sleep(1)
     if unlocked == "false":
         PROGRESS.note(
-            message="The Dot came back in its own locked fastboot rather than"
+            message=f"The {title()} came back in its own locked fastboot rather than"
             " amonet's, which accepts nothing this needs. This run unlocks it again"
             " and goes on from v2's recovery."
         )
         return False
     if unlocked != "true":
         raise FatalError(
-            message="the Dot's fastboot did not say whether it is unlocked. " + again()
+            message=f"the {title()}'s fastboot did not say whether it is unlocked. "
+            + again()
         )
     amonet = unpack(download=biscuit.V1_1_0_SOURCE)
     twrp = fetch(download=biscuit.BBOE_RECOVERY)
@@ -188,15 +189,15 @@ def stage_downgrade() -> bool:
     little_kernel = getvar(name="lk_build_desc")
     if not LITTLE_KERNEL_DESCRIPTION.fullmatch(string=little_kernel):
         raise FatalError(
-            message="the Dot did not report its bootloader version;"
+            message=f"the {title()} did not report its bootloader version;"
             " boot0 was not erased. " + again()
         )
     if little_kernel == biscuit.AMONET_V1_1_0_LK:
         raise FatalError(
-            message="the Dot already runs amonet v1.1.0's bootloader. " + again()
+            message=f"the {title()} already runs amonet v1.1.0's bootloader. " + again()
         )
     PROGRESS.begin(
-        estimate="5 s", label="erasing boot0 so the Dot falls into its bootrom"
+        estimate="5 s", label=f"erasing boot0 so the {title()} falls into its bootrom"
     )
     bootrom_step(
         amonet=amonet,
@@ -215,7 +216,7 @@ def stage_fastbrick() -> None:
     if not little_kernel and getvar(name="pl_build_desc"):
         raise FatalError(
             message="fastboot reported the preloader version but not the"
-            " bootloader's; the Dot was not modified. " + again()
+            f" bootloader's; the {title()} was not modified. " + again()
         )
     newer_than_known(little_kernel=little_kernel)
     image = fastbrick.fastbricks.get(little_kernel, "bin/fastbrick.img")
@@ -231,15 +232,17 @@ def stage_fastbrick() -> None:
             output = (error.output or b"").decode(encoding="utf-8", errors="replace")
             started = True
         if "eMMC-RO" in output:
-            raise FatalError(message="the Dot's eMMC is read-only; it was not modified")
+            raise FatalError(
+                message=f"the {title()}'s eMMC is read-only; it was not modified"
+            )
         if "Device mismatch" in output:
             raise FatalError(
                 message="the payload rejected this device; it was not modified"
             )
         if started:
-            PROGRESS.begin(estimate="40 s", label="waiting for v2 recovery to start")
+            PROGRESS.begin(estimate="40 s", label="waiting for TWRP to start")
             return
     raise FatalError(
         message=f"the unlock did not start after 10 attempts, with {image} for"
-        f" the bootloader {little_kernel}; the Dot was not modified"
+        f" the bootloader {little_kernel}; the {title()} was not modified"
     )

@@ -248,7 +248,9 @@ def test_a_serial_error_partway_through_says_not_to_unplug(
         data=b"x" * 512, kind="Write", label="lk", length=512, offset=0, target="lk"
     )
     with pytest.raises(
-        FatalError, match=r"(?s)device not configured.*Do not\s+unplug the Dot"
+        FatalError,
+        match=r"(?s)device not configured.*Do not\s+unplug the Echo Dot"
+        r" \(2nd Generation\)",
     ):
         bootrom.execute(actions=(action,), payload=payload)
 

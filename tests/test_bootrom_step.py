@@ -442,7 +442,10 @@ def test_a_plan_that_does_not_resolve_stops_before_anything_is_written(
 
     bootrom_step.SESSION.short = True
     monkeypatch.setattr(name="resolve", target=bootrom_step, value=unresolvable)
-    with pytest.raises(FatalError, match="does not fit this Dot: biscuit has no"):
+    with pytest.raises(
+        FatalError,
+        match=r"does not fit this Echo Dot \(2nd Generation\): biscuit has no",
+    ):
         step(rig=rig)
     assert rig.written == []
     assert not bootrom_step.ERASED.exists()
@@ -485,7 +488,7 @@ def test_a_resumed_run_on_a_foreign_dot_says_only_boot0_was_erased(*, rig: Rig) 
     bootrom_step.ERASED.touch()
     with pytest.raises(FatalError) as caught:
         step(rig=rig)
-    said = explained(error=caught.value)
+    said = " ".join(explained(error=caught.value).split())
     assert "Only boot0 was erased. Unplug it" in said
     assert rig.written == []
 
@@ -607,7 +610,10 @@ def test_a_torn_table_is_left_to_the_plan_without_reading_an_lk(
     table[2 * 512 + 40] ^= 1
     rig.table = bytes(table)
     monkeypatch.setattr(name="resolve", target=bootrom_step, value=torn)
-    with pytest.raises(FatalError, match="does not fit this Dot: the partition"):
+    with pytest.raises(
+        FatalError,
+        match=r"does not fit this Echo Dot \(2nd Generation\): the partition",
+    ):
         step(rig=rig)
     assert [entry for entry in rig.steps if entry.startswith("read ")] == [
         "read block 0",

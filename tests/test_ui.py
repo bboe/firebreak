@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import ui
+from firebreak.devices import BISCUIT, RADAR, TARGETS
 
 if TYPE_CHECKING:
     import pathlib
@@ -297,6 +298,21 @@ def test_stop_is_plain_without_color() -> None:
     with pytest.raises(expected_exception=SystemExit) as raised:
         ui.stop(error=ui.FatalError(message="one\ntwo", prefix=""))
     assert str(raised.value) == "one\ntwo"
+
+
+@pytest.mark.parametrize(
+    ("target", "want"),
+    [
+        (TARGETS[BISCUIT]["stock"], "Echo Dot (2nd Generation)"),
+        (TARGETS[RADAR]["stock"], "Echo (2nd Generation)"),
+        ("", "Echo"),
+    ],
+)
+def test_title_names_the_target_s_device(
+    *, monkeypatch: pytest.MonkeyPatch, target: object, want: str
+) -> None:
+    monkeypatch.setattr(name="target", target=ui.ARGUMENTS, value=target)
+    assert ui.title() == want
 
 
 @pytest.mark.parametrize(

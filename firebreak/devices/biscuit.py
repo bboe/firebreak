@@ -105,8 +105,8 @@ DEFAULT_TARGET = FIREOS6
 FASTBOOT_MODE = (
     "Unplug the USB cable, press and hold the action button (the one with a dot),"
     " plug the cable back in, and let go when the light ring turns green. A"
-    " ring that stays solid blue can mean a bad USB connection: unplug, then"
-    " try again or try another port."
+    " ring that stays solid blue can mean a cable that carries power but no"
+    " data, or a bad USB connection: try another cable, then another port."
 )
 FIREOS5_BUILDS = frozenset({
     "5.5.0.3",

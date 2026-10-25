@@ -51,6 +51,7 @@ from firebreak.ui import (
     passed,
     say,
     show,
+    title,
     warn,
 )
 from firebreak.unlock import (
@@ -81,10 +82,10 @@ FIREOS5_ROOTED = {
     State.AMONET_V1_1_0_BOOTED,
 }
 NO_FASTBOOT_DRIVER = (
-    "Windows sees a Dot in fastboot mode, but fastboot does not, so its driver"
+    "Windows sees an Echo in fastboot mode, but fastboot does not, so its driver"
     " is missing. Install the drivers from"
     " https://github.com/bboe/firebreak#windows in an administrator PowerShell."
-    " The run goes on when fastboot sees the Dot."
+    " The run goes on when fastboot sees the Echo."
 )
 TWRPS = frozenset({
     State.AMONET_V1_1_0_TWRP,
@@ -183,7 +184,7 @@ def fireos6_stages() -> dict[State, Stage]:
     installed = (unlock.source, *unlock.files.values())
     install = functools.partial(
         recovery.carry_out,
-        after=functools.partial(reboot, label="waiting for v2 recovery to start"),
+        after=functools.partial(reboot, label="waiting for TWRP to start"),
         guard=amonet_chain,
         unlock=unlock,
         zero=("misc",),
@@ -269,15 +270,12 @@ def prefetch(*, needs: Iterable[Need]) -> None:
 
 
 def reboot_stages() -> dict[State, Stage]:
-    to_twrp = functools.partial(reboot, label="waiting for recovery")
+    to_recovery = functools.partial(reboot, label="waiting for recovery")
+    to_twrp = functools.partial(reboot, label="waiting for TWRP to start")
     return {
-        State.AMONET_V2_BOOTED: Stage(
-            run=functools.partial(reboot, label="waiting for v2 recovery to start"),
-            steps=1,
-            then=State.AMONET_V2_TWRP,
-        ),
-        State.BOOTED: Stage(run=to_twrp, steps=1, then=None),
-        State.ROOTED: Stage(run=to_twrp, steps=1, then=State.AMONET_V1_1_0_TWRP),
+        State.AMONET_V2_BOOTED: Stage(run=to_twrp, steps=1, then=State.AMONET_V2_TWRP),
+        State.BOOTED: Stage(run=to_recovery, steps=1, then=None),
+        State.ROOTED: Stage(run=to_recovery, steps=1, then=State.AMONET_V1_1_0_TWRP),
         State.AMONET_V1_1_0_BBOE_BOOTED: Stage(
             run=to_twrp, steps=1, then=State.AMONET_V1_1_0_BBOE_TWRP
         ),
@@ -388,10 +386,10 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                         if done
                         else "The last run stopped after it erased boot0"
                     )
-                    + ", so the Dot cannot start until amonet v1.1.0 is written"
+                    + f", so the {title()} cannot start until amonet v1.1.0 is written"
                     " through its bootrom. This run does that, then goes on"
                     " from v1.1.0's TWRP. If nothing happens within a minute,"
-                    " unplug the Dot and plug it back in.",
+                    f" unplug the {title()} and plug it back in.",
                 )
             resumed = True
             done.difference_update(TWRPS)
@@ -428,32 +426,34 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 and not PROGRESS.open
                 and target.unlock is not None
             ):
-                show(text="The Dot is starting Fire OS. Waiting for it to finish.")
+                show(
+                    text=f"The {title()} is starting Fire OS. Waiting for it to finish."
+                )
             elif current == State.STOCK_BOOTED and installed:
                 deadline = time.monotonic() + MINUTE
             elif current == State.STOCK_BOOTED and target.unlock is not None:
                 guided = True
                 say(
-                    text="This Dot appears to be unmodified. To unlock and root it,"
-                    " start it in fastboot mode. "
+                    text=f"This {title()} appears to be unmodified. To unlock and"
+                    " root it, start it in fastboot mode.\n\n"
                     + target.device.fastboot_mode
-                    + " A Dot already unlocked with amonet v2 has no fastboot:"
-                    " hold the + button instead while you plug it back in, which"
-                    " starts its TWRP."
+                    + f"\n\nAn {title()} already unlocked with amonet v2 has no"
+                    " fastboot: hold the + button instead while you plug it back"
+                    " in, which starts its TWRP."
                 )
             elif current == State.EMOS and current not in done:
                 say(
-                    text="This Dot runs EchoMuse's emOS. Rebooting it into recovery"
-                    " through its serial console."
+                    text=f"This {title()} runs EchoMuse's emOS. Rebooting it into"
+                    " recovery through its serial console."
                 )
             elif current == State.NO_SYSTEM and current not in done:
                 say(
-                    text="This Dot's /system is damaged, so Fire OS cannot start."
-                    " Rebooting it into recovery."
+                    text=f"This {title()}'s /system is damaged, so Fire OS cannot"
+                    " start. Rebooting it into recovery."
                 )
             elif gesture:
                 say(
-                    text="This Dot is in amonet v2's fastboot. Unplug it, and"
+                    text=f"This {title()} is in amonet v2's fastboot. Unplug it, and"
                     " hold the + button while you plug it back in: that starts"
                     " v2's TWRP."
                 )
@@ -463,22 +463,26 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 and current != target.goal
             ):
                 say(
-                    text="This Dot runs rooted Fire OS 6 on amonet v2."
-                    " Rebooting it into recovery."
+                    text=f"This {title()} runs rooted Fire OS 6 on amonet v2."
+                    " Rebooting it into TWRP."
                 )
             elif current == State.NONE and not done and not PROGRESS.open and guided:
-                show(text="Waiting for the Dot in fastboot mode, with a green ring.")
+                say(
+                    text=f"\n\nWaiting for the {title()} in fastboot mode, with a"
+                    " green ring."
+                )
             elif current == State.NONE and not done and not PROGRESS.open:
                 guided = True
                 say(
-                    text="Waiting for a Dot on USB. Connect it with a USB cable."
-                    " A Dot that runs Amazon's own software needs fastboot mode. "
+                    text=f"Waiting for the {title()} on USB. Connect it with a USB"
+                    " cable. One that runs Amazon's own software needs fastboot"
+                    " mode.\n\n"
                     + target.device.fastboot_mode
-                    + " Ctrl-C stops the script."
+                    + "\n\nCtrl-C stops the script."
                 )
         if current == State.AMONET_V2_BOOTED == target.goal:
             version = adb_shell(command="getprop ro.build.version.name")
-            warn(text=f"The Dot is rooted: {version}, with root adb.")
+            warn(text=f"The {title()} is rooted: {version}, with root adb.")
             cache_note()
             return
         if target.unlock is None and (
@@ -493,30 +497,30 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 PROGRESS.end()
                 if SESSION.fastboot:
                     passed(
-                        message=f"Stock {ARGUMENTS.build} is written, and the Dot"
-                        " waits in fastboot."
+                        message=f"Stock {ARGUMENTS.build} is written, and the"
+                        f" {title()} waits in fastboot."
                     )
                 elif ARGUMENTS.build in biscuit.FIREOS5_BUILDS:
                     passed(
-                        message=f"Stock {ARGUMENTS.build} is written, and the Dot"
+                        message=f"Stock {ARGUMENTS.build} is written, and the {title()}"
                         " is rebooting into it."
                     )
                     say(
                         text="Stock Fire OS 5 shows nothing on USB once it starts,"
-                        " so firebreak does not wait for it. Keep the Dot plugged"
-                        " in until the orange ring circles or it speaks"
+                        f" so firebreak does not wait for it. Keep the {title()}"
+                        " plugged in until the orange ring circles or it speaks"
                         ' "Hello, your device is now ready".'
                     )
                 else:
-                    passed(message=f"The Dot runs stock {ARGUMENTS.build}.")
+                    passed(message=f"The {title()} runs stock {ARGUMENTS.build}.")
                 warn(
-                    text="If you will root it again, do not set it up in the Alexa app"
-                    " first: on Wi-Fi it can take an update to a build"
-                    " firebreak does not support."
+                    text=f"If you plan to unlock this {title()} again, do not connect"
+                    " it to Wi-Fi. Amazon can update it to a build firebreak"
+                    " does not support."
                 )
             else:
                 say(
-                    text="This Dot appears to run stock Fire OS 6, so there is"
+                    text=f"This {title()} appears to run stock Fire OS 6, so there is"
                     " nothing to restore. However, if you unlocked it with amonet"
                     " v2, hold its + button while you plug it in. That starts"
                     " its TWRP. Then run this again."
@@ -528,7 +532,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             version = adb_shell(command="getprop ro.build.version.name")
             selinux = adb_shell(command="getenforce")
             warn(
-                text=f"The Dot is rooted: {version}, SELinux {selinux},"
+                text=f"The {title()} is rooted: {version}, SELinux {selinux},"
                 f" {UPDATER} hidden."
             )
             cache_note()
@@ -559,7 +563,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                         " Reboot to recovery. " + again()
                     )
                 raise FatalError(
-                    message=f"the Dot has been {current.value} for"
+                    message=f"the {title()} has been {current.value} for"
                     f" {WAIT // 60} minutes. " + again()
                 )
             if (
@@ -577,7 +581,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             check_target(target=target)
         prefetch(needs=needed(start=current, table=table))
         if not done:
-            warn(text="Keep the Dot plugged in until firebreak finishes.")
+            warn(text=f"Keep the {title()} plugged in until firebreak finishes.")
         done.add(current)
         stage = table.get(current)
         if stage:
