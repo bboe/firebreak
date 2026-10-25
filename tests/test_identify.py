@@ -192,8 +192,9 @@ def test_a_long_wait_for_a_device_name_says_so_once(
     monkeypatch.setattr(name="sleep", target=identify.time, value=sleep)
     assert identify.choose_target(device=None, name="stock") == radar["stock"]
     said = capsys.readouterr().out
-    assert said.count("Still waiting for the Echo") == 1
-    assert "run it again with --device" in " ".join(said.split())
+    assert said.count("Waiting for the Echo to say which device it is") == 1
+    assert "needs --device instead" in " ".join(said.split())
+    assert "stop" not in said
 
 
 @pytest.mark.parametrize("usb", [[AEOBC], []], ids=["biscuit", "unknown"])

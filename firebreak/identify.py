@@ -33,7 +33,7 @@ ECHO_VENDORS = frozenset({0x0E8D, 0x1949})
 FASTBOOT_ID = (0x0BB4, 0x0C01)
 INSTANCE_PARTS = 3
 NAMED = "device-named"
-NAME_POLLS = 5
+NAME_POLLS = 30
 POLL = 2
 SERIAL_SHOWN = 4
 SYSFS_USB = pathlib.Path("/sys/bus/usb/devices")
@@ -240,9 +240,10 @@ def named_device(*, devices: str) -> Identity:
     while identity.device is None and not (SESSION.short or ERASED.exists()):
         if polls == NAME_POLLS:
             warn(
-                text="Still waiting for the Echo to name its device. It names one"
-                " in fastboot and in a recovery. One that shows no light never"
-                f" names one: stop this and run it again with --device: {devices}."
+                text="Waiting for the Echo to say which device it is, which it"
+                " does in fastboot and in a recovery. This goes on by itself once"
+                " it does. An Echo that shows no light never says, and needs"
+                f" --device instead: {devices}."
             )
         polls += 1
         time.sleep(POLL)
