@@ -389,6 +389,21 @@ ring read white.
 - Only a recovery answers all of that, so it starts one. A Dot already in a
   recovery is left alone: the one a failed run left is the safe place to be,
   and a first version cost a reporter theirs.
+- From fastboot it asks with `fastboot oem reboot-recovery`, then with
+  `fastboot reboot-recovery`. Measured 2026-10-25 on a Dot unlocked with amonet
+  v2, LK `63cb91b-20221007_072309`: the oem command answers
+  `FAILED (remote: 'unknown command')`, and `fastboot reboot-recovery` answers
+  `Rebooting into recovery OKAY`, in TWRP 20 seconds later. Every `--short` run
+  measures the oem command on amonet v1.1.0's LK, `f379dba-20170906_000423`.
+  The oem command goes first because a MediaTek LK can carry `reboot-recovery`
+  out by writing `misc`'s boot control block, where the slot's priority and
+  tries live, and nothing here measures whether this one does.
+- A refusal the next command recovers from is dropped; `lk_build_desc`, which
+  every report names, says which commands a bootloader has. Both failing prints
+  what each said and asks for the + button. Ignoring those statuses cost that
+  Dot's report: 3 minutes of waiting, then "most likely in Amazon's recovery"
+  for a Dot still in fastboot. A non-zero `adb reboot recovery` is reported but
+  stops nothing, since a reboot over adb can lose its reply after the Dot acted.
 - `system_a` is the reason it exists. Fire OS 5's image is 805,257,216 bytes
   against a 805,306,368-byte partition, so the write has 48 KiB of headroom
   and nothing checks it. Build 8149's report showed only a mismatched md5.
@@ -773,6 +788,16 @@ ring read white.
   not stop them.
 
 ## Unlock: amonet v2
+
+- A Dot in v2's unlocked fastboot reaches its TWRP with
+  `fastboot reboot-recovery`, so every target starts it from there rather than
+  asking for the + button, which is left for a bootloader that takes neither
+  that command nor the oem one. Both are asked for, in that order, because
+  `State.AMONET_V2_FASTBOOT` is any unlocked LK that is not v1.1.0's: biscuit's
+  older ones and radar's, where neither command is measured. The transition
+  sits beside v1.1.0's fastboot in the table every target shares. `unlock
+  fireos5` overrides it, because for that target v2's fastboot is the way into
+  the bootrom.
 
 - The unlock that holds a device's fastbrick payloads maps an
   `lk_build_desc` to its image, and `fastbrick.img` takes any other. On

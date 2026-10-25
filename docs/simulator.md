@@ -335,8 +335,16 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - `-S` sets the size above which `flash` reports `Sending sparse`, with the
   count of pieces. The write is the same either way. Without `-S` an image is
   sent whole.
-- `oem reboot-recovery` reboots into recovery on any LK, locked or not. That
-  a locked LK accepts it is not measured.
+- `oem reboot-recovery` reboots into recovery on amonet v1.1.0's LK, which is
+  the only LK measured to take it, and fails on any other. A Dot unlocked with
+  amonet v2, on `63cb91b-20221007_072309`, refused it with
+  `FAILED (remote: 'unknown command')` and `fastboot: error: Command failed`,
+  which is what this prints.
+- `reboot-recovery` and `reboot bootloader` reboot on any LK here, and a
+  `reboot-` spelling means the spaced one, as fastboot takes either.
+  `reboot-recovery` is measured on a Dot unlocked with amonet v2, on
+  `63cb91b-20221007_072309`, where it answered
+  `Rebooting into recovery OKAY`. No other LK is measured with it.
 
 ### The bootrom
 

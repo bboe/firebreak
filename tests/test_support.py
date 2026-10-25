@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import identify, support
+from firebreak import identify, support, ui, unlock
 from firebreak.devices import RADAR, biscuit
 from firebreak.identify import Identity, UsbDevice
 
@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
     from conftest import FakeAdb
 
+FLAT = "FAILED (remote: 'unknown command'); fastboot: error: Command failed"
 LISTING = (
     "lrwxrwxrwx root root 2026-10-11 00:00 cache -> /dev/block/mmcblk0p3\n"
     f"{support.LISTING_OK}"
@@ -22,6 +23,8 @@ LISTING = (
 PARTITIONS = (
     f"major minor  #blocks  name\n 179  3  65536 mmcblk0p3\n{support.PARTITIONS_OK}"
 )
+REFUSAL = "FAILED (remote: 'unknown command')\nfastboot: error: Command failed"
+
 USB = (
     UsbDevice(
         manufacturer="MediaTek",
@@ -53,6 +56,8 @@ class Dot:
             "getprop sys.usb.config": "mtp,adb",
             "id; su -c id": "uid=0(root)",
         }
+        self.hangs: set[str] = set()
+        self.refuses: set[str] = set()
         self.variables = {
             "antirback_lk_version": "0x0001",
             "antirback_pl_version": "0x0005",
@@ -78,13 +83,17 @@ class Dot:
     def run(self, *, arguments: list[str], timeout: float) -> types.SimpleNamespace:
         del timeout
         self.ran.append(arguments)
+        if " ".join(arguments) in self.hangs:
+            raise subprocess.TimeoutExpired(cmd=arguments, timeout=60)
+        if " ".join(arguments) in self.refuses:
+            return types.SimpleNamespace(returncode=1, stdout=REFUSAL)
         if arguments[-1] == "wait-for-recovery":
             if "lost" in self.places:
                 raise subprocess.TimeoutExpired(cmd=arguments, timeout=180)
             self.places.pop(0)
         if arguments[-1] == "get-state":
-            return types.SimpleNamespace(stdout=self.place + "\n")
-        return types.SimpleNamespace(stdout="")
+            return types.SimpleNamespace(returncode=0, stdout=self.place + "\n")
+        return types.SimpleNamespace(returncode=0, stdout="")
 
     def usb_serial(self) -> str | None:
         if self.place != "nothing":
@@ -138,7 +147,9 @@ def shown(*, monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def dot(*, monkeypatch: pytest.MonkeyPatch, places: list[str]) -> Dot:
     fake = Dot(places=places)
     for name in ("adb_shell", "getvar", "in_fastboot", "run", "usb_serial"):
-        monkeypatch.setattr(name=name, target=support, value=getattr(fake, name))
+        for module in (support, unlock):
+            if hasattr(module, name):
+                monkeypatch.setattr(name=name, target=module, value=getattr(fake, name))
     monkeypatch.setattr(name="sleep", target=support.time, value=lambda _: None)
     return fake
 
@@ -164,6 +175,19 @@ def test_a_report_answers_nothing_for_a_silent_read(
     assert shown
 
 
+def test_a_report_names_the_device_it_found_in_what_follows(
+    *, monkeypatch: pytest.MonkeyPatch, shown: list[str]
+) -> None:
+    monkeypatch.setattr(name="target", target=ui.ARGUMENTS, value="")
+    monkeypatch.setattr(name="into_recovery", target=support, value=lambda **_: False)
+    support.report()
+    assert shown
+    assert ui.SESSION.named == RADAR.title
+    assert support.left_in_recovery() == (
+        f"The {RADAR.title} stays in TWRP: adb reboot leaves TWRP for Fire OS."
+    )
+
+
 def test_a_report_names_the_firebreak_version(
     *, monkeypatch: pytest.MonkeyPatch, shown: list[str]
 ) -> None:
@@ -179,6 +203,10 @@ def test_a_report_names_the_firebreak_version(
         + support.labelled(label="usb", value=USB[0])
     ) in shown
     assert not any("Keyboard" in text for text in shown)
+    for tool in ("adb", "fastboot"):
+        assert support.labelled(label=tool, value="Android Debug Bridge 1.0.41") in (
+            shown
+        )
     assert shown[-1] == "\nThe report stops with what is above."
 
 
@@ -205,7 +233,54 @@ def test_a_report_reads_the_dot_s_recovery(
         assert "8192 bytes, md5 abc" in text
     else:
         assert "not built yet" in text
-    assert shown[-1] == "\n" + support.LEFT_IN_RECOVERY
+    assert shown[-1] == "\n" + support.left_in_recovery()
+
+
+def test_into_recovery_asks_nothing_more_once_fastboot_is_gone(
+    *,
+    lines: list[tuple[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = dot(monkeypatch=monkeypatch, places=["fastboot", "recovery"])
+    fake.refuses.add("fastboot oem reboot-recovery")
+    monkeypatch.setattr(name="in_fastboot", target=unlock, value=lambda: False)
+    assert support.into_recovery(line=recorder(lines=lines)) is True
+    assert ["fastboot", "reboot-recovery"] not in fake.ran
+    assert lines[-1][0] != "fastboot oem reboot-recovery"
+
+
+def test_into_recovery_asks_nothing_more_when_fastboot_hangs(
+    *,
+    lines: list[tuple[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = dot(monkeypatch=monkeypatch, places=["fastboot", "recovery"])
+    fake.hangs.add("fastboot oem reboot-recovery")
+    assert support.into_recovery(line=recorder(lines=lines)) is True
+    assert ["fastboot", "reboot-recovery"] not in fake.ran
+
+
+def test_into_recovery_asks_the_oem_restart_first(
+    *,
+    lines: list[tuple[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = dot(monkeypatch=monkeypatch, places=["fastboot", "recovery"])
+    assert support.into_recovery(line=recorder(lines=lines)) is True
+    assert ["fastboot", "oem", "reboot-recovery"] in fake.ran
+    assert ["fastboot", "reboot-recovery"] not in fake.ran
+
+
+def test_into_recovery_falls_back_to_fastboot_s_own_restart(
+    *,
+    lines: list[tuple[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = dot(monkeypatch=monkeypatch, places=["fastboot", "recovery"])
+    fake.refuses.add("fastboot oem reboot-recovery")
+    assert support.into_recovery(line=recorder(lines=lines)) is True
+    assert ["fastboot", "reboot-recovery"] in fake.ran
+    assert ("fastboot oem reboot-recovery", FLAT) not in lines
 
 
 def test_into_recovery_gives_up_after_its_wait(
@@ -250,6 +325,17 @@ def test_into_recovery_reaches_twrp_from_where_the_dot_is(
         assert out.count("comes from the Echo Dot (2nd Generation)'s recovery") == 1
 
 
+def test_into_recovery_reports_an_adb_reboot_that_did_not_answer(
+    *,
+    lines: list[tuple[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = dot(monkeypatch=monkeypatch, places=["device", "recovery"])
+    fake.refuses.add("adb reboot recovery")
+    assert support.into_recovery(line=recorder(lines=lines)) is True
+    assert ("adb reboot recovery", FLAT) in lines
+
+
 @pytest.mark.parametrize(
     ("places", "change", "said"),
     [
@@ -274,6 +360,21 @@ def test_into_recovery_says_why_it_stops(  # ruff: ignore[too-many-arguments]
     getattr(fake, table)[key] = value
     assert support.into_recovery(line=recorder(lines=lines)) is False
     assert said in " ".join(capsys.readouterr().out.split())
+
+
+def test_into_recovery_stops_when_fastboot_refuses_the_restart(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    lines: list[tuple[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = dot(monkeypatch=monkeypatch, places=["fastboot"])
+    fake.refuses.update({"fastboot reboot-recovery", "fastboot oem reboot-recovery"})
+    assert support.into_recovery(line=recorder(lines=lines)) is False
+    assert ["adb", "wait-for-recovery"] not in fake.ran
+    assert ("fastboot reboot-recovery", FLAT) in lines
+    assert ("fastboot oem reboot-recovery", FLAT) in lines
+    assert "refused to restart" in capsys.readouterr().out
 
 
 def test_the_write_test_cleans_up_after_a_failed_leg(
@@ -315,7 +416,7 @@ def test_the_write_test_runs_both_legs_and_cleans_up(
     assert legs[0]["chunk"] == 4
     assert support.SESSION.dd == "toybox dd"
     assert adb.commands(holding="rm -f") == [f"rm -f {support.USB_TEST}"]
-    assert capsys.readouterr().out.endswith(support.LEFT_IN_RECOVERY + "\n")
+    assert capsys.readouterr().out.endswith(support.left_in_recovery() + "\n")
 
 
 def test_the_write_test_skips_the_emmc_leg_without_whole_lists(

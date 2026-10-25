@@ -129,6 +129,7 @@ class Session:
     carries: bool | None = None
     dd: str = "dd"
     fastboot: bool = False
+    named: str = ""
     probing: bool = False
     serial_ready: bool | None = None
     short: bool = False
@@ -272,7 +273,9 @@ def stop(*, error: FatalError) -> NoReturn:
 
 
 def title() -> str:
-    return ARGUMENTS.target.device.title if ARGUMENTS.target else "Echo"
+    if ARGUMENTS.target:
+        return ARGUMENTS.target.device.title
+    return SESSION.named or "Echo"
 
 
 def upgrade() -> tuple[str, str]:

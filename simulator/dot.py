@@ -82,7 +82,6 @@ FASTBOOT_REBOOTS = {
     "reboot": "system",
     "reboot bootloader": "bootloader",
     "reboot recovery": "recovery",
-    "reboot-bootloader": "bootloader",
 }
 FASTBOOT_SPARSE_UNITS = {"G": 1 << 30, "K": 1 << 10, "M": 1 << 20}
 HALT_SECONDS = 10
@@ -627,11 +626,12 @@ def fastboot(*, arguments: list[str]) -> int:  # ruff: ignore[complex-structure,
         return flash(image=rest[1], part=rest[0], sparse=sparse, state=state)
     if verb == "erase":
         return erase(part=rest[0], state=state)
-    into = FASTBOOT_REBOOTS.get(" ".join(arguments))
+    asked = " ".join(arguments)
+    into = FASTBOOT_REBOOTS.get(asked) or FASTBOOT_REBOOTS.get(
+        asked.replace("-", " ", 1)
+    )
     if into:
-        request_reboot(into=into)
-        print("Rebooting OKAY\nFinished. Total time: 0.001s")
-        return 0
+        return reboot_into(into=into, oem=arguments[:1] == ["oem"], state=state)
     print(f"fastboot: unknown command {verb}", file=sys.stderr)
     return 1
 
@@ -968,6 +968,15 @@ def push(*, local: pathlib.Path, remote: str, state: dict) -> int:
 def reboot(*, delay: float = BOOT_SECONDS, into: str, state: dict) -> None:
     state.update(booting={"at": time.time() + delay, "into": into}, mode="none")
     record(entry={"event": "reboot", "into": into})
+
+
+def reboot_into(*, into: str, oem: bool, state: dict) -> int:
+    if oem and state["vars"].get("lk_build_desc") != LK_FIREOS5:
+        print("FAILED (remote: 'unknown command')\nfastboot: error: Command failed")
+        return 1
+    request_reboot(into=into)
+    print("Rebooting OKAY\nFinished. Total time: 0.001s")
+    return 0
 
 
 def reboot_requested(*, state: dict) -> str | None:

@@ -15,6 +15,8 @@ This project adheres to [Semantic Versioning](https://semver.org).
   boot, so the target is refused without `--run-on-unproven-path`.
 - `stock` returns an Echo (2nd Generation) to Fire OS 6436, the one build
   Amazon ships for it.
+- `report` names fastboot's version beside adb's. Which commands a fastboot has
+  depends on its version, so a refusal the report shows can be read.
 - `--run-on-unproven-path` goes on with a target whose route is not proven on
   the device it is for. Both of an Echo (2nd Generation)'s targets are such
   targets, and are refused without it.
@@ -32,6 +34,18 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - A stock build the device has no OTA for is refused before anything is
   written. An Echo Dot's OTAs and an Echo's are different firmware, so the
   build is chosen once the run knows which it has.
+- `stock` and `unlock fireos6` start the TWRP of an Echo already unlocked with
+  amonet v2 themselves. Both asked for the + button, because the restart
+  command that bootloader has was the only one tried. They now ask with the
+  same two commands a `report` asks with, and a bootloader that takes neither
+  still gets the + button.
+- `report` and `write-test` end by saying the Echo stays in TWRP and that `adb
+  reboot` leaves TWRP for Fire OS. They said it stays in its recovery and that
+  `adb reboot` starts it again, which reads as starting the recovery again. Neither
+  goes on in a recovery that is not TWRP, so TWRP is the only one either can be
+  left in. A `report` that names the device it found then calls it by that
+  name, where it said Echo: its own identification answers for a command that
+  has no target.
 
 ### Fixed
 
@@ -43,6 +57,12 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - A download that the mirror does not answer falls back after 8 seconds rather
   than 60. A network that drops the packets rather than refusing them stalled a
   run for a minute per download before it opened your browser.
+- `report` starts the recovery of a Dot unlocked with amonet v2 from fastboot.
+  It asked with a command that bootloader refuses, ignored the refusal, waited
+  3 minutes for adb and then said the Dot was most likely in Amazon's recovery,
+  though it had never left fastboot. It now falls back to a command that
+  bootloader does take, and asks for the + button only when no command reaches
+  the recovery, with what fastboot answered to each.
 
 ## 0.8.0 - 2026-10-24
 

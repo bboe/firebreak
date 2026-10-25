@@ -59,6 +59,7 @@ from firebreak.unlock import (
     amonet_sources,
     amonet_v2_payload,
     stage_amonet_v1_1_0_recovery,
+    stage_amonet_v2_recovery,
     stage_downgrade,
     stage_fastbrick,
 )
@@ -69,10 +70,7 @@ if TYPE_CHECKING:
     Need = Download | Callable[[], object]
 
 
-AHEAD = {
-    State.AMONET_V2_FASTBOOT: State.AMONET_V2_TWRP,
-    State.STOCK_BOOTED: State.STOCK_FASTBOOT,
-}
+AHEAD = {State.STOCK_BOOTED: State.STOCK_FASTBOOT}
 DOWNLOADS: list[Need] = []
 DRIVER_CHECK = 10
 DRIVER_MISSES = 2
@@ -339,7 +337,6 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             target.goal == State.AMONET_V2_BOOTED and State.AMONET_V2_TWRP in done
         )
         restored = target.unlock is None and bool(done & TWRPS)
-        gesture = current == State.AMONET_V2_FASTBOOT and current not in table
         ahead = AHEAD.get(current)
         if (
             DOWNLOADER.ident is None
@@ -451,12 +448,6 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     text=f"This {title()}'s /system is damaged, so Fire OS cannot"
                     " start. Rebooting it into recovery."
                 )
-            elif gesture:
-                say(
-                    text=f"This {title()} is in amonet v2's fastboot. Unplug it, and"
-                    " hold the + button while you plug it back in: that starts"
-                    " v2's TWRP."
-                )
             elif (
                 current == State.AMONET_V2_BOOTED
                 and current not in done
@@ -538,15 +529,14 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             cache_note()
             return
         if (
-            gesture
-            or current in done
+            current in done
             or current in {State.NONE, State.STOCK_BOOTED, State.STARTING}
             or (current == State.BOOTED and target.unlock is not None)
         ):
             waits = {State.NONE} if installed else {State.NONE, State.STOCK_BOOTED}
             if restored:
                 waits = set()
-            if not gesture and current not in waits and time.monotonic() > deadline:
+            if current not in waits and time.monotonic() > deadline:
                 if restored:
                     raise FatalError(
                         message=f"stock {ARGUMENTS.build} has not started"
@@ -601,6 +591,9 @@ def stages() -> dict[State, Stage]:
             run=stage_amonet_v1_1_0_recovery,
             steps=1,
             then=State.AMONET_V1_1_0_BBOE_TWRP,
+        ),
+        State.AMONET_V2_FASTBOOT: Stage(
+            run=stage_amonet_v2_recovery, steps=1, then=State.AMONET_V2_TWRP
         ),
     } | dict.fromkeys(
         (State.STOCK_FASTBOOT, State.STOCK_FIREOS5_FASTBOOT),

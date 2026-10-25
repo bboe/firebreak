@@ -23,11 +23,11 @@ from firebreak.host import (
 from firebreak.identify import identity_lines
 from firebreak.probe import probed
 from firebreak.report import (
-    LEFT_IN_RECOVERY,
     LISTING_OK,
     PARTITIONS_OK,
     dot_details,
     labelled,
+    left_in_recovery,
     masked,
     mmc_said,
     node_held,
@@ -51,7 +51,7 @@ from firebreak.ui import (
     status,
     title,
 )
-from firebreak.unlock import amonet_v2_payload
+from firebreak.unlock import amonet_v2_payload, one_line, restart_refusals
 from firebreak.write_test import (
     EMMC_TARGET,
     MEBIBYTE,
@@ -70,15 +70,15 @@ def about_host() -> None:
     line("firebreak version", __version__)
     line("host", f"{sys.platform} ({os.name}), {platform.platform()}")
     line("python", sys.version.split()[0])
-    said = run(arguments=["adb", "version"], timeout=30).stdout.split(sep="\n")
-    line("adb", ", ".join(part.strip() for part in said[:2] if part.strip()))
+    line("adb", tool_version(arguments=["adb", "version"]))
+    line("fastboot", tool_version(arguments=["fastboot", "--version"]))
 
 
 def finish(*, asked: Callable[..., str]) -> None:
     show(text="\nwhat the kernel says about the eMMC")
     for text in mmc_said(asked=asked):
         show(text=text)
-    show(text="\n" + LEFT_IN_RECOVERY)
+    show(text="\n" + left_in_recovery())
 
 
 def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: ignore[complex-structure, too-many-return-statements, too-many-branches]
@@ -118,10 +118,8 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                     " asks."
                 )
                 return False
-            PROGRESS.begin(
-                estimate="40 s", label=f"restarting the {title()} in its recovery"
-            )
-            run(arguments=["fastboot", "oem", "reboot-recovery"], timeout=60)
+            if not restart_in_recovery(line=line):
+                return False
         else:
             adb_state = ""
             if usb_serial():
@@ -157,7 +155,13 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                 PROGRESS.begin(
                     estimate="40 s", label=f"restarting the {title()} in its recovery"
                 )
-                run(arguments=["adb", "reboot", "recovery"], timeout=60)
+                restarting = run(arguments=["adb", "reboot", "recovery"], timeout=60)
+                if restarting.returncode != 0:
+                    line(
+                        "adb reboot recovery",
+                        one_line(said=restarting.stdout)
+                        or f"exit {restarting.returncode}",
+                    )
             else:
                 if not asked:
                     asked = True
@@ -238,6 +242,30 @@ def report() -> None:
     for row in partition_rows(names=names, printed=printed):
         show(text=row)
     finish(asked=asked)
+
+
+def restart_in_recovery(*, line: Callable[[str, object], None]) -> bool:
+    PROGRESS.begin(estimate="40 s", label=f"restarting the {title()} in its recovery")
+    refused = restart_refusals()
+    if not refused:
+        return True
+    if PROGRESS.halt():
+        show(text="")
+    for label, said in refused:
+        line(label, said)
+    say(
+        text=f"This {title()}'s fastboot refused to restart it in its recovery, so"
+        " this cannot reach the recovery from here."
+        f"\n\nAn {title()} unlocked with amonet v2 answers the + button instead:"
+        " unplug it, hold + while you plug it back in, which starts its TWRP, then"
+        " run this again."
+    )
+    return False
+
+
+def tool_version(*, arguments: list[str]) -> str:
+    said = run(arguments=arguments, timeout=30).stdout.split(sep="\n")
+    return ", ".join(part.strip() for part in said[:2] if part.strip())
 
 
 def write_test() -> None:

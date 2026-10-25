@@ -13,10 +13,26 @@ from firebreak.devices import (
     TARGETS,
     biscuit,
 )
-from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconnect, run
+from firebreak.host import (
+    PUSH_TRIES,
+    adb_shell,
+    getvar,
+    in_fastboot,
+    pyserial_wheel,
+    reconnect,
+    run,
+)
 from firebreak.recovery import MD5_DIGITS
 from firebreak.twrp import DISK, partitions
-from firebreak.ui import ARGUMENTS, PROGRESS, FatalError, again, asked_for, title
+from firebreak.ui import (
+    ARGUMENTS,
+    PROGRESS,
+    FatalError,
+    again,
+    asked_for,
+    say,
+    title,
+)
 
 if TYPE_CHECKING:
     import pathlib
@@ -135,6 +151,26 @@ def newer_than_known(*, little_kernel: str) -> None:
     )
 
 
+def one_line(*, said: str) -> str:
+    return "; ".join(part.strip() for part in said.split(sep="\n") if part.strip())
+
+
+def restart_refusals() -> list[tuple[str, str]]:
+    refused = []
+    for words in (["oem", "reboot-recovery"], ["reboot-recovery"]):
+        try:
+            asked = run(arguments=["fastboot", *words], timeout=60)
+        except subprocess.TimeoutExpired:
+            return []
+        if asked.returncode == 0 or not in_fastboot():
+            return []
+        refused.append((
+            "fastboot " + " ".join(words),
+            one_line(said=asked.stdout) or f"exit {asked.returncode}",
+        ))
+    return refused
+
+
 def stage_amonet_v1_1_0_recovery() -> bool:
     unlocked = ""
     for _ in range(PUSH_TRIES):
@@ -177,6 +213,19 @@ def stage_amonet_v1_1_0_recovery() -> bool:
         directory=amonet,
         timeout=60,
     )
+    return True
+
+
+def stage_amonet_v2_recovery() -> bool:
+    say(text=f"This {title()} is in amonet v2's fastboot. Starting its TWRP.")
+    if restart_refusals():
+        say(
+            text=f"This {title()}'s fastboot took neither command that starts its"
+            " TWRP. Unplug it, and hold the + button while you plug it back in,"
+            " which starts TWRP itself."
+        )
+        return False
+    PROGRESS.begin(estimate="40 s", label="waiting for TWRP to start")
     return True
 
 

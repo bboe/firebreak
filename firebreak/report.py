@@ -15,7 +15,6 @@ BOOT_OK = "boot-ok"
 EMMC_BOOT_AREAS = ("boot0", "boot1")
 EMMC_FIELDS = ("name", "manfid", "oemid", "date", "prv", "life_time", "pre_eol_info")
 GUID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
-LEFT_IN_RECOVERY = "The Echo stays in its recovery: adb reboot starts it again."
 LISTING_OK = "listing-ok"
 LOG_OK = "log-ok"
 MMC_LOG = 'dmesg | grep -iE "mmc|msdc" | tail -60'
@@ -62,6 +61,10 @@ def dot_details(*, asked: Callable[..., str]) -> list[str]:
 
 def labelled(*, label: str, value: object) -> str:
     return f"{label:<24} {value}"
+
+
+def left_in_recovery() -> str:
+    return f"The {title()} stays in TWRP: adb reboot leaves TWRP for Fire OS."
 
 
 def masked(*, text: str) -> str:

@@ -208,6 +208,8 @@ def identify(*, found: list[UsbDevice] | None = None) -> Identity:
 def identity_lines() -> list[str]:
     found = echo_devices()
     identity = identify(found=found)
+    if identity.device:
+        SESSION.named = identity.device.title
     title = identity.device.title if identity.device else "not known"
     return [labelled(label="device", value=f"{title}, by its {identity.how}")] + [
         labelled(label="usb", value=usb) for usb in found

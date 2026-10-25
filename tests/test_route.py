@@ -5,7 +5,7 @@ import types
 
 import pytest
 
-from firebreak import route, ui
+from firebreak import route, twrp, ui, unlock
 from firebreak.devices import BISCUIT, TARGETS, biscuit
 from firebreak.devices.biscuit import BUILDS
 
@@ -29,11 +29,15 @@ class Run:
         self.states: list[route.State] = []
         self.stepped: list[dict[str, object]] = []
         self.tick = 1.0
-        monkeypatch.setattr(
-            name="run",
-            target=route,
-            value=lambda **_: types.SimpleNamespace(stdout="  -S SIZE[K|M|G]"),
-        )
+        for module in (route, twrp, unlock):
+            monkeypatch.setattr(
+                name="run",
+                target=module,
+                value=lambda **_: types.SimpleNamespace(
+                    returncode=0, stdout="  -S SIZE[K|M|G]"
+                ),
+            )
+        monkeypatch.setattr(name="in_fastboot", target=unlock, value=lambda: False)
         monkeypatch.setattr(name="state", target=route, value=self.state)
         monkeypatch.setattr(name="sleep", target=route.time, value=lambda _: None)
         monkeypatch.setattr(name="monotonic", target=route.time, value=self.monotonic)
@@ -704,11 +708,11 @@ def test_a_stock_run_that_parks_in_fastboot_says_so(
     assert "until the orange ring circles" not in out
 
 
-def test_a_v2_0_0_dot_is_told_to_use_its_gesture_and_to_reboot(
+def test_a_v2_0_0_dot_is_restarted_into_its_own_twrp(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
     run.target(build="8146", name="stock")
-    table = {
+    table = route.stages() | {
         route.State.AMONET_V2_BOOTED: route.Stage(run=lambda: None, steps=1, then=None)
     }
     monkeypatch.setattr(name="stages", target=route, value=lambda: table)
@@ -716,8 +720,26 @@ def test_a_v2_0_0_dot_is_told_to_use_its_gesture_and_to_reboot(
     with pytest.raises(RanOutError):
         route.root()
     out = said(capsys=capsys)
-    assert "hold the + button while you plug it back in" in out
+    assert "is in amonet v2's fastboot. Starting its TWRP." in out
     assert "Rebooting it into TWRP." in out
+    assert "hold the + button" not in out
+
+
+def test_a_v2_0_0_dot_that_refuses_the_restart_is_told_about_its_button(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    run.target(build="8146", name="stock")
+    monkeypatch.setattr(name="stages", target=route, value=route.stages)
+    monkeypatch.setattr(
+        name="run",
+        target=unlock,
+        value=lambda **_: types.SimpleNamespace(returncode=1, stdout=""),
+    )
+    monkeypatch.setattr(name="in_fastboot", target=unlock, value=lambda: True)
+    run.states = [route.State.AMONET_V2_FASTBOOT]
+    with pytest.raises(RanOutError):
+        route.root()
+    assert "hold the + button while you plug it back in" in said(capsys=capsys)
 
 
 def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -729,6 +751,12 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             route.stage_amonet_v1_1_0_recovery,
             1,
             state.AMONET_V1_1_0_BBOE_TWRP,
+            frozenset(),
+        ),
+        state.AMONET_V2_FASTBOOT: (
+            route.stage_amonet_v2_recovery,
+            1,
+            state.AMONET_V2_TWRP,
             frozenset(),
         ),
         state.EMOS: (route.stage_emos, 1, None, frozenset()),
@@ -928,7 +956,7 @@ def test_the_background_downloads_leave_the_browser_to_the_run(
 ) -> None:
     run.target(name="fireos6")
     monkeypatch.setattr(name="stages", target=route, value=route.stages)
-    run.states = [route.State.AMONET_V2_FASTBOOT]
+    run.states = [route.State.STOCK_BOOTED]
     with pytest.raises(RanOutError):
         route.root()
     assert run.started == 1
