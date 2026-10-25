@@ -117,6 +117,10 @@ def test_a_deprecated_name_parses_but_is_not_in_the_help(
         (["--device", "crown"], "argument --device: invalid choice"),
         (["--device", "radar"], "the Echo (2nd Generation) has no default target"),
         (
+            ["--device", "radar", "unlock"],
+            "the Echo (2nd Generation) has no default target",
+        ),
+        (
             ["--device", "radar", "stock", "8149"],
             "the Echo (2nd Generation) has no stock build 8149",
         ),
@@ -129,6 +133,7 @@ def test_a_deprecated_name_parses_but_is_not_in_the_help(
         "unknown-target",
         "device-without-targets",
         "no-default",
+        "no-default-unlock",
         "no-such-build",
         "survey",
     ],

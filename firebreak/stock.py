@@ -327,6 +327,11 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
         marker=NAMED,
         said=adb_shell(command=f"getprop ro.product.device; echo {NAMED}"),
     )
+    if named is None:
+        raise FatalError(
+            message="TWRP's answer for which device this is came back cut, so"
+            " nothing was written"
+        )
     if named != device.name:
         raise FatalError(
             message=f"this is not an {device.title}: TWRP reports the device {named!r}"

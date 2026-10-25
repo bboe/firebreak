@@ -54,6 +54,8 @@ from firebreak.write_test import EMMC_TARGET
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from firebreak.plugin import Device
+
 CREDITS = """firebreak automates work that other people did first.
 
 xyz wrote amonet, a MediaTek bootrom exploit. firebreak's bootrom and payload
@@ -125,10 +127,18 @@ def build_parser() -> argparse.ArgumentParser:
         **dict.fromkeys(DEPRECATED, rooting),
     }
     described = dict(about)
+    summaries: dict[str, dict[Device, str]] = {}
+    for device, targets in TARGETS.items():
+        for name, target in targets.items():
+            summaries.setdefault(name, {})[device] = target.summary
     described.update({
-        name: target.summary
-        for targets in TARGETS.values()
-        for name, target in targets.items()
+        name: " ".join(
+            f"For the {device.title}: {summary}"
+            for device, summary in by_device.items()
+        )
+        if len(by_device) > 1
+        else next(iter(by_device.values()))
+        for name, by_device in summaries.items()
     })
     described.update({
         name: f"goes away in firebreak {REMOVED_IN}: use"
@@ -401,7 +411,8 @@ def parsed() -> argparse.Namespace:
     ):
         setattr(options, option, getattr(options, option, None) or default)
     named = DEVICES.get(options.device)
-    if options.command is None and named is not None and named not in DEFAULTS:
+    bare = options.command is None or (options.command == UNLOCK and not options.target)
+    if bare and named is not None and named not in DEFAULTS:
         parser.error(message=f"the {named.title} has no default target")
     if options.command is None:
         notice = (

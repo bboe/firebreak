@@ -63,6 +63,26 @@ def test_every_build_has_a_whole_pin_on_amazon_s_cdn() -> None:
     assert set(biscuit.FIREOS5_BUILDS) <= set(biscuit.BUILDS)
 
 
-def test_no_build_number_belongs_to_two_devices() -> None:
+def test_no_device_defaults_to_a_build_that_ends_in_the_bootrom() -> None:
+    ends_there = {
+        device.name
+        for device, build in DEFAULT_BUILDS.items()
+        if build in biscuit.BOOTROM_BUILDS
+    }
+    assert not ends_there, (
+        f"{ends_there} now defaults to a build whose restore ends in the"
+        " bootrom. The --fastboot refusal reads the build typed on the command"
+        " line, not the one a run settles on once it knows the device, so that"
+        " check has to move to where the build is settled before this holds."
+    )
+
+
+def test_nothing_keyed_by_build_alone_has_a_collision_yet() -> None:
     numbers = [build for builds in BUILDS.values() for build in builds]
-    assert len(numbers) == len(set(numbers))
+    assert len(numbers) == len(set(numbers)), (
+        "two devices now share a build number, which docs/rooting.md says they"
+        " do. Nothing keyed by the build alone can tell them apart yet: the"
+        " stock-<build> work folder, the lock a build download holds, and the"
+        " one set of BUILD choices on the command line would each take one"
+        " device's build for the other's. Key those by device first."
+    )

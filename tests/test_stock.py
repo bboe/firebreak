@@ -482,7 +482,7 @@ def test_the_stock_stage_waits_for_twrp_to_finish_starting(
         ("for t in sgdisk", "nothing", "did not answer which tools it has: nothing"),
         ("for t in sgdisk", "tools: sgdisk", "this TWRP has no sgdisk"),
         ("ro.product.device", "crown\ndevice-named", "the device 'crown'"),
-        ("ro.product.device", "biscuit", "TWRP reports the device None"),
+        ("ro.product.device", "biscuit", "which device this is came back cut"),
         ("echo block", "", "is not a block device"),
         ("mmcblk0boot0/size", "4", r"preloader\.img does not fit boot0 \(4 sectors\)"),
         ("blockdev --getsize64", "", "could not read the Dot's disk size"),

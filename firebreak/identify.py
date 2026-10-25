@@ -93,9 +93,6 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
             " newest amonet this supports." + (" " + was.note if was.note else "")
         )
         device, name = was.device, was.name
-    if device is None and ERASED.exists():
-        marked = ERASED.read_text().strip()
-        device = next((each for each in DEVICES if each.name == marked), None)
     choices = [
         targets[wanted]
         for each, targets in TARGETS.items()
@@ -119,18 +116,24 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
             waited = True
         time.sleep(POLL)
         identity = identify()
+    found, how = identity.device, identity.how
+    if found is None and ERASED.exists():
+        marked = ERASED.read_text().strip()
+        found = next((each for each in DEVICES if each.name == marked), None)
+        if found is not None:
+            how = f"the device named in {ERASED.name}"
     for target in choices:
-        if target.device == identity.device:
+        if target.device == found:
             return target
-    if identity.device is None:
+    if found is None:
         raise FatalError(
             message=f"firebreak cannot tell which Echo this is, by its"
             f" {identity.how}, so nothing was done. Run it again with --device:"
             f" {devices}."
         )
     raise FatalError(
-        message=f"this is an {identity.device.title}, by its {identity.how}, and"
-        f" firebreak has no {name or 'default'} target for it, so nothing was done."
+        message=f"this is an {found.title}, by its {how}, and firebreak has no"
+        f" {name or 'default'} target for it, so nothing was done."
     )
 
 
@@ -193,15 +196,8 @@ def identify(*, found: list[UsbDevice] | None = None) -> Identity:
     }
     products = ", ".join(sorted({repr(usb.product) for usb in found})) or "nothing"
     if not named and usb_serial():
-        state = run(arguments=["adb", "get-state"], timeout=USB_TIMEOUT).stdout
-        if state.strip() == "recovery":
-            said = whole(
-                marker=NAMED,
-                said=adb_shell(
-                    command=f"getprop ro.product.device; echo {NAMED}",
-                    timeout=USB_TIMEOUT,
-                ),
-            )
+        said = recovery_device()
+        if said:
             named = {device for device in DEVICES if device.name == said}
             products = f"{products}, and recovery's ro.product.device {said!r}"
     return Identity(
@@ -237,6 +233,22 @@ def linux_devices() -> list[UsbDevice]:
             )
         )
     return found
+
+
+def recovery_device() -> str | None:
+    try:
+        state = run(arguments=["adb", "get-state"], timeout=USB_TIMEOUT).stdout
+        if state.strip() != "recovery":
+            return None
+        return whole(
+            marker=NAMED,
+            said=adb_shell(
+                command=f"getprop ro.product.device; echo {NAMED}",
+                timeout=USB_TIMEOUT,
+            ),
+        )
+    except subprocess.TimeoutExpired:
+        return None
 
 
 def stdout_of(*, arguments: list[str]) -> str:

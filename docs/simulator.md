@@ -47,9 +47,14 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   firebreak prints "Short the Dot's test point".
 - `START=twrp` writes amonet v2's chain and starts its TWRP. `create` writes
   it with the same code the fastbrick does, from the same zip, so the Dot
-  arrives where an unlock run leaves it: v2's LK in both slots, v2's TEE in
+  arrives where the fastbrick leaves it: v2's LK in both slots, v2's TEE in
   `tee1` and `tee2`, the kaeru payload in `expdb`, v2's TWRP in `recovery`,
-  and the stock table. It skips every step that gets there on a Dot, the
+  and the stock table, which v2's plan leaves alone from stock. That is the
+  state part way through an unlock, not the state one ends in: the plan also
+  writes amonet's preloader to boot0 and zeroes the RPMB, and this start does
+  neither, so boot0 keeps the simulator's stock preloader and the RPMB keeps
+  its stock bytes. Anything that reads either reads something a real unlocked
+  Dot would not show. It skips every step that gets to TWRP on a Dot, the
   bootrom and the fastbrick included, so it proves nothing about reaching
   TWRP. It is what makes `stock` reach the restore, which otherwise only a
   full unlock run would get to.

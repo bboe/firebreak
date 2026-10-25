@@ -114,6 +114,16 @@ def test_a_booted_dot_is_named_by_its_usb_product(
     )
 
 
+def test_a_cut_answer_from_a_recovery_names_no_device(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    connected(monkeypatch=monkeypatch, recovery="biscuit")
+    monkeypatch.setattr(name="adb_shell", target=identify, value=lambda **_: "biscuit")
+    identity = identify.identify()
+    assert identity.device is None
+    assert "None" not in identity.how
+
+
 @pytest.mark.parametrize(
     argnames=("name", "chosen", "said"),
     argvalues=[
@@ -350,6 +360,20 @@ def test_a_recovery_names_its_device_when_its_usb_product_does_not(
     )
 
 
+def test_a_recovery_that_does_not_answer_names_no_device(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    connected(monkeypatch=monkeypatch, recovery="biscuit")
+
+    def timed_out(**_: object) -> str:
+        raise subprocess.TimeoutExpired(cmd=["adb", "shell"], timeout=30)
+
+    monkeypatch.setattr(name="adb_shell", target=identify, value=timed_out)
+    identity = identify.identify()
+    assert identity.device is None
+    assert "ro.product.device" not in identity.how
+
+
 def test_a_short_serial_is_not_marked_as_cut() -> None:
     usb = dataclasses.replace(AEOBC, serial="AB12")
     assert str(usb).endswith("serial AB12")
@@ -525,6 +549,22 @@ def test_only_the_usb_ids_an_echo_uses_are_counted(
         name="usb_devices", target=identify, value=lambda: [AEOBC, AEORD, phone]
     )
     assert identify.echo_devices() == [AEOBC, AEORD]
+
+
+def test_the_erased_marker_does_not_overrule_the_echo(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    radar = radar_too(monkeypatch=monkeypatch)
+    connected(monkeypatch=monkeypatch, usb=[AEOBC])
+    monkeypatch.setattr(name="ERASED", target=identify, value=tmp_path / "erased")
+    (tmp_path / "erased").write_text("radar")
+    assert radar["stock"].device == RADAR
+    assert (
+        identify.choose_target(device=None, name="stock") == (TARGETS[BISCUIT]["stock"])
+    )
+    assert (
+        identify.choose_target(device=None, name=None) == (TARGETS[BISCUIT]["fireos6"])
+    )
 
 
 @pytest.mark.parametrize("usb", [[AEOBC, KEYBOARD], []], ids=["biscuit", "nothing"])

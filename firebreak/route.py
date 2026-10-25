@@ -366,11 +366,15 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         if current == State.NONE and (ERASED.exists() or SESSION.short) and not resumed:
             bootrom_device = biscuit.UNLOCK_FROM_BOOTROM.device
             if target.device != bootrom_device:
+                why = (
+                    "has an erased boot0, which only its bootrom can start it from"
+                    if ERASED.exists()
+                    else "was asked for with --short, which waits for its bootrom"
+                )
                 raise FatalError(
-                    message=f"this {target.device.title} has an erased boot0, which"
-                    " only its bootrom can start it from, and firebreak's bootrom"
-                    f" step supports only the {bootrom_device.title}, so it cannot"
-                    " be started from here."
+                    message=f"this {target.device.title} {why}, and firebreak's"
+                    f" bootrom step supports only the {bootrom_device.title}, so"
+                    " nothing was done."
                 )
             prefetch(
                 needs=dict.fromkeys((

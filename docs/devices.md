@@ -1,7 +1,7 @@
 # Devices
 
-The firmware each supported device's OTAs ship, and radar's and crown's,
-which firebreak does not support yet.
+The firmware each supported device's OTAs ship. radar has a `stock` target and
+no unlock, and crown has neither yet.
 
 `firebreak survey OTA` prints, from one OTA zip and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build
