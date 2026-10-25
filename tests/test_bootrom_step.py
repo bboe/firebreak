@@ -185,7 +185,7 @@ def rig(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> Rig:
     monkeypatch.setattr(
         name="getvar",
         target=bootrom_step,
-        value=lambda **_: bootrom_step.LK.FIREOS5.value,
+        value=lambda **_: "f379dba-20170906_000423",
     )
     monkeypatch.setattr(name="in_fastboot", target=bootrom_step, value=lambda: True)
     monkeypatch.setattr(name="mediatek_ports", target=bootrom_step, value=ports)
@@ -362,7 +362,7 @@ def test_a_fastboot_check_that_times_out_is_tried_again(
     monkeypatch.setattr(
         name="getvar",
         target=bootrom_step,
-        value=lambda **_: bootrom_step.LK.FIREOS5.value,
+        value=lambda **_: "f379dba-20170906_000423",
     )
     monkeypatch.setattr(name="sleep", target=bootrom_step.time, value=lambda _: None)
     bootrom_step.await_amonet_fastboot()

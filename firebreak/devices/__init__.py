@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from firebreak.devices.biscuit import BISCUIT, LK
+from firebreak.devices.biscuit import BISCUIT
 from firebreak.devices.crown import CROWN
 from firebreak.devices.radar import RADAR
 from firebreak.devices.registry import (
@@ -27,7 +27,6 @@ __all__ = [
     "DEVICES",
     "FASTBRICKS",
     "LITTLE_KERNEL_DESCRIPTION",
-    "LK",
     "LK_VALUES",
     "RADAR",
     "TARGETS",

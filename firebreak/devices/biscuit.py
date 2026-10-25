@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-import enum
 
 from firebreak.cache import Download
 from firebreak.layouts import BootMovedLayout, StockLayout
@@ -26,6 +25,7 @@ from firebreak.states import State
 from firebreak.targets import FIREOS5, FIREOS6, STOCK, Deprecated
 from firebreak.updates import cdn_ota
 
+AMONET_V1_1_0_LK = "f379dba-20170906_000423"
 BBOE_TWRP_VERSION = "3.7.0_9-bboe2"
 BBOE_RECOVERY = Download(
     name=f"twrp-{BBOE_TWRP_VERSION}-biscuit.img",
@@ -123,6 +123,15 @@ FLASH_AMONET_TWRP = FastbootFlash(
 FLASH_BBOE_TWRP = FastbootFlash(
     image="twrp", label="write TWRP " + BBOE_TWRP_VERSION, target="recovery"
 )
+LK_VALUES = frozenset({
+    "0e1d0d9-20161018_220224",
+    AMONET_V1_1_0_LK,
+    "a828f29-20210822_210511",
+    "beb022a-20211202_231918",
+    "41fb3ce-20221007_151724",
+    "63cb91b-20221007_072309",
+    "2c3569d-20260617_045829",
+})
 PAYLOAD_SEEK = 223207
 
 
@@ -226,23 +235,13 @@ WAS_CALLED = {
 WRITE_KAERU = Write(image="bin/biscuit-kaeru.bin", label="write kaeru", target="expdb")
 
 
-class LK(enum.Enum):
-    FIREOS5 = "f379dba-20170906_000423"
-    FIREOS6 = "63cb91b-20221007_072309"
-    FIREOS6_4315 = "41fb3ce-20221007_151724"
-    FIREOS6_8338 = "2c3569d-20260617_045829"
-
-
-LK_VALUES = frozenset(member.value for member in LK)
-
-
 UNLOCK_TO_FIREOS6 = Unlock(
     device=BISCUIT,
     family="amonet",
     fastbricks={
-        LK.FIREOS6.value: "bin/fastbrick-20221007.img",
-        LK.FIREOS6_4315.value: "bin/fastbrick-20221007.img",
-        LK.FIREOS6_8338.value: "bin/fastbrick-20260617.img",
+        "2c3569d-20260617_045829": "bin/fastbrick-20260617.img",
+        "41fb3ce-20221007_151724": "bin/fastbrick-20221007.img",
+        "63cb91b-20221007_072309": "bin/fastbrick-20221007.img",
     },
     layout=STOCK_LAYOUT,
     plan=(

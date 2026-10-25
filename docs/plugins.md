@@ -35,11 +35,26 @@ A device also gives its product, the name its LKs and its fastboot report:
 `BISCUIT`, `RADAR` and `CROWN`. It is not always the codename in capitals:
 amonet-crown v1.1.1's LK names `CHECKERS`.
 
-A device's module also lists the LK build descriptions it knows. The fastbrick
-stage refuses a bootloader it does not find there unless the bootloader is
-dated before the newest the list carries, because a payload is built for the
-LKs it targets. A device that lists none refuses every bootloader, so a device
-gets its LKs in the same change as its unlock.
+A device firebreak can unlock lists the LK build descriptions it knows: the
+rows of its Builds table in [devices.md](devices.md), and any an Echo has
+reported that no OTA there ships. The fastbrick stage refuses a bootloader it
+does not find in that list unless the bootloader is dated before the newest
+the list carries, because a payload is built for the LKs it targets. A device
+that lists none refuses every bootloader, which is where crown stands: it has
+a Builds row of its own and lists nothing, because nothing unlocks it here. So
+a device gets its LKs in the same change as its unlock.
+
+An LK is named only where it means something other than itself. biscuit names
+`AMONET_V1_1_0_LK`, the LK amonet v1.1.0 keeps, which is also the stock LK of
+Fire OS 5.5.3.1 to 5.5.4.6, so it says which bootloader a Dot runs and never
+whether amonet wrote it: `unlock_status` makes that call. `probe` reads it on
+both sides of that answer, for Fire OS 5's locked fastboot and for amonet
+v1.1.0's against v2's, and again to tell v1.1.0's TWRP from v2's. The
+downgrade reads it to tell a Dot already on v1.1.0, and the bootrom step to
+tell that its unlock took. Everywhere else an LK is its own description: the payload
+map is keyed by it, so the map's dates can be read against the image names.
+A name for one build that ships an LK would be a second fact to keep right,
+where one LK ships in as many as 34 builds.
 
 A device gives the words that ask for fastboot mode, because the gesture is the
 device's own: biscuit's names an action button and a light ring, which radar

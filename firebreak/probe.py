@@ -4,7 +4,7 @@ import hashlib
 import subprocess
 
 from firebreak.cache import digest, unpack
-from firebreak.devices import BY_NAME, LITTLE_KERNEL_DESCRIPTION, LK, biscuit
+from firebreak.devices import BY_NAME, LITTLE_KERNEL_DESCRIPTION, biscuit
 from firebreak.emos import emos
 from firebreak.host import adb_shell, command, getvar, in_fastboot, run, usb_serial
 from firebreak.report import masked
@@ -20,7 +20,7 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
         unlock = getvar(name="unlock_status").lower()
         if unlock == "false":
             little_kernel = getvar(name="lk_build_desc")
-            if little_kernel == LK.FIREOS5.value:
+            if little_kernel == biscuit.AMONET_V1_1_0_LK:
                 return State.STOCK_FIREOS5_FASTBOOT
             return State.STOCK_FASTBOOT
         if unlock != "true":
@@ -28,7 +28,7 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
         little_kernel = getvar(name="lk_build_desc")
         if not little_kernel:
             return State.STARTING
-        if little_kernel == LK.FIREOS5.value:
+        if little_kernel == biscuit.AMONET_V1_1_0_LK:
             return State.AMONET_V1_1_0_FASTBOOT
         return State.AMONET_V2_FASTBOOT
     adb_state = ""
@@ -46,7 +46,7 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
             return State.STARTING
         if "mtp" not in adb_shell(command="getprop sys.usb.config", timeout=30):
             return State.STARTING
-        if little_kernel != LK.FIREOS5.value:
+        if little_kernel != biscuit.AMONET_V1_1_0_LK:
             if "boot_a_x" in partition_table():
                 return State.AMONET_V2_TWRP_V1_1_0_TABLE
             return State.AMONET_V2_TWRP

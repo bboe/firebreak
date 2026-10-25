@@ -75,7 +75,7 @@ def test_a_device_that_lists_no_bootloader_refuses_the_one_it_is_given(
     monkeypatch.setattr(name="target", target=unlock.ARGUMENTS, value=crowned)
     assert not unlock.LK_VALUES[CROWN]
     with pytest.raises(FatalError, match="no older than any firebreak"):
-        unlock.newer_than_known(little_kernel=biscuit.LK.FIREOS5.value)
+        unlock.newer_than_known(little_kernel="f379dba-20170906_000423")
 
 
 @pytest.mark.parametrize(
@@ -104,7 +104,7 @@ def test_a_device_that_lists_no_bootloader_refuses_the_one_it_is_given(
         ),
         (
             {
-                "lk_build_desc": biscuit.LK.FIREOS5.value,
+                "lk_build_desc": "f379dba-20170906_000423",
                 "product": "BISCUIT",
                 "unlock_status": "true",
             },
@@ -136,7 +136,7 @@ def test_a_downgrade_erases_boot0_through_fastboot(
 ) -> None:
     stepped: list[dict[str, object]] = []
     answers = {
-        "lk_build_desc": biscuit.LK.FIREOS6.value,
+        "lk_build_desc": "63cb91b-20221007_072309",
         "product": "BISCUIT",
         "unlock_status": "true",
     }
@@ -160,7 +160,7 @@ def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
     answers = {
-        "lk_build_desc": biscuit.LK.FIREOS6.value,
+        "lk_build_desc": "63cb91b-20221007_072309",
         "product": "BISCUIT",
         "unlock_status": "true",
     }
@@ -211,7 +211,7 @@ def test_a_fastboot_that_never_says_whether_it_is_unlocked_stops_cleanly(
         ),
         (
             "product: BISCUIT",
-            f"abcdef0-{biscuit.LK.FIREOS6_8338.value.split(sep='-')[1]}",
+            "abcdef0-20260617_045829",
             "",
             "no older than any firebreak has a payload for",
         ),
@@ -278,7 +278,7 @@ def test_a_fastbrick_that_fails_leaves_the_dot_unmodified(
 ) -> None:
     brick(
         adb=adb,
-        little_kernel=biscuit.LK.FIREOS5.value,
+        little_kernel="f379dba-20170906_000423",
         monkeypatch=monkeypatch,
         tmp_path=tmp_path,
     )
@@ -293,7 +293,7 @@ def test_a_fastbrick_whose_timeout_says_nothing_still_started(
 ) -> None:
     brick(
         adb=adb,
-        little_kernel=biscuit.LK.FIREOS5.value,
+        little_kernel="f379dba-20170906_000423",
         monkeypatch=monkeypatch,
         tmp_path=tmp_path,
     )
@@ -430,6 +430,15 @@ def test_the_amonet_sources_are_the_device_s_own(
 
 def test_the_fastbrick_knows_only_the_bootloaders_the_device_lists() -> None:
     assert {
+        "0e1d0d9-20161018_220224",
+        "f379dba-20170906_000423",
+        "a828f29-20210822_210511",
+        "beb022a-20211202_231918",
+        "41fb3ce-20221007_151724",
+        "63cb91b-20221007_072309",
+        "2c3569d-20260617_045829",
+    } == biscuit.LK_VALUES
+    assert {
         "41fb3ce-20221007_153017",
         "59779ca-20220524_183401",
         "63cb91b-20221007_073612",
@@ -481,11 +490,11 @@ def test_the_fastbrick_picks_an_echo_s_own_image_for_its_bootloader(
     ("little_kernel", "image"),
     [
         ("", "bin/fastbrick.img"),
-        (biscuit.LK.FIREOS5.value, "bin/fastbrick.img"),
+        ("f379dba-20170906_000423", "bin/fastbrick.img"),
         ("a828f29-20210822_210511", "bin/fastbrick.img"),
-        (biscuit.LK.FIREOS6.value, "bin/fastbrick-20221007.img"),
-        (biscuit.LK.FIREOS6_4315.value, "bin/fastbrick-20221007.img"),
-        (biscuit.LK.FIREOS6_8338.value, "bin/fastbrick-20260617.img"),
+        ("63cb91b-20221007_072309", "bin/fastbrick-20221007.img"),
+        ("41fb3ce-20221007_151724", "bin/fastbrick-20221007.img"),
+        ("2c3569d-20260617_045829", "bin/fastbrick-20260617.img"),
     ],
 )
 def test_the_fastbrick_picks_the_image_for_the_bootloader(

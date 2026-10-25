@@ -191,7 +191,7 @@ def stage_downgrade() -> bool:
             message="the Dot did not report its bootloader version;"
             " boot0 was not erased. " + again()
         )
-    if little_kernel == biscuit.LK.FIREOS5.value:
+    if little_kernel == biscuit.AMONET_V1_1_0_LK:
         raise FatalError(
             message="the Dot already runs amonet v1.1.0's bootloader. " + again()
         )

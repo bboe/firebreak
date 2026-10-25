@@ -12,7 +12,7 @@ from firebreak.amonet.biscuit_v2_0_0 import Client
 from firebreak.amonet.payload import NotReadyError, Payload, start_payload
 from firebreak.android.gpt import ENTRIES_SIZE, SECTOR_SIZE, gpt_intact, partition_map
 from firebreak.cache import ERASED
-from firebreak.devices import LK, biscuit
+from firebreak.devices import biscuit
 from firebreak.emmc import EmmcArea
 from firebreak.host import getvar, in_fastboot, no_port_help
 from firebreak.mediatek import range_check
@@ -76,7 +76,10 @@ def ask_for_short() -> None:
 def await_amonet_fastboot() -> None:
     for _ in range(30):
         try:
-            if in_fastboot() and getvar(name="lk_build_desc") == LK.FIREOS5.value:
+            if (
+                in_fastboot()
+                and getvar(name="lk_build_desc") == biscuit.AMONET_V1_1_0_LK
+            ):
                 return
         except subprocess.TimeoutExpired:
             pass
