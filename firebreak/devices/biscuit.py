@@ -224,9 +224,26 @@ WAS_CALLED = {
     ),
 }
 WRITE_KAERU = Write(image="bin/biscuit-kaeru.bin", label="write kaeru", target="expdb")
+
+
+class LK(enum.Enum):
+    FIREOS5 = "f379dba-20170906_000423"
+    FIREOS6 = "63cb91b-20221007_072309"
+    FIREOS6_4315 = "41fb3ce-20221007_151724"
+    FIREOS6_8338 = "2c3569d-20260617_045829"
+
+
+LK_VALUES = frozenset(member.value for member in LK)
+
+
 UNLOCK_TO_FIREOS6 = Unlock(
     device=BISCUIT,
     family="amonet",
+    fastbricks={
+        LK.FIREOS6.value: "bin/fastbrick-20221007.img",
+        LK.FIREOS6_4315.value: "bin/fastbrick-20221007.img",
+        LK.FIREOS6_8338.value: "bin/fastbrick-20260617.img",
+    },
     layout=STOCK_LAYOUT,
     plan=(
         Repartition(),
@@ -255,6 +272,7 @@ UNLOCK_TO_FIREOS6 = Unlock(
 )
 
 
+FASTBRICK = UNLOCK_TO_FIREOS6
 TARGETS = (
     Target(
         device=BISCUIT,
@@ -284,13 +302,3 @@ TARGETS = (
         unlock=UNLOCK_TO_FIREOS6,
     ),
 )
-
-
-class LK(enum.Enum):
-    FIREOS5 = "f379dba-20170906_000423"
-    FIREOS6 = "63cb91b-20221007_072309"
-    FIREOS6_4315 = "41fb3ce-20221007_151724"
-    FIREOS6_8338 = "2c3569d-20260617_045829"
-
-
-LK_VALUES = frozenset(member.value for member in LK)

@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING
 from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import ERASED, digest, fetch, unpack
 from firebreak.devices import (
-    BISCUIT,
+    FASTBRICKS,
     LITTLE_KERNEL_DESCRIPTION,
-    LK,
     LK_VALUES,
+    TARGETS,
     biscuit,
 )
 from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconnect, run
@@ -20,6 +20,8 @@ from firebreak.ui import ARGUMENTS, PROGRESS, FatalError, again, asked_for
 
 if TYPE_CHECKING:
     import pathlib
+
+    from firebreak.cache import Download
 
 
 def amonet_chain() -> None:
@@ -32,7 +34,7 @@ def amonet_chain() -> None:
     if any(amonet_lk(node=f"{DISK}p{part[slot][0]}") for slot in ("lk_a", "lk_b")):
         return
     raise FatalError(
-        message="neither lk_a nor lk_b holds amonet v2's or v1.1.0's LK, so"
+        message="neither lk_a nor lk_b holds an amonet LK for this device, so"
         " this Dot is locked and the recovery it started is one amonet left"
         " behind. Nothing was written. Unlock it first: unplug the USB cable,"
         " hold the action button, plug it back in, and let go when the ring"
@@ -41,7 +43,7 @@ def amonet_chain() -> None:
 
 
 def amonet_lk(*, node: str) -> bool:
-    for download in (biscuit.V2_0_1_SOURCE, biscuit.V1_1_0_SOURCE):
+    for download in amonet_sources():
         local = unpack(download=download) / "bin" / "lk.bin"
         want = digest(kind="md5", path=local)
         for attempt in range(PUSH_TRIES):
@@ -66,6 +68,16 @@ def amonet_lk(*, node: str) -> bool:
     return False
 
 
+def amonet_sources() -> tuple[Download, ...]:
+    device = ARGUMENTS.target.device
+    others = (
+        target.unlock.source
+        for target in TARGETS[device].values()
+        if target.unlock is not None
+    )
+    return tuple(dict.fromkeys((FASTBRICKS[device].source, *others)))
+
+
 def amonet_v2_payload() -> pathlib.Path:
     amonet = unpack(download=biscuit.V2_0_1_SOURCE)
     return amonet / "brom-payload" / "build" / "payload.bin"
@@ -77,11 +89,12 @@ def check_product() -> None:
         raise FatalError(
             message="fastboot reports no product, so nothing was written. " + again()
         )
-    if product != BISCUIT.product:
+    device = ARGUMENTS.target.device
+    if product != device.product:
         raise FatalError(
-            message=f"fastboot reports {product!r}, not {BISCUIT.product}, so"
-            " nothing was"
-            " written. firebreak supports only the Echo Dot (2nd Generation)."
+            message=f"fastboot reports {product!r}, not {device.product}, so"
+            f" nothing was written. {ARGUMENTS.target.name} is for the"
+            f" {device.title}."
         )
 
 
@@ -108,12 +121,17 @@ def newer_than_known(*, little_kernel: str) -> None:
     newest = max((each.split(sep="-")[1] for each in known), default="")
     if little_kernel.split(sep="-")[1] < newest:
         return
+    bootrom = (
+        " Its bootrom still unlocks it: README.md's --short section says how to"
+        " open it."
+        if ARGUMENTS.target.device == biscuit.UNLOCK_FROM_BOOTROM.device
+        else ""
+    )
     raise FatalError(
         message=f"the bootloader {little_kernel} is no older than any firebreak"
         f" has a payload for on the {ARGUMENTS.target.device.title}, and a"
-        " fastbrick payload only unlocks the bootloaders it was built for, so the Dot"
-        " was not modified. Its bootrom still unlocks it: README.md's --short"
-        " section says how to open it."
+        " fastbrick payload only unlocks the bootloaders it was built for, so"
+        f" the Dot was not modified.{bootrom}"
     )
 
 
@@ -173,7 +191,7 @@ def stage_downgrade() -> bool:
             message="the Dot did not report its bootloader version;"
             " boot0 was not erased. " + again()
         )
-    if little_kernel == LK.FIREOS5.value:
+    if little_kernel == biscuit.LK.FIREOS5.value:
         raise FatalError(
             message="the Dot already runs amonet v1.1.0's bootloader. " + again()
         )
@@ -190,7 +208,8 @@ def stage_downgrade() -> bool:
 
 
 def stage_fastbrick() -> None:
-    amonet = unpack(download=biscuit.V2_0_1_SOURCE)
+    fastbrick = FASTBRICKS[ARGUMENTS.target.device]
+    amonet = unpack(download=fastbrick.source)
     check_product()
     little_kernel = getvar(name="lk_build_desc")
     if not little_kernel and getvar(name="pl_build_desc"):
@@ -199,12 +218,8 @@ def stage_fastbrick() -> None:
             " bootloader's; the Dot was not modified. " + again()
         )
     newer_than_known(little_kernel=little_kernel)
-    image = "bin/fastbrick.img"
-    if little_kernel in {LK.FIREOS6.value, LK.FIREOS6_4315.value}:
-        image = "bin/fastbrick-20221007.img"
-    elif little_kernel == LK.FIREOS6_8338.value:
-        image = "bin/fastbrick-20260617.img"
-    PROGRESS.begin(estimate="10 s", label="unlocking with amonet v2.0.1")
+    image = fastbrick.fastbricks.get(little_kernel, "bin/fastbrick.img")
+    PROGRESS.begin(estimate="10 s", label=f"unlocking with {fastbrick.name}")
     for attempt in range(10):
         if attempt:
             time.sleep(2)

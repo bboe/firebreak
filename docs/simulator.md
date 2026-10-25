@@ -9,6 +9,7 @@
 simulator/run.sh OUT unlock fireos5
 START=no-light simulator/run.sh OUT unlock fireos5 --short
 START=twrp simulator/run.sh OUT stock 8149
+DEVICE=radar simulator/run.sh OUT unlock fireos6 --run-on-unproven-path
 DEVICE=radar START=twrp simulator/run.sh OUT stock 6436 --run-on-unproven-path
 python3 simulator/trace.py OUT.jsonl             # one command per line, for diff
 python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per range
@@ -60,10 +61,12 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   full unlock run would get to.
 - `DEVICE=biscuit`, the default, makes an Echo Dot (2nd Generation).
   `DEVICE=radar` makes an Echo (2nd Generation): adb and fastboot name radar,
-  and the stock LK, the model and the USB ids are radar's. A radar run reaches
-  as far as the device plumbing goes: firebreak names the device off its
-  fastboot product and refuses a target that is not for it. `START=twrp` is
-  not biscuit-only, so `stock` runs the whole restore for either device.
+  and the stock LK, the model and the USB ids are radar's. firebreak names the
+  device off its fastboot product and refuses a target that is not for it.
+  `unlock` and `stock` both run the whole way for either device, `unlock` from
+  stock fastboot and `stock` from `START=twrp`. A radar unlock takes
+  amonet-radar v1.0.0's archive and its own fastbrick map, which the simulated
+  radar checks the flashed payload against.
 - firebreak's stdin is `/dev/null`. Its stdout must be unbuffered: without
   `PYTHONUNBUFFERED=1`, the prompt reached the log only at exit, and the Dot
   was never plugged in.

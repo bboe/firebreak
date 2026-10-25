@@ -10,7 +10,7 @@ from firebreak.devices.radar import RADAR
 
 if TYPE_CHECKING:
     from firebreak.cache import Download
-    from firebreak.plugin import Device, Target
+    from firebreak.plugin import Device, Target, Unlock
     from firebreak.targets import Deprecated
 
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
@@ -31,6 +31,11 @@ DEPRECATED: dict[str, Deprecated] = {
     name: was for _, module in SUPPORTED for name, was in module.WAS_CALLED.items()
 }
 DEVICES = tuple(device for device, _ in SUPPORTED)
+FASTBRICKS: dict[Device, Unlock] = {
+    device: module.FASTBRICK
+    for device, module in SUPPORTED
+    if module.FASTBRICK is not None
+}
 LK_VALUES: dict[Device, frozenset[str]] = {
     device: module.LK_VALUES for device, module in SUPPORTED
 }

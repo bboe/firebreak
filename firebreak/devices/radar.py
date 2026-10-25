@@ -7,7 +7,7 @@ from firebreak.cache import Download
 from firebreak.devices.biscuit import BISCUIT, UNLOCK_TO_FIREOS6, WRITE_KAERU
 from firebreak.plugin import FireOs6, Target
 from firebreak.states import State
-from firebreak.targets import STOCK
+from firebreak.targets import FIREOS6, STOCK
 from firebreak.updates import cdn_ota
 
 if TYPE_CHECKING:
@@ -20,8 +20,13 @@ BUILDS = {
     ),
 }
 DEFAULT_BUILD = "6436"
-DEFAULT_TARGET = None
-LK_VALUES: frozenset[str] = frozenset()
+DEFAULT_TARGET = FIREOS6
+FIREOS6_BUILD = "6436"
+LK_VALUES = frozenset({
+    "59779ca-20220524_183401",
+    "63cb91b-20221007_073612",
+    "41fb3ce-20221007_153017",
+})
 RADAR = dataclasses.replace(
     BISCUIT,
     models=frozenset({"AEORD", "Echo (2nd Gen)"}),
@@ -29,6 +34,8 @@ RADAR = dataclasses.replace(
     product="RADAR",
     title="Echo (2nd Generation)",
 )
+
+
 SOURCE = Download(
     browser=True,
     directory="radar-v1.0.0",
@@ -38,9 +45,12 @@ SOURCE = Download(
     size=58531162,
     url="https://xdaforums.com/attachments/amonet-radar-v1-0-0-zip.6384242/",
 )
+
+
 AMONET_V1_0_0 = dataclasses.replace(
     UNLOCK_TO_FIREOS6,
     device=RADAR,
+    fastbricks={"59779ca-20220524_183401": "bin/fastbrick-20220524.img"},
     plan=tuple(
         dataclasses.replace(WRITE_KAERU, image="bin/radar-kaeru.bin")
         if step == WRITE_KAERU
@@ -50,6 +60,7 @@ AMONET_V1_0_0 = dataclasses.replace(
     source=SOURCE,
     version="1.0.0",
 )
+FASTBRICK = AMONET_V1_0_0
 TARGETS = (
     Target(
         device=RADAR,
@@ -58,6 +69,16 @@ TARGETS = (
         name=STOCK,
         summary=f"Amazon's Fire OS {DEFAULT_BUILD}, which erases the whole Echo.",
         unlock=None,
+        unproven=True,
+    ),
+    Target(
+        device=RADAR,
+        goal=State.AMONET_V2_BOOTED,
+        installs=FireOs6(build=FIREOS6_BUILD),
+        name=FIREOS6,
+        summary=f"rooted Fire OS 6 {FIREOS6_BUILD} on amonet-radar v1.0.0,"
+        " with boot-root.zip's root adb.",
+        unlock=AMONET_V1_0_0,
         unproven=True,
     ),
 )

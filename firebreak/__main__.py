@@ -285,7 +285,7 @@ def cli() -> None:
             )
     if ARGUMENTS.target.unproven and not options.run_on_unproven_path:
         raise FatalError(
-            message=f"{ARGUMENTS.target.name} has never run on an actual"
+            message=f"{ARGUMENTS.target.name} is not proven on an actual"
             f" {device.title}, so it needs --run-on-unproven-path to go on"
         )
     root()
@@ -295,7 +295,11 @@ def listed(*, label: str, summary: str) -> list[str]:
     return [
         f"  {label}",
         *textwrap.wrap(
-            initial_indent=" " * 6, subsequent_indent=" " * 6, text=summary, width=74
+            break_on_hyphens=False,
+            initial_indent=" " * 6,
+            subsequent_indent=" " * 6,
+            text=summary,
+            width=74,
         ),
     ]
 

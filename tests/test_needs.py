@@ -9,11 +9,20 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import cache, plan, route, unlock, updates
-from firebreak.devices import BISCUIT, TARGETS, biscuit
+from firebreak.devices import BISCUIT, RADAR, TARGETS, biscuit, radar
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from firebreak.plugin import Device
+
+AMONET_LKS = {
+    BISCUIT: (biscuit.V2_0_1_SOURCE, biscuit.V1_1_0_SOURCE),
+    RADAR: (radar.SOURCE,),
+}
+EVERY_TARGET = [
+    (device, name) for device, targets in TARGETS.items() for name in sorted(targets)
+]
 PURE = (
     ast.Attribute,
     ast.BoolOp,
@@ -21,12 +30,15 @@ PURE = (
     ast.Constant,
     ast.Load,
     ast.Name,
+    ast.Subscript,
     ast.Tuple,
     ast.UnaryOp,
     ast.boolop,
     ast.cmpop,
     ast.unaryop,
 )
+
+TARGET_IDS = [f"{device.name}-{name}" for device, name in EVERY_TARGET]
 UNRESOLVED = object()
 
 
@@ -74,8 +86,9 @@ class Scan:
             self.found |= set(bound["unlock"].files.values())
             return
         if function is unlock.amonet_lk:
-            self.found.add(biscuit.V2_0_1_SOURCE)
-            self.maybe.add(biscuit.V1_1_0_SOURCE)
+            first, *rest = AMONET_LKS[route.ARGUMENTS.target.device]
+            self.found.add(first)
+            self.maybe |= set(rest)
             return
         if not inspect.isfunction(function) or not function.__module__.startswith(
             "firebreak"
@@ -127,12 +140,12 @@ def scanned(*, run: Callable[..., object]) -> Scan:
     return scan
 
 
-@pytest.mark.parametrize("name", sorted(TARGETS[BISCUIT]))
+@pytest.mark.parametrize(("device", "name"), EVERY_TARGET, ids=TARGET_IDS)
 def test_each_stage_needs_what_its_code_downloads(
-    *, monkeypatch: pytest.MonkeyPatch, name: str
+    *, device: Device, monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
     monkeypatch.setattr(
-        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
+        name="target", target=route.ARGUMENTS, value=TARGETS[device][name]
     )
     for state, stage in route.stages().items():
         needs: set[object] = set()
@@ -144,12 +157,12 @@ def test_each_stage_needs_what_its_code_downloads(
         assert scan.found <= needs <= scan.found | scan.maybe, state
 
 
-@pytest.mark.parametrize("name", sorted(TARGETS[BISCUIT]))
+@pytest.mark.parametrize(("device", "name"), EVERY_TARGET, ids=TARGET_IDS)
 def test_every_need_a_stage_declares_can_be_called(
-    *, monkeypatch: pytest.MonkeyPatch, name: str
+    *, device: Device, monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
     monkeypatch.setattr(
-        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
+        name="target", target=route.ARGUMENTS, value=TARGETS[device][name]
     )
     monkeypatch.setattr(name="download", target=route.updates, value=lambda **_: None)
     monkeypatch.setattr(name="fetch", target=cache, value=lambda **_: None)

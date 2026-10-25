@@ -6,15 +6,25 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `unlock fireos6` roots an Echo (2nd Generation) with amonet-radar v1.0.0, on
+  Fire OS 6 6436 with `boot-root.zip`'s root adb. It is that device's default
+  target, so a run that names only the device unlocks it, and a run that names
+  nothing waits for the Echo to say which one it is. `--short` keeps taking the
+  Echo Dot (2nd Generation), the one device with a bootrom route here. The one
+  run that reached root on an Echo needed it power-cycled by hand at its first
+  boot, so the target is refused without `--run-on-unproven-path`.
 - `stock` returns an Echo (2nd Generation) to Fire OS 6436, the one build
-  Amazon ships for it. Nothing unlocks that device yet, so `stock` is its only
-  command, and naming it without one is refused.
-- `--run-on-unproven-path` goes on with a target whose route has never run on
-  the device it is for. Returning an Echo (2nd Generation) to stock is such a
-  target, and is refused without it.
+  Amazon ships for it.
+- `--run-on-unproven-path` goes on with a target whose route is not proven on
+  the device it is for. Both of an Echo (2nd Generation)'s targets are such
+  targets, and are refused without it.
 
 ### Changed
 
+- The fastbrick takes the payload map and the archive of the device's own
+  unlock, and checks the product fastboot reports against the device the
+  target is for. An Echo (2nd Generation) on Fire OS 5.5.5.4 takes
+  amonet-radar's own image for that bootloader.
 - A stock build the device has no OTA for is refused before anything is
   written. An Echo Dot's OTAs and an Echo's are different firmware, so the
   build is chosen once the run knows which it has.

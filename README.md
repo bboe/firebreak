@@ -17,7 +17,7 @@ after `boot0` was erased, and `stock 5.5.0.3`.
 
 | target | the Dot ends with | time |
 | --- | --- | --- |
-| `unlock fireos6` (default) | rooted Fire OS 6 [8146][fireos-8146] on amonet v2.0.1, TWRP 3.7.0; also needs `boot-root.zip` | about 5 min from `unlock fireos5` |
+| `unlock fireos6` (default) | rooted Fire OS 6 [8146][fireos-8146] on amonet v2.0.1, TWRP 3.7.0; also needs `boot-root.zip`. On an Echo (2nd Generation), rooted Fire OS 6 [6436][fireos-6436] on amonet-radar v1.0.0 | about 5 min from `unlock fireos5` |
 | `unlock fireos5` | rooted Fire OS [5.5.5.4][fireos-5554] on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
 | `stock [BUILD]` | stock Fire OS at that build, with the Dot erased: Fire OS 6 [8149][fireos-8149] when left out, or Fire OS 5 from [5.5.0.3][fireos-5503] to [5.5.5.4][fireos-5554] | about 3 min from `unlock fireos5` |
 
@@ -146,7 +146,7 @@ v1.1.0, and then goes on to the target. It takes any target; `--short` to
    between R60 and C52 beside the eMMC ([where that is on the
    board](https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/)). Do not
    use C52, which is a capacitor.
-3. With the Dot unplugged, run `uvx firebreak@latest --short`.
+3. With the Dot unplugged, run `uvx firebreak@latest unlock fireos5 --short`.
 4. When the script prints "Short the Dot's test point and plug it in", hold a
    wire from that passive to the shield frame beside it, which is ground, and
    plug the Dot in. A Dot plugged in before that message can go unseen. On
@@ -163,12 +163,14 @@ computer are, and the Dot's partition table, and writes no partition. A Dot
 already in a recovery stays there, and the Dot is left in its recovery
 afterwards.
 
-`report` also names the device and lists its USB devices. firebreak's
-targets are for the Echo Dot (2nd Generation), except `stock`, which also
-returns an Echo (2nd Generation) on amonet to stock Fire OS 6
-[6436][fireos-6436]. That has not run on one yet, so it is refused unless the
-run passes `--run-on-unproven-path`. The report is the same on other Echo
-devices and helps add them.
+`report` also names the device and lists its USB devices. An Echo (2nd
+Generation) takes `unlock fireos6`, which roots Fire OS 6 [6436][fireos-6436]
+with amonet-radar v1.0.0, and `stock`, which returns one on amonet to that
+build. Neither is proven on one: `stock` has not run on an Echo at all, and
+the one unlock run that reached root needed the Echo power-cycled by hand at
+its first boot. Both are refused unless the run passes
+`--run-on-unproven-path`. Every other target is for the Echo Dot (2nd
+Generation). The report is the same on other Echo devices and helps add them.
 
 `write-test` then tells a failing eMMC from a failing cable. It pushes a
 pattern into the Dot's RAM, then has the Dot write it over its own `cache`

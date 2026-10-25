@@ -774,12 +774,17 @@ ring read white.
 
 ## Unlock: amonet v2
 
-- The fastbrick image is `fastbrick-20221007.img` when `lk_build_desc` is
-  `63cb91b-20221007_072309` or `41fb3ce-20221007_151724`,
-  `fastbrick-20260617.img` when it is `2c3569d-20260617_045829`, else
-  `fastbrick.img`. The 20221007 payload takes both of its bootloaders, where
-  amonet's own map lists only the first. The second ships in 4310, 4313 and
-  4315, which the default image does not unlock.
+- The unlock that holds a device's fastbrick payloads maps an
+  `lk_build_desc` to its image, and `fastbrick.img` takes any other. On
+  biscuit the map is `fastbrick-20221007.img` for `63cb91b-20221007_072309`
+  and `41fb3ce-20221007_151724`, and `fastbrick-20260617.img` for
+  `2c3569d-20260617_045829`. The 20221007 payload takes both of its
+  bootloaders, where amonet's own map lists only the first. The second ships
+  in 4310, 4313 and 4315, which the default image does not unlock. On radar
+  the map is amonet-radar's own: `fastbrick-20220524.img` for
+  `59779ca-20220524_183401`, Fire OS 5.5.5.4's LK, and the default for both
+  Fire OS 6 LKs. The stage unpacks that unlock's archive, so an Echo takes
+  amonet-radar v1.0.0's payloads rather than a biscuit zip's.
 - A `lk_build_desc` that is not one of the LKs the device's module lists, and
   is dated no earlier than the newest it does list, stops the stage before the
   flash. The fallback is a payload built for an older bootloader, which is
@@ -1379,8 +1384,8 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   downloads the build before it touches the Dot.
 - Each device has its own builds. biscuit's and radar's OTAs share build
   numbers but not firmware, so the run picks the build only after it knows
-  the device. radar has one, 6436, Fire OS 6.5.7.2, its newest. radar has no
-  default target, so `--device radar` without a target is refused.
+  the device. radar has one, 6436, Fire OS 6.5.7.2, its newest, which both of
+  its targets install.
 - Before it writes anything, the restore checks that the OTA's
   `ro.product.device`, without `_puffin`, names the device. A wrong entry in
   the build table would otherwise write one device's bootloaders on another.

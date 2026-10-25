@@ -11,7 +11,7 @@ import xml.parsers.expat
 from typing import TYPE_CHECKING
 
 from firebreak.cache import ERASED
-from firebreak.devices import DEFAULTS, DEPRECATED, DEVICES, TARGETS
+from firebreak.devices import DEFAULTS, DEPRECATED, DEVICES, TARGETS, biscuit
 from firebreak.host import (
     USER_SERIAL,
     adb_shell,
@@ -33,6 +33,7 @@ ECHO_VENDORS = frozenset({0x0E8D, 0x1949})
 FASTBOOT_ID = (0x0BB4, 0x0C01)
 INSTANCE_PARTS = 3
 NAMED = "device-named"
+NAME_POLLS = 5
 POLL = 2
 SERIAL_SHOWN = 4
 SYSFS_USB = pathlib.Path("/sys/bus/usb/devices")
@@ -74,6 +75,11 @@ class UsbDevice:
         )
 
 
+def bootrom_target(*, choices: list[Target]) -> Target | None:
+    device = biscuit.UNLOCK_FROM_BOOTROM.device
+    return next((each for each in choices if each.device == device), None)
+
+
 def check_target(*, target: Target) -> None:
     identity = identify()
     if identity.device is None or identity.device == target.device:
@@ -104,18 +110,7 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
     devices = " or ".join(
         f"{target.device.name} for the {target.device.title}" for target in choices
     )
-    identity = identify()
-    waited = False
-    while identity.device is None and not (SESSION.short or ERASED.exists()):
-        if not waited:
-            warn(
-                text="Waiting for the Echo to name its device. One that shows no"
-                f" light never does: stop this and run it again with --device:"
-                f" {devices}."
-            )
-            waited = True
-        time.sleep(POLL)
-        identity = identify()
+    identity = named_device(devices=devices)
     found, how = identity.device, identity.how
     if found is None and ERASED.exists():
         marked = ERASED.read_text().strip()
@@ -125,6 +120,10 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
     for target in choices:
         if target.device == found:
             return target
+    if found is None and SESSION.short:
+        shorted = bootrom_target(choices=choices)
+        if shorted is not None:
+            return shorted
     if found is None:
         raise FatalError(
             message=f"firebreak cannot tell which Echo this is, by its"
@@ -233,6 +232,22 @@ def linux_devices() -> list[UsbDevice]:
             )
         )
     return found
+
+
+def named_device(*, devices: str) -> Identity:
+    identity = identify()
+    polls = 0
+    while identity.device is None and not (SESSION.short or ERASED.exists()):
+        if polls == NAME_POLLS:
+            warn(
+                text="Still waiting for the Echo to name its device. It names one"
+                " in fastboot and in a recovery. One that shows no light never"
+                f" names one: stop this and run it again with --device: {devices}."
+            )
+        polls += 1
+        time.sleep(POLL)
+        identity = identify()
+    return identity
 
 
 def recovery_device() -> str | None:

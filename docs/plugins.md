@@ -71,9 +71,11 @@ a TWRP version, says in its name which release it belongs to.
 `firebreak/devices/registry.py` gathers what the core asks for across devices,
 and the package re-exports it, so `DEVICES`, `TARGETS`, `DEPRECATED` and
 `DEFAULTS` are assembled from each module rather than listed twice. A device
-module declares its own `TARGETS`, `WAS_CALLED`, `DEFAULT_TARGET` and
-`LK_VALUES`; a device with no target or LK yet declares them
-empty. Each plan is amonet's
+module declares its own `TARGETS`, `WAS_CALLED`, `DEFAULT_TARGET`, `LK_VALUES`
+and `FASTBRICK`, the unlock whose archive holds its fastbrick payloads; a
+device with no target or LK yet declares them empty, and names no fastbrick
+either, because every device a run can take anywhere is reachable from stock
+fastboot and so needs one. Each plan is amonet's
 `modules/main.py` and then its `fastboot-step.sh`, step for step. The Fire
 OS 5 unlock writes TWRP 3.7.0_9-bboe2, a download of its own, which is why
 an unlock carries `files` beside its archive. The bootrom route writes the
@@ -105,20 +107,22 @@ updates, which TWRP installs as it is; stock's build is the one named on the
 command line, or the device's own default, which its module holds. A Fire OS 5
 target names its update package, from which firebreak builds a system image to
 write with dd, with Magisk beside it.
-Each device module holds its own targets, biscuit's three and radar's `stock`,
-and its default. Every device firebreak can take anywhere has a `stock` target;
-only one it can unlock has an unlock target, so radar names no default and a
-bare `--device radar` is refused. Their goal states are in
+Each device module holds its own targets, biscuit's three and radar's two, and
+its default. Every device firebreak can take anywhere has a `stock` target;
+only one it can unlock has an unlock target, so crown names no target at all
+and is not a `--device` choice. Their goal states are in
 `firebreak/states.py`, a module outside the devices package, so a device module
 can name a state without the registry's imports forming a cycle. A target's
 summary is its line in `--help`, which lists each device's commands, and the
 unlock targets under `unlock` with the default first.
 
-A target whose route has never run on the device it is for says `unproven`.
+A target whose route is not proven on the device it is for says `unproven`.
 Such a target is refused unless the run passes `--run-on-unproven-path`, so
 reaching it is a choice rather than an accident, and the refusal names the
-device so it is clear what has not been tried. A target loses the field once a
-run on that device is recorded in docs/rooting.md.
+device so it is clear what has not been proven. A route nobody has run is
+unproven, and so is one whose runs needed a step firebreak does not yet take.
+A target loses the field once a run on that device is recorded in
+docs/rooting.md.
 
 v2.0.0's `main.py` has two branches its plan leaves out: `fixgpt`, a manual
 mode that writes its own table, and a run from the preloader, which leaves

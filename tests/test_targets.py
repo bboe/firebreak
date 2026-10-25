@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from firebreak.devices import BISCUIT, DEFAULTS, TARGETS
+from firebreak.devices import BISCUIT, DEFAULTS, FASTBRICKS, TARGETS
 from firebreak.devices.biscuit import (
     BUILDS,
     UNLOCK_TO_FIREOS5,
@@ -13,6 +13,11 @@ from firebreak.states import State
 def test_each_device_s_default_is_one_of_its_targets() -> None:
     assert set(DEFAULTS) <= set(TARGETS)
     assert all(DEFAULTS[device] in TARGETS[device] for device in DEFAULTS)
+
+
+def test_each_device_with_a_target_names_the_unlock_its_fastbricks_are_in() -> None:
+    assert set(TARGETS) <= set(FASTBRICKS)
+    assert all(FASTBRICKS[device].device == device for device in FASTBRICKS)
 
 
 def test_each_target_is_named_by_its_key_and_is_for_its_device() -> None:
@@ -51,4 +56,4 @@ def test_only_an_unproven_target_says_so() -> None:
         for target in targets.values()
         if target.unproven
     }
-    assert unproven == {("radar", "stock")}
+    assert unproven == {("radar", "fireos6"), ("radar", "stock")}

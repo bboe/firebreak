@@ -31,6 +31,7 @@ CROWN = Device(
 )
 DEFAULT_BUILD = None
 DEFAULT_TARGET = None
+FASTBRICK = None
 LK_VALUES: frozenset[str] = frozenset()
 SOURCE = Download(
     browser=True,

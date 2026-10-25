@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import subprocess
 import types
@@ -8,7 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import unlock
-from firebreak.devices import RADAR, biscuit, radar
+from firebreak.devices import CROWN, RADAR, TARGETS, biscuit, radar
 from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
@@ -70,8 +71,9 @@ def guard(
 def test_a_device_that_lists_no_bootloader_refuses_the_one_it_is_given(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(name="target", target=unlock.ARGUMENTS, value=radar.TARGETS[0])
-    assert unlock.ARGUMENTS.target.device is RADAR
+    crowned = dataclasses.replace(radar.TARGETS[0], device=CROWN)
+    monkeypatch.setattr(name="target", target=unlock.ARGUMENTS, value=crowned)
+    assert not unlock.LK_VALUES[CROWN]
     with pytest.raises(FatalError, match="no older than any firebreak"):
         unlock.newer_than_known(little_kernel=biscuit.LK.FIREOS5.value)
 
@@ -86,7 +88,7 @@ def test_a_device_that_lists_no_bootloader_refuses_the_one_it_is_given(
                 "product": "RADAR",
                 "unlock_status": "true",
             },
-            "reports 'RADAR', not BISCUIT, so nothing was written. firebreak supports",
+            "reports 'RADAR', not BISCUIT, so nothing was written. fireos6 is for",
         ),
         (
             {
@@ -102,7 +104,7 @@ def test_a_device_that_lists_no_bootloader_refuses_the_one_it_is_given(
         ),
         (
             {
-                "lk_build_desc": unlock.LK.FIREOS5.value,
+                "lk_build_desc": biscuit.LK.FIREOS5.value,
                 "product": "BISCUIT",
                 "unlock_status": "true",
             },
@@ -134,7 +136,7 @@ def test_a_downgrade_erases_boot0_through_fastboot(
 ) -> None:
     stepped: list[dict[str, object]] = []
     answers = {
-        "lk_build_desc": unlock.LK.FIREOS6.value,
+        "lk_build_desc": biscuit.LK.FIREOS6.value,
         "product": "BISCUIT",
         "unlock_status": "true",
     }
@@ -158,7 +160,7 @@ def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
     answers = {
-        "lk_build_desc": unlock.LK.FIREOS6.value,
+        "lk_build_desc": biscuit.LK.FIREOS6.value,
         "product": "BISCUIT",
         "unlock_status": "true",
     }
@@ -241,6 +243,23 @@ def test_a_fastbrick_checks_the_dot_before_it_flashes(  # ruff: ignore[too-many-
     assert adb.commands(holding="brick") == []
 
 
+def test_a_fastbrick_refuses_an_echo_that_is_not_the_target_s_device(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    brick(
+        adb=adb,
+        little_kernel="63cb91b-20221007_073612",
+        monkeypatch=monkeypatch,
+        tmp_path=tmp_path,
+    )
+    monkeypatch.setattr(
+        name="target", target=unlock.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
+    )
+    with pytest.raises(FatalError, match="not RADAR"):
+        unlock.stage_fastbrick()
+    assert adb.commands(holding="brick") == []
+
+
 @pytest.mark.parametrize(
     ("said", "message"),
     [
@@ -259,7 +278,7 @@ def test_a_fastbrick_that_fails_leaves_the_dot_unmodified(
 ) -> None:
     brick(
         adb=adb,
-        little_kernel=unlock.LK.FIREOS5.value,
+        little_kernel=biscuit.LK.FIREOS5.value,
         monkeypatch=monkeypatch,
         tmp_path=tmp_path,
     )
@@ -274,7 +293,7 @@ def test_a_fastbrick_whose_timeout_says_nothing_still_started(
 ) -> None:
     brick(
         adb=adb,
-        little_kernel=unlock.LK.FIREOS5.value,
+        little_kernel=biscuit.LK.FIREOS5.value,
         monkeypatch=monkeypatch,
         tmp_path=tmp_path,
     )
@@ -297,6 +316,21 @@ def test_a_locked_fastboot_is_left_for_its_own_stage(
     assert unlock.stage_amonet_v1_1_0_recovery() is False
     assert ran == []
     assert "locked fastboot" in capsys.readouterr().out
+
+
+def test_a_too_new_bootloader_names_the_bootrom_only_for_the_dot(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(FatalError, match=r"README\.md's --short section") as caught:
+        unlock.newer_than_known(little_kernel="abcdef0-20991231_235959")
+    assert "Echo Dot (2nd Generation)" in caught.value.message
+    monkeypatch.setattr(
+        name="target", target=unlock.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
+    )
+    with pytest.raises(FatalError) as refused:
+        unlock.newer_than_known(little_kernel="abcdef0-20991231_235959")
+    assert "--short" not in refused.value.message
+    assert refused.value.message.endswith("the Dot was not modified.")
 
 
 def test_an_lk_read_answered_after_a_reconnect_is_used(
@@ -384,20 +418,74 @@ def test_erasing_boot0_that_fails_leaves_no_marker(
     assert unlock.ERASED.exists()
 
 
+def test_the_amonet_sources_are_the_device_s_own(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert unlock.amonet_sources() == (biscuit.V2_0_1_SOURCE, biscuit.V1_1_0_SOURCE)
+    monkeypatch.setattr(
+        name="target", target=unlock.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
+    )
+    assert unlock.amonet_sources() == (radar.SOURCE,)
+
+
 def test_the_fastbrick_knows_only_the_bootloaders_the_device_lists() -> None:
-    assert {member.value for member in unlock.LK} == biscuit.LK_VALUES
-    assert not radar.LK_VALUES
+    assert {
+        "41fb3ce-20221007_153017",
+        "59779ca-20220524_183401",
+        "63cb91b-20221007_073612",
+    } == radar.LK_VALUES
+    assert radar.FASTBRICK.fastbricks.keys() <= radar.LK_VALUES
+    assert biscuit.FASTBRICK.fastbricks.keys() <= biscuit.LK_VALUES
+
+
+@pytest.mark.parametrize(
+    ("little_kernel", "image"),
+    [
+        ("59779ca-20220524_183401", "bin/fastbrick-20220524.img"),
+        ("63cb91b-20221007_073612", "bin/fastbrick.img"),
+        ("41fb3ce-20221007_153017", "bin/fastbrick.img"),
+    ],
+)
+def test_the_fastbrick_picks_an_echo_s_own_image_for_its_bootloader(
+    *,
+    adb: FakeAdb,
+    image: str,
+    little_kernel: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    unpacked: list[object] = []
+
+    def unpack(*, download: object) -> pathlib.Path:
+        unpacked.append(download)
+        return tmp_path
+
+    brick(
+        adb=adb, little_kernel=little_kernel, monkeypatch=monkeypatch, tmp_path=tmp_path
+    )
+    monkeypatch.setattr(name="unpack", target=unlock, value=unpack)
+    monkeypatch.setattr(
+        name="target", target=unlock.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
+    )
+    adb.answers["product"] = ["product: RADAR"]
+    adb.answers[image] = [
+        "Sending 'brick'",
+        subprocess.TimeoutExpired(cmd="fastboot", output=b"Writing 'brick'", timeout=8),
+    ]
+    unlock.stage_fastbrick()
+    assert len(adb.commands(holding=image)) == 2
+    assert unpacked == [radar.SOURCE]
 
 
 @pytest.mark.parametrize(
     ("little_kernel", "image"),
     [
         ("", "bin/fastbrick.img"),
-        (unlock.LK.FIREOS5.value, "bin/fastbrick.img"),
+        (biscuit.LK.FIREOS5.value, "bin/fastbrick.img"),
         ("a828f29-20210822_210511", "bin/fastbrick.img"),
-        (unlock.LK.FIREOS6.value, "bin/fastbrick-20221007.img"),
-        (unlock.LK.FIREOS6_4315.value, "bin/fastbrick-20221007.img"),
-        (unlock.LK.FIREOS6_8338.value, "bin/fastbrick-20260617.img"),
+        (biscuit.LK.FIREOS6.value, "bin/fastbrick-20221007.img"),
+        (biscuit.LK.FIREOS6_4315.value, "bin/fastbrick-20221007.img"),
+        (biscuit.LK.FIREOS6_8338.value, "bin/fastbrick-20260617.img"),
     ],
 )
 def test_the_fastbrick_picks_the_image_for_the_bootloader(

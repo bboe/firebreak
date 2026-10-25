@@ -114,12 +114,11 @@ def test_a_deprecated_name_parses_but_is_not_in_the_help(
             ["--device", "biscuit", "amonet-radar-v1.0.0"],
             "argument COMMAND: invalid choice",
         ),
-        (["--device", "crown"], "argument --device: invalid choice"),
-        (["--device", "radar"], "the Echo (2nd Generation) has no default target"),
         (
-            ["--device", "radar", "unlock"],
-            "the Echo (2nd Generation) has no default target",
+            ["--device", "radar", "unlock", "fireos5"],
+            "the Echo (2nd Generation) has no target fireos5",
         ),
+        (["--device", "crown"], "argument --device: invalid choice"),
         (
             ["--device", "radar", "stock", "8149"],
             "the Echo (2nd Generation) has no stock build 8149",
@@ -131,9 +130,8 @@ def test_a_deprecated_name_parses_but_is_not_in_the_help(
     ],
     ids=[
         "unknown-target",
+        "another-device-s-target",
         "device-without-targets",
-        "no-default",
-        "no-default-unlock",
         "no-such-build",
         "survey",
     ],
@@ -149,6 +147,20 @@ def test_a_device_is_one_with_targets_and_survey_takes_none(
     with pytest.raises(SystemExit):
         main.cli()
     assert said in capsys.readouterr().err
+
+
+def test_a_device_whose_module_names_no_default_target_is_refused(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "--device", "radar", "unlock"]
+    )
+    monkeypatch.setattr(
+        name="DEFAULTS", target=main, value={BISCUIT: DEFAULTS[BISCUIT]}
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert "the Echo (2nd Generation) has no default target" in capsys.readouterr().err
 
 
 def test_a_failing_update_check_is_silent(
@@ -282,7 +294,7 @@ def test_an_unproven_target_goes_on_only_when_asked(
     monkeypatch.setattr(name="argv", target=sys, value=["firebreak", "stock", "6436"])
     with pytest.raises(
         main.FatalError,
-        match="stock has never run on an actual Echo \\(2nd Generation\\), so it"
+        match="stock is not proven on an actual Echo \\(2nd Generation\\), so it"
         " needs --run-on-unproven-path",
     ):
         main.cli()
