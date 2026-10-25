@@ -4,6 +4,21 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- `stock` returns an Echo (2nd Generation) to Fire OS 6436, the one build
+  Amazon ships for it. Nothing unlocks that device yet, so `stock` is its only
+  command, and naming it without one is refused.
+- `--run-on-unproven-path` goes on with a target whose route has never run on
+  the device it is for. Returning an Echo (2nd Generation) to stock is such a
+  target, and is refused without it.
+
+### Changed
+
+- A stock build the device has no OTA for is refused before anything is
+  written. An Echo Dot's OTAs and an Echo's are different firmware, so the
+  build is chosen once the run knows which it has.
+
 ### Fixed
 
 - A download that the mirror does not answer falls back after 8 seconds rather
