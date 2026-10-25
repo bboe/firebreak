@@ -11,6 +11,7 @@ from firebreak.devices.registry import (
     DEPRECATED,
     DEVICES,
     LITTLE_KERNEL_DESCRIPTION,
+    LK_VALUES,
     TARGETS,
 )
 
@@ -25,6 +26,7 @@ __all__ = [
     "DEVICES",
     "LITTLE_KERNEL_DESCRIPTION",
     "LK",
+    "LK_VALUES",
     "RADAR",
     "TARGETS",
 ]

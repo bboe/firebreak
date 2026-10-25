@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import unlock
+from firebreak.devices import RADAR, biscuit, radar
 from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
@@ -64,6 +65,15 @@ def guard(
     monkeypatch.setattr(name="unpack", target=unlock, value=unpacked)
     unlock.amonet_chain()
     return read
+
+
+def test_a_device_that_lists_no_bootloader_refuses_the_one_it_is_given(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="target", target=unlock.ARGUMENTS, value=radar.TARGETS[0])
+    assert unlock.ARGUMENTS.target.device is RADAR
+    with pytest.raises(FatalError, match="no older than any firebreak"):
+        unlock.newer_than_known(little_kernel=biscuit.LK.FIREOS5.value)
 
 
 @pytest.mark.parametrize(
@@ -190,6 +200,24 @@ def test_a_fastboot_that_never_says_whether_it_is_unlocked_stops_cleanly(
             "",
             "pl_build_desc: bd7ae89-20221003_215949",
             "reported the preloader version but not the bootloader",
+        ),
+        (
+            "product: BISCUIT",
+            "abcdef0-20991231_235959",
+            "",
+            "no older than any firebreak has a payload for",
+        ),
+        (
+            "product: BISCUIT",
+            f"abcdef0-{biscuit.LK.FIREOS6_8338.value.split(sep='-')[1]}",
+            "",
+            "no older than any firebreak has a payload for",
+        ),
+        (
+            "product: BISCUIT",
+            "abcdef0-20991231_235959-dirty",
+            "",
+            "did not report a bootloader version firebreak can read",
         ),
     ],
 )
@@ -356,11 +384,17 @@ def test_erasing_boot0_that_fails_leaves_no_marker(
     assert unlock.ERASED.exists()
 
 
+def test_the_fastbrick_knows_only_the_bootloaders_the_device_lists() -> None:
+    assert {member.value for member in unlock.LK} == biscuit.LK_VALUES
+    assert not radar.LK_VALUES
+
+
 @pytest.mark.parametrize(
     ("little_kernel", "image"),
     [
         ("", "bin/fastbrick.img"),
         (unlock.LK.FIREOS5.value, "bin/fastbrick.img"),
+        ("a828f29-20210822_210511", "bin/fastbrick.img"),
         (unlock.LK.FIREOS6.value, "bin/fastbrick-20221007.img"),
         (unlock.LK.FIREOS6_4315.value, "bin/fastbrick-20221007.img"),
         (unlock.LK.FIREOS6_8338.value, "bin/fastbrick-20260617.img"),

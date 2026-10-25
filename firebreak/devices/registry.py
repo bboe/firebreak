@@ -31,6 +31,9 @@ DEPRECATED: dict[str, Deprecated] = {
     name: was for _, module in SUPPORTED for name, was in module.WAS_CALLED.items()
 }
 DEVICES = tuple(device for device, _ in SUPPORTED)
+LK_VALUES: dict[Device, frozenset[str]] = {
+    device: module.LK_VALUES for device, module in SUPPORTED
+}
 TARGETS: dict[Device, dict[str, Target]] = {
     device: {target.name: target for target in module.TARGETS}
     for device, module in SUPPORTED

@@ -35,6 +35,12 @@ A device also gives its product, the name its LKs and its fastboot report:
 `BISCUIT`, `RADAR` and `CROWN`. It is not always the codename in capitals:
 amonet-crown v1.1.1's LK names `CHECKERS`.
 
+A device's module also lists the LK build descriptions it knows. The fastbrick
+stage refuses a bootloader it does not find there unless the bootloader is
+dated before the newest the list carries, because a payload is built for the
+LKs it targets. A device that lists none refuses every bootloader, so a device
+gets its LKs in the same change as its unlock.
+
 A device gives the words that ask for fastboot mode, because the gesture is the
 device's own: biscuit's names an action button and a light ring, which radar
 has too and inherits. crown gives none, so nothing claims a button it may not
@@ -65,8 +71,9 @@ a TWRP version, says in its name which release it belongs to.
 `firebreak/devices/registry.py` gathers what the core asks for across devices,
 and the package re-exports it, so `DEVICES`, `TARGETS`, `DEPRECATED` and
 `DEFAULTS` are assembled from each module rather than listed twice. A device
-module declares its own `TARGETS`, `WAS_CALLED` and `DEFAULT_TARGET`; a device
-with no target yet declares them empty. Each plan is amonet's
+module declares its own `TARGETS`, `WAS_CALLED`, `DEFAULT_TARGET` and
+`LK_VALUES`; a device with no target or LK yet declares them
+empty. Each plan is amonet's
 `modules/main.py` and then its `fastboot-step.sh`, step for step. The Fire
 OS 5 unlock writes TWRP 3.7.0_9-bboe2, a download of its own, which is why
 an unlock carries `files` beside its archive. The bootrom route writes the

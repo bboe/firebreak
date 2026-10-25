@@ -21,6 +21,7 @@ BUILDS = {
 }
 DEFAULT_BUILD = "6436"
 DEFAULT_TARGET = None
+LK_VALUES: frozenset[str] = frozenset()
 RADAR = dataclasses.replace(
     BISCUIT,
     models=frozenset({"AEORD", "Echo (2nd Gen)"}),

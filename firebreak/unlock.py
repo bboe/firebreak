@@ -6,11 +6,17 @@ from typing import TYPE_CHECKING
 
 from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import ERASED, digest, fetch, unpack
-from firebreak.devices import BISCUIT, LITTLE_KERNEL_DESCRIPTION, LK, biscuit
+from firebreak.devices import (
+    BISCUIT,
+    LITTLE_KERNEL_DESCRIPTION,
+    LK,
+    LK_VALUES,
+    biscuit,
+)
 from firebreak.host import PUSH_TRIES, adb_shell, getvar, pyserial_wheel, reconnect, run
 from firebreak.recovery import MD5_DIGITS
 from firebreak.twrp import DISK, partitions
-from firebreak.ui import PROGRESS, FatalError, again, asked_for
+from firebreak.ui import ARGUMENTS, PROGRESS, FatalError, again, asked_for
 
 if TYPE_CHECKING:
     import pathlib
@@ -88,6 +94,27 @@ def erase_by_fastboot() -> str:
     if rebooted.returncode != 0:
         return f"fastboot reboot failed:\n{rebooted.stdout}"
     return ""
+
+
+def newer_than_known(*, little_kernel: str) -> None:
+    known = LK_VALUES[ARGUMENTS.target.device]
+    if not little_kernel or little_kernel in known:
+        return
+    if not LITTLE_KERNEL_DESCRIPTION.fullmatch(string=little_kernel):
+        raise FatalError(
+            message="the Dot did not report a bootloader version firebreak can"
+            " read; the Dot was not modified. " + again()
+        )
+    newest = max((each.split(sep="-")[1] for each in known), default="")
+    if little_kernel.split(sep="-")[1] < newest:
+        return
+    raise FatalError(
+        message=f"the bootloader {little_kernel} is no older than any firebreak"
+        f" has a payload for on the {ARGUMENTS.target.device.title}, and a"
+        " fastbrick payload only unlocks the bootloaders it was built for, so the Dot"
+        " was not modified. Its bootrom still unlocks it: README.md's --short"
+        " section says how to open it."
+    )
 
 
 def stage_amonet_v1_1_0_recovery() -> bool:
@@ -171,6 +198,7 @@ def stage_fastbrick() -> None:
             message="fastboot reported the preloader version but not the"
             " bootloader's; the Dot was not modified. " + again()
         )
+    newer_than_known(little_kernel=little_kernel)
     image = "bin/fastbrick.img"
     if little_kernel in {LK.FIREOS6.value, LK.FIREOS6_4315.value}:
         image = "bin/fastbrick-20221007.img"

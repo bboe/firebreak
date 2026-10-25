@@ -21,6 +21,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- A Dot whose bootloader firebreak has no unlock payload for, and which is no
+  older than the newest it does have one for, is refused before anything is
+  written, and told its bootrom can still unlock it. Such a Dot was given the
+  payload for an older bootloader, which runs on the Dot rather than being
+  stored, so it ran code built for different bytes.
 - A download that the mirror does not answer falls back after 8 seconds rather
   than 60. A network that drops the packets rather than refusing them stalled a
   run for a minute per download before it opened your browser.

@@ -291,3 +291,6 @@ class LK(enum.Enum):
     FIREOS6 = "63cb91b-20221007_072309"
     FIREOS6_4315 = "41fb3ce-20221007_151724"
     FIREOS6_8338 = "2c3569d-20260617_045829"
+
+
+LK_VALUES = frozenset(member.value for member in LK)

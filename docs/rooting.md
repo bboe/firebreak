@@ -780,6 +780,19 @@ ring read white.
   `fastbrick.img`. The 20221007 payload takes both of its bootloaders, where
   amonet's own map lists only the first. The second ships in 4310, 4313 and
   4315, which the default image does not unlock.
+- A `lk_build_desc` that is not one of the LKs the device's module lists, and
+  is dated no earlier than the newest it does list, stops the stage before the
+  flash. The fallback is a payload built for an older bootloader, which is
+  sound for an older LK that ships no payload of its own and is a guess on one
+  Amazon has not shipped yet: the flash goes to the `brick` target, which runs
+  the payload rather than storing it, so a wrong one runs wrong code. The
+  threshold is the newest date the device's own LKs carry, so adding an LK
+  moves it, and an unknown LK on that same date is refused too: 4315's LK and
+  8338's share a date with another, so one date can carry two bootloaders. A
+  description the stage cannot read is refused as well, where an LK that
+  reports none at all is the oldest kind and keeps the fallback. A device that
+  lists no LK of its own refuses every bootloader, which is what a device
+  whose payloads nobody has mapped should do.
 - Each payload's tail is byte-derived from the LK it targets, which is how a
   mapping can be checked without a Dot. Of the 33,951 distinct 16-byte windows
   in `fastbrick-20260617.img`'s last 137,684 bytes, 33,950 appear in 8338's

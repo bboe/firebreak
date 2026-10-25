@@ -31,6 +31,7 @@ CROWN = Device(
 )
 DEFAULT_BUILD = None
 DEFAULT_TARGET = None
+LK_VALUES: frozenset[str] = frozenset()
 SOURCE = Download(
     browser=True,
     directory="crown-v2.0.1",
