@@ -310,8 +310,10 @@ TARGETS = (
         goal=State.AMONET_V2_BOOTED,
         installs=FireOs6(build=FIREOS6_BUILD),
         name=FIREOS6,
-        summary=f"rooted Fire OS 6 {FIREOS6_BUILD} on amonet v2.0.1,"
-        f" with TWRP {V2_0_1_TWRP_VERSION}.",
+        summary="boot-root.zip's root adb on the Fire OS 6 already installed,"
+        " which keeps the Dot's setup; with --factory-reset, amonet v2.0.1's own"
+        f" procedure: Fire OS 6 {FIREOS6_BUILD} with TWRP"
+        f" {V2_0_1_TWRP_VERSION}, with the Dot erased.",
         unlock=UNLOCK_TO_FIREOS6,
     ),
 )

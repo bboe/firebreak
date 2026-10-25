@@ -12,7 +12,7 @@ import threading
 import time
 from typing import NoReturn, TextIO
 
-ARGUMENTS = argparse.Namespace(build="", target="", verbose=False)
+ARGUMENTS = argparse.Namespace(build="", factory_reset=False, target="", verbose=False)
 BOOT0_EMPTY = (
     "boot0 may hold no preloader until the last step, so an Echo that restarts"
     " before then shows no light and starts nothing: it waits in its bootrom,"
@@ -65,7 +65,8 @@ class Progress:
         self.step += 1
         about = f"(~{estimate})" if estimate else ""
         total = str(self.steps or "?")
-        self.line = f"[{self.step:>{len(total)}}/{total}] {label:<38} {about:<8} "
+        digits = max(2, len(total))
+        self.line = f"[{self.step:>{digits}}/{total:>{digits}}] {label:<38} {about:<8} "
         self.ts = time.monotonic()
         self.open = True
         if ARGUMENTS.verbose:

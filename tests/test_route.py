@@ -332,6 +332,16 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
     assert got == [downloaded]
 
 
+def test_a_reset_route_takes_five_steps(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(name="factory_reset", target=route.ARGUMENTS, value=True)
+    monkeypatch.setattr(
+        name="target",
+        target=route.ARGUMENTS,
+        value=TARGETS[BISCUIT]["fireos6"],
+    )
+    assert route.stages()[route.State.AMONET_V2_TWRP].steps == 5
+
+
 def test_a_route_leaves_a_payload_archive_out_of_its_downloads(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -868,7 +878,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             ),
             state.AMONET_V2_TWRP: (
                 route.stage_install_fireos6,
-                5,
+                None,
                 state.AMONET_V2_BOOTED,
                 frozenset(),
             ),
@@ -964,16 +974,24 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
 
 
 @pytest.mark.parametrize(
-    ("name", "totals"),
+    ("name", "factory_reset", "totals"),
     [
-        ("fireos5", {"stock": 11, "twrp": 9, "v1.1.0": 7}),
-        ("fireos6", {"stock": 7, "twrp": 5, "v1.1.0": 9}),
+        ("fireos5", False, {"stock": 11, "twrp": 9, "v1.1.0": 7}),
+        ("fireos6", False, {"stock": None, "twrp": None, "v1.1.0": None}),
+        ("fireos6", True, {"stock": 7, "twrp": 5, "v1.1.0": 9}),
     ],
 )
 def test_fastboot_counts_the_steps_the_route_takes(
-    *, monkeypatch: pytest.MonkeyPatch, name: str, totals: dict[str, int]
+    *,
+    factory_reset: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    totals: dict[str, int | None],
 ) -> None:
     state = route.State
+    monkeypatch.setattr(
+        name="factory_reset", target=route.ARGUMENTS, value=factory_reset
+    )
     monkeypatch.setattr(
         name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT][name]
     )

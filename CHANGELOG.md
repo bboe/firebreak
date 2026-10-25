@@ -2,6 +2,16 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+- `unlock fireos6` roots the Fire OS 6 build already installed, with no wipe
+  and no OTA install, so a device set up in the Alexa app keeps its Wi-Fi and
+  Alexa setup. `--factory-reset` erases userdata and installs the target's
+  build in both slots, which is what the target did before. A build firebreak
+  does not know stops the run with nothing written.
+
 ## 0.9.0 - 2026-10-25
 
 ### Added

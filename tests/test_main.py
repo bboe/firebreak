@@ -36,6 +36,7 @@ def parse_into_namespace(*, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def ran(*, device: Device, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="build", target=main.ARGUMENTS, value="")
+    monkeypatch.setattr(name="factory_reset", target=main.ARGUMENTS, value=False)
     monkeypatch.setattr(name="target", target=main.ARGUMENTS, value="")
     monkeypatch.setattr(name="which", target=main.shutil, value=lambda **_: "adb")
     for name in ("check_adb", "check_python", "check_user", "make_cache"):
@@ -381,6 +382,53 @@ def test_options_count_before_or_after_the_target_or_command(
         options.device,
         options.verbose,
     ) == parsed
+
+
+def test_reset_is_refused_on_a_command_that_installs_no_fire_os_6(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "stock", "--factory-reset"]
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert "stock takes no --factory-reset" in capsys.readouterr().err
+
+
+def test_reset_is_refused_on_a_target_that_installs_no_fire_os_6(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran(device=BISCUIT, monkeypatch=monkeypatch)
+    monkeypatch.setattr(
+        name="argv",
+        target=sys,
+        value=["firebreak", "unlock", "fireos5", "--factory-reset"],
+    )
+    with pytest.raises(main.FatalError, match="fireos5 takes no --factory-reset"):
+        main.cli()
+
+
+@pytest.mark.parametrize("device", [BISCUIT, RADAR], ids=["biscuit", "radar"])
+def test_reset_reaches_a_fire_os_6_unlock(
+    *, device: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran(device=device, monkeypatch=monkeypatch)
+    monkeypatch.setattr(
+        name="argv",
+        target=sys,
+        value=[
+            "firebreak",
+            "--device",
+            device.name,
+            "unlock",
+            "fireos6",
+            "--factory-reset",
+            "--run-on-unproven-path",
+        ],
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert main.ARGUMENTS.factory_reset is True
 
 
 @pytest.mark.parametrize("build", [[], ["8338"]])

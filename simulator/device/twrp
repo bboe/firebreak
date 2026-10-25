@@ -33,9 +33,10 @@ def install(*, path: str) -> int:
         build = metadata.get("post-build", "unknown")
         slot = "b" if active == "a" else "a"
         with tempfile.TemporaryDirectory() as folder:
-            prop = pathlib.Path(folder) / "build.prop"
+            prop = pathlib.Path(folder) / "system" / "build.prop"
+            prop.parent.mkdir()
             prop.write_text(
-                f"ro.build.version.name=Fire OS 6 ({build})\n"
+                f"ro.build.version.name=Fire OS 6 (NS6574/{build})\n"
                 f"ro.build.fingerprint={build}\n",
                 encoding="utf-8",
             )
@@ -59,6 +60,7 @@ def install(*, path: str) -> int:
     else:
         (RUN / f"root-adb-{active}").touch()
         print("Installing boot-root...")
+        logged(line=f"slot _{active}: neutering ota updates")
     print("Done processing script file")
     logged(line="I:Updater process ended with RC=0")
     return 0

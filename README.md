@@ -108,6 +108,10 @@ firebreak stops on it.
   in firmly, and try another cable if it fails again.
 - Do not connect a stock device to Wi-Fi before you unlock it. Amazon can
   update it to a build firebreak does not support.
+- `amonet-biscuit-v2.0.1` and `amonet-radar-v1.0.0` root the Fire OS 6 build
+  already installed, and keep the device's Wi-Fi and Alexa setup. Unlock it
+  soon after setup, before it can update. `--factory-reset` erases the device and
+  installs the target's build instead.
 - [docs/rooting.md][rooting] says why each step is there.
 
 ## Bootloaders

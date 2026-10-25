@@ -33,6 +33,7 @@ from firebreak.devices import (
 from firebreak.emos import child_emos
 from firebreak.host import check_adb, check_python, check_root, check_user
 from firebreak.identify import choose_target
+from firebreak.plugin import FireOs6
 from firebreak.route import root
 from firebreak.support import report, write_test
 from firebreak.survey import survey_all
@@ -79,6 +80,12 @@ mtkclient, by bkerler, agrees with two of firebreak's bootrom addresses.
 ftvdb keeps the Fire OS builds that the tables link to.
   https://ftvdb.com/"""
 DEVICES = {device.name: device for device in TARGETS}
+FACTORY_RESETS = {
+    name
+    for targets in TARGETS.values()
+    for name, target in targets.items()
+    if isinstance(target.installs, FireOs6) and target.unlock
+}
 REPORT = "report"
 SURVEY = "survey"
 UNLOCK = "unlock"
@@ -108,6 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--fastboot",
         "--no-update-check",
         "--no-wait",
+        "--factory-reset",
         "--run-on-unproven-path",
         "--short",
         "--verbose",
@@ -115,6 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
     rooting = [
         "--device",
         "--no-update-check",
+        "--factory-reset",
         "--run-on-unproven-path",
         "--short",
         "--verbose",
@@ -171,6 +180,7 @@ other commands:
                     "--device",
                     "--fastboot",
                     "--no-wait",
+                    "--factory-reset",
                     "--run-on-unproven-path",
                     "--short",
                 }
@@ -283,6 +293,13 @@ def cli() -> None:
         device=DEVICES.get(options.device),
         name=options.target if options.command == UNLOCK else options.command,
     )
+    ARGUMENTS.factory_reset = options.factory_reset
+    if ARGUMENTS.factory_reset and ARGUMENTS.target.name not in FACTORY_RESETS:
+        raise FatalError(
+            message=f"{ARGUMENTS.target.name} takes no --factory-reset: only"
+            f" {', '.join(sorted(FACTORY_RESETS))} install a Fire OS 6 build to"
+            " erase to."
+        )
     device = ARGUMENTS.target.device
     if ARGUMENTS.target.name == STOCK:
         ARGUMENTS.build = options.build or DEFAULT_BUILDS[device]
@@ -345,6 +362,14 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
         (
             "--no-wait",
             ("start the writes at once, without the 10 seconds that Ctrl-C cancels in"),
+        ),
+        (
+            "--factory-reset",
+            (
+                "erase userdata and install the target's Fire OS 6 build in both"
+                " slots, where the target otherwise roots the Fire OS 6 already"
+                " installed and keeps the Echo's Wi-Fi and Alexa setup"
+            ),
         ),
         (
             "--run-on-unproven-path",
@@ -421,6 +446,7 @@ def parsed() -> argparse.Namespace:
         ("fastboot", False),
         ("no_update_check", False),
         ("no_wait", False),
+        ("factory_reset", False),
         ("run_on_unproven_path", False),
         ("short", False),
         ("target", None),
@@ -449,9 +475,17 @@ def parsed() -> argparse.Namespace:
         STOCK: {"device", "fastboot", "no_wait", "run_on_unproven_path", "short"},
         SURVEY: set(),
         WRITE_TEST: {"short"},
-    }.get(options.command, {"device", "run_on_unproven_path", "short"})
+    }.get(options.command, {"device", "factory_reset", "run_on_unproven_path", "short"})
     for option in sorted(
-        {"device", "fastboot", "no_wait", "run_on_unproven_path", "short"} - takes
+        {
+            "device",
+            "fastboot",
+            "no_wait",
+            "factory_reset",
+            "run_on_unproven_path",
+            "short",
+        }
+        - takes
     ):
         if getattr(options, option):
             dashed = option.replace("_", "-")

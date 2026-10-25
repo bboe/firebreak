@@ -59,7 +59,7 @@ DEVICES = {
         "fastbricks": {"63cb91b-20221007_072309": "fastbrick-20221007.img"},
         "kaeru": "bin/biscuit-kaeru.bin",
         "model": "AEOBC",
-        "stock": "Fire OS 6.5.7.4 (stock 8146)",
+        "stock": "Fire OS 6574.1 (NS65741/8146)",
         "stock_lk": "63cb91b-20221007_072309",
         "v2_lk": "63cb91b-20221007_072309",
     },
@@ -68,7 +68,7 @@ DEVICES = {
         "fastbricks": {"59779ca-20220524_183401": "fastbrick-20220524.img"},
         "kaeru": "bin/radar-kaeru.bin",
         "model": "AEORD",
-        "stock": "Fire OS 6.5.7.2 (stock 6436)",
+        "stock": "Fire OS 6572.1 (NS6572/6436)",
         "stock_lk": "63cb91b-20221007_073612",
         "v2_lk": "59779ca-20220524_183401",
     },
@@ -336,9 +336,9 @@ def create(*, cache: pathlib.Path, device: str, runner: int, start: str) -> None
             local.write_bytes(data)
             write_image(local=local, node=node, state=state)
     inside(
-        command="mkdir -p /sim/stock"
+        command="mkdir -p /sim/stock/system"
         f" && printf 'ro.build.version.name={DEVICES[device]['stock']}\\n'"
-        " > /sim/stock/build.prop"
+        " > /sim/stock/system/build.prop"
         " && i=0 && for p in system_a userdata cache; do i=$((i + 1));"
         " E2FSPROGS_FAKE_TIME=1700000000 mke2fs -q -F -t ext4"
         " -U 5eed0000-0000-4000-8000-$(printf %012x $i)"

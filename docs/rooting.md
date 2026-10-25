@@ -908,7 +908,7 @@ ring read white.
 | target | ends in | stops at |
 | --- | --- | --- |
 | `unlock fireos5` | amonet v1.1.0, TWRP 3.7.0_9-bboe2, rooted Fire OS 5.5.5.4 | amonet-v1.1.0-bboe-booted |
-| `unlock fireos6`, the default | amonet v2.0.1's TWRP, Fire OS 6 8146 in both slots, `boot-root.zip` | amonet-v2-booted |
+| `unlock fireos6 [--factory-reset]`, the default | amonet v2.0.1's TWRP, `boot-root.zip` on the Fire OS 6 installed; with `--factory-reset`, or no Fire OS 6 installed, on 8146 in both slots | amonet-v2-booted |
 | `stock [BUILD]` | Amazon's Fire OS 6 `BUILD`, 8149 when left out, the whole Dot erased | stock-booted |
 
 - Each poll picks the stage for the state found and the target, so a run
@@ -934,9 +934,10 @@ ring read white.
 
 ### amonet-biscuit-v2.0.1
 
-- In amonet v2's TWRP it runs `twrp wipe cache`, `twrp wipe data`, and `twrp
-  install` of the OTA twice, with a reboot into recovery between. Then it
-  runs `twrp install` of `boot-root.zip` and reboots.
+- With `--factory-reset`, the XDA procedure: in amonet v2's TWRP it runs
+  `twrp wipe cache`, `twrp wipe data`, and `twrp install` of the OTA twice,
+  with a reboot into recovery between, then `twrp install` of
+  `boot-root.zip` and a reboot.
 - It pushes the OTA to `/sdcard` before each install. A `/sdcard` on a
   `/data` that did not mount is TWRP's RAM: the push and its read-back pass,
   and the reboot loses the file.
@@ -983,6 +984,26 @@ ring read white.
   and the `Updater process ended with RC=` line after it, and goes on only on
   `RC=0`. The `adb reboot` after it also found no device and left the Echo in
   TWRP, so the reboot is tried 3 times, each after `adb wait-for-recovery`.
+- `RC=0` alone does not show that the zip patched anything: it skips a slot
+  with no `default.prop` and still ends with 0. The run also needs the zip's
+  `slot _a: neutering ota updates` line, for the active slot, in TWRP's log.
+- Without `--factory-reset` the run skips the wipes and both OTA installs. It
+  mounts the active slot's `system` read-only, reads `ro.build.version.name`,
+  then installs `boot-root.zip` over what is there. The zip finds its targets
+  in any build: the adbd site by a byte pattern, the SELinux policy through
+  `magiskpolicy`. A build with no OTA in firebreak's list stops the run with
+  nothing written. The fastbrick takes only the LKs the listed builds ship, so
+  the kernel boots under the amonet LK it was built beside.
+- A slot with no Fire OS 6, as after the route from amonet v1.1.0, leaves
+  nothing to keep, so the run installs the target's build as
+  `--factory-reset` does. The OTA downloads in the background either way. A
+  read without its `build-ok` marker stops the run: a USB drop must not lead
+  to a wipe.
+- Patching in place keeps userdata, and `boot-root.zip`'s own
+  `init.fosflags.sh` keeps adb on where stock's turns it off once the Dot is
+  registered. Measured 2026-10-18 on stock 8149 set up in the Alexa app: 78 s
+  to rooted 8149, its saved Wi-Fi online 30 s after boot, still taking
+  changes from the app. Its voice was not tested.
 - Fire OS 6 without root for a minute after the install means
   `boot-root.zip` did not take, and the run stops. A single such read during
   the first boot does not stop it.
@@ -1054,6 +1075,7 @@ ring read white.
 | amonet-v2-booted | stock 4405 `--fastboot` | 3 min 38 s, on 2026-10-25, from cached images: the same 17 steps, both `/system` writes 80 s, the rest under 6 s each |
 | amonet-v2-booted | stock 5.5.5.4 `--fastboot` | 3 min 35 s, on 2026-10-25, its images built from the OTA: the same 17 steps, both `/system` writes 80 s |
 | stock-fastboot | `unlock fireos5` | 8 min 6 s, on 2026-10-25, from stock 5.5.5.4 whose LK takes v2.0.1's default `fastbrick.img`: the fastbrick 13 s, v2 recovery 30 s, the table 19 s, amonet v1.1.0-bboe 5 s, TWRP 4 s, userdata 3 s, `/system` 81 s, boot and Magisk 4 s, Fire OS 5's first boot 320 s |
+| stock-fastboot | `unlock fireos6` | 1 min 18 s, on 2026-10-26, from stock 8338 patched in place: the fastbrick 8 s, v2 recovery 35 s, the build read under 1 s, `boot-root.zip` 9 s, rooted 8338's boot 24 s. No wipe and no OTA install, where `--factory-reset` takes 7 steps |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.

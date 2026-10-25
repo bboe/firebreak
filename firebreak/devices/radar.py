@@ -76,8 +76,9 @@ TARGETS = (
         goal=State.AMONET_V2_BOOTED,
         installs=FireOs6(build=FIREOS6_BUILD),
         name=FIREOS6,
-        summary=f"rooted Fire OS 6 {FIREOS6_BUILD} on amonet-radar v1.0.0,"
-        " with boot-root.zip's root adb.",
+        summary="boot-root.zip's root adb on the Fire OS 6 already installed,"
+        " which keeps the Echo's setup; with --factory-reset, amonet-radar v1.0.0's own"
+        f" procedure: Fire OS 6 {FIREOS6_BUILD}, with the Echo erased.",
         unlock=AMONET_V1_0_0,
         unproven=True,
     ),

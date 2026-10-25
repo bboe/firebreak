@@ -98,7 +98,7 @@ TWRPS = frozenset({
 @dataclasses.dataclass(frozen=True)
 class Stage:
     run: Callable[[], bool | None]
-    steps: int
+    steps: int | None
     then: State | None
     needs: tuple[Need, ...] = ()
     passes: frozenset[State] = frozenset()
@@ -199,7 +199,7 @@ def fireos6_stages() -> dict[State, Stage]:
         State.AMONET_V2_TWRP: Stage(
             needs=(unlock.source, ota_build, BOOT_ROOT),
             run=stage_install_fireos6,
-            steps=5,
+            steps=5 if ARGUMENTS.factory_reset else None,
             then=State.AMONET_V2_BOOTED,
         ),
         State.AMONET_V2_TWRP_V1_1_0_TABLE: Stage(
@@ -303,7 +303,7 @@ def remaining(*, start: State, table: dict[State, Stage]) -> int | None:
         if start == ARGUMENTS.target.goal:
             return total
         stage = table.get(start)
-        if stage is None or stage.then is None:
+        if stage is None or stage.then is None or stage.steps is None:
             return None
         total += stage.steps
         start = stage.then
