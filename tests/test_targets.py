@@ -42,3 +42,13 @@ def test_each_target_names_its_goal_its_install_and_its_unlock() -> None:
         ),
         "stock": (State.STOCK_BOOTED, FireOs6(build=None), None),
     }
+
+
+def test_only_an_unproven_target_says_so() -> None:
+    unproven = {
+        (device.name, target.name)
+        for device, targets in TARGETS.items()
+        for target in targets.values()
+        if target.unproven
+    }
+    assert unproven == {("radar", "stock")}

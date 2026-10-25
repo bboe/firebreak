@@ -270,11 +270,36 @@ def test_an_option_before_a_command_that_does_not_take_it_is_refused(
     assert "report takes no --short" in capsys.readouterr().err
 
 
+def test_an_unproven_target_goes_on_only_when_asked(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran(device=RADAR, monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", "stock", "6436"])
+    with pytest.raises(
+        main.FatalError,
+        match="stock has never run on an actual Echo \\(2nd Generation\\), so it"
+        " needs --run-on-unproven-path",
+    ):
+        main.cli()
+    monkeypatch.setattr(
+        name="argv",
+        target=sys,
+        value=["firebreak", "stock", "6436", "--run-on-unproven-path"],
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert main.ARGUMENTS.build == "6436"
+
+
 @pytest.mark.parametrize(
     argnames=("arguments", "message"),
     argvalues=[
         (["unlock", "fireos6", "--fastboot"], "unrecognized arguments: --fastboot"),
         (["--fastboot", "report"], "report takes no --fastboot"),
+        (
+            ["--run-on-unproven-path", "report"],
+            "report takes no --run-on-unproven-path",
+        ),
         (["stock", "5.5.0.3", "--fastboot"], "cannot leave the Dot in fastboot"),
     ],
 )
@@ -356,7 +381,7 @@ def test_stock_takes_fastboot(
         (["stock"], BISCUIT, "8149"),
         (["stock", "4315"], BISCUIT, "4315"),
         (["unlock", "fireos6"], BISCUIT, ""),
-        (["stock"], RADAR, "6436"),
+        (["stock", "--run-on-unproven-path"], RADAR, "6436"),
     ],
     ids=["stock-alone", "stock-with-a-build", "another-target", "radar-stock"],
 )

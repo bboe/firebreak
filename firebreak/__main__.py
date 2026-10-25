@@ -101,8 +101,21 @@ def build_parser() -> argparse.ArgumentParser:
     labels = {SURVEY: " OTA [OTA ...]", UNLOCK: " [TARGET]"}
     parents = option_parents()
     quiet = option_parents(hidden=True)
-    every = ["--device", "--fastboot", "--no-update-check", "--short", "--verbose"]
-    rooting = ["--device", "--no-update-check", "--short", "--verbose"]
+    every = [
+        "--device",
+        "--fastboot",
+        "--no-update-check",
+        "--run-on-unproven-path",
+        "--short",
+        "--verbose",
+    ]
+    rooting = [
+        "--device",
+        "--no-update-check",
+        "--run-on-unproven-path",
+        "--short",
+        "--verbose",
+    ]
     uses = {
         REPORT: ["--no-update-check", "--verbose"],
         STOCK: every,
@@ -140,7 +153,12 @@ other commands:
         + "\n\nRun `firebreak COMMAND --help` for what that command takes.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         parents=[
-            (quiet if name in {"--device", "--fastboot", "--short"} else parents)[name]
+            (
+                quiet
+                if name
+                in {"--device", "--fastboot", "--run-on-unproven-path", "--short"}
+                else parents
+            )[name]
             for name in sorted(["--credits", *every])
         ],
         prog="firebreak",
@@ -255,6 +273,11 @@ def cli() -> None:
                 message=f"the {device.title} has no stock build {ARGUMENTS.build}:"
                 f" use one of {', '.join(ordered(builds=BUILDS[device]))}"
             )
+    if ARGUMENTS.target.unproven and not options.run_on_unproven_path:
+        raise FatalError(
+            message=f"{ARGUMENTS.target.name} has never run on an actual"
+            f" {device.title}, so it needs --run-on-unproven-path to go on"
+        )
     root()
 
 
@@ -297,6 +320,13 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
             ),
         ),
         ("--no-update-check", "do not ask PyPI whether a newer firebreak exists"),
+        (
+            "--run-on-unproven-path",
+            (
+                "go on with a target that has never run on the device it is for,"
+                " which is refused without it"
+            ),
+        ),
         (
             "--short",
             (
@@ -364,6 +394,7 @@ def parsed() -> argparse.Namespace:
         ("device", None),
         ("fastboot", False),
         ("no_update_check", False),
+        ("run_on_unproven_path", False),
         ("short", False),
         ("target", None),
         ("verbose", False),
@@ -387,13 +418,16 @@ def parsed() -> argparse.Namespace:
         sys.exit(1)
     takes = {
         REPORT: set(),
-        STOCK: {"device", "fastboot", "short"},
+        STOCK: {"device", "fastboot", "run_on_unproven_path", "short"},
         SURVEY: set(),
         WRITE_TEST: {"short"},
-    }.get(options.command, {"device", "short"})
-    for option in sorted({"device", "fastboot", "short"} - takes):
+    }.get(options.command, {"device", "run_on_unproven_path", "short"})
+    for option in sorted(
+        {"device", "fastboot", "run_on_unproven_path", "short"} - takes
+    ):
         if getattr(options, option):
-            parser.error(message=f"{options.command} takes no --{option}")
+            dashed = option.replace("_", "-")
+            parser.error(message=f"{options.command} takes no --{dashed}")
     if options.fastboot and options.build in biscuit.BOOTROM_BUILDS:
         parser.error(
             message=f"stock {options.build} ends in its bootrom over a serial"

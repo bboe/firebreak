@@ -166,8 +166,9 @@ afterwards.
 `report` also names the device and lists its USB devices. firebreak's
 targets are for the Echo Dot (2nd Generation), except `stock`, which also
 returns an Echo (2nd Generation) on amonet to stock Fire OS 6
-[6436][fireos-6436]. That has not run on one yet. The report is the
-same on other Echo devices and helps add them.
+[6436][fireos-6436]. That has not run on one yet, so it is refused unless the
+run passes `--run-on-unproven-path`. The report is the same on other Echo
+devices and helps add them.
 
 `write-test` then tells a failing eMMC from a failing cable. It pushes a
 pattern into the Dot's RAM, then has the Dot write it over its own `cache`

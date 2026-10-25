@@ -107,6 +107,12 @@ can name a state without the registry's imports forming a cycle. A target's
 summary is its line in `--help`, which lists each device's commands, and the
 unlock targets under `unlock` with the default first.
 
+A target whose route has never run on the device it is for says `unproven`.
+Such a target is refused unless the run passes `--run-on-unproven-path`, so
+reaching it is a choice rather than an accident, and the refusal names the
+device so it is clear what has not been tried. A target loses the field once a
+run on that device is recorded in docs/rooting.md.
+
 v2.0.0's `main.py` has two branches its plan leaves out: `fixgpt`, a manual
 mode that writes its own table, and a run from the preloader, which leaves
 boot0 alone. firebreak reaches the bootrom, so the plan writes the preloader.

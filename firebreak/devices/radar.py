@@ -57,6 +57,7 @@ TARGETS = (
         name=STOCK,
         summary=f"Amazon's Fire OS {DEFAULT_BUILD}, which erases the whole Echo.",
         unlock=None,
+        unproven=True,
     ),
 )
 WAS_CALLED: dict[str, Deprecated] = {}
