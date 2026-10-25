@@ -333,7 +333,7 @@ def test_the_stock_stage_builds_its_images_from_the_dot(
 ) -> None:
     del tmp_path
     stock.stage_restore()
-    work = stock.CACHE / "stock-8146"
+    work = stock.CACHE / "stock-biscuit-8146"
     assert len(twrp) == 1
     options = twrp[0]
     assert options["backup_sector"] == 9999
@@ -401,7 +401,7 @@ def test_the_stock_stage_gives_up_on_a_twrp_that_never_starts(
 def test_the_stock_stage_keeps_the_first_table_it_saved(
     *, twrp: list[dict[str, object]]
 ) -> None:
-    saved = stock.CACHE / "stock-8146" / "current-gpt-G000.bin"
+    saved = stock.CACHE / "stock-biscuit-8146" / "current-gpt-G000.bin"
     saved.parent.mkdir(parents=True)
     saved.write_bytes(b"first")
     stock.stage_restore()
@@ -415,7 +415,7 @@ def test_the_stock_stage_pads_the_preloader_to_a_larger_boot0(
     del tmp_path
     adb.answers["mmcblk0boot0/size"] = [str(4 * BOOT0_SECTORS)]
     stock.stage_restore()
-    boot0 = (stock.CACHE / "stock-8146" / "boot0.img").read_bytes()
+    boot0 = (stock.CACHE / "stock-biscuit-8146" / "boot0.img").read_bytes()
     assert boot0 == PRELOADER + bytes(3 * len(PRELOADER))
     assert len(twrp) == 1
 
@@ -435,7 +435,7 @@ def test_the_stock_stage_reads_the_backup_table_when_the_primary_is_damaged(
     adb.answers["blockdev --getsize64"] = [str(1000 * 512)]
     stock.stage_restore()
     assert reads[1] == {"count": 33, "start": 1000 - 33}
-    saved = stock.CACHE / "stock-8146" / "current-gpt-G000.bin"
+    saved = stock.CACHE / "stock-biscuit-8146" / "current-gpt-G000.bin"
     assert saved.read_bytes() == RAW[:512] + b"h" * 512 + b"T" * (32 * 512)
     assert twrp
 

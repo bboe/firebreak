@@ -286,7 +286,7 @@ def restore(  # ruff: ignore[complex-structure]
 def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
     build = ARGUMENTS.build
     device = ARGUMENTS.target.device
-    work = CACHE / ("stock-" + build)
+    work = CACHE / f"stock-{device.name}-{build}"
     work.mkdir(exist_ok=True, parents=True)
     update = updates.download(build=build, builds=BUILDS[device])
     made = made_for(update=update)

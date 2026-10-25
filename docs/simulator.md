@@ -182,11 +182,14 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   `lk_a`, the TWRP in `recovery`, the markers in `expdb` and `misc`, the build
   in `system_X`, and Magisk in `userdata`.
 - A boot names the LK in `lk_a` by its md5: amonet v1.1.0's, amonet v2's, the
-  simulator's own stock blob, or any `stock-*/lk.img` that a restore has
-  extracted from an OTA. Each of the last two reads as stock, and a stock LK
-  reports the one `lk_build_desc` the simulator holds for the device, whatever
-  build the image came from. An LK it cannot name does not boot. A restore
-  extracts the OTA's LK before it writes it, so the Dot it leaves boots.
+  simulator's own stock blob, or any `stock-<device>-*/lk.img` that a restore
+  has extracted from an OTA. Each of the last two reads as stock, and a stock
+  LK reports the one `lk_build_desc` the simulator holds for the device,
+  whatever build the image came from. An LK it cannot name does not boot. A
+  restore extracts the OTA's LK before it writes it, so the Dot it leaves
+  boots. A cache from before the folder named its device holds `stock-<build>`
+  instead, which that glob does not match, so a Dot carrying an LK from one of
+  those does not boot: clear the simulator's cache, or restore once more.
 - The build comes from `build.prop` at the root of `system_X`, where Fire
   OS 5 keeps it, or from `system/build.prop`, where Fire OS 6's
   system-as-root image keeps it.

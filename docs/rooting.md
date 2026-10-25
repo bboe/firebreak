@@ -537,7 +537,14 @@ ring read white.
   `overdub-firmware`, `overdub-root` and `overdub-stock` directories hold into
   it before it reads the cache, so an interrupted downgrade's marker
   survives. A name already in the new directory stays in the old. Each
-  is checked against a pinned SHA-256 before use and on every run. The amonet
+  is checked against a pinned SHA-256 before use and on every run. A stock
+  build's extracted images go to `stock-<device>-<build>`, named for the
+  device because a build number does not name one build: biscuit's OTAs and
+  radar's share numbers while shipping different firmware, and a block-style
+  OTA keeps a `system.img` whose sidecar hash matches, so the other device's
+  image would have been written with nothing to catch it. A folder from
+  before that keeps its old name, is never read again, and holds its images
+  until the cache is cleared. The amonet
   trees unpacked from the two zips are not, and neither is the system image
   built from Fire OS's.
 - The system image's directory is named after the zip's hash, so a new zip

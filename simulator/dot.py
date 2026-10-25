@@ -1231,7 +1231,7 @@ def stock_lk(*, device: str) -> bytes:
 
 
 def stock_lks(*, device: str) -> list[list]:
-    extracted = sorted((SIM_CACHE / TOOL_CACHE).glob("stock-*/lk.img"))
+    extracted = sorted((SIM_CACHE / TOOL_CACHE).glob(f"stock-{device}-*/lk.img"))
     return measured(
         images=[stock_lk(device=device), *(path.read_bytes() for path in extracted)]
     )

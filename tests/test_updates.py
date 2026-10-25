@@ -82,7 +82,7 @@ def test_nothing_keyed_by_build_alone_has_a_collision_yet() -> None:
     assert len(numbers) == len(set(numbers)), (
         "two devices now share a build number, which docs/rooting.md says they"
         " do. Nothing keyed by the build alone can tell them apart yet: the"
-        " stock-<build> work folder, the lock a build download holds, and the"
-        " one set of BUILD choices on the command line would each take one"
-        " device's build for the other's. Key those by device first."
+        " lock a build download holds and the one set of BUILD choices on"
+        " the command line would each take one device's build for the"
+        " other's. Key those by device as the work folder already is."
     )
