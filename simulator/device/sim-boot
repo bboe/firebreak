@@ -237,8 +237,8 @@ def facts(*, spec: dict) -> dict:
             mounted_read(
                 path=path,
                 wanted={
-                    "build": "build.prop",
-                    "flags": "etc/init.fosflags.sh",
+                    "build": ("build.prop", "system/build.prop"),
+                    "flags": ("etc/init.fosflags.sh",),
                 },
             )
             if path.exists()
@@ -445,7 +445,7 @@ def mount_sysfs() -> None:
 
 
 def mounted_read(
-    *, path: pathlib.Path, wanted: dict[str, str]
+    *, path: pathlib.Path, wanted: dict[str, tuple[str, ...]]
 ) -> dict[str, str] | None:
     MOUNT.mkdir(exist_ok=True)
     if subprocess.run(
@@ -456,9 +456,10 @@ def mounted_read(
         return None
     try:
         found = {}
-        for key, relative in wanted.items():
-            target = MOUNT / relative
-            found[key] = target.read_text(errors="replace") if target.is_file() else ""
+        for key, relatives in wanted.items():
+            targets = [MOUNT / relative for relative in relatives]
+            readable = next((each for each in targets if each.is_file()), None)
+            found[key] = readable.read_text(errors="replace") if readable else ""
         return found
     finally:
         quiet(arguments=["umount", str(MOUNT)])

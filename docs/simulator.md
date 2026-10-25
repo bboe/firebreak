@@ -8,7 +8,8 @@
 ```sh
 simulator/run.sh OUT unlock fireos5
 START=no-light simulator/run.sh OUT unlock fireos5 --short
-DEVICE=radar simulator/run.sh OUT stock 6436
+START=twrp simulator/run.sh OUT stock 8149
+DEVICE=radar START=twrp simulator/run.sh OUT stock 6436 --run-on-unproven-path
 python3 simulator/trace.py OUT.jsonl             # one command per line, for diff
 python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per range
 ```
@@ -44,13 +45,20 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - `START=fastboot`, the default, starts in stock fastboot. `START=no-light`
   erases boot0 and leaves the Dot unplugged. `run.sh` plugs it in when
   firebreak prints "Short the Dot's test point".
+- `START=twrp` writes amonet v2's chain and starts its TWRP. `create` writes
+  it with the same code the fastbrick does, from the same zip, so the Dot
+  arrives where an unlock run leaves it: v2's LK in both slots, v2's TEE in
+  `tee1` and `tee2`, the kaeru payload in `expdb`, v2's TWRP in `recovery`,
+  and the stock table. It skips every step that gets there on a Dot, the
+  bootrom and the fastbrick included, so it proves nothing about reaching
+  TWRP. It is what makes `stock` reach the restore, which otherwise only a
+  full unlock run would get to.
 - `DEVICE=biscuit`, the default, makes an Echo Dot (2nd Generation).
   `DEVICE=radar` makes an Echo (2nd Generation): adb and fastboot name radar,
   and the stock LK, the model and the USB ids are radar's. A radar run reaches
   as far as the device plumbing goes: firebreak names the device off its
-  fastboot product and refuses a target that is not for it. The restore itself
-  runs only from a TWRP, which no start state gives, so no device's `stock`
-  reaches it here.
+  fastboot product and refuses a target that is not for it. `START=twrp` is
+  not biscuit-only, so `stock` runs the whole restore for either device.
 - firebreak's stdin is `/dev/null`. Its stdout must be unbuffered: without
   `PYTHONUNBUFFERED=1`, the prompt reached the log only at exit, and the Dot
   was never plugged in.
@@ -168,6 +176,15 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - Each boot is decided from the disk: the preloader in boot0, the LK in
   `lk_a`, the TWRP in `recovery`, the markers in `expdb` and `misc`, the build
   in `system_X`, and Magisk in `userdata`.
+- A boot names the LK in `lk_a` by its md5: amonet v1.1.0's, amonet v2's, the
+  simulator's own stock blob, or any `stock-*/lk.img` that a restore has
+  extracted from an OTA. Each of the last two reads as stock, and a stock LK
+  reports the one `lk_build_desc` the simulator holds for the device, whatever
+  build the image came from. An LK it cannot name does not boot. A restore
+  extracts the OTA's LK before it writes it, so the Dot it leaves boots.
+- The build comes from `build.prop` at the root of `system_X`, where Fire
+  OS 5 keeps it, or from `system/build.prop`, where Fire OS 6's
+  system-as-root image keeps it.
 
 ## What is modelled
 

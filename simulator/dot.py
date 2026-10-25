@@ -2,7 +2,7 @@
 firebreak.
 
 python3 simulator/dot.py create [--cache DIR] [--device biscuit|radar] [--runner PID]
-    [--start fastboot|no-light|stock-booted]
+    [--start fastboot|no-light|stock-booted|twrp]
 python3 simulator/dot.py plug
 python3 simulator/dot.py status
 python3 simulator/dot.py snapshot
@@ -102,6 +102,7 @@ SIM_CACHE = pathlib.Path(
     os.environ.get("FIREBREAK_SIM_CACHE")
     or pathlib.Path.home() / ".cache" / "firebreak-sim-cache"
 )
+STARTS = {"fastboot": "bootloader", "stock-booted": "system", "twrp": "recovery"}
 STDIN_CHUNK = 1 << 20
 STDIN_POLL_SECONDS = 0.1
 STOCK_LK_SIZE = 241664
@@ -194,12 +195,12 @@ def adb(*, arguments: list[str]) -> int:  # ruff: ignore[complex-structure, too-
 
 def boot(*, into: str, state: dict) -> None:
     sim_boot(action="boot", state=state)
+    known = state["known"]
+    known["lk"]["stock"] = stock_lks(device=state["device"])
     spec = {
         "prefixes": {
-            "lk_a": sorted({size for size, _ in state["known"]["lk"].values()}),
-            "recovery": sorted({
-                size for size, _ in state["known"]["recovery"].values()
-            }),
+            "lk_a": sizes(table=known["lk"]),
+            "recovery": sizes(table=known["recovery"]),
         }
     }
     facts = json.loads(sim_boot(action="facts", spec=spec, state=state))
@@ -357,7 +358,9 @@ def create(*, cache: pathlib.Path, device: str, runner: int, start: str) -> None
         )
         record(entry={"event": "unplugged"})
     else:
-        boot(into="bootloader" if start == "fastboot" else "system", state=state)
+        if start == "twrp":
+            write_amonet_v2(state=state)
+        boot(into=STARTS[start], state=state)
     save(state=state)
     print(f"{name}: {state['mode']}")
 
@@ -642,33 +645,7 @@ def fastbrick(*, image: str, sparse: int | None, state: dict) -> int:
             "Sending 'brick' OKAY\nWriting 'brick' FAILED (remote: 'unknown partition')"
         )
         return 1
-    cache = pathlib.Path(state["cache"])
-    writes = []
-    with (
-        zipfile.ZipFile(cache / spec["amonet"]) as v2,
-        tempfile.TemporaryDirectory() as folder,
-    ):
-        upload = pathlib.Path(folder) / "brick"
-        upload.mkdir()
-        for target, suffix in (
-            ("lk_a", "bin/lk.bin"),
-            ("lk_b", "bin/lk.bin"),
-            ("tee2", "bin/tz.img"),
-            ("tee1", "bin/tee-payload.bin"),
-            ("expdb", spec["kaeru"]),
-            ("recovery", "bin/twrp.img"),
-        ):
-            (upload / target).write_bytes(member(archive=v2, suffix=suffix))
-            node = f"{BY_NAME}/{target}"
-            writes.append(
-                f"blockdev --setrw {node} 2>/dev/null; dd if=/sim/brick/{target}"
-                f" of={node} bs=512 conv=notrunc,fsync 2>/dev/null{protect(node=node)}"
-            )
-        docker(
-            arguments=["cp", "-L", str(upload), f"{state['container']}:/sim/"],
-            capture_output=True,
-        )
-    inside(command="; ".join([*writes, "rm -rf /sim/brick"]), state=state)
+    write_amonet_v2(state=state)
     request_reboot(delay=BOOT_SECONDS + 2, into="recovery")
     print(sending(image=pathlib.Path(image), part="brick", sparse=sparse), flush=True)
     time.sleep(3600)
@@ -724,9 +701,10 @@ def halt() -> None:
 
 
 def identify(*, prefixes: dict, table: dict) -> str | None:
-    for name, (size, digest) in table.items():
-        if prefixes.get(str(size)) == digest:
-            return name
+    for name, images in table.items():
+        for size, digest in images:
+            if prefixes.get(str(size)) == digest:
+                return name
     return None
 
 
@@ -777,18 +755,18 @@ def is_runner(*, pid: int) -> bool:
 
 def known_images(*, cache: pathlib.Path, device: str) -> dict:
     with zipfile.ZipFile(cache / DEVICES[device]["amonet"]) as v2:
-        lks = {"v2": member(archive=v2, suffix="bin/lk.bin")}
-        recoveries = {"v2": member(archive=v2, suffix="bin/twrp.img")}
+        lks = {"v2": [member(archive=v2, suffix="bin/lk.bin")]}
+        recoveries = {"v2": [member(archive=v2, suffix="bin/twrp.img")]}
     if device == "biscuit":
         with zipfile.ZipFile(cache / "amonet-biscuit-v1.1.0.zip") as v1:
-            lks["v1"] = member(archive=v1, suffix="bin/lk.bin")
-            recoveries["v1"] = member(archive=v1, suffix="bin/twrp.img")
-        recoveries["bboe"] = (cache / "twrp-3.7.0_9-bboe2-biscuit.img").read_bytes()
-    lks["stock"] = stock_lk(device=device)
+            lks["v1"] = [member(archive=v1, suffix="bin/lk.bin")]
+            recoveries["v1"] = [member(archive=v1, suffix="bin/twrp.img")]
+        recoveries["bboe"] = [(cache / "twrp-3.7.0_9-bboe2-biscuit.img").read_bytes()]
+    lks["stock"] = [stock_lk(device=device)]
     return {
-        "lk": {name: [len(data), md5(data=data)] for name, data in lks.items()},
+        "lk": {name: measured(images=images) for name, images in lks.items()},
         "recovery": {
-            name: [len(data), md5(data=data)] for name, data in recoveries.items()
+            name: measured(images=images) for name, images in recoveries.items()
         },
     }
 
@@ -839,7 +817,9 @@ def main() -> int:
     made.add_argument("--device", choices=sorted(DEVICES), default="biscuit")
     made.add_argument("--runner", default=0, type=int)
     made.add_argument(
-        "--start", choices=("fastboot", "no-light", "stock-booted"), default="fastboot"
+        "--start",
+        choices=("fastboot", "no-light", "stock-booted", "twrp"),
+        default="fastboot",
     )
     commands.add_parser("destroy")
     commands.add_parser("halt")
@@ -898,6 +878,10 @@ def make_venv() -> None:
 
 def md5(*, data: bytes) -> str:
     return hashlib.md5(data, usedforsecurity=False).hexdigest()
+
+
+def measured(*, images: list[bytes]) -> list[list]:
+    return [[len(data), md5(data=data)] for data in images]
 
 
 def member(*, archive: zipfile.ZipFile, suffix: str) -> bytes:
@@ -1218,6 +1202,10 @@ def sim_boot(*, action: str, spec: dict | None = None, state: dict) -> str:
     return docker(arguments=arguments, capture_output=True, text=True).stdout
 
 
+def sizes(*, table: dict) -> list[int]:
+    return sorted({size for images in table.values() for size, _ in images})
+
+
 def sparse_bytes(*, text: str) -> int:
     unit = FASTBOOT_SPARSE_UNITS.get(text[-1:].upper(), 1)
     return int(text.rstrip("GKMgkm")) * unit
@@ -1239,6 +1227,13 @@ def stock_lk(*, device: str) -> bytes:
         (f"SIM STOCK LK {DEVICES[device]['stock_lk']}\0product\0{device.upper()}\0")
         .encode()
         .ljust(STOCK_LK_SIZE, b"\xa5")
+    )
+
+
+def stock_lks(*, device: str) -> list[list]:
+    extracted = sorted((SIM_CACHE / TOOL_CACHE).glob("stock-*/lk.img"))
+    return measured(
+        images=[stock_lk(device=device), *(path.read_bytes() for path in extracted)]
     )
 
 
@@ -1294,6 +1289,36 @@ def user(*, state: dict) -> str:
 
 def warn(*, text: str) -> None:
     print(f"\n*** WARNING: {text}\n", file=sys.stderr)
+
+
+def write_amonet_v2(*, state: dict) -> None:
+    spec = DEVICES[state["device"]]
+    writes = []
+    with (
+        zipfile.ZipFile(pathlib.Path(state["cache"]) / spec["amonet"]) as v2,
+        tempfile.TemporaryDirectory() as folder,
+    ):
+        upload = pathlib.Path(folder) / "brick"
+        upload.mkdir()
+        for target, suffix in (
+            ("lk_a", "bin/lk.bin"),
+            ("lk_b", "bin/lk.bin"),
+            ("tee2", "bin/tz.img"),
+            ("tee1", "bin/tee-payload.bin"),
+            ("expdb", spec["kaeru"]),
+            ("recovery", "bin/twrp.img"),
+        ):
+            (upload / target).write_bytes(member(archive=v2, suffix=suffix))
+            node = f"{BY_NAME}/{target}"
+            writes.append(
+                f"blockdev --setrw {node} 2>/dev/null; dd if=/sim/brick/{target}"
+                f" of={node} bs=512 conv=notrunc,fsync 2>/dev/null{protect(node=node)}"
+            )
+        docker(
+            arguments=["cp", "-L", str(upload), f"{state['container']}:/sim/"],
+            capture_output=True,
+        )
+    inside(command="; ".join([*writes, "rm -rf /sim/brick"]), state=state)
 
 
 def write_image(*, local: pathlib.Path, node: str, seek: int = 0, state: dict) -> None:

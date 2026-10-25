@@ -3,7 +3,8 @@
 # Create a fresh simulated Dot, or with DEVICE=radar an Echo (2nd
 # Generation), in stock fastboot or, with START=no-light,
 # unplugged with boot0 erased and plugged in when firebreak asks for the
-# short. Run firebreak to TARGET with FLAGs, under the simulator's
+# short. START=twrp starts it unlocked with amonet v2, in that TWRP.
+# Run firebreak to TARGET with FLAGs, under the simulator's
 # virtualenv and with the simulator first on PATH, and leave
 # OUT.log, OUT.jsonl, OUT.txt, OUT.snapshot and OUT.table. Destroy the Dot
 # on exit, Ctrl-C included. FIREBREAK_SIM_SPEED runs the clock that many
@@ -59,5 +60,5 @@ cp "$work/trace.jsonl" "$out.jsonl"
 python3 "$here/trace.py" "$out.jsonl" > "$out.txt"
 "$python" "$here/dot.py" snapshot > "$out.snapshot"
 "$python" "$here/dot.py" table "$out.table"
-echo "$target: exit $status, $(grep -c '"tool"' "$out.jsonl") calls, $(grep -m1 -o 'The Dot is [a-z]*' "$out.log" || echo 'no verdict')"
+echo "$target: exit $status, $(grep -c '"tool"' "$out.jsonl") calls, $(grep -m1 -oE 'The Dot (is [a-z]*|runs [a-z]* [0-9.]*)' "$out.log" || echo 'no verdict')"
 exit $status
