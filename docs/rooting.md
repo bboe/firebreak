@@ -371,6 +371,14 @@ That root went through the bootrom; a root from stock now does not:
 A run from stock 5041, at night, showed the same, except that the fastbrick
 ring read white.
 
+- A USB port that cannot power TWRP shows as a ring that restarts instead of
+  reaching it: blue, about a second of turning cyan, little or no white, over
+  and over. Reported 2026-10-25 on Windows, on 2 of 3 Dots, after the unlock,
+  with the LK `63cb91b-20221007_072309`. A USB wall charger with the + button
+  held reached white, and a port directly on the PC then carried the run
+  through. The port that failed had run disc drives. Why TWRP is where this
+  shows up is not measured.
+
 - The ring turns orange before the boot is done. On a Dot, 2026-10-04, the
   setup app started and the ring turned orange 30 s before
   `BOOT_COMPLETED` went out. The first `su` came 13 s after that. The last

@@ -85,6 +85,7 @@ NO_FASTBOOT_DRIVER = (
     " https://github.com/bboe/firebreak#windows in an administrator PowerShell."
     " The run goes on when fastboot sees the Echo."
 )
+RESTARTS = 5
 TWRPS = frozenset({
     State.AMONET_V1_1_0_TWRP,
     State.AMONET_V2_TWRP,
@@ -220,6 +221,18 @@ def in_browser(*, need: Need) -> bool:
     return isinstance(need, Download) and need.browser
 
 
+def keeps_restarting() -> str:
+    return (
+        f"This {title()} keeps restarting rather than reaching TWRP: a blue"
+        " ring, about a second of turning cyan, and little or no white. A USB"
+        " port that cannot power TWRP does that, and TWRP is the step where it"
+        f" has shown up.\n\nTo tell, plug this {title()} into a USB wall"
+        " charger and hold the + button while it powers up. A ring that reaches"
+        " white there means TWRP runs and the port is the problem. Use a port"
+        " on the computer itself, and unplug whatever else is on it."
+    )
+
+
 def needed(*, start: State, table: dict[State, Stage]) -> list[Need]:
     found: list[Need] = []
     for _ in range(len(table) + 1):
@@ -328,9 +341,11 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
     resumed = False
     seen = None
     shown = None
+    awaiting = None
     deadline = None
     driver_check = 0.0
     driver_misses = 0
+    restarts = 0
     while True:
         current = state()
         installed = (
@@ -409,6 +424,13 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         if current != seen:
             seen = current
             deadline = time.monotonic() + WAIT
+            restarts = (
+                restarts + (current == State.NONE)
+                if current in {State.NONE, State.STARTING}
+                else 0
+            )
+            if restarts == RESTARTS and current == State.NONE and awaiting in TWRPS:
+                PROGRESS.note(message=keeps_restarting())
             if ARGUMENTS.verbose and current != shown:
                 shown = current
                 show(text=f"{clock()} state: {current.value}")
@@ -575,6 +597,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         done.add(current)
         stage = table.get(current)
         if stage:
+            awaiting = stage.then
             left = remaining(start=current, table=table)
             PROGRESS.steps = 0 if left is None else PROGRESS.step + left
             if stage.run() is not False:

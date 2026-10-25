@@ -183,6 +183,15 @@ def explained(*, error: FatalError) -> str:
     return text
 
 
+def filled(*, text: str) -> str:
+    return "\n\n".join(
+        textwrap.fill(
+            break_long_words=False, break_on_hyphens=False, text=part, width=79
+        )
+        for part in text.split(sep="\n\n")
+    )
+
+
 def invocation(*, options: list[str]) -> str:
     command = [pathlib.Path(word).name for word in program()]
     if command[1:2] != ["-m"] and pathlib.Path(command[-1]).suffix != ".pyz":
@@ -224,14 +233,7 @@ def reseat() -> str:
 
 
 def say(*, text: str) -> None:
-    show(
-        text="\n\n".join(
-            textwrap.fill(
-                break_long_words=False, break_on_hyphens=False, text=part, width=79
-            )
-            for part in text.split(sep="\n\n")
-        )
-    )
+    show(text=filled(text=text))
 
 
 def show(*, kind: Kind = Kind.INFO, text: str, **options: str | bool) -> None:
@@ -285,15 +287,7 @@ def upgrade() -> tuple[str, str]:
 
 
 def warn(*, text: str) -> None:
-    show(
-        kind=Kind.WARN,
-        text=paint(
-            code=ANSIColor.YELLOW,
-            text=textwrap.fill(
-                break_long_words=False, break_on_hyphens=False, text=text, width=79
-            ),
-        ),
-    )
+    show(kind=Kind.WARN, text=paint(code=ANSIColor.YELLOW, text=filled(text=text)))
 
 
 PROGRESS = Progress()

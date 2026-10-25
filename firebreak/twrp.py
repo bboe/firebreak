@@ -285,7 +285,11 @@ def wait_for_twrp() -> None:
         run(arguments=["adb", "wait-for-recovery"], timeout=300)
     except subprocess.TimeoutExpired:
         raise FatalError(
-            message=f"the {title()} did not reach recovery (TWRP) within 5 minutes"
+            message=f"the {title()} did not reach recovery (TWRP) within 5"
+            " minutes. A ring that keeps restarting there is a USB port that"
+            " cannot power TWRP: try a port on the computer itself with"
+            " nothing else on it, or a USB wall charger with the + button"
+            f" held, which starts TWRP if the {title()} can run it at all."
         ) from None
     deadline = time.monotonic() + 30
     while not adb_shell(command="getprop ro.twrp.version", timeout=30)[

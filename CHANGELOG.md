@@ -20,6 +20,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - `--run-on-unproven-path` goes on with a target whose route is not proven on
   the device it is for. Both of an Echo (2nd Generation)'s targets are such
   targets, and are refused without it.
+- A run waiting for TWRP that watches the Echo restart over and over says that
+  a USB port which cannot power TWRP has done that, and how to tell: a USB wall
+  charger with the + button held reaches white if TWRP can run. The run waited
+  on that without a word before. It still does not stop: nothing times out
+  while the Echo keeps coming and going.
 
 ### Changed
 

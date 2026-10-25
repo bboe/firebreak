@@ -478,6 +478,37 @@ def test_a_run_refuses_another_device_before_it_downloads(
 
 
 @pytest.mark.parametrize(
+    argnames=("then", "said_so"),
+    argvalues=[(route.State.AMONET_V2_TWRP, True), (route.State.STOCK_BOOTED, False)],
+    ids=["twrp", "stock"],
+)
+def test_a_run_says_a_port_cannot_power_twrp_only_while_twrp_is_what_is_next(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    run: Run,
+    said_so: bool,
+    then: route.State,
+) -> None:
+    table = {
+        route.State.STOCK_FASTBOOT: route.Stage(run=lambda: None, steps=1, then=then)
+    }
+    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
+    monkeypatch.setattr(
+        name="fastboot_driver_missing", target=route, value=lambda: False
+    )
+    run.states = [
+        route.State.STOCK_FASTBOOT,
+        *[route.State.NONE, route.State.STARTING] * 10,
+    ]
+    with pytest.raises(RanOutError):
+        route.root()
+    out = " ".join(said(capsys=capsys).split())
+    assert out.count("cannot power TWRP") == (1 if said_so else 0)
+    assert ("hold the + button while it powers up" in out) is said_so
+
+
+@pytest.mark.parametrize(
     ("states", "message"),
     [
         ([route.State.BOOTED], "The Echo Dot (2nd Generation) is starting Fire OS"),
