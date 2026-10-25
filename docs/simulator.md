@@ -6,8 +6,8 @@
 ## Running it
 
 ```sh
-simulator/run.sh OUT amonet-biscuit-v1.1.0-bboe
-START=no-light simulator/run.sh OUT amonet-biscuit-v1.1.0-bboe --short
+simulator/run.sh OUT unlock fireos5
+START=no-light simulator/run.sh OUT unlock fireos5 --short
 DEVICE=radar simulator/run.sh OUT stock 6436
 python3 simulator/trace.py OUT.jsonl             # one command per line, for diff
 python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per range
