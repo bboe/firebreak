@@ -412,6 +412,17 @@ The simulator accepts these, where a real Dot may not:
 - `ports.py` replaces `serial.tools.list_ports.comports` when pyserial loads.
   It lists only the simulated bootrom, `0e8d:0003`, and only while the Dot is
   in its bootrom. It never lists a real port.
+- Listing the ports also settles a reboot that has come due, by running
+  `dot.py status`, which loads the state and settles it. While firebreak waits
+  for the bootrom it polls only the ports, so without that nothing runs the
+  Dot's clock on: the state keeps `mode` `none` with `booting` set, and the
+  bootrom never starts. `create` records the simulator's own directory in the
+  state for the hook to find `dot.py` with.
+- It settles only once the reboot is due, not on each listing. A `dot.py
+  status` holds the clock at real time for as long as it takes to start, so
+  settling on every poll spends the speed on starting Python. It takes a
+  timeout as well, and reports a child that fails, because a listing could not
+  block before this and now can.
 - Under Python 3.9, pyserial from the wheel loads through `zipimporter`, which
   has no `exec_module`. So the hook runs the module's code from `get_code`.
 - The bootrom keeps the pseudo-terminal's other end open, so a tool can close
@@ -444,6 +455,25 @@ The simulator accepts these, where a real Dot may not:
 - pyserial keeps `time.monotonic` as a class attribute and calls it through
   `self`. A plain function there gets `self` as an argument, so the clock's
   functions are bound methods.
+- `ports.py` takes its `REAL_` names from `time` and `select` as it is read,
+  before the lines at its end install the clock. So they are the real
+  functions only in the copy the `.pth` imported at that start. Reach them as
+  `firebreak_sim_ports`, which is the name the `.pth` installed that copy
+  under, and never by importing `ports.py` again: a second read takes its
+  `REAL_` names from a `time` the first read already replaced, so they would
+  scale with the speed under a name that says they do not, and its last two
+  lines would add a second finder and a second clock over the first.
+- A wait that must not scale with the speed takes those names. The bootrom's
+  wait for a mode to claim is one: it wanted 10 seconds of the clock, which
+  the speed divides into 0.35 s at 60 and 0.5 s at the default, and a process
+  that has to start Python within that loses.
+- `dot.py` and `bootrom.py` each run under two interpreters, so each imports
+  the hook inside a `try`. The shims run the venv's Python, which has the
+  `.pth`; `run.sh` runs `create` and `destroy` with the plain `python3`, which
+  does not, and a `create` that boots the Dot into its bootrom starts
+  `bootrom.py` from there. Where the name does not resolve nothing replaced
+  `time`, so `time.monotonic_ns` and `time.sleep` are themselves the real
+  clock and the two ways agree.
 
 These stay in real time:
 
@@ -530,6 +560,15 @@ summary line, and includes `create` and `snapshot`.
 
 ## Traps
 
+- An empty `bootrom.log` means the bootrom served a payload and said nothing,
+  not that it never started. It writes there only to complain. Reading it the
+  other way round sent one hunt for the cause of a bootrom that never ran well
+  past the three faults that stopped it.
+- `venv` leaves an existing `bin/python` alone, so a pruned or upgraded pyenv
+  version leaves the simulator's own symlink pointing at nothing. `make_venv`
+  passes `--clear` for that: without it, it ran the interpreter it had just
+  failed to find and `create` died with a bare `FileNotFoundError`, for every
+  scenario and not only the ones that reach the bootrom.
 - `dd if=/dev/zero` onto a regular file with no `count` does not stop at the
   file's end. One filled Docker's disk. The container was gone, but its loop
   devices still held the deleted file, so the space came back only after a
