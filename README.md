@@ -47,7 +47,7 @@ These commands use [Homebrew](https://brew.sh). Without it, download Google's
 ```sh
 brew install --cask android-platform-tools uv
 uvx firebreak@latest unlock       # fireos6
-uvx firebreak@latest stock        # 8149, or name 8146, 8142, 8138, 6302, 5041, 4405, 4315, 5.5.5.4, 5.5.5.0, 5.5.4.9, 5.5.4.6, 5.5.3.1, 5.5.0.3
+uvx firebreak@latest stock        # 8149, or name 8344, 8338, 8146, 8142, 8138, 6302, 5041, 4405, 4315, 5.5.5.4, 5.5.5.0, 5.5.4.9, 5.5.4.6, 5.5.3.1, 5.5.0.3
 ```
 
 ### Linux
@@ -117,6 +117,7 @@ From stock, only the LK decides whether firebreak can unlock a device.
 
 | `lk_build_desc` | ships in |
 | --- | --- |
+| `2c3569d-20260617_045829` | Fire OS 6 8338, 8344 |
 | `63cb91b-20221007_072309` | Fire OS 6 [4405][fireos-4405] to [8149][fireos-8149] |
 | `41fb3ce-20221007_151724` | Fire OS 6 [4310][fireos-4310], [4313][fireos-4313], [4315][fireos-4315] |
 | `beb022a-20211202_231918` | Fire OS [5.5.5.4][fireos-5554] |

@@ -259,8 +259,8 @@ def stage_fastbrick() -> None:
     fastbrick = FASTBRICKS[ARGUMENTS.target.device]
     amonet = unpack(download=fastbrick.source)
     check_product()
-    little_kernel = getvar(name="lk_build_desc")
-    if not little_kernel and getvar(name="pl_build_desc"):
+    little_kernel = getvar(name="lk_build_desc", strict=True)
+    if not little_kernel and getvar(name="pl_build_desc", strict=True):
         raise FatalError(
             message="fastboot reported the preloader version but not the"
             f" bootloader's; the {title()} was not modified. " + again()

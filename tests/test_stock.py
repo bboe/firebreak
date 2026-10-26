@@ -507,6 +507,7 @@ def test_the_stock_stage_with_no_wait_skips_the_countdown(
     out = capsys.readouterr().out
     assert "Starting in" not in out
     assert "Starting now." in out
+    assert "Starting now.  " not in out
 
 
 @pytest.mark.parametrize(

@@ -6,6 +6,10 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `stock 8344` returns a Dot to the newest build Amazon ships for it. It
+  carries the same bootloader as 8338, `2c3569d-20260617_045829`, which the
+  fastbrick already has a payload for. `docs/devices.md` now records what
+  both builds hold.
 - `stock --no-wait` starts the writes at once, without the 10 seconds that
   Ctrl-C cancels in. A run that is one of many does not need them. Only
   `stock` has that wait, so every other command refuses the flag, as they
@@ -70,6 +74,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- A read of a Dot's bootloader version that times out stops the unlock. It
+  had come back as the same empty string an LK older than Fire OS 5.5.0.3
+  answers with, and an empty pair of versions takes the payload built for
+  those, so a fastboot that went away mid-unlock could have had that payload
+  run on a bootloader nothing read.
 - A Dot whose bootloader firebreak has no unlock payload for, and which is no
   older than the newest it does have one for, is refused before anything is
   written, and told its bootrom can still unlock it. Such a Dot was given the

@@ -420,10 +420,14 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
     except KeyboardInterrupt:
         print()
         raise FatalError(message="stopped; nothing was written", prefix="") from None
+    starting = "Starting now."
     show(
         kind=Kind.WARN,
         text="\r"
-        + paint(code=ANSIColor.YELLOW, text="Starting now.                     "),
+        + paint(
+            code=ANSIColor.YELLOW,
+            text=starting if SESSION.no_wait else starting.ljust(33),
+        ),
     )
 
     try:

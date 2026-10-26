@@ -16,6 +16,7 @@ from firebreak.ui import (
     PROGRESS,
     SESSION,
     FatalError,
+    again,
     asked_for,
     clock,
     invocation,
@@ -200,10 +201,15 @@ def devices(*, arguments: list[str]) -> str:
     raise FatalError(message=NO_ACCESS + rerun())
 
 
-def getvar(*, name: str) -> str:
+def getvar(*, name: str, strict: bool = False) -> str:
     try:
         output = run(arguments=["fastboot", "getvar", name], timeout=30).stdout
     except subprocess.TimeoutExpired:
+        if strict:
+            raise FatalError(
+                message=f"fastboot did not answer what {name} is within 30"
+                " seconds, so nothing was written. " + again()
+            ) from None
         return ""
     for line in output.splitlines():
         if line.startswith(name + ":"):

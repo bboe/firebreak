@@ -859,7 +859,13 @@ ring read white.
   without `lk_build_desc` is not an old bootloader, and the stage stops there
   without writing. `getvar` returns an empty string alike for a timed-out read,
   a variable the LK does not implement, and one it implements but leaves blank,
-  so the stage cannot tell those apart.
+  so the stage cannot tell those apart. It reads both strictly: a read that
+  times out stops the run, where it had returned the same empty string as an
+  LK that answers nothing, and the empty pair took the default payload. A
+  fastboot whose device has gone waits for one, so that read times out. A
+  fastboot that answers an error without naming the variable still reads as
+  an LK that does not implement it; nothing here measures what such a read
+  looks like.
 - The unlocked branch of `probe` still reads an empty `lk_build_desc` as
   `starting`, because amonet's own LK reports the field: an empty read there
   is a Dot part way through a boot, not an old bootloader.

@@ -517,6 +517,23 @@ def test_the_fastbrick_picks_the_image_for_the_bootloader(
     assert unlock.PROGRESS.open
 
 
+@pytest.mark.parametrize(argnames="name", argvalues=["lk_build_desc", "pl_build_desc"])
+def test_the_fastbrick_refuses_a_fastboot_that_stopped_answering(
+    *,
+    adb: FakeAdb,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    tmp_path: pathlib.Path,
+) -> None:
+    brick(adb=adb, little_kernel="", monkeypatch=monkeypatch, tmp_path=tmp_path)
+    adb.answers[name] = [
+        subprocess.TimeoutExpired(cmd="fastboot", timeout=30),
+    ]
+    with pytest.raises(FatalError, match=f"did not answer what {name} is"):
+        unlock.stage_fastbrick()
+    assert adb.commands(holding="brick") == []
+
+
 def test_the_guard_needs_both_slots(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
