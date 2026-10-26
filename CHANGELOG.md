@@ -11,6 +11,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
   Alexa setup. `--factory-reset` erases userdata and installs the target's
   build in both slots, which is what the target did before. A build firebreak
   does not know stops the run with nothing written.
+- `stock 5.5.0.3` holds the Dot in its bootrom at the end, which the next run
+  picks up with no button held. That restore writes the preloader from the
+  bootrom, because the Dot's anti-rollback bars the old preloader until the
+  RPMB is zeroed, so no kernel is left to ask a stock LK for fastboot. A power
+  cycle starts stock 5.5.0.3 instead. `--end-in-fireos` starts Fire OS 5.
 - `stock [BUILD]` leaves the device in fastboot at the end, so the next run
   needs no button held. `--end-in-fireos` starts the Fire OS it now holds
   instead, which is what a restore did before. `--fastboot` is gone, because

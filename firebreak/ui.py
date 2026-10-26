@@ -131,6 +131,7 @@ class Session:
     carries: bool | None = None
     dd: str = "dd"
     fastboot: bool = False
+    held: bool = False
     named: str = ""
     no_wait: bool = False
     probing: bool = False

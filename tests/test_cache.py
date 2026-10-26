@@ -108,7 +108,14 @@ def test_cache_note(
     (cached / "big").write_bytes(data=bytes(3_000_000))
     monkeypatch.setenv(name="HOME", value=str(cached.parent))
     cache.cache_note()
-    assert capsys.readouterr().out.startswith("~/cache holds 3 MB of downloads")
+    said = capsys.readouterr().out
+    assert said.startswith("~/cache holds 3 MB of downloads")
+    assert "It is safe to delete." in said
+    cache.HELD.write_text("biscuit")
+    cache.cache_note()
+    said = capsys.readouterr().out
+    assert "Keep bootrom-held" in said
+    assert "the rest is safe to delete" in said
 
 
 @pytest.mark.parametrize(

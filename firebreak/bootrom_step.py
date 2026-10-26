@@ -11,7 +11,7 @@ from firebreak import bootrom
 from firebreak.amonet.biscuit_v2_0_0 import Client
 from firebreak.amonet.payload import NotReadyError, Payload, start_payload
 from firebreak.android.gpt import ENTRIES_SIZE, SECTOR_SIZE, gpt_intact, partition_map
-from firebreak.cache import ERASED
+from firebreak.cache import ERASED, HELD
 from firebreak.devices import biscuit
 from firebreak.emmc import EmmcArea
 from firebreak.host import getvar, in_fastboot, no_port_help
@@ -56,6 +56,7 @@ if TYPE_CHECKING:
 
 BOOTROM_STEP_TIMEOUT = 30 * MINUTE
 BOOTROM_WRITE_TIMEOUT = 30
+HELD_WAIT = 60
 LK_PRODUCT = re.compile(pattern=rb"\0product\0([A-Z0-9_]+)\0")
 LK_PRODUCT_SECTORS = 1024
 LK_SLOTS = ("lk_a", "lk_b")
@@ -74,13 +75,29 @@ def ask_for_short() -> None:
     status(text="Waiting for the bootrom.")
 
 
+def attach_held_payload(*, deadline: float) -> Client | None:
+    failures: dict[str, float] = {}
+    while True:
+        for name, product in sorted(mediatek_ports().items()):
+            if product != ProductId.BOOTROM:
+                continue
+            live = joined_payload(failures=failures, name=name)
+            if live is not None:
+                return live
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(PORT_POLL_INTERVAL)
+
+
 def await_amonet_fastboot() -> None:
+    PROGRESS.begin(estimate="30 s", label="waiting for amonet's fastboot")
     for _ in range(30):
         try:
             if (
                 in_fastboot()
                 and getvar(name="lk_build_desc") == biscuit.AMONET_V1_1_0_LK
             ):
+                PROGRESS.end()
                 return
         except subprocess.TimeoutExpired:
             pass
@@ -207,35 +224,19 @@ def bootrom_step(
 ) -> bool:
     if wheel is not None and str(wheel) not in sys.path:
         sys.path.insert(0, str(wheel))
-    if erase:
-        ERASED.write_text(ARGUMENTS.target.device.name)
-        failure = erase()
-        if failure:
-            raise FatalError(message=failure)
-    elif SESSION.short:
-        ask_for_short()
-    else:
-        poke_live_payload()
-        PROGRESS.begin(estimate="40 s", label="waiting for the restart")
-    client = bootrom_client(
-        deadline=time.monotonic() + (60 if erase else 600), erase=erase
-    )
-    if client is None:
-        ERASED.unlink(missing_ok=True)
-        PROGRESS.note(
-            message=f"The {title()} started its preloader, so boot0 is intact and it"
-            " needs no bootrom step."
-        )
+    held = not erase and joining()
+    live = held_payload() if held else started_payload(erase=erase, payload=payload)
+    if live is None:
         return False
-    live = exploit(client=client, payload=payload)
     actions = bootrom.check(actions=bootloader_plan(amonet=amonet, live=live))
     if PROGRESS.steps:
-        PROGRESS.steps += len(actions) - 1
+        PROGRESS.steps += bootrom.counted(actions=actions)
     ERASED.write_text(ARGUMENTS.target.device.name)
     bootrom.execute(actions=actions, payload=live)
     with contextlib.suppress(OSError):
-        client.port.close()
+        live.port.close()
     ERASED.unlink(missing_ok=True)
+    HELD.unlink(missing_ok=True)
     await_amonet_fastboot()
     return True
 
@@ -331,6 +332,45 @@ def exploit(*, client: Bootrom, payload: pathlib.Path) -> Client:
     return live
 
 
+def held_payload() -> Client | None:
+    PROGRESS.begin(estimate="5 s", label="joining the held payload")
+    live = attach_held_payload(deadline=time.monotonic() + HELD_WAIT)
+    if live is None:
+        HELD.unlink(missing_ok=True)
+        PROGRESS.end(skipped=True)
+        PROGRESS.note(
+            message=f"The {title()} no longer waits in its bootrom, so the hold a"
+            " restore left is gone and this run cannot reach it that way."
+        )
+        return None
+    PROGRESS.end()
+    return live
+
+
+def joined_payload(*, failures: dict[str, float], name: str) -> Client | None:
+    connection = open_bootrom(failures=failures, name=name)
+    if connection is None:
+        return None
+    live = Client(port=connection, timeout=READ_TIMEOUT)
+    try:
+        connection.reset_input_buffer()
+        live.switch_partition(partition=EmmcArea.USER)
+        answered = bootrom.switched(
+            block=live.read_block(index=0), partition=EmmcArea.USER
+        )
+    except (OSError, UsbdlError):
+        answered = False
+    if answered:
+        return live
+    with contextlib.suppress(OSError):
+        connection.close()
+    return None
+
+
+def joining() -> bool:
+    return HELD.exists() and not ERASED.exists()
+
+
 def keep_trying(*, message: str) -> None:
     said = message + ". The run keeps trying."
     if not SESSION.short:
@@ -396,6 +436,33 @@ def short_hint() -> str:
     return ", most likely because the short was still on" if SESSION.short else ""
 
 
+def started_payload(
+    *, erase: Callable[[], str] | None, payload: pathlib.Path
+) -> Client | None:
+    if erase:
+        ERASED.write_text(ARGUMENTS.target.device.name)
+        failure = erase()
+        if failure:
+            raise FatalError(message=failure)
+    elif SESSION.short:
+        ask_for_short()
+    else:
+        poke_live_payload()
+        PROGRESS.begin(estimate="40 s", label="waiting for the restart")
+    client = bootrom_client(
+        deadline=time.monotonic() + (60 if erase else 600), erase=erase
+    )
+    if client is None:
+        ERASED.unlink(missing_ok=True)
+        HELD.unlink(missing_ok=True)
+        PROGRESS.note(
+            message=f"The {title()} started its preloader, so boot0 is intact and it"
+            " needs no bootrom step."
+        )
+        return None
+    return exploit(client=client, payload=payload)
+
+
 def stock_preloader(
     *, build: str, payload: pathlib.Path, preloader: bytes, wheel: pathlib.Path | None
 ) -> None:
@@ -411,23 +478,26 @@ def stock_preloader(
     live = exploit(client=client, payload=payload)
     check_emmc(live=live)
     PROGRESS.end()
-    bootrom.execute(
-        actions=(
-            Action(expect=b"AMZN", kind=bootrom.ZERO_RPMB, label="zero the RPMB"),
-            Action(
-                data=preloader,
-                kind=Write.__name__,
-                label=f"write the {build} preloader to boot0",
-                length=len(preloader),
-                offset=0,
-                target=BOOT0,
-            ),
-            Action(kind=bootrom.REBOOT, label=f"rebooting into stock {build}"),
+    written = (
+        Action(expect=b"AMZN", kind=bootrom.ZERO_RPMB, label="zero the RPMB"),
+        Action(
+            data=preloader,
+            kind=Write.__name__,
+            label=f"write the {build} preloader to boot0",
+            length=len(preloader),
+            offset=0,
+            target=BOOT0,
         ),
-        payload=live,
+    )
+    started = (Action(kind=bootrom.REBOOT, label=f"rebooting into stock {build}"),)
+    bootrom.execute(
+        actions=written if SESSION.fastboot else written + started, payload=live
     )
     with contextlib.suppress(OSError):
         client.port.close()
+    if SESSION.fastboot:
+        HELD.write_text(ARGUMENTS.target.device.name)
+        SESSION.held = True
     ERASED.unlink(missing_ok=True)
 
 

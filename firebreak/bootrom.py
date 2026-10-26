@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import itertools
 from typing import TYPE_CHECKING
 
 from firebreak.emmc import RPMB_SIZE, EmmcArea
@@ -17,6 +18,20 @@ REBOOT = Reboot.__name__
 UNSUPPORTED_KINDS = frozenset({FastbootFlash.__name__})
 USER_AREA_SIGNATURE = b"\x55\xaa"
 ZERO_RPMB = ZeroRpmb.__name__
+
+
+def apply(*, actions: tuple[Action, ...], payload: Emmc) -> bool:
+    action = actions[0]
+    try:
+        skipped = True
+        for action in actions:
+            skipped &= execute_one(action=action, payload=payload)
+    except (OSError, UsbdlError) as error:
+        raise FatalError(
+            message=f"{action.kind} ({action.label}) did not go through the"
+            f" bootrom: {error}. Do not unplug the {title()}. " + again()
+        ) from error
+    return skipped
 
 
 def check(*, actions: tuple[Action, ...]) -> tuple[Action, ...]:
@@ -36,23 +51,29 @@ def check(*, actions: tuple[Action, ...]) -> tuple[Action, ...]:
     return tuple(action for action in actions if action.length != 0)
 
 
+def counted(*, actions: tuple[Action, ...]) -> int:
+    return sum(
+        1
+        for _, group in itertools.groupby(actions, key=lambda action: action.label)
+        if not all(action.kind == REBOOT for action in group)
+    )
+
+
 def execute(*, actions: tuple[Action, ...], payload: Emmc) -> None:
-    writes = check(actions=actions)
-    for action in writes:
-        PROGRESS.begin(label=action.label)
-        try:
-            PROGRESS.end(skipped=execute_one(action=action, payload=payload))
-        except (OSError, UsbdlError) as error:
-            raise FatalError(
-                message=f"{action.kind} ({action.label}) did not go through the"
-                f" bootrom: {error}. Do not unplug the {title()}. " + again()
-            ) from error
+    for label, group in itertools.groupby(
+        check(actions=actions), key=lambda action: action.label
+    ):
+        batch = tuple(group)
+        if all(action.kind == REBOOT for action in batch):
+            apply(actions=batch, payload=payload)
+            continue
+        PROGRESS.begin(label=label)
+        PROGRESS.end(skipped=apply(actions=batch, payload=payload))
 
 
 def execute_one(*, action: Action, payload: Emmc) -> bool:
     if action.kind == ZERO_RPMB:
-        zero_rpmb(action=action, payload=payload)
-        return False
+        return zero_rpmb(action=action, payload=payload)
     if action.kind == REBOOT:
         payload.reboot()
         return False
@@ -117,18 +138,14 @@ def write(*, data: bytes, first: int, partition: int, payload: Emmc) -> None:
         )
 
 
-def zero_rpmb(*, action: Action, payload: Emmc) -> None:
+def zero_rpmb(*, action: Action, payload: Emmc) -> bool:
     found = payload.read_rpmb()
+    if found == bytes(RPMB_SIZE):
+        return True
     if not found.startswith(action.expect):
-        reading = (
-            " It is already zeroed, which is what a second run of an interrupted"
-            " plan sees."
-            if not any(found)
-            else ""
-        )
         PROGRESS.note(
             message=f"the RPMB starts {found[: len(action.expect)]!r}, not"
-            f" {action.expect!r}. Zeroing it anyway.{reading}"
+            f" {action.expect!r}. Zeroing it anyway."
         )
     payload.write_rpmb(data=bytes(RPMB_SIZE))
     found = payload.read_rpmb()
@@ -137,3 +154,4 @@ def zero_rpmb(*, action: Action, payload: Emmc) -> None:
             message=f"the RPMB still holds {found!r} after being zeroed. Do not"
             f" unplug the {title()}. " + again()
         )
+    return False

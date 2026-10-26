@@ -70,20 +70,20 @@ def test_a_bare_run_says_what_replaced_the_default_and_stops(
     assert "usage: firebreak" in out
 
 
-def test_a_bootrom_build_says_it_cannot_stay_in_fastboot(
+def test_a_bootrom_build_is_held_in_its_bootrom_instead_of_fastboot(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ran(device=BISCUIT, monkeypatch=monkeypatch)
-    monkeypatch.setattr(name="fastboot", target=main.SESSION, value=False)
+    monkeypatch.setattr(name="fastboot", target=main.SESSION, value=True)
     monkeypatch.setattr(
         name="argv", target=sys, value=["firebreak", "stock", "5.5.0.3"]
     )
     with pytest.raises(SystemExit):
         main.cli()
-    assert main.SESSION.fastboot is False
-    assert "cannot leave the Echo Dot (2nd Generation) in fastboot" in " ".join(
-        capsys.readouterr().out.split()
-    )
+    assert main.SESSION.fastboot is True
+    said = " ".join(capsys.readouterr().out.split())
+    assert "cannot leave the Echo Dot (2nd Generation) in fastboot" in said
+    assert "holds it in its bootrom" in said
 
 
 def test_a_build_the_device_has_no_ota_for_is_refused(

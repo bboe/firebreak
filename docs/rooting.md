@@ -1077,6 +1077,9 @@ ring read white.
 | stock-fastboot | `unlock fireos5` | 8 min 6 s, on 2026-10-25, from stock 5.5.5.4 whose LK takes v2.0.1's default `fastbrick.img`: the fastbrick 13 s, v2 recovery 30 s, the table 19 s, amonet v1.1.0-bboe 5 s, TWRP 4 s, userdata 3 s, `/system` 81 s, boot and Magisk 4 s, Fire OS 5's first boot 320 s |
 | amonet-v2-booted | stock 8338 | 3 min 52 s, on 2026-10-26, its images built from the OTA: the same 17 steps, both `/system` writes 81 s, the last step `rebooting into fastboot` in 10 s |
 | stock-fastboot | `unlock fireos6` | 1 min 18 s, on 2026-10-26, from stock 8338 patched in place: the fastbrick 8 s, v2 recovery 35 s, the build read under 1 s, `boot-root.zip` 9 s, rooted 8338's boot 24 s. No wipe and no OTA install, where `--factory-reset` takes 7 steps |
+| stock-fastboot | `unlock fireos6` | 4 min 56 s, on 2026-10-26, from stock 5.5.0.3, whose slot holds no Fire OS 6: the fastbrick 13 s, v2 recovery 31 s, the build read under 1 s, then the fallback's 8 steps, the installs 96 s and 115 s, `boot-root.zip` 9 s, rooted 8146's boot 25 s |
+| amonet-v2-booted | stock 5.5.0.3 | 3 min 38 s, on 2026-10-26, from rooted Fire OS 6: `[1/19]` to `[19/19]`, TWRP 19 s, both `/system` writes 80 s, the bootrom 5 s after the reboot, the RPMB 1 s, the preloader 8 s, and no reboot after it. It ended `waits in its bootrom`, with `bootrom-held` written and the payload still on its serial port. From v2's TWRP it is 18 steps, without the wait for TWRP |
+| bootrom, held | `unlock fireos6` | 6 min 05 s, on 2026-10-26, with no button held: joining the held payload under 1 s, then amonet v1.1.0 through it and TWRP by 1 min 35 s, v1.1.0's TWRP 19 s, amonet v2.0.1 and its TWRP by 1 min 55 s, and the fallback's installs 98 s and 115 s, `boot-root.zip` 9 s, rooted 8146's boot 24 s. Measured before the bootrom grouped its steps, so it showed 28 where the same run now shows 24 |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.
@@ -1537,8 +1540,32 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   again in 8 min 28 s.
 - A restore ends with `adb reboot bootloader`, so the next run needs no button
   held. `--end-in-fireos` starts the Fire OS instead. Only `stock` takes it.
-  5.5.0.3 ignores both: that restore ends in the bootrom over a serial port,
-  never reaches adb, and starts Fire OS 5 from there. The run says so first.
+- 5.5.0.3 cannot reach fastboot that way: its restore ends in the bootrom over
+  a serial port, so no kernel is left to carry a reboot reason. The preloader's
+  own USB handshake takes `FASTBOOT` and answers `TOOBTSAF`, but a stock LK
+  boots the Fire OS anyway, and the only boot-mode inputs a stock LK overrides
+  on, `misc`'s command field and IDME's `bootmode`, each select recovery alone.
+  So the restore instead holds the Dot in the bootrom: the payload writes the
+  preloader and stops without its reboot, and `bootrom-held` tells the next run
+  to join that payload where it waits. A power cycle starts stock 5.5.0.3
+  instead, since boot0 now holds its preloader. `--end-in-fireos` sends the
+  reboot and starts Fire OS 5.
+- A held payload is joined, never poked. The resume for an erased boot0 sends
+  the payload's reboot command and lets the bootrom come back, which works only
+  because boot0 holds no preloader. A held Dot has one, so that reboot starts
+  Fire OS 5 and loses the hold: measured on a Dot, 2026-10-26, where the
+  restore's own run poked the payload it had just parked. So the run that parks
+  the Dot does not also resume it, and a later run opens each MediaTek bootrom
+  port, builds the payload client on it, and takes the port whose user area
+  reads back its signature. A Dot that was powered off answers nothing, so the
+  hold is dropped and nothing is written, after a wait: the port a restore
+  parked can take a moment to appear, and giving up on the first listing threw
+  the hold away while the Dot still held it. An erased boot0 outranks a hold,
+  since a resume that stopped between its two markers left both, and the
+  erased one is the stronger. `--short` does not: a hold means the bootrom is
+  already there, so asking for the test point and then handshaking at a live
+  payload only ended in advice to unplug, which starts the firmware and loses
+  the hold.
 - Fire OS 5.5.3.1 to 5.5.5.4 carry Fire OS 6's anti-rollback versions, so
   they restore as Fire OS 6 does.
 - 5.5.0.3's PL is 3, below RPMB's 5, so its preloader would stop at
@@ -1570,6 +1597,14 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   TWRP, and the Dot showed up only as its bootrom.
 - A resume clears the TWRP states from the run's acted-on set, so a run
   that started in TWRP acts on TWRP again after the bootrom step.
+- Both ways of carrying out a plan group the actions that share a label into
+  one step, so a plan reads the same whether a recovery or the bootrom runs it.
+  Two writes with one label are one step on purpose: a boot slot takes a header
+  and a payload at different offsets, a table takes its primary and its backup,
+  and the bootloader goes to both of its slots. The bootrom used to count each
+  action instead, which turned those into `inject boot_a` twice over and made
+  the plan 4 steps longer than the same plan through TWRP. Counts from runs
+  before that was fixed are 4 higher on the bootrom's side.
 - Measured on a Dot, 2026-10-04: a restore stopped during the system write,
   then `adb reboot` from TWRP, then a rerun about 20 s later. The bootrom's one
   window was open when the rerun's bootrom step started, and amonet then

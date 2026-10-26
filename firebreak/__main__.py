@@ -506,11 +506,11 @@ def stock_build(*, device: Device, wanted: str) -> None:
             f" use one of {', '.join(ordered(builds=BUILDS[device]))}"
         )
     if ARGUMENTS.build in biscuit.BOOTROM_BUILDS and SESSION.fastboot:
-        SESSION.fastboot = False
         warn(
-            text=f"Stock {ARGUMENTS.build} ends in its bootrom over a serial port."
-            f" This run cannot leave the {device.title} in fastboot, so it starts"
-            " Fire OS 5 instead."
+            text=f"Stock {ARGUMENTS.build} ends in its bootrom over a serial port,"
+            f" which cannot leave the {device.title} in fastboot. firebreak holds"
+            " it in its bootrom instead, where the next run picks it up with no"
+            " button held."
         )
 
 

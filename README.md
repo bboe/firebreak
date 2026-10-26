@@ -140,8 +140,9 @@ From stock, only the LK decides whether firebreak can unlock a device.
 `stock [BUILD]` leaves the device in fastboot at the end. The next run then
 needs no button held, because a device already in fastboot is one firebreak can
 find by itself. `--end-in-fireos` lets it start the Fire OS it now holds
-instead. Only the `stock` target takes it. `5.5.0.3` ends in the Dot's bootrom
-over a serial port and then starts Fire OS 5, whichever way you run it.
+instead. Only the `stock` target takes it. `5.5.0.3` cannot wait in fastboot,
+so it waits in the Dot's bootrom, which the next run picks up with no button
+held; power the Dot off and it starts Fire OS 5 instead.
 
 ## `--no-wait`
 

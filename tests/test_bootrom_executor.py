@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import types
 from typing import TYPE_CHECKING
 
 import pytest
@@ -324,6 +325,37 @@ def test_a_zeroed_boot0_passes_the_area_check(*, payload: FakePayload) -> None:
     assert payload.blocks[1, 1] == b"P" * 512
 
 
+def test_actions_that_share_a_label_are_one_step(
+    *, monkeypatch: pytest.MonkeyPatch, payload: FakePayload
+) -> None:
+    labels: list[str] = []
+    steps = types.SimpleNamespace(
+        begin=lambda *, label, **_: labels.append(label),
+        end=lambda **_: None,
+        steps=0,
+    )
+
+    def write(*, label: str, offset: int) -> Action:
+        return Action(
+            data=b"\x22" * 512,
+            kind="Write",
+            label=label,
+            length=512,
+            offset=offset * 512,
+            target="lk",
+        )
+
+    monkeypatch.setattr(name="PROGRESS", target=bootrom, value=steps)
+    shared = (
+        write(label="inject boot_a", offset=2),
+        write(label="inject boot_a", offset=4),
+        write(label="write the bootloader", offset=6),
+    )
+    bootrom.execute(actions=shared, payload=payload)
+    assert labels == ["inject boot_a", "write the bootloader"]
+    assert bootrom.counted(actions=shared) == 2
+
+
 def test_an_image_is_padded_to_whole_sectors(
     *, payload: FakePayload, tmp_path: pathlib.Path
 ) -> None:
@@ -371,16 +403,17 @@ def test_an_rpmb_that_holds_what_the_step_expects_says_nothing(
     assert payload.rpmb == bytes(256)
 
 
-def test_an_rpmb_that_is_already_zeroed_says_which_reading_that_is(
+def test_an_rpmb_that_is_already_zeroed_is_skipped_in_silence(
     *, capsys: pytest.CaptureFixture[str], payload: FakePayload
 ) -> None:
     payload.rpmb = bytes(256)
     action = Action(expect=EXPECT, kind="ZeroRpmb", label="rpmb")
     bootrom.execute(actions=(action,), payload=payload)
     said = capsys.readouterr().out
-    assert "the RPMB starts" in said
-    assert "already zeroed, which is what a second run" in said
+    assert "the RPMB starts" not in said
+    assert "skip" in said
     assert payload.rpmb == bytes(256)
+    assert "write rpmb 256" not in payload.asked
 
 
 def test_every_action_switches_its_area_even_when_it_has_not_changed(

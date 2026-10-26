@@ -8,9 +8,10 @@ import time
 from typing import TYPE_CHECKING
 
 from firebreak import recovery, updates
-from firebreak.bootrom_step import bootrom_step
+from firebreak.bootrom_step import bootrom_step, joining
 from firebreak.cache import (
     ERASED,
+    HELD,
     MAGISK,
     Download,
     cache_note,
@@ -321,7 +322,7 @@ def restore_stages() -> dict[State, Stage]:
             ),
             passes=TWRPS,
             run=stage_restore,
-            steps=STOCK_STEPS + 3 if bootrom else STOCK_STEPS,
+            steps=STOCK_STEPS + 2 if bootrom else STOCK_STEPS,
             then=State.STOCK_BOOTED,
         )
         for twrp in TWRPS
@@ -370,17 +371,22 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             DOWNLOADER.start()
         if current not in {State.NONE, State.STARTING, *TWRPS}:
             ERASED.unlink(missing_ok=True)
+            HELD.unlink(missing_ok=True)
         SESSION.boot0_marker = ERASED
         if current != State.NONE:
             SESSION.short = False
-        if current == State.NONE and (ERASED.exists() or SESSION.short) and not resumed:
+        parked = ERASED.exists() or HELD.exists() or SESSION.short
+        if current == State.NONE and parked and not (resumed or SESSION.held):
             bootrom_device = biscuit.UNLOCK_FROM_BOOTROM.device
             if target.device != bootrom_device:
-                why = (
-                    "has an erased boot0, which only its bootrom can start it from"
-                    if ERASED.exists()
-                    else "was asked for with --short, which waits for its bootrom"
-                )
+                if ERASED.exists():
+                    why = (
+                        "has an erased boot0, which only its bootrom can start it from"
+                    )
+                elif HELD.exists():
+                    why = "waits in its bootrom, where a restore left it"
+                else:
+                    why = "was asked for with --short, which waits for its bootrom"
                 raise FatalError(
                     message=f"this {target.device.title} {why}, and firebreak's"
                     f" bootrom step supports only the {bootrom_device.title}, so"
@@ -392,7 +398,15 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     *needed(start=State.AMONET_V1_1_0_FASTBOOT, table=table),
                 ))
             )
-            if not SESSION.short:
+            if joining():
+                warn(
+                    text=f"A restore left the {title()} waiting in its bootrom. This"
+                    " run joins the payload waiting there and writes amonet v1.1.0"
+                    " through it, then goes on from v1.1.0's TWRP. Leave the"
+                    f" {title()} plugged in: unplugging it starts the stock firmware"
+                    " and loses the hold."
+                )
+            elif not SESSION.short:
                 warn(
                     text=(
                         "This run erased boot0"
@@ -409,7 +423,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             done.add(State.AMONET_V1_1_0_FASTBOOT)
             left = remaining(start=State.AMONET_V1_1_0_BBOE_TWRP, table=table)
             if left is not None:
-                PROGRESS.steps = PROGRESS.step + (2 if SESSION.short else 3) + left
+                opens = 3 if joining() or not SESSION.short else 2
+                PROGRESS.steps = PROGRESS.step + opens + left
             if bootrom_step(
                 amonet=unpack(download=biscuit.V1_1_0_SOURCE),
                 erase=None,
@@ -512,7 +527,18 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         ):
             if done:
                 PROGRESS.end()
-                if SESSION.fastboot:
+                if SESSION.held:
+                    passed(
+                        message=f"Stock {ARGUMENTS.build} is written, and the"
+                        f" {title()} waits in its bootrom."
+                    )
+                    say(
+                        text=f"The {title()} cannot wait in fastboot, so firebreak"
+                        " holds it in its bootrom, where the next run picks it up"
+                        " with no button held. Power it off and it starts stock"
+                        f" {ARGUMENTS.build} instead."
+                    )
+                elif SESSION.fastboot:
                     passed(
                         message=f"Stock {ARGUMENTS.build} is written, and the"
                         f" {title()} waits in fastboot."

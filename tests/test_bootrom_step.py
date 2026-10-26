@@ -64,18 +64,23 @@ class Connection:
 
     def __init__(self, *, name: str) -> None:
         self.closed = False
+        self.flushes = 0
         self.name = name
         self.writes: list[bytes] = []
 
     def close(self) -> None:
         self.closed = True
 
+    def reset_input_buffer(self) -> None:
+        self.flushes += 1
+
     def write(self, *, data: bytes) -> None:
         self.writes.append(data)
 
 
 class Live:
-    def __init__(self, *, rig: Rig) -> None:
+    def __init__(self, *, port: object, rig: Rig) -> None:
+        self.port = port
         self.rig = rig
 
     def __str__(self) -> str:
@@ -117,7 +122,7 @@ class Client:
 
     def start_payload(self, *, payload: bytes) -> Live:
         self.rig.steps.append(f"payload {payload.decode()}")
-        return Live(rig=self.rig)
+        return Live(port=self.port, rig=self.rig)
 
 
 @pytest.fixture
@@ -399,6 +404,87 @@ def test_a_handshake_that_times_out_with_the_short_on_stops_the_run(
     assert rig.written == []
 
 
+def test_a_held_payload_is_joined_without_a_poke_or_a_handshake(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+) -> None:
+    monkeypatch.setattr(
+        name="Client",
+        target=bootrom_step,
+        value=lambda *, port, **_: Live(port=port, rig=rig),
+    )
+    bootrom_step.HELD.write_text("biscuit")
+    assert step(rig=rig) is True
+    assert "handshake" not in rig.steps
+    assert rig.opened == [("/dev/bootrom", bootrom_step.BOOTROM_WRITE_TIMEOUT)]
+    assert rig.written == [WRITES]
+    assert not bootrom_step.HELD.exists()
+
+
+def test_a_held_payload_is_waited_for_rather_than_dropped(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+) -> None:
+    monkeypatch.setattr(
+        name="Client",
+        target=bootrom_step,
+        value=lambda *, port, **_: Live(port=port, rig=rig),
+    )
+    bootrom_step.HELD.write_text("biscuit")
+    rig.ports = [{}, {}, BOOTROM]
+    assert step(rig=rig) is True
+    assert "handshake" not in rig.steps
+    assert rig.written == [WRITES]
+
+
+def test_a_held_payload_that_is_gone_drops_the_hold_and_writes_nothing(
+    *, capsys: pytest.CaptureFixture[str], rig: Rig
+) -> None:
+    bootrom_step.HELD.write_text("biscuit")
+    rig.ports = [{}]
+    assert step(rig=rig) is False
+    assert rig.written == []
+    assert not bootrom_step.HELD.exists()
+    assert "no longer waits in its bootrom" in capsys.readouterr().out
+    assert bootrom_step.PROGRESS.open is False
+
+
+def test_a_held_payload_wins_over_a_short(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+) -> None:
+    monkeypatch.setattr(
+        name="Client",
+        target=bootrom_step,
+        value=lambda *, port, **_: Live(port=port, rig=rig),
+    )
+    bootrom_step.SESSION.short = True
+    bootrom_step.HELD.write_text("biscuit")
+    assert step(rig=rig) is True
+    assert "handshake" not in rig.steps
+    assert rig.written == [WRITES]
+
+
+def test_a_hold_is_recorded_before_the_erased_marker_goes(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+) -> None:
+    def interrupted(_self: object, **_: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        name="execute",
+        target=bootrom_step.bootrom,
+        value=lambda **_: None,
+    )
+    bootrom_step.SESSION.fastboot = True
+    bootrom_step.ERASED.touch()
+    monkeypatch.setattr(
+        name="unlink", target=type(bootrom_step.ERASED), value=interrupted
+    )
+    with pytest.raises(KeyboardInterrupt):
+        bootrom_step.stock_preloader(
+            build="5.5.0.3", payload=rig.payload, preloader=b"P" * 1024, wheel=None
+        )
+    assert bootrom_step.HELD.read_text() == "biscuit"
+
+
 def test_a_missed_short_is_counted_and_the_run_keeps_waiting(
     *, capsys: pytest.CaptureFixture[str], rig: Rig
 ) -> None:
@@ -524,6 +610,25 @@ def test_a_serial_port_opens_at_the_bootrom_rate(
     ]
 
 
+def test_a_stock_preloader_step_held_in_the_bootrom_sends_no_reboot(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+) -> None:
+    carried: list[tuple[Action, ...]] = []
+    monkeypatch.setattr(
+        name="execute",
+        target=bootrom_step.bootrom,
+        value=lambda *, actions, **_: carried.append(actions),
+    )
+    bootrom_step.SESSION.fastboot = True
+    bootrom_step.ERASED.touch()
+    bootrom_step.stock_preloader(
+        build="5.5.0.3", payload=rig.payload, preloader=b"P" * 1024, wheel=None
+    )
+    assert [action.kind for action in carried[0]] == ["ZeroRpmb", "Write"]
+    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.HELD.read_text() == "biscuit"
+
+
 def test_a_stock_preloader_step_that_meets_a_preloader_stops_the_run(
     *, rig: Rig
 ) -> None:
@@ -575,6 +680,7 @@ def test_a_stock_preloader_step_zeroes_the_rpmb_and_writes_boot0(
     ]
     assert rig.clients[0].port.closed
     assert not bootrom_step.ERASED.exists()
+    assert not bootrom_step.HELD.exists()
     assert str(wheel) in bootrom_step.sys.path
 
 
@@ -620,6 +726,34 @@ def test_a_torn_table_is_left_to_the_plan_without_reading_an_lk(
         f"read {bootrom_step.TABLE_SECTORS} at 0",
     ]
     assert rig.written == []
+
+
+def test_an_erased_boot0_outranks_a_hold_left_over_from_a_resume(*, rig: Rig) -> None:
+    bootrom_step.ERASED.touch()
+    bootrom_step.HELD.write_text("biscuit")
+    assert step(rig=rig) is True
+    assert "handshake" in rig.steps
+    assert rig.written == [WRITES]
+    assert not bootrom_step.HELD.exists()
+
+
+@pytest.mark.parametrize(
+    ("erased", "hold", "joins"),
+    [
+        (False, False, False),
+        (False, True, True),
+        (True, False, False),
+        (True, True, False),
+    ],
+)
+def test_joining_takes_the_hold_only_without_an_erased_boot0(
+    *, erased: bool, hold: bool, joins: bool
+) -> None:
+    if erased:
+        bootrom_step.ERASED.touch()
+    if hold:
+        bootrom_step.HELD.write_text("biscuit")
+    assert bootrom_step.joining() is joins
 
 
 def test_keep_trying_with_the_short_on_warns_and_waits_on(
@@ -758,7 +892,7 @@ def test_the_resume_poke_waits_for_the_payload_to_go(*, rig: Rig) -> None:
     assert rig.steps.count("handshake") == 1
 
 
-def test_the_step_count_grows_with_the_actions(*, rig: Rig) -> None:
+def test_the_step_count_grows_with_the_steps_the_actions_take(*, rig: Rig) -> None:
     bootrom_step.PROGRESS.step = 4
     bootrom_step.PROGRESS.steps = 9
     assert step(rig=rig) is True

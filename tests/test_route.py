@@ -138,7 +138,7 @@ def test_a_background_failure_is_left_for_the_run_to_meet(
 
 @pytest.mark.parametrize(
     ("build", "extra", "steps"),
-    [("5.5.0.3", 2, route.STOCK_STEPS + 3), ("5.5.3.1", 0, route.STOCK_STEPS)],
+    [("5.5.0.3", 2, route.STOCK_STEPS + 2), ("5.5.3.1", 0, route.STOCK_STEPS)],
 )
 def test_a_bootrom_build_restores_with_the_bootrom_s_downloads_and_steps(
     *, build: str, extra: int, monkeypatch: pytest.MonkeyPatch, steps: int
@@ -147,6 +147,19 @@ def test_a_bootrom_build_restores_with_the_bootrom_s_downloads_and_steps(
     stage = route.restore_stages()[route.State.AMONET_V2_TWRP]
     assert stage.needs[1:] == ((biscuit.V2_0_1_SOURCE, route.pyserial_wheel)[:extra])
     assert stage.steps == steps
+
+
+@pytest.mark.parametrize("fastboot", [True, False])
+def test_a_bootrom_restore_counts_the_same_whichever_way_it_ends(
+    *, fastboot: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="build", target=route.ARGUMENTS, value="5.5.0.3")
+    monkeypatch.setattr(
+        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT]["stock"]
+    )
+    monkeypatch.setattr(name="fastboot", target=route.SESSION, value=fastboot)
+    table = route.restore_stages()
+    assert {table[state].steps for state in route.TWRPS} == {route.STOCK_STEPS + 2}
 
 
 def test_a_bootrom_step_that_finds_a_preloader_is_not_counted(
@@ -619,6 +632,34 @@ def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
     assert run.started == 1
     assert [BUILDS["5.5.5.4"]] == route.DOWNLOADS
     assert run.prefetched == []
+
+
+def test_a_seen_state_clears_the_bootrom_hold(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    route.HELD.touch()
+    states = iter([route.State.BOOTED])
+
+    def state() -> route.State:
+        found = next(states, None)
+        if found is None:
+            raise KeyboardInterrupt
+        return found
+
+    monkeypatch.setattr(
+        name="run",
+        target=route,
+        value=lambda **_: types.SimpleNamespace(stdout="  -S SIZE[K|M|G]"),
+    )
+    monkeypatch.setattr(name="state", target=route, value=state)
+    monkeypatch.setattr(name="stages", target=route, value=dict)
+    monkeypatch.setattr(name="sleep", target=route.time, value=lambda _: None)
+    monkeypatch.setattr(
+        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT]["fireos5"]
+    )
+    with pytest.raises(KeyboardInterrupt):
+        route.root()
+    assert not route.HELD.exists()
 
 
 @pytest.mark.parametrize(

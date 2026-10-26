@@ -10,7 +10,7 @@ import time
 import xml.parsers.expat
 from typing import TYPE_CHECKING
 
-from firebreak.cache import ERASED
+from firebreak.cache import ERASED, HELD
 from firebreak.devices import DEFAULTS, DEPRECATED, DEVICES, TARGETS, biscuit
 from firebreak.host import (
     USER_SERIAL,
@@ -112,11 +112,12 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
     )
     identity = named_device(devices=devices)
     found, how = identity.device, identity.how
-    if found is None and ERASED.exists():
-        marked = ERASED.read_text().strip()
+    marker = next((each for each in (ERASED, HELD) if each.exists()), None)
+    if found is None and marker is not None:
+        marked = marker.read_text().strip()
         found = next((each for each in DEVICES if each.name == marked), None)
         if found is not None:
-            how = f"the device named in {ERASED.name}"
+            how = f"the device named in {marker.name}"
     for target in choices:
         if target.device == found:
             return target
@@ -239,7 +240,9 @@ def linux_devices() -> list[UsbDevice]:
 def named_device(*, devices: str) -> Identity:
     identity = identify()
     polls = 0
-    while identity.device is None and not (SESSION.short or ERASED.exists()):
+    while identity.device is None and not (
+        SESSION.short or ERASED.exists() or HELD.exists()
+    ):
         if polls == NAME_POLLS:
             warn(
                 text="Waiting for the Echo to say which device it is, which it"

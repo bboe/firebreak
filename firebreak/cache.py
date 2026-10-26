@@ -119,6 +119,7 @@ def cache_dir() -> pathlib.Path:
 
 CACHE = cache_dir()
 ERASED = CACHE / "boot0-erased"
+HELD = CACHE / "bootrom-held"
 
 
 def cache_note() -> None:
@@ -129,9 +130,15 @@ def cache_note() -> None:
         path, home = str(CACHE), str(pathlib.Path.home())
         if os.name != "nt" and path.startswith(home + os.sep):
             path = "~" + path[len(home) :]
+        kept = (
+            f" Keep {HELD.name}, which is how the next run finds the waiting"
+            " payload; the rest is safe to delete."
+            if HELD.exists()
+            else " It is safe to delete."
+        )
         show(
             text=f"{path} holds {size // 1000000} MB of downloads and images for"
-            " the next run. It is safe to delete."
+            " the next run." + kept
         )
 
 

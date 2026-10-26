@@ -113,6 +113,7 @@ def no_real_cache(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) ->
         for attribute, value in (
             ("CACHE", directory),
             ("ERASED", directory / "boot0-erased"),
+            ("HELD", directory / "bootrom-held"),
         ):
             if hasattr(module, attribute):
                 monkeypatch.setattr(name=attribute, target=module, value=value)
