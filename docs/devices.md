@@ -23,12 +23,14 @@ no OTA says so.
 
 The Echo Dot (2nd Generation). Read in October 2026 from 37 Fire OS 6 OTAs on
 ftvdb, 4310 to 8149, and from the Fire OS 5.5.0.3, 5.5.3.1, 5.5.4.6, 5.5.4.9,
-5.5.5.0 and 5.5.5.4 OTAs.
+5.5.5.0 and 5.5.5.4 OTAs. 8338 and 8344 are read from the OTAs Amazon's own
+CDN serves, which is where a Dot on 8338 led: ftvdb lists neither.
 
 ### Builds
 
 | ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK | fastbrick image |
 | --- | --- | --- | --- | --- | --- |
+| Fire OS 6 8338, 8344 | `2c3569d-20260617_045829` | `bd7ae89-20221003_215949` | [6](#tee-images) | 0x0005, 0x0102, 0x0001 | `fastbrick-20260617.img` |
 | Fire OS 6 4929 to 8149, except 5041 | `63cb91b-20221007_072309` | `bd7ae89-20221003_215949` | [5](#tee-images) | 0x0005, 0x0102, 0x0001 | `fastbrick-20221007.img` |
 | Fire OS 6 4405 to 4781, and 5041 | `63cb91b-20221007_072309` | `bd7ae89-20221003_215949` | [4](#tee-images) | 0x0005, 0x0102, 0x0001 | `fastbrick-20221007.img` |
 | Fire OS 6 4310, 4313, 4315 | `41fb3ce-20221007_151724` | `919cae9-20221006_203733` | [3](#tee-images) | 0x0005, 0x0102, 0x0001 | `fastbrick-20221007.img` |
@@ -46,6 +48,7 @@ ftvdb, 4310 to 8149, and from the Fire OS 5.5.0.3, 5.5.3.1, 5.5.4.6, 5.5.4.9,
 
 | TEE | bytes | md5 | sha256 |
 | --- | --- | --- | --- |
+| 6 | 1781760 | `9a9360025342b3a55d943e64ccc8617f` | `d64116ded3e255468d9a995fe91fe5dc257d4de4a991cfe4d3fa6ce544996757` |
 | 5 | 1781760 | `196a1873db19a1e862a4f07057e57482` | `d363175c9f2a4f1dad5fb317303d12758f0c5617848dc3564b6f574581a86a71` |
 | 4 | 2813952 | `52e8575f206c927239fafc995533a30e` | `8f2f5ca4862088a849d8cae90e6647d1f022214f4b4e5cce80cc8faa52cab526` |
 | 3 | 2812928 | `78f671ba4540a70e760459ce54a1a5fa` | `f4ec7c909c610f1b915c5bc3e9e995b97d554b9ac99018818a0055a19cdd326e` |

@@ -9,7 +9,8 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - `stock --no-wait` starts the writes at once, without the 10 seconds that
   Ctrl-C cancels in. A run that is one of many does not need them. Only
   `stock` has that wait, so every other command refuses the flag, as they
-  refuse the other flags they have no use for.
+  refuse the other flags they have no use for. It says `Starting now.`
+  without the spaces that erase a countdown it never printed.
 - `unlock fireos6` roots an Echo (2nd Generation) with amonet-radar v1.0.0, on
   Fire OS 6 6436 with `boot-root.zip`'s root adb. It is that device's default
   target, so a run that names only the device unlocks it, and a run that names

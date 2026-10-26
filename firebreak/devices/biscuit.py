@@ -99,6 +99,10 @@ BUILDS = {
         path="2026/10/14/e5a2c4cb-7834-4c0f-95b1-301a3ab72194/update-kindle-biscuit_puffin-NS6575_user_8338_0013323244164.bin",
         sha256="c8ea0061e2d117d78c7f9a507dfd435505c324eac7a6ee03499276d9a982ccf0",
     ),
+    "8344": cdn_ota(
+        path="2026/10/21/7b68e963-d690-4c24-8a7c-75bbcad855e3/update-kindle-biscuit_puffin-NS6575_user_8344_0013323245700.bin",
+        sha256="a7849e192e0b4b885e48f57a216aadffb1227e7d7b6daa4c3003cd723c9ba995",
+    ),
 }
 DEFAULT_BUILD = "8149"
 DEFAULT_TARGET = FIREOS6

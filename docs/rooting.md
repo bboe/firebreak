@@ -845,6 +845,12 @@ ring read white.
   in `fastbrick-20260617.img`'s last 137,684 bytes, 33,950 appear in 8338's
   `lk.img`, against 30,851 in 8149's. `fastbrick-20221007.img`'s tail is the
   mirror of that.
+- `fastbrick-20260617.img` unlocked a Dot on `2c3569d-20260617_045829`,
+  2026-10-25, on the first flash of the run: a `stock 8344` left that
+  bootloader, and the run that followed rooted the Dot. So the mapping that
+  payload's tail predicted holds on a Dot, and both of biscuit's payloads are
+  measured. `41fb3ce-20221007_151724` is the mapping left with only its tail
+  behind it.
 - An LK older than Fire OS 5.5.0.3 reports no `lk_build_desc` at all, and no
   `pl_build_desc` either. The stage reads both and takes `bin/fastbrick.img`
   where neither answers, as amonet's own script does on an empty field,
@@ -1012,6 +1018,8 @@ ring read white.
 | amonet-v1.1.0-bboe-booted | stock 8146 | 3 min 11 s: recovery 30 s, `system_a` 81 s, the rest under 7 s each, stock's first boot 32 s |
 | amonet-v1.1.0-bboe-twrp | stock 8149 | 4 min 3 s, on 2026-10-24, on amonet v2.0.1: both `/system` writes 81 s and 80 s, the rest under 7 s each, stock's first boot 34 s |
 | stock-fastboot | `unlock fireos6` | 5 min 18 s, on 2026-10-24, from stock 8149 whose LK takes `fastbrick-20221007.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 115 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
+| amonet-v2-booted | stock 8344 | 4 min 4 s, on 2026-10-25, on amonet v2.0.1: recovery 19 s, both `/system` writes 80 s, the rest under 6 s each, stock's first boot 34 s |
+| stock-fastboot | `unlock fireos6` | 5 min 14 s, on 2026-10-25, from stock 8344 whose LK takes `fastbrick-20260617.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.
