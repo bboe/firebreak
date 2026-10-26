@@ -11,6 +11,12 @@ This project adheres to [Semantic Versioning](https://semver.org).
   Alexa setup. `--factory-reset` erases userdata and installs the target's
   build in both slots, which is what the target did before. A build firebreak
   does not know stops the run with nothing written.
+- `stock [BUILD]` leaves the device in fastboot at the end, so the next run
+  needs no button held. `--end-in-fireos` starts the Fire OS it now holds
+  instead, which is what a restore did before. `--fastboot` is gone, because
+  it asked for what now happens anyway. `stock 5.5.0.3` ends in the bootrom
+  over a serial port and then starts Fire OS 5, so it says so before it
+  writes.
 
 ## 0.9.0 - 2026-10-25
 

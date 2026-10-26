@@ -135,13 +135,13 @@ From stock, only the LK decides whether firebreak can unlock a device.
   and no `pl_build_desc`. firebreak unlocks such a Dot with the default
   fastbrick image, which amonet v2.0.1's own map gives an LK it does not know.
 
-## `--fastboot`
+## `--end-in-fireos`
 
-`stock [BUILD] --fastboot` leaves the device in fastboot at the end instead of
-letting it start the Fire OS it now holds. The next run then needs no button
-held, because a device already in fastboot is one firebreak can find by itself.
-Only the `stock` target takes it, and not with `5.5.0.3`, which ends in the
-Dot's bootrom over a serial port.
+`stock [BUILD]` leaves the device in fastboot at the end. The next run then
+needs no button held, because a device already in fastboot is one firebreak can
+find by itself. `--end-in-fireos` lets it start the Fire OS it now holds
+instead. Only the `stock` target takes it. `5.5.0.3` ends in the Dot's bootrom
+over a serial port and then starts Fire OS 5, whichever way you run it.
 
 ## `--no-wait`
 

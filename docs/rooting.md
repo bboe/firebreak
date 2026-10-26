@@ -1065,16 +1065,17 @@ ring read white.
 | amonet-v1.1.0-bboe-booted | `unlock fireos6` | 5 min 11 s, on 2026-10-09, by the plan: recovery 28 s, boot0 under 1 s, the table 1 s, the writes 5 s with TWRP 3 s of it, the preloader under 1 s, recovery 19 s, the wipes 4 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s. The zip took 5 min 22 s, its install 19 s and its reboot 19 s |
 | amonet-v2-booted | `unlock fireos5` | 7 min 42 s, with no bootrom: recovery 19 s, the table 1 s, recovery 19 s, boot0 under 1 s, the chain 6 s, `misc` under 1 s, userdata 4 s, `/system` 79 s, the boot image 3 s, Magisk 1 s, the preloader under 1 s, Fire OS 5's first boot 321 s |
 | stock-fastboot | `unlock fireos5` | 8 min 3 s, with no bootrom: the fastbrick, then the same route as from amonet-v2-booted |
-| amonet-v1.1.0-bboe-booted | stock 8146 | 3 min 11 s: recovery 30 s, `system_a` 81 s, the rest under 7 s each, stock's first boot 32 s |
-| amonet-v1.1.0-bboe-twrp | stock 8149 | 4 min 3 s, on 2026-10-24, on amonet v2.0.1: both `/system` writes 81 s and 80 s, the rest under 7 s each, stock's first boot 34 s |
+| amonet-v1.1.0-bboe-booted | stock 8146 `--end-in-fireos` | 3 min 11 s: recovery 30 s, `system_a` 81 s, the rest under 7 s each, stock's first boot 32 s |
+| amonet-v1.1.0-bboe-twrp | stock 8149 `--end-in-fireos` | 4 min 3 s, on 2026-10-24, on amonet v2.0.1: both `/system` writes 81 s and 80 s, the rest under 7 s each, stock's first boot 34 s |
 | stock-fastboot | `unlock fireos6` | 5 min 18 s, on 2026-10-24, from stock 8149 whose LK takes `fastbrick-20221007.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 115 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
-| amonet-v2-booted | stock 8344 | 4 min 4 s, on 2026-10-25, on amonet v2.0.1: recovery 19 s, both `/system` writes 80 s, the rest under 6 s each, stock's first boot 34 s |
+| amonet-v2-booted | stock 8344 `--end-in-fireos` | 4 min 4 s, on 2026-10-25, on amonet v2.0.1: recovery 19 s, both `/system` writes 80 s, the rest under 6 s each, stock's first boot 34 s |
 | stock-fastboot | `unlock fireos6` | 5 min 14 s, on 2026-10-25, from stock 8344 whose LK takes `fastbrick-20260617.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
 | stock-fastboot | `unlock fireos6` | 4 min 54 s, on 2026-10-25, from stock 4315 whose LK takes amonet v2.0.0's `fastbrick-20221007.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 115 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
-| amonet-v2-booted | stock 4315 `--fastboot` | 3 min 33 s, on 2026-10-25: `[1/17]` to `[17/17]`, the last step `rebooting into fastboot` in 10 s, where the images were built from the OTA rather than read from the cache |
-| amonet-v2-booted | stock 4405 `--fastboot` | 3 min 38 s, on 2026-10-25, from cached images: the same 17 steps, both `/system` writes 80 s, the rest under 6 s each |
-| amonet-v2-booted | stock 5.5.5.4 `--fastboot` | 3 min 35 s, on 2026-10-25, its images built from the OTA: the same 17 steps, both `/system` writes 80 s |
+| amonet-v2-booted | stock 4315 | 3 min 33 s, on 2026-10-25: `[1/17]` to `[17/17]`, the last step `rebooting into fastboot` in 10 s, where the images were built from the OTA rather than read from the cache |
+| amonet-v2-booted | stock 4405 | 3 min 38 s, on 2026-10-25, from cached images: the same 17 steps, both `/system` writes 80 s, the rest under 6 s each |
+| amonet-v2-booted | stock 5.5.5.4 | 3 min 35 s, on 2026-10-25, its images built from the OTA: the same 17 steps, both `/system` writes 80 s |
 | stock-fastboot | `unlock fireos5` | 8 min 6 s, on 2026-10-25, from stock 5.5.5.4 whose LK takes v2.0.1's default `fastbrick.img`: the fastbrick 13 s, v2 recovery 30 s, the table 19 s, amonet v1.1.0-bboe 5 s, TWRP 4 s, userdata 3 s, `/system` 81 s, boot and Magisk 4 s, Fire OS 5's first boot 320 s |
+| amonet-v2-booted | stock 8338 | 3 min 52 s, on 2026-10-26, its images built from the OTA: the same 17 steps, both `/system` writes 81 s, the last step `rebooting into fastboot` in 10 s |
 | stock-fastboot | `unlock fireos6` | 1 min 18 s, on 2026-10-26, from stock 8338 patched in place: the fastbrick 8 s, v2 recovery 35 s, the build read under 1 s, `boot-root.zip` 9 s, rooted 8338's boot 24 s. No wipe and no OTA install, where `--factory-reset` takes 7 steps |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
@@ -1534,10 +1535,10 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   started 24 s after the reboot, and fastboot then read `unlock_status`
   `false` with LK `63cb91b-20221007_073612`. `amonet-radar-v1.0.0` rooted it
   again in 8 min 28 s.
-- `--fastboot` leaves the Dot in fastboot at the end, with `adb reboot
-  bootloader` after the last write, so the next run needs no button held. Only
-  `stock` takes it. 5.5.0.3 refuses it, because that restore ends in the
-  bootrom over a serial port and never reaches adb.
+- A restore ends with `adb reboot bootloader`, so the next run needs no button
+  held. `--end-in-fireos` starts the Fire OS instead. Only `stock` takes it.
+  5.5.0.3 ignores both: that restore ends in the bootrom over a serial port,
+  never reaches adb, and starts Fire OS 5 from there. The run says so first.
 - Fire OS 5.5.3.1 to 5.5.5.4 carry Fire OS 6's anti-rollback versions, so
   they restore as Fire OS 6 does.
 - 5.5.0.3's PL is 3, below RPMB's 5, so its preloader would stop at

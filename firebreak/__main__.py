@@ -110,27 +110,27 @@ def build_parser() -> argparse.ArgumentParser:
     labels = {SURVEY: " OTA [OTA ...]", UNLOCK: " [TARGET]"}
     parents = option_parents()
     quiet = option_parents(hidden=True)
-    every = [
+    restoring = [
         "--device",
-        "--fastboot",
+        "--end-in-fireos",
         "--no-update-check",
         "--no-wait",
-        "--factory-reset",
         "--run-on-unproven-path",
         "--short",
         "--verbose",
     ]
     rooting = [
         "--device",
-        "--no-update-check",
         "--factory-reset",
+        "--no-update-check",
         "--run-on-unproven-path",
         "--short",
         "--verbose",
     ]
+    every = sorted({"--credits", *restoring, *rooting})
     uses = {
         REPORT: ["--no-update-check", "--verbose"],
-        STOCK: every,
+        STOCK: restoring,
         SURVEY: ["--no-update-check", "--verbose"],
         UNLOCK: rooting,
         WRITE_TEST: ["--no-update-check", "--short", "--verbose"],
@@ -178,15 +178,15 @@ other commands:
                 if name
                 in {
                     "--device",
-                    "--fastboot",
-                    "--no-wait",
+                    "--end-in-fireos",
                     "--factory-reset",
+                    "--no-wait",
                     "--run-on-unproven-path",
                     "--short",
                 }
                 else parents
             )[name]
-            for name in sorted(["--credits", *every])
+            for name in every
         ],
         prog="firebreak",
     )
@@ -282,7 +282,7 @@ def cli() -> None:
         check_for_update()
     check_adb()
     make_cache()
-    SESSION.fastboot = options.fastboot
+    SESSION.fastboot = not options.end_in_fireos
     SESSION.no_wait = options.no_wait
     SESSION.short = options.short
     command = {REPORT: report, WRITE_TEST: write_test}.get(options.command)
@@ -302,12 +302,7 @@ def cli() -> None:
         )
     device = ARGUMENTS.target.device
     if ARGUMENTS.target.name == STOCK:
-        ARGUMENTS.build = options.build or DEFAULT_BUILDS[device]
-        if ARGUMENTS.build not in BUILDS[device]:
-            raise FatalError(
-                message=f"the {device.title} has no stock build {ARGUMENTS.build}:"
-                f" use one of {', '.join(ordered(builds=BUILDS[device]))}"
-            )
+        stock_build(device=device, wanted=options.build)
     if ARGUMENTS.target.unproven and not options.run_on_unproven_path:
         raise FatalError(
             message=f"{ARGUMENTS.target.name} is not proven on an actual"
@@ -351,17 +346,12 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
     made: dict[str, argparse.ArgumentParser] = {}
     for name, summary in (
         (
-            "--fastboot",
+            "--end-in-fireos",
             (
-                "leave the Echo in fastboot at the end instead of letting it"
-                " start the firmware it now holds, so the next run needs no"
-                " button held"
+                "let the Echo start the firmware it now holds at the end, where"
+                " the run otherwise leaves it in fastboot, which the next run"
+                " reaches with no button held"
             ),
-        ),
-        ("--no-update-check", "do not ask PyPI whether a newer firebreak exists"),
-        (
-            "--no-wait",
-            ("start the writes at once, without the 10 seconds that Ctrl-C cancels in"),
         ),
         (
             "--factory-reset",
@@ -370,6 +360,11 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
                 " slots, where the target otherwise roots the Fire OS 6 already"
                 " installed and keeps the Echo's Wi-Fi and Alexa setup"
             ),
+        ),
+        ("--no-update-check", "do not ask PyPI whether a newer firebreak exists"),
+        (
+            "--no-wait",
+            ("start the writes at once, without the 10 seconds that Ctrl-C cancels in"),
         ),
         (
             "--run-on-unproven-path",
@@ -443,10 +438,10 @@ def parsed() -> argparse.Namespace:
     for option, default in (
         ("build", ""),
         ("device", None),
-        ("fastboot", False),
+        ("end_in_fireos", False),
+        ("factory_reset", False),
         ("no_update_check", False),
         ("no_wait", False),
-        ("factory_reset", False),
         ("run_on_unproven_path", False),
         ("short", False),
         ("target", None),
@@ -472,16 +467,16 @@ def parsed() -> argparse.Namespace:
         sys.exit(1)
     takes = {
         REPORT: set(),
-        STOCK: {"device", "fastboot", "no_wait", "run_on_unproven_path", "short"},
+        STOCK: {"device", "end_in_fireos", "no_wait", "run_on_unproven_path", "short"},
         SURVEY: set(),
         WRITE_TEST: {"short"},
     }.get(options.command, {"device", "factory_reset", "run_on_unproven_path", "short"})
     for option in sorted(
         {
             "device",
-            "fastboot",
-            "no_wait",
+            "end_in_fireos",
             "factory_reset",
+            "no_wait",
             "run_on_unproven_path",
             "short",
         }
@@ -490,11 +485,6 @@ def parsed() -> argparse.Namespace:
         if getattr(options, option):
             dashed = option.replace("_", "-")
             parser.error(message=f"{options.command} takes no --{dashed}")
-    if options.fastboot and options.build in biscuit.BOOTROM_BUILDS:
-        parser.error(
-            message=f"stock {options.build} ends in its bootrom over a serial"
-            " port, which cannot leave the Echo in fastboot"
-        )
     device = named
     wanted = options.target if options.command == UNLOCK else options.command
     if (
@@ -506,6 +496,22 @@ def parsed() -> argparse.Namespace:
     if device and options.build and options.build not in BUILDS[device]:
         parser.error(message=f"the {device.title} has no stock build {options.build}")
     return options
+
+
+def stock_build(*, device: Device, wanted: str) -> None:
+    ARGUMENTS.build = wanted or DEFAULT_BUILDS[device]
+    if ARGUMENTS.build not in BUILDS[device]:
+        raise FatalError(
+            message=f"the {device.title} has no stock build {ARGUMENTS.build}:"
+            f" use one of {', '.join(ordered(builds=BUILDS[device]))}"
+        )
+    if ARGUMENTS.build in biscuit.BOOTROM_BUILDS and SESSION.fastboot:
+        SESSION.fastboot = False
+        warn(
+            text=f"Stock {ARGUMENTS.build} ends in its bootrom over a serial port."
+            f" This run cannot leave the {device.title} in fastboot, so it starts"
+            " Fire OS 5 instead."
+        )
 
 
 def target_help() -> str:

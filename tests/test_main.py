@@ -70,6 +70,22 @@ def test_a_bare_run_says_what_replaced_the_default_and_stops(
     assert "usage: firebreak" in out
 
 
+def test_a_bootrom_build_says_it_cannot_stay_in_fastboot(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran(device=BISCUIT, monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="fastboot", target=main.SESSION, value=False)
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "stock", "5.5.0.3"]
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert main.SESSION.fastboot is False
+    assert "cannot leave the Echo Dot (2nd Generation) in fastboot" in " ".join(
+        capsys.readouterr().out.split()
+    )
+
+
 def test_a_build_the_device_has_no_ota_for_is_refused(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -175,6 +191,34 @@ def test_a_failing_update_check_is_silent(
     assert capsys.readouterr() == ("", "")
 
 
+@pytest.mark.parametrize(
+    argnames=("arguments", "message"),
+    argvalues=[
+        (
+            ["unlock", "fireos6", "--end-in-fireos"],
+            "unrecognized arguments: --end-in-fireos",
+        ),
+        (["--end-in-fireos", "report"], "report takes no --end-in-fireos"),
+        (["--no-wait", "unlock", "fireos6"], "unlock takes no --no-wait"),
+        (
+            ["--run-on-unproven-path", "report"],
+            "report takes no --run-on-unproven-path",
+        ),
+    ],
+)
+def test_a_flag_is_refused_on_a_command_that_does_not_take_it(
+    *,
+    arguments: list[str],
+    capsys: pytest.CaptureFixture[str],
+    message: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", *arguments])
+    with pytest.raises(SystemExit):
+        main.parsed()
+    assert message in capsys.readouterr().err
+
+
 def test_a_newer_release_is_named_with_how_to_upgrade(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -211,6 +255,22 @@ def test_a_refused_user_stops_before_the_update_check(
     )
     with pytest.raises(SystemExit):
         main.cli()
+
+
+@pytest.mark.parametrize(
+    ("arguments", "fastboot"), [([], True), (["--end-in-fireos"], False)]
+)
+def test_a_restore_ends_in_fastboot_unless_asked_for_fire_os(
+    *, arguments: list[str], fastboot: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran(device=BISCUIT, monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="fastboot", target=main.SESSION, value=not fastboot)
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "stock", "8344", *arguments]
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert main.SESSION.fastboot is fastboot
 
 
 def test_a_run_checks_for_an_update_once(*, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -309,32 +369,6 @@ def test_an_unproven_target_goes_on_only_when_asked(
     assert main.ARGUMENTS.build == "6436"
 
 
-@pytest.mark.parametrize(
-    argnames=("arguments", "message"),
-    argvalues=[
-        (["unlock", "fireos6", "--fastboot"], "unrecognized arguments: --fastboot"),
-        (["--fastboot", "report"], "report takes no --fastboot"),
-        (["--no-wait", "unlock", "fireos6"], "unlock takes no --no-wait"),
-        (
-            ["--run-on-unproven-path", "report"],
-            "report takes no --run-on-unproven-path",
-        ),
-        (["stock", "5.5.0.3", "--fastboot"], "cannot leave the Echo in fastboot"),
-    ],
-)
-def test_fastboot_is_refused_where_it_cannot_be_honoured(
-    *,
-    arguments: list[str],
-    capsys: pytest.CaptureFixture[str],
-    message: str,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", *arguments])
-    with pytest.raises(SystemExit):
-        main.parsed()
-    assert message in capsys.readouterr().err
-
-
 def test_no_newer_release_says_nothing(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -388,11 +422,17 @@ def test_reset_is_refused_on_a_command_that_installs_no_fire_os_6(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        name="argv", target=sys, value=["firebreak", "stock", "--factory-reset"]
+        name="argv", target=sys, value=["firebreak", "--factory-reset", "stock"]
     )
     with pytest.raises(SystemExit):
         main.cli()
     assert "stock takes no --factory-reset" in capsys.readouterr().err
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "stock", "--factory-reset"]
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert "unrecognized arguments: --factory-reset" in capsys.readouterr().err
 
 
 def test_reset_is_refused_on_a_target_that_installs_no_fire_os_6(
@@ -432,13 +472,13 @@ def test_reset_reaches_a_fire_os_6_unlock(
 
 
 @pytest.mark.parametrize("build", [[], ["8338"]])
-def test_stock_takes_fastboot(
+def test_stock_takes_end_in_fireos(
     *, build: list[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        name="argv", target=sys, value=["firebreak", "stock", *build, "--fastboot"]
+        name="argv", target=sys, value=["firebreak", "stock", *build, "--end-in-fireos"]
     )
-    assert main.parsed().fastboot is True
+    assert main.parsed().end_in_fireos is True
 
 
 def test_stock_takes_no_wait(*, monkeypatch: pytest.MonkeyPatch) -> None:
