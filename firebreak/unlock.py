@@ -245,9 +245,7 @@ def stage_downgrade() -> bool:
         raise FatalError(
             message=f"the {title()} already runs amonet v1.1.0's bootloader. " + again()
         )
-    PROGRESS.begin(
-        estimate="5 s", label=f"erasing boot0 so the {title()} falls into its bootrom"
-    )
+    PROGRESS.begin(estimate="5 s", label="erasing boot0 to reach the bootrom")
     bootrom_step(
         amonet=amonet,
         erase=erase_by_fastboot,

@@ -163,6 +163,16 @@ def test_passed(*, capsys: pytest.CaptureFixture[str]) -> None:
     assert capsys.readouterr().out == "✅ ok\n"
 
 
+def test_passed_stands_apart_from_what_is_around_it(
+    *, capsys: pytest.CaptureFixture[str]
+) -> None:
+    ui.show(text="a step")
+    ui.passed(message="one")
+    ui.passed(message="two")
+    ui.show(text="after")
+    assert capsys.readouterr().out == "a step\n\n✅ one\n✅ two\n\nafter\n"
+
+
 def test_progress_aligns_two_digit_counts(
     *, capsys: pytest.CaptureFixture[str]
 ) -> None:

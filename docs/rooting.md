@@ -405,7 +405,16 @@ ring read white.
   measures the oem command on amonet v1.1.0's LK, `f379dba-20170906_000423`.
   The oem command goes first because a MediaTek LK can carry `reboot-recovery`
   out by writing `misc`'s boot control block, where the slot's priority and
-  tries live, and nothing here measures whether this one does.
+  tries live, and nothing here measures whether this one does. A `stock` run
+  that followed one skipped its `misc` write, which a write skips only when the
+  partition already matches the image, so that Dot's `misc` still held what
+  stock holds. That is as far as this is measured.
+- `fastboot reboot recovery`, spelled with a space, is measured on a radar
+  unlocked with amonet-radar v1.0.0, on `63cb91b-20221007_073612`: it answered
+  `OKAY` in 0.076 s and adb saw the recovery 24 seconds later. Biscuit's LK of
+  the same build, `63cb91b-20221007_072309`, answered the hyphenated spelling
+  in 0.463 s. So each spelling is measured on one of the two, and neither on
+  both.
 - A refusal the next command recovers from is dropped; `lk_build_desc`, which
   every report names, says which commands a bootloader has. Both failing prints
   what each said and asks for the + button. Ignoring those statuses cost that

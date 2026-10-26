@@ -313,6 +313,7 @@ def test_an_unproven_target_goes_on_only_when_asked(
     argvalues=[
         (["unlock", "fireos6", "--fastboot"], "unrecognized arguments: --fastboot"),
         (["--fastboot", "report"], "report takes no --fastboot"),
+        (["--no-wait", "unlock", "fireos6"], "unlock takes no --no-wait"),
         (
             ["--run-on-unproven-path", "report"],
             "report takes no --run-on-unproven-path",
@@ -390,6 +391,15 @@ def test_stock_takes_fastboot(
         name="argv", target=sys, value=["firebreak", "stock", *build, "--fastboot"]
     )
     assert main.parsed().fastboot is True
+
+
+def test_stock_takes_no_wait(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "stock", "--no-wait"]
+    )
+    assert main.parsed().no_wait is True
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", "stock"])
+    assert main.parsed().no_wait is False
 
 
 @pytest.mark.parametrize(

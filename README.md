@@ -138,6 +138,12 @@ held, because a device already in fastboot is one firebreak can find by itself.
 Only the `stock` target takes it, and not with `5.5.0.3`, which ends in the
 Dot's bootrom over a serial port.
 
+## `--no-wait`
+
+`stock [BUILD] --no-wait` starts the writes at once. Without it the run counts
+down 10 seconds first, which is the last point Ctrl-C leaves the device as it
+is. Only the `stock` target takes it.
+
 ## `--short`
 
 Use `--short` when the Dot shows no light and gives no fastboot. The run reaches

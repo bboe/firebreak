@@ -44,6 +44,7 @@ class FatalError(Exception):
 
 class Kind(enum.Enum):
     ERROR = "error"
+    GOOD = "good"
     INFO = "info"
     WARN = "warn"
 
@@ -130,6 +131,7 @@ class Session:
     dd: str = "dd"
     fastboot: bool = False
     named: str = ""
+    no_wait: bool = False
     probing: bool = False
     serial_ready: bool | None = None
     short: bool = False
@@ -216,7 +218,8 @@ def paint(*, code: ANSIColor, text: str) -> str:
 
 
 def passed(*, message: str) -> None:
-    show(text=f"{mark()} {message}")
+    alone = threading.current_thread() is threading.main_thread()
+    show(kind=Kind.GOOD if alone else Kind.INFO, text=f"{mark()} {message}")
 
 
 def program() -> list[str]:

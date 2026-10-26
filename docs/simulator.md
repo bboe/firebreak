@@ -341,10 +341,11 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   `FAILED (remote: 'unknown command')` and `fastboot: error: Command failed`,
   which is what this prints.
 - `reboot-recovery` and `reboot bootloader` reboot on any LK here, and a
-  `reboot-` spelling means the spaced one, as fastboot takes either.
-  `reboot-recovery` is measured on a Dot unlocked with amonet v2, on
-  `63cb91b-20221007_072309`, where it answered
-  `Rebooting into recovery OKAY`. No other LK is measured with it.
+  `reboot-` spelling means the spaced one, as fastboot takes either. Each
+  spelling is measured on one Echo: the hyphenated one on a Dot unlocked with
+  amonet v2, on `63cb91b-20221007_072309`, where it answered
+  `Rebooting into recovery OKAY`, and the spaced one on a radar, on
+  `63cb91b-20221007_073612`, where it answered `OKAY` in 0.076 s.
 
 ### The bootrom
 

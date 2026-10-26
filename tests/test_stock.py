@@ -394,6 +394,19 @@ def test_the_stock_stage_checks_the_device_of_the_target(
     assert twrp
 
 
+def test_the_stock_stage_counts_down_before_it_writes(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: pathlib.Path,
+    twrp: list[dict[str, object]],
+) -> None:
+    del tmp_path, twrp
+    stock.stage_restore()
+    out = capsys.readouterr().out
+    assert "Starting in 10 s. Ctrl-C cancels." in out
+    assert "Starting now." in out
+
+
 def test_the_stock_stage_gives_up_on_a_twrp_that_never_starts(
     *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch, twrp: list[dict[str, object]]
 ) -> None:
@@ -480,6 +493,20 @@ def test_the_stock_stage_waits_for_twrp_to_finish_starting(
     stock.stage_restore()
     assert len(adb.commands(holding="ro.twrp.version")) == 3
     assert twrp
+
+
+def test_the_stock_stage_with_no_wait_skips_the_countdown(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: pathlib.Path,
+    twrp: list[dict[str, object]],
+) -> None:
+    del tmp_path, twrp
+    stock.SESSION.no_wait = True
+    stock.stage_restore()
+    out = capsys.readouterr().out
+    assert "Starting in" not in out
+    assert "Starting now." in out
 
 
 @pytest.mark.parametrize(

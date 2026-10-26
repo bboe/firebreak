@@ -481,8 +481,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 )
             elif current == State.NONE and not done and not PROGRESS.open and guided:
                 say(
-                    text=f"\n\nWaiting for the {title()} in fastboot mode, with a"
-                    " green ring."
+                    text=f"\n\nWaiting for the {title()} in fastboot mode: a green"
+                    " ring on a stock Echo, every color turning on amonet's."
                 )
             elif current == State.NONE and not done and not PROGRESS.open:
                 guided = True

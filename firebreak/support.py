@@ -44,6 +44,7 @@ from firebreak.ui import (
     SESSION,
     SUPPORT,
     WAIT,
+    filled,
     invocation,
     program,
     say,
@@ -152,9 +153,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                         " asks."
                     )
                     return False
-                PROGRESS.begin(
-                    estimate="40 s", label=f"restarting the {title()} in its recovery"
-                )
+                PROGRESS.begin(estimate="40 s", label="restarting into recovery")
                 restarting = run(arguments=["adb", "reboot", "recovery"], timeout=60)
                 if restarting.returncode != 0:
                     line(
@@ -165,23 +164,23 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
             else:
                 if not asked:
                     asked = True
-                    say(
-                        text=f"The rest of this report comes from the {title()}'s"
-                        f" recovery. Start the {title()} in fastboot mode and this"
-                        " goes on by itself.\n\n"
-                        + BISCUIT.fastboot_mode
-                        + f"\n\nAn {title()} already unlocked with amonet v2 has"
-                        " no fastboot: hold the + button instead while you plug it"
-                        " back in, which starts its TWRP. One that shows nothing on"
-                        " USB is in its bootrom, and only a root run brings it back."
-                        "\n\nCtrl-C stops this."
+                    show(
+                        text="\n"
+                        + filled(
+                            text=f"The rest of this report comes from the {title()}'s"
+                            f" recovery. Start the {title()} in fastboot mode and this"
+                            " goes on by itself.\n\n"
+                            + BISCUIT.fastboot_mode
+                            + f"\n\nAn {title()} already unlocked with amonet v2 has"
+                            " no fastboot: hold the + button instead while you plug it"
+                            " back in, which starts its TWRP. One that shows nothing on"
+                            " USB is in its bootrom, and only a root run brings it"
+                            " back.\n\nCtrl-C stops this."
+                        )
                     )
                 if waiting != "fastboot":
                     waiting = "fastboot"
-                    status(
-                        text=f"Waiting for the {title()} in fastboot mode, with a"
-                        " green ring."
-                    )
+                    status(text=f"Waiting for the {title()} in fastboot mode.")
                 time.sleep(2)
                 continue
         try:
@@ -245,7 +244,7 @@ def report() -> None:
 
 
 def restart_in_recovery(*, line: Callable[[str, object], None]) -> bool:
-    PROGRESS.begin(estimate="40 s", label=f"restarting the {title()} in its recovery")
+    PROGRESS.begin(estimate="40 s", label="restarting into recovery")
     refused = restart_refusals()
     if not refused:
         return True

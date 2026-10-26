@@ -216,7 +216,7 @@ def bootrom_step(
         ask_for_short()
     else:
         poke_live_payload()
-        PROGRESS.begin(estimate="40 s", label=f"waiting for the {title()} to restart")
+        PROGRESS.begin(estimate="40 s", label="waiting for the restart")
     client = bootrom_client(
         deadline=time.monotonic() + (60 if erase else 600), erase=erase
     )

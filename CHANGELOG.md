@@ -6,6 +6,10 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `stock --no-wait` starts the writes at once, without the 10 seconds that
+  Ctrl-C cancels in. A run that is one of many does not need them. Only
+  `stock` has that wait, so every other command refuses the flag, as they
+  refuse the other flags they have no use for.
 - `unlock fireos6` roots an Echo (2nd Generation) with amonet-radar v1.0.0, on
   Fire OS 6 6436 with `boot-root.zip`'s root adb. It is that device's default
   target, so a run that names only the device unlocks it, and a run that names
@@ -28,6 +32,17 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
+- The reminder that a run is waiting for fastboot says a green ring on a stock
+  Echo and every color turning on amonet's, where it said only green. Both
+  reach that reminder. A `report` waiting for the same thing says it in one
+  line it repaints, which has no room for either ring, so that line names
+  neither.
+- No step label is wider than the room the progress line gives it, so the tick
+  and the times after it no longer slide right on some steps. Naming the device
+  in messages had made three of them too wide.
+- What a run reports as done stands apart from the step it followed: the lines
+  that say an image matches the manifest are their own block now, where they
+  ran on from the step above them.
 - A message names the device it is about, by the name help already gives it:
   a run on an Echo (2nd Generation) says so where every run said Dot. Help,
   and the notices that print before a run knows which device is plugged in,

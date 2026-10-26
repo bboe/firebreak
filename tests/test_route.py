@@ -519,8 +519,8 @@ def test_a_run_says_a_port_cannot_power_twrp_only_while_twrp_is_what_is_next(
         (
             [route.State.STOCK_BOOTED, route.State.NONE],
             (
-                "Waiting for the Echo Dot (2nd Generation) in fastboot mode, with"
-                " a green ring."
+                "Waiting for the Echo Dot (2nd Generation) in fastboot mode: a"
+                " green ring on a stock Echo, every color turning on amonet's."
             ),
         ),
     ],

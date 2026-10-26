@@ -405,7 +405,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
     )
     warn(text="Root is gone afterwards; firebreak puts it back.")
     try:
-        for left in range(10, 0, -1):
+        for left in range(0 if SESSION.no_wait else 10, 0, -1):
             show(
                 end="",
                 flush=True,

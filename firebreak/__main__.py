@@ -107,6 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--device",
         "--fastboot",
         "--no-update-check",
+        "--no-wait",
         "--run-on-unproven-path",
         "--short",
         "--verbose",
@@ -166,7 +167,13 @@ other commands:
             (
                 quiet
                 if name
-                in {"--device", "--fastboot", "--run-on-unproven-path", "--short"}
+                in {
+                    "--device",
+                    "--fastboot",
+                    "--no-wait",
+                    "--run-on-unproven-path",
+                    "--short",
+                }
                 else parents
             )[name]
             for name in sorted(["--credits", *every])
@@ -266,6 +273,7 @@ def cli() -> None:
     check_adb()
     make_cache()
     SESSION.fastboot = options.fastboot
+    SESSION.no_wait = options.no_wait
     SESSION.short = options.short
     command = {REPORT: report, WRITE_TEST: write_test}.get(options.command)
     if command:
@@ -334,6 +342,10 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
             ),
         ),
         ("--no-update-check", "do not ask PyPI whether a newer firebreak exists"),
+        (
+            "--no-wait",
+            ("start the writes at once, without the 10 seconds that Ctrl-C cancels in"),
+        ),
         (
             "--run-on-unproven-path",
             (
@@ -408,6 +420,7 @@ def parsed() -> argparse.Namespace:
         ("device", None),
         ("fastboot", False),
         ("no_update_check", False),
+        ("no_wait", False),
         ("run_on_unproven_path", False),
         ("short", False),
         ("target", None),
@@ -433,12 +446,12 @@ def parsed() -> argparse.Namespace:
         sys.exit(1)
     takes = {
         REPORT: set(),
-        STOCK: {"device", "fastboot", "run_on_unproven_path", "short"},
+        STOCK: {"device", "fastboot", "no_wait", "run_on_unproven_path", "short"},
         SURVEY: set(),
         WRITE_TEST: {"short"},
     }.get(options.command, {"device", "run_on_unproven_path", "short"})
     for option in sorted(
-        {"device", "fastboot", "run_on_unproven_path", "short"} - takes
+        {"device", "fastboot", "no_wait", "run_on_unproven_path", "short"} - takes
     ):
         if getattr(options, option):
             dashed = option.replace("_", "-")
