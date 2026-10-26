@@ -4,6 +4,10 @@ firebreak.cache a Downloads folder in the state folder, not the user's.
 
 Run each process's clock FIREBREAK_SIM_SPEED times faster, except while a call
 to the simulated Dot or its eMMC runs.
+
+Listing the ports also settles a reboot that is due, because firebreak polls
+only the ports while it waits for the bootrom, and nothing else would run the
+simulated Dot's clock on.
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ import os
 import pathlib
 import select
 import selectors
+import subprocess
 import sys
 import time
 from typing import TYPE_CHECKING
@@ -41,6 +46,7 @@ SELECTORS = (
     "PollSelector",
     "SelectSelector",
 )
+SETTLE_TIMEOUT = 60
 SPEED = float(os.environ.get("FIREBREAK_SIM_SPEED") or 1)
 WORK = pathlib.Path(
     os.environ.get("FIREBREAK_SIM") or pathlib.Path.home() / ".cache" / "firebreak-sim"
@@ -176,9 +182,8 @@ def comports(*_: object) -> list:
         ListPortInfo,
     )
 
-    try:
-        state = json.loads(STATE.read_text())
-    except (OSError, ValueError):
+    state = settled_state()
+    if state is None:
         return []
     port = state.get("port")
     if state.get("mode") != "bootrom" or not port:
@@ -251,6 +256,37 @@ def running(*, pid: int) -> bool:
     except PermissionError:
         return True
     return True
+
+
+def settled_state() -> dict | None:
+    try:
+        state = json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        return None
+    booting = state.get("booting")
+    simulator = state.get("simulator")
+    if not booting or not simulator or booting["at"] > time.time():
+        return state
+    try:
+        settling = subprocess.run(
+            [sys.executable, str(pathlib.Path(simulator) / "dot.py"), "status"],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=SETTLE_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print(f"settling the simulated Dot failed: {error}", file=sys.stderr)
+        return state
+    if settling.returncode:
+        print(
+            f"settling the simulated Dot failed: {settling.stderr.strip()}",
+            file=sys.stderr,
+        )
+    try:
+        return json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        return state
 
 
 def usb_devices() -> list:

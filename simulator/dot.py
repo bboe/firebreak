@@ -287,6 +287,7 @@ def create(*, cache: pathlib.Path, device: str, runner: int, start: str) -> None
         "outcome": {},
         "runner": runner,
         "serial": SERIAL,
+        "simulator": str(HERE),
         "vars": {},
     }
     save(state=state)
@@ -858,7 +859,8 @@ def make_venv() -> None:
     python = venv / "bin" / "python"
     if not python.exists():
         subprocess.run(
-            [sys.executable, "-m", "venv", "--without-pip", str(venv)], check=True
+            [sys.executable, "-m", "venv", "--clear", "--without-pip", str(venv)],
+            check=True,
         )
     packages = pathlib.Path(
         subprocess.run(

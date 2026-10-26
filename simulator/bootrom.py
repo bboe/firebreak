@@ -19,6 +19,11 @@ import zipfile
 
 import dot
 
+try:
+    from firebreak_sim_ports import REAL_MONOTONIC, REAL_SLEEP
+except ImportError:
+    REAL_MONOTONIC, REAL_SLEEP = time.monotonic_ns, time.sleep
+
 ACKNOWLEDGEMENT = b"\xd0\xd0\xd0\xd0"
 AES_LENGTH = 1
 AES_SLOT_POINTERS = [18, 26, 26]
@@ -48,6 +53,7 @@ JUMP_REGISTER = 0x1028A8
 MAGIC = 0xF00DD00D
 MAXIMUM_BLOCKS = 64
 MMIO_START = 0x10000000
+NANOSECONDS = 1_000_000_000
 PAYLOAD_ADDRESS = 0x201000
 PAYLOAD_VERSIONS = ("v1.1.0", "v2.0.0")
 RANGE_CHECK = 0x102868
@@ -479,15 +485,21 @@ class Run:
 
 
 def claim(*, port: Port) -> dict | None:
-    deadline = time.monotonic() + START_WAIT
-    while time.monotonic() < deadline:
+    deadline = REAL_MONOTONIC() + START_WAIT * NANOSECONDS
+    mode = "gone"
+    while REAL_MONOTONIC() < deadline:
         with dot.locked():
             state = dot.load() if dot.STATE.exists() else {}
-            if state.get("mode") == "bootrom":
+            mode = state.get("mode", "gone")
+            if mode == "bootrom":
                 state.update(bootrom_pid=os.getpid(), port=port.name)
                 dot.save(state=state)
                 return state
-        time.sleep(0.1)
+        REAL_SLEEP(0.1)
+    print(
+        f"no bootrom mode to claim within {START_WAIT} seconds; the Dot is {mode}",
+        file=sys.stderr,
+    )
     return None
 
 
