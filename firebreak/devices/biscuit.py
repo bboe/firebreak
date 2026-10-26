@@ -210,6 +210,15 @@ UNLOCK_FROM_BOOTROM = dataclasses.replace(
     ),
     version="1.1.0",
 )
+V2_0_0_SOURCE = Download(
+    browser=True,
+    directory="v2.0.0",
+    mirror=True,
+    name="amonet-biscuit-v2.0.0.zip",
+    sha256="98297293701082bc7272efe077f941c56fc7b6e1f27ef6f2e93b6e4c6fc7b62d",
+    size=55989416,
+    url="https://xdaforums.com/attachments/amonet-biscuit-v2-0-0-zip.6383906/",
+)
 V2_0_1_SOURCE = Download(
     browser=True,
     directory="v2.0.1-2",
@@ -248,6 +257,7 @@ UNLOCK_TO_FIREOS6 = Unlock(
         "63cb91b-20221007_072309": "bin/fastbrick-20221007.img",
     },
     layout=STOCK_LAYOUT,
+    payloads={"41fb3ce-20221007_151724": V2_0_0_SOURCE},
     plan=(
         Repartition(),
         ZeroRpmb(expect=b"AMZN"),

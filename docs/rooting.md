@@ -820,13 +820,15 @@ ring read white.
   `lk_build_desc` to its image, and `fastbrick.img` takes any other. On
   biscuit the map is `fastbrick-20221007.img` for `63cb91b-20221007_072309`
   and `41fb3ce-20221007_151724`, and `fastbrick-20260617.img` for
-  `2c3569d-20260617_045829`. The 20221007 payload takes both of its
-  bootloaders, where amonet's own map lists only the first. The second ships
-  in 4310, 4313 and 4315, which the default image does not unlock. On radar
+  `2c3569d-20260617_045829`. amonet's own map lists only the first of the
+  20221007 pair; the second ships in 4310, 4313 and 4315, takes that image
+  from the release below, and the default image does not unlock it. On radar
   the map is amonet-radar's own: `fastbrick-20220524.img` for
   `59779ca-20220524_183401`, Fire OS 5.5.5.4's LK, and the default for both
-  Fire OS 6 LKs. The stage unpacks that unlock's archive, so an Echo takes
-  amonet-radar v1.0.0's payloads rather than a biscuit zip's.
+  Fire OS 6 LKs. The stage unpacks the archive the map names for the
+  bootloader in front of it, which is the unlock's own unless `payloads` say
+  otherwise, so an Echo takes amonet-radar v1.0.0's payloads rather than a
+  biscuit zip's.
 - A `lk_build_desc` that is not one of the LKs the device's module lists, and
   is dated no earlier than the newest it does list, stops the stage before the
   flash. The fallback is a payload built for an older bootloader, which is
@@ -848,9 +850,30 @@ ring read white.
 - `fastbrick-20260617.img` unlocked a Dot on `2c3569d-20260617_045829`,
   2026-10-25, on the first flash of the run: a `stock 8344` left that
   bootloader, and the run that followed rooted the Dot. So the mapping that
-  payload's tail predicted holds on a Dot, and both of biscuit's payloads are
-  measured. `41fb3ce-20221007_151724` is the mapping left with only its tail
-  behind it.
+  payload's tail predicted holds on a Dot.
+- `41fb3ce-20221007_151724` takes its payload from amonet v2.0.0, where
+  every other bootloader takes the unlock's own v2.0.1. v2.0.1 rebuilt
+  `fastbrick-20221007.img` for the bootloader it is named after: 135,408 of
+  the 135,416 distinct 16-byte windows in its last 137,684 bytes are in
+  8149's `lk.img`, against 107,166 in 4315's, where v2.0.0's tail is close
+  to neither. Measured: v2.0.0's unlocked a 4315 Dot on 2026-10-05 and
+  again on 2026-10-25, one flash each; v2.0.1's left it to boot stock
+  twice, after a flash that ran past 8 seconds as a started exploit does.
+  The default image is no way out of that bootloader, which refused it 10
+  times and by hand answers `the command you input is restricted on locked
+  hw` after the send.
+- v2.0.1 rebuilt the default `fastbrick.img` too, 129,517 bytes of the same
+  114,294,816, and that one still unlocks: `beb022a-20211202_231918` on
+  2026-10-25, rooted by `unlock fireos5` in 8 min 6 s. Its tail carries no
+  bootloader, where a specialised payload's is a copy of one: 383 of its
+  31,400 windows are in 5.5.5.4's `lk.img`, in either release. Fire OS 5's
+  other three LKs take it too, last measured on v2.0.0's copy.
+- A payload archive is unpacked once the stage knows the bootloader, so only
+  a Dot on 4310, 4313 or 4315 fetches v2.0.0's 56 MB, and it does so while
+  the Dot waits in fastboot. It is on the XDA thread like v2.0.1's, so it
+  takes `browser=True`, the prefetch leaves it alone and the mirror answers
+  first. That download is unmeasured: the run that took it had the archive
+  cached.
 - An LK older than Fire OS 5.5.0.3 reports no `lk_build_desc` at all, and no
   `pl_build_desc` either. The stage reads both and takes `bin/fastbrick.img`
   where neither answers, as amonet's own script does on an empty field,
@@ -1026,6 +1049,11 @@ ring read white.
 | stock-fastboot | `unlock fireos6` | 5 min 18 s, on 2026-10-24, from stock 8149 whose LK takes `fastbrick-20221007.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 115 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
 | amonet-v2-booted | stock 8344 | 4 min 4 s, on 2026-10-25, on amonet v2.0.1: recovery 19 s, both `/system` writes 80 s, the rest under 6 s each, stock's first boot 34 s |
 | stock-fastboot | `unlock fireos6` | 5 min 14 s, on 2026-10-25, from stock 8344 whose LK takes `fastbrick-20260617.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
+| stock-fastboot | `unlock fireos6` | 4 min 54 s, on 2026-10-25, from stock 4315 whose LK takes amonet v2.0.0's `fastbrick-20221007.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 115 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
+| amonet-v2-booted | stock 4315 `--fastboot` | 3 min 33 s, on 2026-10-25: `[1/17]` to `[17/17]`, the last step `rebooting into fastboot` in 10 s, where the images were built from the OTA rather than read from the cache |
+| amonet-v2-booted | stock 4405 `--fastboot` | 3 min 38 s, on 2026-10-25, from cached images: the same 17 steps, both `/system` writes 80 s, the rest under 6 s each |
+| amonet-v2-booted | stock 5.5.5.4 `--fastboot` | 3 min 35 s, on 2026-10-25, its images built from the OTA: the same 17 steps, both `/system` writes 80 s |
+| stock-fastboot | `unlock fireos5` | 8 min 6 s, on 2026-10-25, from stock 5.5.5.4 whose LK takes v2.0.1's default `fastbrick.img`: the fastbrick 13 s, v2 recovery 30 s, the table 19 s, amonet v1.1.0-bboe 5 s, TWRP 4 s, userdata 3 s, `/system` 81 s, boot and Magisk 4 s, Fire OS 5's first boot 320 s |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.

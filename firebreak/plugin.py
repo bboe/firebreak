@@ -104,6 +104,7 @@ class Unlock:
     fastbricks: dict[str, str] = dataclasses.field(default_factory=dict)
     files: dict[str, Download] = dataclasses.field(default_factory=dict)
     layout: Layout | None = None
+    payloads: dict[str, Download] = dataclasses.field(default_factory=dict)
 
     @property
     def name(self) -> str:

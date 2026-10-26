@@ -85,6 +85,11 @@ class Scan:
         if function is plan.image_of:
             self.found |= set(bound["unlock"].files.values())
             return
+        if function is unlock.fastbrick_payload:
+            unlocking = bound["unlock"]
+            self.found.add(unlocking.source)
+            self.maybe |= set(unlocking.payloads.values())
+            return
         if function is unlock.amonet_lk:
             first, *rest = AMONET_LKS[route.ARGUMENTS.target.device]
             self.found.add(first)

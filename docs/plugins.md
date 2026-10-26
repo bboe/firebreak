@@ -57,6 +57,15 @@ map is keyed by it, so the map's dates can be read against the image names.
 A name for one build that ships an LK would be a second fact to keep right,
 where one LK ships in as many as 34 builds.
 
+An unlock's payload map says which image unlocks each bootloader, and its
+`payloads` say which release that image comes from where it is not the
+unlock's own. A release can rebuild a payload for the one bootloader its name
+carries and lose another, which is what amonet v2.0.1 did to
+`41fb3ce-20221007_151724`, so a bootloader can need the archive before the one
+the unlock writes. Such an archive is fetched when that bootloader is the one
+in front of the run, not with the rest of a target's downloads: no other Dot
+needs it.
+
 A device gives the words that ask for fastboot mode, because the gesture is the
 device's own: biscuit's names an action button and a light ring, which radar
 has too and inherits. crown gives none, so nothing claims a button it may not

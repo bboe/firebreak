@@ -332,6 +332,17 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
     assert got == [downloaded]
 
 
+def test_a_route_leaves_a_payload_archive_out_of_its_downloads(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="target", target=route.ARGUMENTS, value=TARGETS[BISCUIT]["fireos6"]
+    )
+    needs = route.needed(start=route.State.STOCK_FASTBOOT, table=route.stages())
+    assert biscuit.V2_0_1_SOURCE in needs
+    assert biscuit.V2_0_0_SOURCE not in needs
+
+
 @pytest.mark.parametrize(
     ("name", "start", "needs"),
     [

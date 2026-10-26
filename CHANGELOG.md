@@ -74,6 +74,12 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- `unlock` roots a Dot on Fire OS 6 4310, 4313 or 4315 again. Those builds
+  carry the bootloader `41fb3ce-20221007_151724`, and amonet v2.0.1 rebuilt
+  the payload that unlocks it for the one bootloader the file is named after,
+  so the unlock had flashed a payload that no longer took and left the Dot to
+  boot stock. That bootloader now takes its payload from amonet v2.0.0, which
+  is downloaded only for such a Dot.
 - A read of a Dot's bootloader version that times out stops the unlock. It
   had come back as the same empty string an LK older than Fire OS 5.5.0.3
   answers with, and an empty pair of versions takes the payload built for

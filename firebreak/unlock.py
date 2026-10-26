@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     import pathlib
 
     from firebreak.cache import Download
+    from firebreak.plugin import Unlock
 
 
 def amonet_chain() -> None:
@@ -123,6 +124,15 @@ def erase_by_fastboot() -> str:
     if rebooted.returncode != 0:
         return f"fastboot reboot failed:\n{rebooted.stdout}"
     return ""
+
+
+def fastbrick_payload(
+    *, little_kernel: str, unlock: Unlock
+) -> tuple[pathlib.Path, str, str]:
+    image = unlock.fastbricks.get(little_kernel, "bin/fastbrick.img")
+    held = unlock.payloads.get(little_kernel)
+    archive = held or unlock.source
+    return unpack(download=archive), image, archive.name.removesuffix(".zip")
 
 
 def newer_than_known(*, little_kernel: str) -> None:
@@ -257,7 +267,6 @@ def stage_downgrade() -> bool:
 
 def stage_fastbrick() -> None:
     fastbrick = FASTBRICKS[ARGUMENTS.target.device]
-    amonet = unpack(download=fastbrick.source)
     check_product()
     little_kernel = getvar(name="lk_build_desc", strict=True)
     if not little_kernel and getvar(name="pl_build_desc", strict=True):
@@ -266,8 +275,10 @@ def stage_fastbrick() -> None:
             f" bootloader's; the {title()} was not modified. " + again()
         )
     newer_than_known(little_kernel=little_kernel)
-    image = fastbrick.fastbricks.get(little_kernel, "bin/fastbrick.img")
-    PROGRESS.begin(estimate="10 s", label=f"unlocking with {fastbrick.name}")
+    amonet, image, release = fastbrick_payload(
+        little_kernel=little_kernel, unlock=fastbrick
+    )
+    PROGRESS.begin(estimate="10 s", label=f"unlocking with {release}")
     for attempt in range(10):
         if attempt:
             time.sleep(2)

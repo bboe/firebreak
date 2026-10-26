@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import unlock
-from firebreak.devices import CROWN, RADAR, TARGETS, biscuit, radar
+from firebreak.devices import BISCUIT, CROWN, RADAR, TARGETS, biscuit, radar
 from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
@@ -532,6 +532,41 @@ def test_the_fastbrick_refuses_a_fastboot_that_stopped_answering(
     with pytest.raises(FatalError, match=f"did not answer what {name} is"):
         unlock.stage_fastbrick()
     assert adb.commands(holding="brick") == []
+
+
+@pytest.mark.parametrize(
+    ("little_kernel", "release"),
+    [
+        ("63cb91b-20221007_072309", "amonet-biscuit-v2.0.1"),
+        ("2c3569d-20260617_045829", "amonet-biscuit-v2.0.1"),
+        ("41fb3ce-20221007_151724", "amonet-biscuit-v2.0.0"),
+    ],
+)
+def test_the_fastbrick_takes_the_payload_from_the_release_that_unlocks(
+    *,
+    little_kernel: str,
+    monkeypatch: pytest.MonkeyPatch,
+    release: str,
+    tmp_path: pathlib.Path,
+) -> None:
+    taken: list[str] = []
+
+    def unpacked(*, download: object) -> pathlib.Path:
+        taken.append(getattr(download, "name", ""))
+        return tmp_path
+
+    monkeypatch.setattr(name="unpack", target=unlock, value=unpacked)
+    unlocked = TARGETS[BISCUIT]["fireos6"].unlock
+    assert unlocked is not None
+    held, image, named = unlock.fastbrick_payload(
+        little_kernel=little_kernel, unlock=unlocked
+    )
+    assert (held, image, named) == (
+        tmp_path,
+        unlocked.fastbricks[little_kernel],
+        release,
+    )
+    assert taken == [release + ".zip"]
 
 
 def test_the_guard_needs_both_slots(
