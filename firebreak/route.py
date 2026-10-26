@@ -48,6 +48,7 @@ from firebreak.ui import (
     FatalError,
     again,
     clock,
+    filled,
     passed,
     say,
     show,
@@ -480,9 +481,12 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     " Rebooting it into TWRP."
                 )
             elif current == State.NONE and not done and not PROGRESS.open and guided:
-                say(
-                    text=f"\n\nWaiting for the {title()} in fastboot mode: a green"
-                    " ring on a stock Echo, every color turning on amonet's."
+                show(
+                    text="\n"
+                    + filled(
+                        text=f"Waiting for the {title()} in fastboot mode: a green"
+                        " ring on a stock Echo, every color turning on amonet's."
+                    )
                 )
             elif current == State.NONE and not done and not PROGRESS.open:
                 guided = True

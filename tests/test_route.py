@@ -431,6 +431,19 @@ def test_a_run_fetches_its_route_s_downloads_before_the_first_stage(
     assert "state: stock-fastboot" in out
 
 
+def test_a_run_leaves_one_blank_line_before_the_fastboot_wait(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    monkeypatch.setattr(name="stages", target=route, value=dict)
+    run.states = [route.State.STOCK_BOOTED, route.State.NONE]
+    with pytest.raises(RanOutError):
+        route.root()
+    out = capsys.readouterr().out
+    before, waiting = out.split(sep="Waiting for the Echo Dot (2nd Generation) in")
+    assert waiting
+    assert before.endswith("which starts its TWRP.\n\n")
+
+
 @pytest.mark.parametrize(
     ("missing", "warned"),
     [([True], 1), ([True, False], 0), ([False], 0)],
