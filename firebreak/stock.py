@@ -34,6 +34,7 @@ from firebreak.survey import build_properties
 from firebreak.twrp import (
     DISK,
     clear_boot0,
+    detect_dd,
     read_sectors,
     unmount,
     write,
@@ -315,13 +316,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
                 f" v2's 3.7.0, or the {biscuit.BBOE_TWRP_VERSION} that firebreak"
                 " installs"
             )
-    if (
-        adb_shell(command="toybox dd --help >/dev/null 2>&1 && echo yes").split(
-            sep="\n"
-        )[-1]
-        == "yes"
-    ):
-        SESSION.dd = "toybox dd"
+    detect_dd(asked=adb_shell)
     tools = last_line(said=adb_shell(command=Shell.TOOLS.value))
     if not tools.startswith("tools:"):
         raise FatalError(

@@ -31,6 +31,7 @@ from firebreak.ui import (
 
 if TYPE_CHECKING:
     import pathlib
+    from collections.abc import Callable
 
 CLEAR_BOOT0 = (
     "d=dd; toybox dd --help >/dev/null 2>&1 && d='toybox dd'; "
@@ -70,6 +71,8 @@ SYSTEM_STREAM = (
 SYSTEM_TIMEOUT = 1800
 TABLE_FIELDS = 6
 TABLE_OK = "table-ok"
+TOYBOX_DD = "toybox dd"
+TOYBOX_DD_PROBE = f"{TOYBOX_DD} --help >/dev/null 2>&1 && echo yes"
 UNMOUNT = (
     'for m in $(grep "^/dev/block" /proc/mounts | cut -d" " -f2); do umount "$m";'
     ' done; echo "left:$(grep "^/dev/block" /proc/mounts | cut -d" " -f2'
@@ -115,8 +118,13 @@ def clear_boot0() -> None:
     )
 
 
+def detect_dd(*, asked: Callable[..., str]) -> None:
+    if last_line(said=asked(command=TOYBOX_DD_PROBE)) == "yes":
+        SESSION.dd = TOYBOX_DD
+
+
 def no_truncate() -> str:
-    return " conv=notrunc" if SESSION.dd == "toybox dd" else ""
+    return " conv=notrunc" if SESSION.dd == TOYBOX_DD else ""
 
 
 def partition_table() -> str:

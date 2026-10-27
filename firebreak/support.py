@@ -16,7 +16,6 @@ from firebreak.host import (
     adb_shell,
     getvar,
     in_fastboot,
-    last_line,
     pyserial_wheel,
     run,
     usb_serial,
@@ -39,7 +38,7 @@ from firebreak.report import (
     system_record,
     whole,
 )
-from firebreak.twrp import DISK, TABLE_OK
+from firebreak.twrp import DISK, TABLE_OK, detect_dd
 from firebreak.ui import (
     PROGRESS,
     SESSION,
@@ -286,9 +285,7 @@ def write_test() -> None:
     if not into_recovery(line=line):
         show(text="\nThe test needs a recovery, so it stops here.")
         return
-    toybox = asked(command="toybox dd --help >/dev/null 2>&1 && echo yes")
-    if last_line(said=toybox) == "yes":
-        SESSION.dd = "toybox dd"
+    detect_dd(asked=asked)
     line(f"dd on the {title()}", SESSION.dd)
     listing = whole(
         marker=LISTING_OK, said=asked(command=f"ls -l {BY_NAME}/; echo {LISTING_OK}")
