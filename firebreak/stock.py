@@ -59,7 +59,8 @@ from firebreak.unlock import amonet_v2_payload
 if TYPE_CHECKING:
     import pathlib
 
-    from firebreak.android.gpt import Partition
+    from firebreak.android.gpt import Partition, Table
+    from firebreak.plugin import Device
 
 
 CHAIN_TEE = ("tee2", "tee1")
@@ -125,6 +126,46 @@ WRITES = (
 )
 
 
+def boot0_image(*, work: pathlib.Path) -> None:
+    node = adb_shell(command="[ -b /dev/block/mmcblk0boot0 ] && echo block")
+    if last_line(said=node) != "block":
+        raise FatalError(
+            message="/dev/block/mmcblk0boot0 is not a block device, so the"
+            " preloader would be written to a file and read back from it"
+        )
+    boot0 = adb_shell(command="cat /sys/block/mmcblk0boot0/size")
+    preloader = (work / "preloader.img").read_bytes()
+    if not boot0.isdigit() or len(preloader) > int(boot0) * 512:
+        raise FatalError(message=f"preloader.img does not fit boot0 ({boot0} sectors)")
+    (work / "boot0.img").write_bytes(data=preloader.ljust(int(boot0) * 512, b"\0"))
+
+
+def built_images(*, table: Table, work: pathlib.Path) -> dict[str, pathlib.Path]:
+    files = {}
+    for name, data in (
+        ("gpt-primary.bin", table.primary),
+        ("gpt-backup.bin", table.backup),
+    ):
+        files[name] = work / name
+        files[name].write_bytes(data=data)
+    boot = work / "boot.img"
+    boot_size = table.partitions["boot_a"].size
+    files["boot"] = work / "boot16.img"
+    files["boot"].write_bytes(data=boot.read_bytes().ljust(boot_size, b"\0"))
+    files["expdb"] = work / "expdb.zero"
+    files["expdb"].write_bytes(data=b"\0" * table.partitions["expdb"].size)
+    misc = bytearray(table.partitions["misc"].size)
+    misc[
+        BOOTLOADER_CONTROL_BLOCK_OFFSET : BOOTLOADER_CONTROL_BLOCK_OFFSET
+        + len(BOOTLOADER_CONTROL_BLOCK)
+    ] = BOOTLOADER_CONTROL_BLOCK
+    files["misc"] = work / "misc.img"
+    files["misc"].write_bytes(data=misc)
+    for image in ("system", "tee", "lk"):
+        files[image] = work / (image + ".img")
+    return files
+
+
 def chain_writes() -> tuple[Step, ...]:
     live = (
         "lk_b" if adb_shell(command="getprop ro.boot.slot_suffix") == "_b" else "lk_a"
@@ -165,6 +206,73 @@ def chain_writes() -> tuple[Step, ...]:
     )
 
 
+def check_images_fit(*, files: dict[str, pathlib.Path], table: Table) -> None:
+    for step in (*WRITES, *chain_writes()):
+        if files[step.image].stat().st_size > table.partitions[step.partition].size:
+            raise FatalError(
+                message=f"{files[step.image].name} does not fit {step.partition}"
+            )
+
+
+def check_twrp(*, device: Device) -> None:
+    wait_for_twrp_start(accept=known_twrp)
+    detect_dd(asked=adb_shell)
+    tools = last_line(said=adb_shell(command=Shell.TOOLS.value))
+    if not tools.startswith("tools:"):
+        raise FatalError(
+            message=f"the {title()} did not answer which tools it has: " + tools
+        )
+    if tools != "tools:":
+        raise FatalError(message="this TWRP has no" + tools[len("tools:") :])
+    named = whole(
+        marker=NAMED,
+        said=adb_shell(command=f"getprop ro.product.device; echo {NAMED}"),
+    )
+    if named is None:
+        raise FatalError(
+            message="TWRP's answer for which device this is came back cut, so"
+            " nothing was written"
+        )
+    if named != device.name:
+        raise FatalError(
+            message=f"this is not an {device.title}: TWRP reports the device {named!r}"
+        )
+
+
+def confirm(*, build: str) -> None:
+    passed(message=f"stock partition table built from this {title()}'s own table")
+    warn(
+        text=f"About to overwrite this {title()}'s bootloaders, system and data with"
+        f" stock {build}."
+    )
+    warn(text="Root is gone afterwards; firebreak puts it back.")
+    try:
+        for left in range(0 if SESSION.no_wait else 10, 0, -1):
+            show(
+                end="",
+                flush=True,
+                kind=Kind.WARN,
+                text="\r"
+                + paint(
+                    code=ANSIColor.YELLOW,
+                    text=f"Starting in {left:2d} s. Ctrl-C cancels.",
+                ),
+            )
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print()
+        raise FatalError(message="stopped; nothing was written", prefix="") from None
+    starting = "Starting now."
+    show(
+        kind=Kind.WARN,
+        text="\r"
+        + paint(
+            code=ANSIColor.YELLOW,
+            text=starting if SESSION.no_wait else starting.ljust(33),
+        ),
+    )
+
+
 def known_twrp(*, version: str) -> None:
     if not version.startswith(TWRP_VERSIONS):
         raise FatalError(
@@ -178,6 +286,17 @@ def made_for(*, update: pathlib.Path) -> str:
     with zipfile.ZipFile(file=update) as archive:
         named = build_properties(archive=archive).get("ro.product.device", "")
     return named.removesuffix("_puffin")
+
+
+def ota_images(*, build: str, device: Device, work: pathlib.Path) -> None:
+    update = updates.download(build=build, builds=BUILDS[device])
+    made = made_for(update=update)
+    if made != device.name:
+        raise FatalError(
+            message=f"OTA {build} is for {made!r}, not {device.name}, so nothing"
+            " was written"
+        )
+    extract(update=update, work=work)
 
 
 def reboot_into_fastboot() -> None:
@@ -298,130 +417,18 @@ def restore(  # ruff: ignore[complex-structure]
         run(arguments=["adb", "shell", "-n", "reboot"], timeout=60)
 
 
-def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
+def stage_restore() -> None:
     build = ARGUMENTS.build
     device = ARGUMENTS.target.device
     work = CACHE / f"stock-{device.name}-{build}"
     work.mkdir(exist_ok=True, parents=True)
-    update = updates.download(build=build, builds=BUILDS[device])
-    made = made_for(update=update)
-    if made != device.name:
-        raise FatalError(
-            message=f"OTA {build} is for {made!r}, not {device.name}, so nothing"
-            " was written"
-        )
-    extract(update=update, work=work)
-    wait_for_twrp_start(accept=known_twrp)
-    detect_dd(asked=adb_shell)
-    tools = last_line(said=adb_shell(command=Shell.TOOLS.value))
-    if not tools.startswith("tools:"):
-        raise FatalError(
-            message=f"the {title()} did not answer which tools it has: " + tools
-        )
-    if tools != "tools:":
-        raise FatalError(message="this TWRP has no" + tools[len("tools:") :])
-    named = whole(
-        marker=NAMED,
-        said=adb_shell(command=f"getprop ro.product.device; echo {NAMED}"),
-    )
-    if named is None:
-        raise FatalError(
-            message="TWRP's answer for which device this is came back cut, so"
-            " nothing was written"
-        )
-    if named != device.name:
-        raise FatalError(
-            message=f"this is not an {device.title}: TWRP reports the device {named!r}"
-        )
-
-    raw = read_sectors(count=TABLE_SECTORS, start=0)
-    if not gpt_intact(
-        entries=raw[2 * SECTOR_SIZE :], header=raw[SECTOR_SIZE : 2 * SECTOR_SIZE]
-    ):
-        size = adb_shell(command=f"blockdev --getsize64 {DISK}")
-        if not size.isdigit():
-            raise FatalError(message=f"could not read the {title()}'s disk size")
-        tail = read_sectors(count=33, start=int(size) // 512 - 33)
-        raw = raw[:512] + tail[-512:] + tail[:-512]
-        show(text="the primary partition table is damaged; using the backup")
-    saved = work / f"current-gpt-{os.environ['ANDROID_SERIAL']}.bin"
-    if not saved.exists():
-        saved.write_bytes(data=raw)
-    table = stock_gpt(raw=raw)
-    files = {}
-    for name, data in (
-        ("gpt-primary.bin", table.primary),
-        ("gpt-backup.bin", table.backup),
-    ):
-        files[name] = work / name
-        files[name].write_bytes(data=data)
-    boot = work / "boot.img"
-    boot_size = table.partitions["boot_a"].size
-    files["boot"] = work / "boot16.img"
-    files["boot"].write_bytes(data=boot.read_bytes().ljust(boot_size, b"\0"))
-    files["expdb"] = work / "expdb.zero"
-    files["expdb"].write_bytes(data=b"\0" * table.partitions["expdb"].size)
-    misc = bytearray(table.partitions["misc"].size)
-    misc[
-        BOOTLOADER_CONTROL_BLOCK_OFFSET : BOOTLOADER_CONTROL_BLOCK_OFFSET
-        + len(BOOTLOADER_CONTROL_BLOCK)
-    ] = BOOTLOADER_CONTROL_BLOCK
-    files["misc"] = work / "misc.img"
-    files["misc"].write_bytes(data=misc)
-    for image in ("system", "tee", "lk"):
-        files[image] = work / (image + ".img")
-    for step in (*WRITES, *chain_writes()):
-        if files[step.image].stat().st_size > table.partitions[step.partition].size:
-            raise FatalError(
-                message=f"{files[step.image].name} does not fit {step.partition}"
-            )
-    if (
-        adb_shell(command="[ -b /dev/block/mmcblk0boot0 ] && echo block").split(
-            sep="\n"
-        )[-1]
-        != "block"
-    ):
-        raise FatalError(
-            message="/dev/block/mmcblk0boot0 is not a block device, so the"
-            " preloader would be written to a file and read back from it"
-        )
-    boot0 = adb_shell(command="cat /sys/block/mmcblk0boot0/size")
-    preloader = (work / "preloader.img").read_bytes()
-    if not boot0.isdigit() or len(preloader) > int(boot0) * 512:
-        raise FatalError(message=f"preloader.img does not fit boot0 ({boot0} sectors)")
-    (work / "boot0.img").write_bytes(data=preloader.ljust(int(boot0) * 512, b"\0"))
-    passed(message=f"stock partition table built from this {title()}'s own table")
-    warn(
-        text=f"About to overwrite this {title()}'s bootloaders, system and data with"
-        f" stock {build}."
-    )
-    warn(text="Root is gone afterwards; firebreak puts it back.")
-    try:
-        for left in range(0 if SESSION.no_wait else 10, 0, -1):
-            show(
-                end="",
-                flush=True,
-                kind=Kind.WARN,
-                text="\r"
-                + paint(
-                    code=ANSIColor.YELLOW,
-                    text=f"Starting in {left:2d} s. Ctrl-C cancels.",
-                ),
-            )
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print()
-        raise FatalError(message="stopped; nothing was written", prefix="") from None
-    starting = "Starting now."
-    show(
-        kind=Kind.WARN,
-        text="\r"
-        + paint(
-            code=ANSIColor.YELLOW,
-            text=starting if SESSION.no_wait else starting.ljust(33),
-        ),
-    )
-
+    ota_images(build=build, device=device, work=work)
+    check_twrp(device=device)
+    table = stock_table(work=work)
+    files = built_images(table=table, work=work)
+    check_images_fit(files=files, table=table)
+    boot0_image(work=work)
+    confirm(build=build)
     try:
         restore(
             backup_sector=table.backup_sector,
@@ -443,6 +450,23 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
         raise FatalError(
             message="stopped part way. Do not reboot. " + again()
         ) from None
+
+
+def stock_table(*, work: pathlib.Path) -> Table:
+    raw = read_sectors(count=TABLE_SECTORS, start=0)
+    if not gpt_intact(
+        entries=raw[2 * SECTOR_SIZE :], header=raw[SECTOR_SIZE : 2 * SECTOR_SIZE]
+    ):
+        size = adb_shell(command=f"blockdev --getsize64 {DISK}")
+        if not size.isdigit():
+            raise FatalError(message=f"could not read the {title()}'s disk size")
+        tail = read_sectors(count=33, start=int(size) // 512 - 33)
+        raw = raw[:512] + tail[-512:] + tail[:-512]
+        show(text="the primary partition table is damaged; using the backup")
+    saved = work / f"current-gpt-{os.environ['ANDROID_SERIAL']}.bin"
+    if not saved.exists():
+        saved.write_bytes(data=raw)
+    return stock_gpt(raw=raw)
 
 
 def wait_for_fastboot() -> None:
