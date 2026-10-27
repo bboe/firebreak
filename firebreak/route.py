@@ -81,7 +81,6 @@ DRIVER_MISSES = 2
 FIREOS5_ROOTED = {
     State.ROOTED,
     State.AMONET_V1_1_0_BBOE_BOOTED,
-    State.AMONET_V1_1_0_BOOTED,
 }
 NO_FASTBOOT_DRIVER = (
     "Windows sees an Echo in fastboot mode, but fastboot does not, so its driver"
@@ -320,9 +319,6 @@ def reboot_stages() -> dict[State, Stage]:
         State.ROOTED: Stage(run=to_recovery, steps=1, then=State.AMONET_V1_1_0_TWRP),
         State.AMONET_V1_1_0_BBOE_BOOTED: Stage(
             run=to_twrp, steps=1, then=State.AMONET_V1_1_0_BBOE_TWRP
-        ),
-        State.AMONET_V1_1_0_BOOTED: Stage(
-            run=to_twrp, steps=1, then=State.AMONET_V1_1_0_TWRP
         ),
     }
 

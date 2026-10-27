@@ -402,7 +402,6 @@ def test_a_route_leaves_a_payload_archive_out_of_its_downloads(
                 route.start_prebuild,
             ],
         ),
-        ("fireos5", route.State.AMONET_V1_1_0_BOOTED, [route.TWRP]),
         ("fireos5", route.State.ROOTED, [route.TWRP]),
         ("fireos5", route.State.EMOS, [route.pyserial_wheel]),
         (
@@ -912,12 +911,6 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
         ),
         state.BOOTED: (to_recovery, 1, None, frozenset()),
         state.ROOTED: (to_recovery, 1, state.AMONET_V1_1_0_TWRP, frozenset()),
-        state.AMONET_V1_1_0_BOOTED: (
-            to_twrp,
-            1,
-            state.AMONET_V1_1_0_TWRP,
-            frozenset(),
-        ),
         state.AMONET_V1_1_0_BBOE_BOOTED: (
             to_twrp,
             1,

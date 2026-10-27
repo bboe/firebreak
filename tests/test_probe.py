@@ -12,8 +12,6 @@ from firebreak.states import State
 from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
-    import pathlib
-
     from conftest import FakeAdb
 
 FASTBOOT = "G000\tfastboot"
@@ -32,9 +30,7 @@ def dot(*, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch) -> FakeAdb:
 
 
 @pytest.fixture
-def recoveries(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
-    (tmp_path / "v1" / "bin").mkdir(parents=True)
-    (tmp_path / "v1" / "bin" / "twrp.img").write_bytes(TWRP_3_2_3)
+def recoveries(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         name="BBOE_RECOVERY",
         target=probe.biscuit,
@@ -44,7 +40,6 @@ def recoveries(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> No
             size=len(TWRP_BBOE),
         ),
     )
-    monkeypatch.setattr(name="unpack", target=probe, value=lambda **_: tmp_path / "v1")
 
 
 def booted(*, dot: FakeAdb, name: str, root: str = "uid=0(root)") -> None:
@@ -116,7 +111,7 @@ def test_a_fire_os_with_no_system_has_no_shell(*, dot: FakeAdb) -> None:
     ("held", "found"),
     [
         (TWRP_BBOE, State.AMONET_V1_1_0_BBOE_BOOTED),
-        (TWRP_3_2_3 + b"tail", State.AMONET_V1_1_0_BOOTED),
+        (TWRP_3_2_3 + b"tail", State.ROOTED),
         (b"other" * 2000, State.ROOTED),
     ],
 )

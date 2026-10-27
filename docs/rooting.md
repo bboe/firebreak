@@ -20,7 +20,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 | amonet-v1.1.0-fastboot | `unlock_status` is `true`, and `lk_build_desc` is `f379dba-20170906_000423` | amonet v1.1.0 TEE and TWRP 3.7.0_9-bboe2, then recovery |
 | amonet-v1.1.0-twrp | recovery, amonet v1.1.0's `lk_build_desc`, another `ro.twrp.version`, `mtp` in `sys.usb.config` | writes TWRP 3.7.0_9-bboe2 to `recovery`, reboots into it |
 | amonet-v1.1.0-bboe-twrp | recovery, amonet v1.1.0's `lk_build_desc`, `ro.twrp.version` 3.7.0_9-bboe2, `mtp` in `sys.usb.config` | Fire OS 5.5.5.4, boot and /system patches, Magisk 17.3 |
-| amonet-v1.1.0-bboe-booted, amonet-v1.1.0-booted, rooted | `sys.boot_completed` is 1 and `su -c id` answers uid 0; `recovery` hashes as TWRP 3.7.0_9-bboe2, as v1.1.0's TWRP 3.2.3, or as neither | the target's state: hides the updater and checks it; another: writes the target's TWRP to `recovery` |
+| amonet-v1.1.0-bboe-booted, rooted | `sys.boot_completed` is 1 and `su -c id` answers uid 0; `recovery` hashes as TWRP 3.7.0_9-bboe2, or as anything else | the target's state: hides the updater and checks it; another: writes the target's TWRP to `recovery` |
 
 - A probe can land part way through a boot. TWRP answers adb before it sets
   `ro.twrp.version`, and while USB drops for MTP, `adb shell` answers with
@@ -688,10 +688,11 @@ ring read white.
   only a fallback: it stops mattering when no download needs a browser at all.
 - The run names the device before it starts that thread, and again before the
   first stage. A device plugged in after the run started is then refused
-  before the route's downloads. The probe of a rooted Fire OS 5 Dot still
-  fetches amonet v1.1.0 first: it compares `recovery` with v1.1.0's TWRP to
-  name the state. For TWRP 3.7.0_9-bboe2 it compares against the pinned
-  size and SHA-256, so it downloads nothing.
+  before the route's downloads. The probe of a rooted Fire OS 5 Dot downloads
+  nothing: it compares `recovery` against TWRP 3.7.0_9-bboe2's pinned size and
+  SHA-256, and a recovery that is not that one needs no name of its own. It
+  used to compare against v1.1.0's TWRP as well, which fetched that zip to
+  name a state no route treated differently.
 - The main thread waits for that thread's locks half a second at a time.
   On Windows, Ctrl-C does not interrupt a blocking lock wait, so one long wait
   would ignore it until a 397 MB download ended.
@@ -1128,7 +1129,7 @@ ring read white.
 
 | from | to | took |
 | --- | --- | --- |
-| amonet-v1.1.0-booted | `unlock fireos5` | 9 s |
+| rooted, with amonet's TWRP 3.2.3 in `recovery` | `unlock fireos5` | 9 s |
 | amonet-v1.1.0-bboe-booted | `unlock fireos6` | 5 min 11 s, on 2026-10-09, by the plan: recovery 28 s, boot0 under 1 s, the table 1 s, the writes 5 s with TWRP 3 s of it, the preloader under 1 s, recovery 19 s, the wipes 4 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s. The zip took 5 min 22 s, its install 19 s and its reboot 19 s |
 | amonet-v2-booted | `unlock fireos5` | 7 min 42 s, with no bootrom: recovery 19 s, the table 1 s, recovery 19 s, boot0 under 1 s, the chain 6 s, `misc` under 1 s, userdata 4 s, `/system` 79 s, the boot image 3 s, Magisk 1 s, the preloader under 1 s, Fire OS 5's first boot 321 s |
 | stock-fastboot | `unlock fireos5` | 8 min 3 s, with no bootrom: the fastbrick, then the same route as from amonet-v2-booted |
@@ -1192,7 +1193,6 @@ Every entry state, and the TWRPs its path to each target runs under or writes:
 | `amonet-v1.1.0-bboe-twrp` | bboe2 | bboe2, v2 3.7.0 | bboe2 |
 | `amonet-v2-twrp` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `amonet-v2-twrp-v1.1.0-table` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
-| `amonet-v1.1.0-booted` | bboe2 | 3.2.3, v2 3.7.0 | 3.2.3 |
 | `amonet-v1.1.0-bboe-booted` | the goal | bboe2, v2 3.7.0 | bboe2 |
 | `rooted` | bboe2 | 3.2.3, v2 3.7.0 | 3.2.3 |
 | `amonet-v2-booted` | v2 3.7.0, bboe2 | the goal | v2 3.7.0 |
@@ -1244,9 +1244,9 @@ back on a Dot found part way through that. The chain under both states is
 amonet v2's, so only the table differs.
 
 A booted Dot reaches those by one reboot: `amonet-v2-booted` into v2's TWRP,
-`amonet-v1.1.0-bboe-booted` into bboe2's, `amonet-v1.1.0-booted` and `rooted`
-into 3.2.3's. `rooted` and `amonet-v1.1.0-booted` are the exception to the
-reboot, where `unlock fireos5` writes bboe2 through `su` and is then done.
+`amonet-v1.1.0-bboe-booted` into bboe2's, and `rooted` into whatever `recovery`
+holds, which the route predicts as amonet's 3.2.3. `rooted` is the exception to
+the reboot: `unlock fireos5` writes bboe2 there through `su` and is then done.
 
 ## The TWRP route
 
@@ -1805,7 +1805,7 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   Invalid argument`. So the one write with `seek` passes `conv=notrunc` to
   `toybox dd`.
 - Measured on a Dot, 2026-10-04, before `stock` was a target: `stock 8146` from
-  amonet-v1.1.0-booted, through v1.1.0's TWRP 3.2.3, in 6 min 9 s; from
+  rooted, through v1.1.0's TWRP 3.2.3, in 6 min 9 s; from
   amonet-v2-booted, through v2.0.0's TWRP, in 2 min 59 s; from
   amonet-v1.1.0-bboe-booted in 1 min 52 s. Each was rooted again after the
   fastboot gesture: to `unlock fireos6` in 7 steps and `unlock fireos5` in 9,

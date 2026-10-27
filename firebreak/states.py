@@ -6,7 +6,6 @@ import enum
 class State(enum.Enum):
     AMONET_V1_1_0_BBOE_BOOTED = "amonet-v1.1.0-bboe-booted"
     AMONET_V1_1_0_BBOE_TWRP = "amonet-v1.1.0-bboe-twrp"
-    AMONET_V1_1_0_BOOTED = "amonet-v1.1.0-booted"
     AMONET_V1_1_0_FASTBOOT = "amonet-v1.1.0-fastboot"
     AMONET_V1_1_0_TWRP = "amonet-v1.1.0-twrp"
     AMONET_V2_BOOTED = "amonet-v2-booted"

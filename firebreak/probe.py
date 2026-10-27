@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import subprocess
 
-from firebreak.cache import digest, unpack
 from firebreak.devices import BY_NAME, LITTLE_KERNEL_DESCRIPTION, biscuit
 from firebreak.emos import emos
 from firebreak.host import adb_shell, command, getvar, in_fastboot, run, usb_serial
@@ -93,15 +92,9 @@ def read_recovery(*, size: int) -> bytes:
 
 def rooted() -> State:
     bboe = biscuit.BBOE_RECOVERY
-    image = unpack(download=biscuit.V1_1_0_SOURCE) / "bin" / "twrp.img"
-    size = image.stat().st_size
-    data = read_recovery(size=max(bboe.size, size))
-    if hashlib.sha256(data[: bboe.size]).hexdigest() == bboe.sha256:
+    data = read_recovery(size=bboe.size)
+    if hashlib.sha256(data).hexdigest() == bboe.sha256:
         return State.AMONET_V1_1_0_BBOE_BOOTED
-    if hashlib.md5(data[:size], usedforsecurity=False).hexdigest() == digest(
-        kind="md5", path=image
-    ):
-        return State.AMONET_V1_1_0_BOOTED
     return State.ROOTED
 
 
