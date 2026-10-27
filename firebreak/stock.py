@@ -37,6 +37,7 @@ from firebreak.twrp import (
     detect_dd,
     read_sectors,
     unmount,
+    wait_for_twrp_start,
     write,
 )
 from firebreak.ui import (
@@ -162,6 +163,15 @@ def chain_writes() -> tuple[Step, ...]:
             partition=last,
         ),
     )
+
+
+def known_twrp(*, version: str) -> None:
+    if not version.startswith(TWRP_VERSIONS):
+        raise FatalError(
+            message=f"this needs a TWRP for this {title()}: v1.1.0's 3.2.3,"
+            f" v2's 3.7.0, or the {biscuit.BBOE_TWRP_VERSION} that firebreak"
+            " installs"
+        )
 
 
 def made_for(*, update: pathlib.Path) -> str:
@@ -301,21 +311,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
             " was written"
         )
     extract(update=update, work=work)
-    deadline = time.monotonic() + 30
-    version = ""
-    while not version or "mtp" not in adb_shell(command="getprop sys.usb.config"):
-        if time.monotonic() > deadline:
-            raise FatalError(message="TWRP did not finish starting within 30 seconds")
-        time.sleep(1)
-        version = adb_shell(command="getprop ro.twrp.version")
-        if not version[:1].isdigit():
-            version = ""
-        elif not version.startswith(TWRP_VERSIONS):
-            raise FatalError(
-                message=f"this needs a TWRP for this {title()}: v1.1.0's 3.2.3,"
-                f" v2's 3.7.0, or the {biscuit.BBOE_TWRP_VERSION} that firebreak"
-                " installs"
-            )
+    wait_for_twrp_start(accept=known_twrp)
     detect_dd(asked=adb_shell)
     tools = last_line(said=adb_shell(command=Shell.TOOLS.value))
     if not tools.startswith("tools:"):

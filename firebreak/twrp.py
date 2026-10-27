@@ -73,6 +73,7 @@ TABLE_FIELDS = 6
 TABLE_OK = "table-ok"
 TOYBOX_DD = "toybox dd"
 TOYBOX_DD_PROBE = f"{TOYBOX_DD} --help >/dev/null 2>&1 && echo yes"
+TWRP_START_WAIT = 30
 UNMOUNT = (
     'for m in $(grep "^/dev/block" /proc/mounts | cut -d" " -f2); do umount "$m";'
     ' done; echo "left:$(grep "^/dev/block" /proc/mounts | cut -d" " -f2'
@@ -300,12 +301,23 @@ def wait_for_twrp() -> None:
             " nothing else on it, or a USB wall charger with the + button"
             f" held, which starts TWRP if the {title()} can run it at all."
         ) from None
-    deadline = time.monotonic() + 30
-    while not adb_shell(command="getprop ro.twrp.version", timeout=30)[
-        :1
-    ].isdigit() or "mtp" not in adb_shell(command="getprop sys.usb.config"):
+    wait_for_twrp_start(version_timeout=30)
+
+
+def wait_for_twrp_start(
+    *, accept: Callable[..., None] = lambda **_: None, version_timeout: float = 300
+) -> None:
+    deadline = time.monotonic() + TWRP_START_WAIT
+    while True:
+        version = adb_shell(command="getprop ro.twrp.version", timeout=version_timeout)
+        if version[:1].isdigit():
+            accept(version=version)
+            if "mtp" in adb_shell(command="getprop sys.usb.config"):
+                return
         if time.monotonic() > deadline:
-            raise FatalError(message="TWRP did not finish starting within 30 seconds")
+            raise FatalError(
+                message=f"TWRP did not finish starting within {TWRP_START_WAIT} seconds"
+            )
         time.sleep(1)
 
 
