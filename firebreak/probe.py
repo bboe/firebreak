@@ -5,7 +5,7 @@ import subprocess
 
 from firebreak.devices import BY_NAME, LITTLE_KERNEL_DESCRIPTION, biscuit
 from firebreak.emos import emos
-from firebreak.host import adb_shell, command, getvar, in_fastboot, run, usb_serial
+from firebreak.host import adb_shell, adb_state, command, getvar, in_fastboot
 from firebreak.report import masked
 from firebreak.states import State
 from firebreak.twrp import partition_table
@@ -30,13 +30,10 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
         if little_kernel == biscuit.AMONET_V1_1_0_LK:
             return State.AMONET_V1_1_0_FASTBOOT
         return State.AMONET_V2_FASTBOOT
-    adb_state = ""
-    if usb_serial():
-        adb_state = run(arguments=["adb", "get-state"], timeout=30).stdout
-    if "unauthorized" in adb_state:
+    connected = adb_state()
+    if "unauthorized" in connected:
         return State.STOCK_BOOTED
-    adb_state = adb_state.strip()
-    if adb_state == "recovery":
+    if connected == "recovery":
         version = adb_shell(command="getprop ro.twrp.version", timeout=30)
         little_kernel = adb_shell(command="getprop ro.boot.lk_build_desc", timeout=30)
         if not version[:1].isdigit() or not LITTLE_KERNEL_DESCRIPTION.fullmatch(
@@ -52,7 +49,7 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
         if version != biscuit.BBOE_TWRP_VERSION:
             return State.AMONET_V1_1_0_TWRP
         return State.AMONET_V1_1_0_BBOE_TWRP
-    if adb_state == "device":
+    if connected == "device":
         completed = adb_shell(command="getprop sys.boot_completed", timeout=30)
         if NO_SHELL in completed:
             return State.NO_SYSTEM

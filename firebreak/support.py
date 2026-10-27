@@ -14,11 +14,11 @@ from firebreak.cache import CACHE
 from firebreak.devices import BISCUIT, BY_NAME, biscuit
 from firebreak.host import (
     adb_shell,
+    adb_state,
     getvar,
     in_fastboot,
     pyserial_wheel,
     run,
-    usb_serial,
 )
 from firebreak.identify import identity_lines
 from firebreak.probe import probed
@@ -122,11 +122,8 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
             if not restart_in_recovery(line=line):
                 return False
         else:
-            adb_state = ""
-            if usb_serial():
-                adb_state = run(arguments=["adb", "get-state"], timeout=30).stdout
-            adb_state = adb_state.strip()
-            if adb_state == "recovery":
+            connected = adb_state()
+            if connected == "recovery":
                 if not adb_shell(command="getprop ro.twrp.version", timeout=30)[
                     :1
                 ].isdigit():
@@ -143,7 +140,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                     status(text="Waiting for TWRP to finish starting.")
                 time.sleep(2)
                 continue
-            if adb_state == "device":
+            if connected == "device":
                 if "uid=0" not in adb_shell(command="id; su -c id", timeout=30):
                     say(
                         text=f"This {title()} runs Fire OS without root, so its"

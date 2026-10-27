@@ -74,6 +74,11 @@ class Dot:
             return ""
         return self.said.get(command, "")
 
+    def adb_state(self, *, timeout: float = 30) -> str:
+        if not self.usb_serial():
+            return ""
+        return self.run(arguments=["adb", "get-state"], timeout=timeout).stdout.strip()
+
     def getvar(self, *, name: str) -> str:
         return self.variables[name]
 
@@ -146,7 +151,14 @@ def shown(*, monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 def dot(*, monkeypatch: pytest.MonkeyPatch, places: list[str]) -> Dot:
     fake = Dot(places=places)
-    for name in ("adb_shell", "getvar", "in_fastboot", "run", "usb_serial"):
+    for name in (
+        "adb_shell",
+        "adb_state",
+        "getvar",
+        "in_fastboot",
+        "run",
+        "usb_serial",
+    ):
         for module in (support, unlock):
             if hasattr(module, name):
                 monkeypatch.setattr(name=name, target=module, value=getattr(fake, name))

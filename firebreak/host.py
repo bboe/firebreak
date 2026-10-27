@@ -88,6 +88,12 @@ def adb_shell(*, command: str, timeout: float = 300) -> str:
     ).strip()
 
 
+def adb_state(*, timeout: float = 30) -> str:
+    if not usb_serial():
+        return ""
+    return run(arguments=["adb", "get-state"], timeout=timeout).stdout.strip()
+
+
 def check_adb() -> None:
     words = run(arguments=["adb", "version"], timeout=30).stdout.split()
     version = (
