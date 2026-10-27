@@ -149,6 +149,13 @@ def again() -> str:
     return f"Run {invocation(options=sys.argv[1:])} again."
 
 
+def amonet_v2_has_no_fastboot() -> str:
+    return (
+        f"An {title()} already unlocked with amonet v2 has no fastboot: hold the"
+        " + button instead while you plug it back in, which starts its TWRP."
+    )
+
+
 def asked_for() -> str:
     return (
         f"If it fails the same way, run {invocation(options=['report'])} and"

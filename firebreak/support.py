@@ -44,6 +44,7 @@ from firebreak.ui import (
     SESSION,
     SUPPORT,
     WAIT,
+    amonet_v2_has_no_fastboot,
     filled,
     invocation,
     program,
@@ -168,11 +169,10 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                             f" recovery. Start the {title()} in fastboot mode and this"
                             " goes on by itself.\n\n"
                             + BISCUIT.fastboot_mode
-                            + f"\n\nAn {title()} already unlocked with amonet v2 has"
-                            " no fastboot: hold the + button instead while you plug it"
-                            " back in, which starts its TWRP. One that shows nothing on"
-                            " USB is in its bootrom, and only a root run brings it"
-                            " back.\n\nCtrl-C stops this."
+                            + "\n\n"
+                            + amonet_v2_has_no_fastboot()
+                            + " One that shows nothing on USB is in its bootrom, and"
+                            " only a root run brings it back.\n\nCtrl-C stops this."
                         )
                     )
                 if waiting != "fastboot":

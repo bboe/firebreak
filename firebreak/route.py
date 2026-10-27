@@ -48,6 +48,7 @@ from firebreak.ui import (
     WAIT,
     FatalError,
     again,
+    amonet_v2_has_no_fastboot,
     clock,
     filled,
     passed,
@@ -484,9 +485,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     text=f"This {title()} appears to be unmodified. To unlock and"
                     " root it, start it in fastboot mode.\n\n"
                     + target.device.fastboot_mode
-                    + f"\n\nAn {title()} already unlocked with amonet v2 has no"
-                    " fastboot: hold the + button instead while you plug it back"
-                    " in, which starts its TWRP."
+                    + "\n\n"
+                    + amonet_v2_has_no_fastboot()
                 )
             elif current == State.AMONET_V2_FASTBOOT and current not in done:
                 say(
