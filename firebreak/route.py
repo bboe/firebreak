@@ -264,16 +264,8 @@ def keeps_restarting() -> str:
 
 
 def needed(*, start: State, table: dict[State, Stage]) -> list[Need]:
-    found: list[Need] = []
-    for _ in range(len(table) + 1):
-        stage = table.get(start)
-        if start == ARGUMENTS.target.goal or stage is None:
-            break
-        found.extend(stage.needs)
-        if stage.then is None:
-            break
-        start = stage.then
-    return list(dict.fromkeys(found))
+    passing, _ = walked(start=start, table=table)
+    return list(dict.fromkeys(need for stage in passing for need in stage.needs))
 
 
 def ota_build() -> None:
@@ -324,16 +316,10 @@ def reboot_stages() -> dict[State, Stage]:
 
 
 def remaining(*, start: State, table: dict[State, Stage]) -> int | None:
-    total = 0
-    for _ in range(len(table) + 1):
-        if start == ARGUMENTS.target.goal:
-            return total
-        stage = table.get(start)
-        if stage is None or stage.then is None or stage.steps is None:
-            return None
-        total += stage.steps
-        start = stage.then
-    return None
+    passing, reached = walked(start=start, table=table)
+    if not reached or any(stage.steps is None for stage in passing):
+        return None
+    return sum(stage.steps or 0 for stage in passing)
 
 
 def restore_stages() -> dict[State, Stage]:
@@ -701,3 +687,18 @@ def stages() -> dict[State, Stage]:
 def start_prebuild() -> None:
     with contextlib.suppress(RuntimeError):
         PREBUILDER.start()
+
+
+def walked(*, start: State, table: dict[State, Stage]) -> tuple[list[Stage], bool]:
+    passing: list[Stage] = []
+    for _ in range(len(table) + 1):
+        if start == ARGUMENTS.target.goal:
+            return passing, True
+        stage = table.get(start)
+        if stage is None:
+            return passing, False
+        passing.append(stage)
+        if stage.then is None:
+            return passing, False
+        start = stage.then
+    return passing, False
