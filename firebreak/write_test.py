@@ -7,7 +7,7 @@ import time
 from typing import TYPE_CHECKING
 
 from firebreak.cache import CACHE
-from firebreak.host import DOT_TEMPORARY_DIRECTORY, run
+from firebreak.host import DOT_TEMPORARY_DIRECTORY, last_line, run
 from firebreak.report import masked
 from firebreak.twrp import no_truncate
 from firebreak.ui import PROGRESS, SESSION, title
@@ -108,7 +108,7 @@ def emmc_leg(
             " first.",
         )
         return
-    answer = said.strip().split(sep="\n")[-1]
+    answer = last_line(said=said.strip())
     read = (
         answer[len("card:") :].split(sep=" ")[0] if answer.startswith("card:") else ""
     )
@@ -141,7 +141,7 @@ def emmc_leg(
     line(
         "fresh filesystem",
         "yes"
-        if formatted.strip().split(sep="\n")[-1] == "formatted"
+        if last_line(said=formatted.strip()) == "formatted"
         else f"NO: {masked(text=formatted) or '<nothing>'}. One whose"
         f" {EMMC_TARGET} holds no filesystem does not finish booting, so run this"
         " again before restarting it: it formats cache first.",
@@ -175,7 +175,7 @@ def repeat_md5(*, blocks: int, times: int) -> str:
 
 
 def usb_leg(*, asked: Callable[..., str], line: Callable[[str, object], None]) -> int:
-    free = asked(command=f"df -k {DOT_TEMPORARY_DIRECTORY}").split(sep="\n")[-1]
+    free = last_line(said=asked(command=f"df -k {DOT_TEMPORARY_DIRECTORY}"))
     fields = free.split()
     available = fields[USB_COLUMN] if len(fields) > USB_COLUMN else ""
     spare = int(available) // 1024 if available.isdigit() else 0
@@ -201,14 +201,14 @@ def usb_leg(*, asked: Callable[..., str], line: Callable[[str, object], None]) -
         "over USB", f"{blocks} MiB pushed into {DOT_TEMPORARY_DIRECTORY}, which is RAM"
     )
     if failed:
-        line("adb push said", masked(text=failed).strip().split(sep="\n")[-1])
+        line("adb push said", last_line(said=masked(text=failed).strip()))
         line(
             "verdict",
             USB_DID_NOT_CARRY,
         )
         return 0
     answer = asked(command=f"md5sum {USB_TEST}", timeout=300).strip()
-    read = answer.split(sep="\n")[-1].split(sep=" ")[0]
+    read = last_line(said=answer).split(sep=" ")[0]
     if not re.fullmatch(pattern="[0-9a-f]{32}", string=read):
         line(
             "the test did not run",

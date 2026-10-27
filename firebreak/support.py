@@ -16,6 +16,7 @@ from firebreak.host import (
     adb_shell,
     getvar,
     in_fastboot,
+    last_line,
     pyserial_wheel,
     run,
     usb_serial,
@@ -286,7 +287,7 @@ def write_test() -> None:
         show(text="\nThe test needs a recovery, so it stops here.")
         return
     toybox = asked(command="toybox dd --help >/dev/null 2>&1 && echo yes")
-    if toybox.split(sep="\n")[-1] == "yes":
+    if last_line(said=toybox) == "yes":
         SESSION.dd = "toybox dd"
     line(f"dd on the {title()}", SESSION.dd)
     listing = whole(

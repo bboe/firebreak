@@ -11,6 +11,7 @@ from firebreak.host import (
     PUSH_TRIES,
     adb_shell,
     command,
+    last_line,
     md5_mismatch,
     push_checked,
     reconnect,
@@ -81,7 +82,7 @@ def check_nodes(*, want: dict[str, int]) -> str:
         pairs=" ".join(f"{node}:{size}" for node, size in want.items())
     )
     for attempt in range(PUSH_TRIES):
-        said = adb_shell(command=command, timeout=60).split(sep="\n")[-1]
+        said = last_line(said=adb_shell(command=command, timeout=60))
         if said.endswith("nodes-ok"):
             read = [token.partition("=") for token in said[: -len("nodes-ok")].split()]
             if all(node in want for node, _, _ in read):
@@ -98,7 +99,7 @@ def check_nodes(*, want: dict[str, int]) -> str:
 
 
 def clear_boot0() -> None:
-    answer = adb_shell(command=CLEAR_BOOT0).split(sep="\n")[-1].split()
+    answer = last_line(said=adb_shell(command=CLEAR_BOOT0)).split()
     if answer == ["4096", "0"]:
         return
     read, *still_set = answer or [""]
@@ -187,7 +188,7 @@ def sliced_system(*, slices: list[pathlib.Path], system: str) -> str:
             timeout=900,
         )
         said = result.stdout.strip()
-        if said.split(sep="\n")[-1] == GUNZIP_FAILED:
+        if last_line(said=said) == GUNZIP_FAILED:
             piece.unlink(missing_ok=True)
             return (
                 f"{piece.name} arrived intact but did not unpack on the {title()},"
@@ -195,7 +196,7 @@ def sliced_system(*, slices: list[pathlib.Path], system: str) -> str:
             )
         if result.returncode:
             return said or f"it exited with {result.returncode}"
-        if said.split(sep="\n")[-1] != SLICE_OK:
+        if last_line(said=said) != SLICE_OK:
             return said or f"the {title()} said nothing about {piece.name}"
     return ""
 
@@ -248,7 +249,7 @@ def streamed_system(*, slices: list[pathlib.Path], system: str) -> str:
         timeout=SYSTEM_TIMEOUT,
     )
     said = result.stdout.strip()
-    if said.split(sep="\n")[-1] == GUNZIP_FAILED:
+    if last_line(said=said) == GUNZIP_FAILED:
         broken = [piece for piece in slices if not gzip_intact(path=piece)]
         for piece in broken:
             piece.unlink(missing_ok=True)
@@ -261,13 +262,13 @@ def streamed_system(*, slices: list[pathlib.Path], system: str) -> str:
         return "gunzip could not read the stream"
     if result.returncode:
         return said or f"it exited with {result.returncode}"
-    if said.split(sep="\n")[-1] != STREAM_OK:
+    if last_line(said=said) != STREAM_OK:
         return said or f"the {title()} said nothing about the write"
     return ""
 
 
 def unmount(*, started: bool = False) -> None:
-    left = adb_shell(command=UNMOUNT).split(sep="\n")[-1]
+    left = last_line(said=adb_shell(command=UNMOUNT))
     if left.startswith("left:"):
         if not left[len("left:") :].strip():
             return
@@ -330,7 +331,7 @@ def write(
         return
     if number is not None:
         start = adb_shell(command=f"cat /sys/class/block/mmcblk0p{number}/start")
-        if start.split(sep="\n")[-1].strip() != str(sector):
+        if last_line(said=start).strip() != str(sector):
             raise FatalError(
                 message=f"{DISK}p{number} starts at {start or 'nothing'}, not {sector},"
                 " so the running partition table is not the one this expects"
@@ -350,9 +351,9 @@ def write(
             command=f"{SESSION.dd} if={staged} of={DISK} bs={block_size} seek={offset}"
             f"{no_truncate()} && rm -f {staged} && echo written"
         )
-        if done.split(sep="\n")[-1] != "written":
+        if last_line(said=done) != "written":
             raise FatalError(message=f"{label} failed; do not reboot:\n{done}")
-    if adb_shell(command=FLUSH).split(sep="\n")[-1] != "flushed":
+    if last_line(said=adb_shell(command=FLUSH)) != "flushed":
         raise FatalError(message=label + " could not be flushed; do not reboot")
     wrong = md5_mismatch(command=verify, want=want)
     if wrong:
@@ -368,7 +369,7 @@ def write_system(
         f' d=$(readlink -f {system}); [ -b "$d" ]'
         f' && ! grep -q -e "^$d " -e "^{system} " /proc/mounts && echo ready'
     )
-    if ready.split(sep="\n")[-1] != "ready":
+    if last_line(said=ready) != "ready":
         raise FatalError(
             message=f"{system} is not a block device, or it stayed mounted"
         )

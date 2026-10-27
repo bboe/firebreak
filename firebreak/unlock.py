@@ -18,6 +18,7 @@ from firebreak.host import (
     adb_shell,
     getvar,
     in_fastboot,
+    last_line,
     pyserial_wheel,
     reconnect,
     run,
@@ -69,7 +70,7 @@ def amonet_lk(*, node: str) -> bool:
                 " count=1 2>/dev/null | md5sum",
                 timeout=120,
             )
-            held = read.split(sep="\n")[-1].split(sep=" ")[0]
+            held = last_line(said=read).split(sep=" ")[0]
             if held == want:
                 return True
             if len(held) == MD5_DIGITS:

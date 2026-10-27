@@ -15,6 +15,7 @@ from firebreak.host import (
     PUSH_TRIES,
     adb_shell,
     command,
+    last_line,
     push_checked,
     reconnect,
     run,
@@ -203,7 +204,7 @@ def check(*, actions: tuple[Action, ...]) -> tuple[Action, ...]:
     for node, partition in {
         place(action=action)[0]: action.partition for action in writes
     }.items():
-        said = adb_shell(command=NODE.format(node=node)).split(sep="\n")[-1].split()
+        said = last_line(said=adb_shell(command=NODE.format(node=node))).split()
         if said[:1] != ["block"] or (
             partition is not None and said[1:] != [str(partition.sectors * SECTOR_SIZE)]
         ):
@@ -239,7 +240,7 @@ def place(*, action: Action) -> tuple[str, int]:
 
 def reaches(*, first: int) -> bool:
     said = adb_shell(command=REACH.format(first=first, node=DISK), timeout=60)
-    return said.split(sep="\n")[-1] == "reaches"
+    return last_line(said=said) == "reaches"
 
 
 def read(*, count: int, first: int, node: str) -> str:
@@ -301,7 +302,7 @@ def write(*, first: int, node: str, staged: pathlib.Path) -> None:
         ),
         timeout=600,
     )
-    if said.split(sep="\n")[-1] != "written" or read(
+    if last_line(said=said) != "written" or read(
         count=count, first=first, node=node
     ) != md5(data=data):
         raise FatalError(

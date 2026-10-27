@@ -19,6 +19,7 @@ from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
     adb_shell,
     in_fastboot,
+    last_line,
     md5_mismatch,
     pyserial_wheel,
     run,
@@ -231,7 +232,7 @@ def restore(  # ruff: ignore[complex-structure]
         command=f"mke2fs -q -t ext4 {DISK}p{cache.number}"
         f" && mke2fs -q -t ext4 {DISK}p{userdata.number} && echo formatted"
     )
-    if output.split(sep="\n")[-1] != "formatted":
+    if last_line(said=output) != "formatted":
         raise FatalError(message="cache and userdata did not format; do not reboot")
     PROGRESS.end()
 
@@ -321,7 +322,7 @@ def stage_restore() -> None:  # ruff: ignore[complex-structure, too-many-branche
         == "yes"
     ):
         SESSION.dd = "toybox dd"
-    tools = adb_shell(command=Shell.TOOLS.value).split(sep="\n")[-1]
+    tools = last_line(said=adb_shell(command=Shell.TOOLS.value))
     if not tools.startswith("tools:"):
         raise FatalError(
             message=f"the {title()} did not answer which tools it has: " + tools

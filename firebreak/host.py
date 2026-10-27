@@ -231,9 +231,13 @@ def in_fastboot() -> bool:
     return bool(serials)
 
 
+def last_line(*, said: str) -> str:
+    return said.rsplit(maxsplit=1, sep="\n")[-1]
+
+
 def md5_mismatch(*, command: str, timeout: float = 300, want: str) -> str:
     got = [
-        *adb_shell(command=command, timeout=timeout).split(sep="\n")[-1].split(sep=" "),
+        *last_line(said=adb_shell(command=command, timeout=timeout)).split(sep=" "),
         "",
     ][0]
     return "" if got == want else f": read {got or 'nothing'}, expected {want}"
