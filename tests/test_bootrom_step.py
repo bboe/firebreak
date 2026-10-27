@@ -249,11 +249,12 @@ def started(*, bootrom: Client, client: type, payload: bytes) -> Live:
     return bootrom.start_payload(payload=payload)
 
 
-def step(
+def step(  # ruff: ignore[too-many-arguments]
     *,
     erase: object = None,
     little_kernel: str = AMONET_V1_1_0_LK,
     rig: Rig,
+    tail: int | None = None,
     unlock: object = UNLOCK_FROM_BOOTROM,
     wheel: pathlib.Path | None = None,
 ) -> bool:
@@ -262,6 +263,7 @@ def step(
         erase=erase,
         little_kernel=little_kernel,
         payload=rig.payload,
+        tail=tail,
         unlock=unlock,
         wheel=wheel,
     )
@@ -733,6 +735,16 @@ def test_a_table_without_an_lk_slot_stops_the_run(*, rig: Rig) -> None:
     with pytest.raises(FatalError, match="partition table has no lk_b"):
         step(rig=rig)
     assert rig.written == []
+
+
+def test_a_tail_makes_the_whole_total_known_once_the_chain_is_counted(
+    *, rig: Rig
+) -> None:
+    assert bootrom_step.PROGRESS.steps == 0
+    assert step(rig=rig, tail=16) is True
+    assert (
+        bootrom_step.PROGRESS.steps == 1 + 3 + bootrom_step.STEPS_AFTER_THE_CHAIN + 16
+    )
 
 
 def test_a_torn_table_is_left_to_the_plan_without_reading_an_lk(

@@ -1778,6 +1778,16 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   action instead, which turned those into `inject boot_a` twice over and made
   the plan 4 steps longer than the same plan through TWRP. Counts from runs
   before that was fixed are 4 higher on the bootrom's side.
+- A resume shows `?` for its first step and the whole total from its second.
+  How many steps the chain takes is not known until the plan resolves, and
+  that needs the Dot's partition table, which needs the payload the first step
+  is joining or starting. So the run tells the bootrom step what follows it,
+  and the step sets the total once it has counted the plan: the bars already
+  opened, the plan's own, the wait for amonet's fastboot, the stage that
+  starts TWRP, and the rest of the route. Before this the run guessed the
+  total without the plan, and the first step named one 8 too low on a `stock`
+  resume. The erase route still adjusts the total it was given, because a
+  stage cannot say what follows it.
 - Measured on a Dot, 2026-10-04: a restore stopped during the system write,
   then `adb reboot` from TWRP, then a rerun about 20 s later. The bootrom's one
   window was open when the rerun's bootrom step started, and amonet then

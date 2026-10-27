@@ -263,6 +263,7 @@ def stage_downgrade() -> bool:
         erase=erase_by_fastboot,
         little_kernel=biscuit.AMONET_V1_1_0_LK,
         payload=amonet_v2_payload(),
+        tail=None,
         unlock=biscuit.UNLOCK_FROM_BOOTROM,
         wheel=wheel,
     )

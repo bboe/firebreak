@@ -28,6 +28,7 @@ class Run:
         self.started = 0
         self.states: list[route.State] = []
         self.stepped: list[dict[str, object]] = []
+        self.totals: list[int] = []
         self.tick = 1.0
         for module in (route, twrp, unlock):
             monkeypatch.setattr(
@@ -78,6 +79,7 @@ class Run:
         self.bootrom_answer = True
 
     def bootrom_step(self, **options: object) -> bool:
+        self.totals.append(route.PROGRESS.steps)
         self.stepped.append(options)
         return self.bootrom_answer
 
@@ -288,6 +290,8 @@ def test_a_fire_os_5_resume_writes_v1_1_0_through_the_bootrom(
     assert biscuit.V1_1_0_SOURCE in run.prefetched[0]
     assert run.stepped[0]["unlock"] is biscuit.UNLOCK_FROM_BOOTROM
     assert run.stepped[0]["little_kernel"] == biscuit.AMONET_V1_1_0_LK
+    assert run.stepped[0]["tail"] == 4
+    assert run.totals == [0]
 
 
 def test_a_fire_os_5_route_fetches_what_it_needs_and_builds_the_system(
@@ -459,6 +463,8 @@ def test_a_run_after_boot0_was_erased_goes_through_the_bootrom(
     assert biscuit.V1_1_0_SOURCE not in run.prefetched[0]
     assert run.stepped[0]["erase"] is None
     assert run.stepped[0]["unlock"] is biscuit.UNLOCK_V2_FROM_BOOTROM
+    assert run.stepped[0]["tail"] is None
+    assert run.totals == [0]
     assert "amonet-biscuit-v2.0.1 is written" in said(capsys=capsys)
 
 

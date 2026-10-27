@@ -448,15 +448,12 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             resumed = True
             done.difference_update(TWRPS)
             done.add(chain.state)
-            left = remaining(start=chain.then, table=table)
-            if left is not None:
-                opens = 3 if joining() or not SESSION.short else 2
-                PROGRESS.steps = PROGRESS.step + opens + left
             if bootrom_step(
                 amonet=unpack(download=chain.unlock.source),
                 erase=None,
                 little_kernel=chain.little_kernel,
                 payload=amonet_v2_payload(),
+                tail=remaining(start=chain.then, table=table),
                 unlock=chain.unlock,
                 wheel=pyserial_wheel(),
             ):

@@ -65,6 +65,7 @@ POKE_GONE_WAIT = 5
 POKE_WRITE_TIMEOUT = 1
 REPLUG_WAIT = 600
 SHORT_WAIT = 5
+STEPS_AFTER_THE_CHAIN = 2
 
 
 def ask_for_short() -> None:
@@ -221,6 +222,7 @@ def bootrom_step(  # ruff: ignore[too-many-arguments]
     erase: Callable[[], str] | None,
     little_kernel: str,
     payload: pathlib.Path,
+    tail: int | None,
     unlock: Unlock,
     wheel: pathlib.Path | None,
 ) -> bool:
@@ -233,8 +235,11 @@ def bootrom_step(  # ruff: ignore[too-many-arguments]
     actions = bootrom.check(
         actions=bootloader_plan(amonet=amonet, live=live, unlock=unlock)
     )
-    if PROGRESS.steps:
-        PROGRESS.steps += bootrom.counted(actions=actions)
+    counted = bootrom.counted(actions=actions)
+    if tail is not None:
+        PROGRESS.steps = PROGRESS.step + counted + STEPS_AFTER_THE_CHAIN + tail
+    elif PROGRESS.steps:
+        PROGRESS.steps += counted
     ERASED.write_text(ARGUMENTS.target.device.name)
     bootrom.execute(actions=actions, payload=live)
     with contextlib.suppress(OSError):
