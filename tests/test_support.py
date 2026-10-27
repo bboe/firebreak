@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 import subprocess
+import sys
 import types
 from typing import TYPE_CHECKING
 
@@ -170,6 +172,20 @@ def recorder(*, lines: list[tuple[str, object]]) -> Callable[[str, object], None
     return lambda label, value: lines.append((label, value))
 
 
+def test_a_reason_after_a_status_starts_its_own_line(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    lines: list[tuple[str, object]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(name="isatty", target=sys.stdout, value=lambda: True)
+    fake = dot(monkeypatch=monkeypatch, places=["nothing", "device"])
+    fake.said["id; su -c id"] = "uid=1000"
+    assert support.into_recovery(line=recorder(lines=lines)) is False
+    plain = re.sub(pattern=r"\033\[[0-9;]*m", repl="", string=capsys.readouterr().out)
+    assert any(row.startswith("This Echo Dot") for row in plain.split(sep="\n"))
+
+
 def test_a_report_answers_nothing_for_a_silent_read(
     *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch, shown: list[str]
 ) -> None:
@@ -219,7 +235,7 @@ def test_a_report_names_the_firebreak_version(
         assert support.labelled(label=tool, value="Android Debug Bridge 1.0.41") in (
             shown
         )
-    assert shown[-1] == "\nThe report stops with what is above."
+    assert shown[-1] == "The report stops with what is above."
 
 
 @pytest.mark.parametrize("built", [False, True])

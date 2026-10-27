@@ -48,10 +48,10 @@ from firebreak.ui import (
     filled,
     invocation,
     program,
-    say,
     show,
     status,
     title,
+    warn,
 )
 from firebreak.unlock import amonet_v2_payload, one_line, restart_refusals
 from firebreak.write_test import (
@@ -74,6 +74,11 @@ def about_host() -> None:
     line("python", sys.version.split()[0])
     line("adb", tool_version(arguments=["adb", "version"]))
     line("fastboot", tool_version(arguments=["fastboot", "--version"]))
+
+
+def end_status(*, waiting: str) -> None:
+    if waiting:
+        print()
 
 
 def finish(*, asked: Callable[..., str]) -> None:
@@ -105,7 +110,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
             ):
                 line("fastboot " + name, value or "<nothing>")
             if not unlocked:
-                say(
+                warn(
                     text=f"This {title()}'s fastboot did not say whether it is"
                     " unlocked, so this stops rather than guess. Check the cable,"
                     " and that no"
@@ -113,7 +118,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                 )
                 return False
             if unlocked.lower() != "true":
-                say(
+                warn(
                     text=f"This {title()}'s bootloader is locked, so it holds no"
                     " recovery to collect from and nothing here can give it one."
                     f" Root it first: run {invocation(options=[])}, and follow what it"
@@ -128,7 +133,8 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                 if not adb_shell(command="getprop ro.twrp.version", timeout=30)[
                     :1
                 ].isdigit():
-                    say(
+                    end_status(waiting=waiting)
+                    warn(
                         text=f"This {title()} is in a recovery that is not TWRP, so it"
                         " holds nothing to collect from. It is left as it is."
                     )
@@ -143,7 +149,8 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                 continue
             if connected == "device":
                 if "uid=0" not in adb_shell(command="id; su -c id", timeout=30):
-                    say(
+                    end_status(waiting=waiting)
+                    warn(
                         text=f"This {title()} runs Fire OS without root, so its"
                         " recovery is Amazon's, which holds nothing to collect from."
                         " Root it"
@@ -184,7 +191,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
             run(arguments=["adb", "wait-for-recovery"], timeout=180)
         except subprocess.TimeoutExpired:
             PROGRESS.halt()
-            say(
+            warn(
                 text=f"The {title()} did not come back in a recovery that answers adb"
                 " within 3 minutes. It is most likely in Amazon's recovery, which a"
                 f" root run replaces: run {invocation(options=[])}."
@@ -212,7 +219,7 @@ def report() -> None:
     line("state", probed())
     show(text="\n".join(identity_lines()))
     if not into_recovery(line=line):
-        show(text="\nThe report stops with what is above.")
+        show(text="The report stops with what is above.")
         return
     line("state in recovery", probed())
     for text in dot_details(asked=asked):
@@ -249,7 +256,7 @@ def restart_in_recovery(*, line: Callable[[str, object], None]) -> bool:
         show(text="")
     for label, said in refused:
         line(label, said)
-    say(
+    warn(
         text=f"This {title()}'s fastboot refused to restart it in its recovery, so"
         " this cannot reach the recovery from here."
         f"\n\nAn {title()} unlocked with amonet v2 answers the + button instead:"
@@ -279,8 +286,9 @@ def write_test() -> None:
         )
         return
     line("state", probed())
+    show(text="\n".join(identity_lines()))
     if not into_recovery(line=line):
-        show(text="\nThe test needs a recovery, so it stops here.")
+        show(text="The test needs a recovery, so it stops here.")
         return
     detect_dd(asked=asked)
     line(f"dd on the {title()}", SESSION.dd)

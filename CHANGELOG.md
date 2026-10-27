@@ -29,6 +29,12 @@ This project adheres to [Semantic Versioning](https://semver.org).
   it asked for what now happens anyway. `stock 5.5.0.3` ends in the bootrom
   over a serial port and then starts Fire OS 5, so it says so before it
   writes.
+- `report` and `write-test` say why they stop in the warning color, after a
+  blank line, where the reason ran straight on from the readings above it in
+  the body color.
+- `write-test` names the device it ran on, as `report` does. Its output is
+  meant to be pasted into a support channel, and it said neither the model nor
+  the USB ids. It also called the device `Echo` where it had no name to use.
 
 ## 0.9.0 - 2026-10-25
 
