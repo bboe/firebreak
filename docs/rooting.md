@@ -1132,7 +1132,9 @@ ring read white.
 | rooted, with amonet's TWRP 3.2.3 in `recovery` | `unlock fireos5` | 9 s |
 | amonet-v1.1.0-bboe-booted | `unlock fireos6` | 5 min 11 s, on 2026-10-09, by the plan: recovery 28 s, boot0 under 1 s, the table 1 s, the writes 5 s with TWRP 3 s of it, the preloader under 1 s, recovery 19 s, the wipes 4 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s. The zip took 5 min 22 s, its install 19 s and its reboot 19 s |
 | amonet-v2-booted | `unlock fireos5` | 7 min 42 s, with no bootrom: recovery 19 s, the table 1 s, recovery 19 s, boot0 under 1 s, the chain 6 s, `misc` under 1 s, userdata 4 s, `/system` 79 s, the boot image 3 s, Magisk 1 s, the preloader under 1 s, Fire OS 5's first boot 321 s |
-| stock-fastboot | `unlock fireos5` | 8 min 3 s, with no bootrom: the fastbrick, then the same route as from amonet-v2-booted |
+| stock-fastboot | `unlock fireos5` | 8 min 3 s, with no bootrom: the fastbrick, then the same route as from amonet-v2-booted. 8 min 04 s again on 2026-10-26, over 11 steps, with 318 s of it Fire OS 5's first boot |
+| held in the bootrom, after `stock 5.5.0.3` | `unlock fireos6` | 5 min 16 s, on 2026-10-26: amonet v2.0.1's chain 38 s, amonet's fastboot 8 s after the reboot, v2's TWRP 19 s, Fire OS 6 8146 into both slots 212 s |
+| held in the bootrom, after `stock 5.5.0.3` | `stock 8149` | 4 min 26 s, on 2026-10-26, over 27 steps: the chain and v2's TWRP 1 min 05 s, the restore 3 min 21 s with 160 s of it the two system writes |
 | amonet-v1.1.0-bboe-booted | stock 8146 `--end-in-fireos` | 3 min 11 s: recovery 30 s, `system_a` 81 s, the rest under 7 s each, stock's first boot 32 s |
 | amonet-v1.1.0-bboe-twrp | stock 8149 `--end-in-fireos` | 4 min 3 s, on 2026-10-24, on amonet v2.0.1: both `/system` writes 81 s and 80 s, the rest under 7 s each, stock's first boot 34 s |
 | stock-fastboot | `unlock fireos6` | 5 min 18 s, on 2026-10-24, from stock 8149 whose LK takes `fastbrick-20221007.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 115 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
@@ -1148,6 +1150,7 @@ ring read white.
 | stock-fastboot | `unlock fireos6` | 4 min 56 s, on 2026-10-26, from stock 5.5.0.3, whose slot holds no Fire OS 6: the fastbrick 13 s, v2 recovery 31 s, the build read under 1 s, then the fallback's 8 steps, the installs 96 s and 115 s, `boot-root.zip` 9 s, rooted 8146's boot 25 s |
 | amonet-v2-booted | stock 5.5.0.3 | 3 min 38 s, on 2026-10-26, from rooted Fire OS 6: `[1/19]` to `[19/19]`, TWRP 19 s, both `/system` writes 80 s, the bootrom 5 s after the reboot, the RPMB 1 s, the preloader 8 s, and no reboot after it. It ended `waits in its bootrom`, with `bootrom-held` written and the payload still on its serial port. From v2's TWRP it is 18 steps, without the wait for TWRP |
 | bootrom, held | `unlock fireos6` | 6 min 05 s, on 2026-10-26, with no button held: joining the held payload under 1 s, then amonet v1.1.0 through it and TWRP by 1 min 35 s, v1.1.0's TWRP 19 s, amonet v2.0.1 and its TWRP by 1 min 55 s, and the fallback's installs 98 s and 115 s, `boot-root.zip` 9 s, rooted 8146's boot 24 s. Measured before the bootrom grouped its steps, so it showed 28 where the same run now shows 24 |
+| amonet-v2-fastboot, on amonet v2's own bootloader | `unlock fireos5` | 7 min 40 s, on 2026-10-26, over 10 steps and with no bootrom: v2's TWRP 19 s, the table under 1 s, recovery 19 s, amonet v1.1.0-bboe 5 s, TWRP 4 s, userdata 3 s, `/system` 80 s, boot and Magisk 4 s, the preloader under 1 s, Fire OS 5's first boot 320 s. The run opened at 6 steps, and the gate's `False` re-planned it to 10. adb answered 24 s into that boot and held through setup mode |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.
@@ -1928,6 +1931,13 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   because a different build differs within a kibibyte or two. Only a partition
   that looks right pays for the full comparison, 13 s against the 80 s a write
   would take.
+- A restore that follows amonet v2.0.1's chain skips more than one of those.
+  Measured on a Dot, 2026-10-26, restoring 8149 from the chain the bootrom had
+  just written: both table writes skipped, because that chain leaves the table
+  stock where v1.1.0's leaves a boot-moved one for the restore to undo, and
+  `tee2` skipped as well, because amonet v2.0.1's `bin/tz.img` holds Fire OS 6
+  8149's TEE byte for byte over the image's length. Restoring 5.5.0.3 from the
+  same chain writes `tee2`, whose TEE that image is not.
 - A restored Dot has no Wi-Fi until it is set up in the Alexa app. To root it
   again, skip that setup: on Wi-Fi it can update to a build firebreak does not
   support, or away from the build under test.
