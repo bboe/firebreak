@@ -235,9 +235,10 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - `lk_b`, `tee1` and `tee2` take no part in a boot. Only `lk_a` decides the
   LK.
 - The fastbrick writes amonet v2.0.0's chain directly. It runs no exploit.
-- amonet v1.1.0's LK clears `FASTBOOT_PLEASE` in `expdb` when it acts on it.
-  This is inferred: `fastboot-step.sh` reaches TWRP with the marker still
-  written, so the marker cannot hold the Dot in fastboot.
+- An LK clears `FASTBOOT_PLEASE` when it acts on it: amonet v1.1.0's in
+  `expdb`, amonet v2's in `misc`. This is inferred: each release's
+  `fastboot-step.sh` reaches TWRP with the marker still written, so the marker
+  cannot hold the Dot in fastboot.
 
 ### boot0 and boot1
 

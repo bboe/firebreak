@@ -388,7 +388,7 @@ def decide(*, facts: dict, into: str, state: dict) -> dict:  # ruff: ignore[comp
     )
     if into in FASTBOOT_INTO or marker:
         return {
-            "consumed": "expdb" if lk == "v1" and facts.get("expdb_fastboot") else None,
+            "consumed": ("expdb" if lk == "v1" else "misc") if marker else None,
             "lk": lk,
             "mode": "fastboot",
             "vars": {

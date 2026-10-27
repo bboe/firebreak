@@ -57,6 +57,15 @@ map is keyed by it, so the map's dates can be read against the image names.
 A name for one build that ships an LK would be a second fact to keep right,
 where one LK ships in as many as 34 builds.
 
+An unlock's `little_kernel` is the one other place an LK is named: the
+`lk_build_desc` the unlock's own `lk.bin` reports once it is written. It says
+that the chain under a Dot is this unlock's, so the TWRP in the same archive
+is the one that chain can start, and the stage that leaves amonet v2's
+fastboot writes that TWRP only on that proof. An unlock that declares none
+gets no write, which is what every device did before, so a wrong guess is a
+missing capability and never a recovery that cannot start. Only biscuit's Fire
+OS 6 unlock declares one.
+
 An unlock's payload map says which image unlocks each bootloader, and its
 `payloads` say which release that image comes from where it is not the
 unlock's own. A release can rebuild a payload for the one bootloader its name
@@ -104,10 +113,12 @@ fastboot and so needs one. Each plan is amonet's
 `modules/main.py` and then its `fastboot-step.sh`, step for step. The Fire
 OS 5 unlock writes TWRP 3.7.0_9-bboe2, a download of its own, which is why
 an unlock carries `files` beside its archive. The bootrom route writes the
-same chain, but stops at the reboot, before any fastboot step. So it has an
-unlock of its own, beside the first in `biscuit.py`: the same plan with
-amonet's own TWRP out of the zip, and nothing to download. One step is all
-that separates the two, so the second is built from the first.
+same chain, but stops at the reboot, before any fastboot step. So each chain it
+writes has an unlock of its own, built from the target's with one step changed.
+The Fire OS 5 one takes amonet's own TWRP out of the zip, so it downloads
+nothing. The Fire OS 6 one gains `ClearBoot0Header` in front, which only the
+bootrom route needs: the fastbrick carries out that plan from the LK, where
+boot0 is not the way back.
 
 amonet-radar v1.0.0 runs biscuit v2.0.0's scripts and payload byte for byte,
 and its `main.py` differs only in file names and one log line. So its plan is

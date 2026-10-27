@@ -51,6 +51,7 @@ AMONET_V1_0_0 = dataclasses.replace(
     UNLOCK_TO_FIREOS6,
     device=RADAR,
     fastbricks={"59779ca-20220524_183401": "bin/fastbrick-20220524.img"},
+    little_kernel="",
     plan=tuple(
         dataclasses.replace(WRITE_KAERU, image="bin/radar-kaeru.bin")
         if step == WRITE_KAERU

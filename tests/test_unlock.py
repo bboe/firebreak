@@ -136,7 +136,7 @@ def test_a_downgrade_erases_boot0_through_fastboot(
 ) -> None:
     stepped: list[dict[str, object]] = []
     answers = {
-        "lk_build_desc": "63cb91b-20221007_072309",
+        "lk_build_desc": "beb022a-20211202_231918",
         "product": "BISCUIT",
         "unlock_status": "true",
     }
@@ -156,11 +156,37 @@ def test_a_downgrade_erases_boot0_through_fastboot(
     assert stepped[0]["payload"] == tmp_path / "brom-payload" / "build" / "payload.bin"
 
 
+def test_a_downgrade_from_amonet_s_own_bootloader_takes_the_twrp_route(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    reached: list[str] = []
+    answers = {
+        "lk_build_desc": biscuit.AMONET_V2_LK,
+        "product": "BISCUIT",
+        "unlock_status": "true",
+    }
+    monkeypatch.setattr(name="unpack", target=unlock, value=lambda **_: tmp_path)
+    monkeypatch.setattr(name="pyserial_wheel", target=unlock, value=lambda: None)
+    monkeypatch.setattr(
+        name="getvar", target=unlock, value=lambda **o: answers[o["name"]]
+    )
+    monkeypatch.setattr(
+        name="bootrom_step", target=unlock, value=lambda **_: pytest.fail("erased")
+    )
+    monkeypatch.setattr(
+        name="stage_amonet_v2_recovery",
+        target=unlock,
+        value=lambda: reached.append("v2 recovery") or True,
+    )
+    assert unlock.stage_downgrade() is False
+    assert reached == ["v2 recovery"]
+
+
 def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
     answers = {
-        "lk_build_desc": "63cb91b-20221007_072309",
+        "lk_build_desc": "beb022a-20211202_231918",
         "product": "BISCUIT",
         "unlock_status": "true",
     }
@@ -303,6 +329,16 @@ def test_a_fastbrick_whose_timeout_says_nothing_still_started(
     unlock.stage_fastbrick()
 
 
+def test_a_locked_fastboot_after_the_v2_chain_is_left_for_its_own_stage(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="getvar", target=unlock, value=lambda **_: "false")
+    monkeypatch.setattr(
+        name="run", target=unlock, value=lambda **_: pytest.fail("flashed")
+    )
+    assert unlock.stage_amonet_v2_recovery() is False
+
+
 def test_a_locked_fastboot_is_left_for_its_own_stage(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -331,6 +367,24 @@ def test_a_too_new_bootloader_names_the_bootrom_only_for_the_dot(
         unlock.newer_than_known(little_kernel="abcdef0-20991231_235959")
     assert "--short" not in refused.value.message
     assert refused.value.message.endswith("the Echo (2nd Generation) was not modified.")
+
+
+def test_a_v2_fastboot_that_refuses_the_restart_names_the_button(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    monkeypatch.setattr(name="getvar", target=unlock, value=lambda **_: "true")
+    monkeypatch.setattr(name="unpack", target=unlock, value=lambda **_: tmp_path)
+    monkeypatch.setattr(name="in_fastboot", target=unlock, value=lambda: True)
+    monkeypatch.setattr(
+        name="run",
+        target=unlock,
+        value=lambda **_: types.SimpleNamespace(returncode=1, stdout=""),
+    )
+    assert unlock.stage_amonet_v2_recovery() is False
+    assert "hold the + button" in " ".join(capsys.readouterr().out.split())
 
 
 def test_an_lk_read_answered_after_a_reconnect_is_used(
@@ -392,6 +446,28 @@ def test_an_unlocked_fastboot_takes_v1_1_0_to_its_recovery(
     assert [words[1:4] for words in ran] == [
         ["-S", "256M", "flash"],
         ["-S", "256M", "flash"],
+        ["oem", "reboot-recovery"],
+    ]
+
+
+def test_an_unlocked_fastboot_takes_v2_to_its_own_twrp(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    ran: list[list[object]] = []
+
+    def ask(**options: object) -> types.SimpleNamespace:
+        ran.append(options["arguments"])
+        return types.SimpleNamespace(returncode=0, stdout="")
+
+    answers = {"lk_build_desc": biscuit.AMONET_V2_LK, "unlock_status": "true"}
+    monkeypatch.setattr(
+        name="getvar", target=unlock, value=lambda **o: answers[o["name"]]
+    )
+    monkeypatch.setattr(name="unpack", target=unlock, value=lambda **_: tmp_path)
+    monkeypatch.setattr(name="run", target=unlock, value=ask)
+    assert unlock.stage_amonet_v2_recovery() is True
+    assert [words[1:] for words in ran] == [
+        ["-S", "256M", "flash", "recovery", "bin/twrp.img"],
         ["oem", "reboot-recovery"],
     ]
 

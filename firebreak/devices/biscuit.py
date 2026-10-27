@@ -26,6 +26,7 @@ from firebreak.targets import FIREOS5, FIREOS6, STOCK, Deprecated
 from firebreak.updates import cdn_ota
 
 AMONET_V1_1_0_LK = "f379dba-20170906_000423"
+AMONET_V2_LK = "63cb91b-20221007_072309"
 BBOE_TWRP_VERSION = "3.7.0_9-bboe2"
 BBOE_RECOVERY = Download(
     name=f"twrp-{BBOE_TWRP_VERSION}-biscuit.img",
@@ -133,7 +134,7 @@ LK_VALUES = frozenset({
     "a828f29-20210822_210511",
     "beb022a-20211202_231918",
     "41fb3ce-20221007_151724",
-    "63cb91b-20221007_072309",
+    AMONET_V2_LK,
     "2c3569d-20260617_045829",
 })
 PAYLOAD_SEEK = 223207
@@ -254,9 +255,10 @@ UNLOCK_TO_FIREOS6 = Unlock(
     fastbricks={
         "2c3569d-20260617_045829": "bin/fastbrick-20260617.img",
         "41fb3ce-20221007_151724": "bin/fastbrick-20221007.img",
-        "63cb91b-20221007_072309": "bin/fastbrick-20221007.img",
+        AMONET_V2_LK: "bin/fastbrick-20221007.img",
     },
     layout=STOCK_LAYOUT,
+    little_kernel=AMONET_V2_LK,
     payloads={"41fb3ce-20221007_151724": V2_0_0_SOURCE},
     plan=(
         Repartition(),
@@ -286,6 +288,8 @@ UNLOCK_TO_FIREOS6 = Unlock(
 
 
 FASTBRICK = UNLOCK_TO_FIREOS6
+
+
 TARGETS = (
     Target(
         device=BISCUIT,
@@ -316,4 +320,7 @@ TARGETS = (
         f" {V2_0_1_TWRP_VERSION}, with the Dot erased.",
         unlock=UNLOCK_TO_FIREOS6,
     ),
+)
+UNLOCK_V2_FROM_BOOTROM = dataclasses.replace(
+    UNLOCK_TO_FIREOS6, plan=(ClearBoot0Header(), *UNLOCK_TO_FIREOS6.plan)
 )

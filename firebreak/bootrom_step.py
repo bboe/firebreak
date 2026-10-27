@@ -12,7 +12,6 @@ from firebreak.amonet.biscuit_v2_0_0 import Client
 from firebreak.amonet.payload import NotReadyError, Payload, start_payload
 from firebreak.android.gpt import ENTRIES_SIZE, SECTOR_SIZE, gpt_intact, partition_map
 from firebreak.cache import ERASED, HELD
-from firebreak.devices import biscuit
 from firebreak.emmc import EmmcArea
 from firebreak.host import getvar, in_fastboot, no_port_help
 from firebreak.mediatek import range_check
@@ -52,6 +51,7 @@ if TYPE_CHECKING:
     import serial
 
     from firebreak.emmc import Emmc
+    from firebreak.plugin import Unlock
 
 
 BOOTROM_STEP_TIMEOUT = 30 * MINUTE
@@ -89,20 +89,19 @@ def attach_held_payload(*, deadline: float) -> Client | None:
         time.sleep(PORT_POLL_INTERVAL)
 
 
-def await_amonet_fastboot() -> None:
+def await_amonet_fastboot(*, little_kernel: str) -> None:
     PROGRESS.begin(estimate="30 s", label="waiting for amonet's fastboot")
     for _ in range(30):
         try:
-            if (
-                in_fastboot()
-                and getvar(name="lk_build_desc") == biscuit.AMONET_V1_1_0_LK
+            if in_fastboot() and (
+                not little_kernel or getvar(name="lk_build_desc") == little_kernel
             ):
                 PROGRESS.end()
                 return
         except subprocess.TimeoutExpired:
             pass
         time.sleep(2)
-    raise FatalError(message=f"the {title()} did not come back in v1.1.0's fastboot")
+    raise FatalError(message=f"the {title()} did not come back in amonet's fastboot")
 
 
 def await_bootrom_port(
@@ -142,9 +141,10 @@ def await_port_gone(*, deadline: float, name: str) -> None:
         time.sleep(PORT_POLL_INTERVAL)
 
 
-def bootloader_plan(*, amonet: pathlib.Path, live: Emmc) -> tuple[Action, ...]:
+def bootloader_plan(
+    *, amonet: pathlib.Path, live: Emmc, unlock: Unlock
+) -> tuple[Action, ...]:
     check_emmc(live=live)
-    unlock = biscuit.UNLOCK_FROM_BOOTROM
     try:
         raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
     except (OSError, UsbdlError) as error:
@@ -215,11 +215,13 @@ def bootrom_client(
             return client
 
 
-def bootrom_step(
+def bootrom_step(  # ruff: ignore[too-many-arguments]
     *,
     amonet: pathlib.Path,
     erase: Callable[[], str] | None,
+    little_kernel: str,
     payload: pathlib.Path,
+    unlock: Unlock,
     wheel: pathlib.Path | None,
 ) -> bool:
     if wheel is not None and str(wheel) not in sys.path:
@@ -228,7 +230,9 @@ def bootrom_step(
     live = held_payload() if held else started_payload(erase=erase, payload=payload)
     if live is None:
         return False
-    actions = bootrom.check(actions=bootloader_plan(amonet=amonet, live=live))
+    actions = bootrom.check(
+        actions=bootloader_plan(amonet=amonet, live=live, unlock=unlock)
+    )
     if PROGRESS.steps:
         PROGRESS.steps += bootrom.counted(actions=actions)
     ERASED.write_text(ARGUMENTS.target.device.name)
@@ -237,7 +241,7 @@ def bootrom_step(
         live.port.close()
     ERASED.unlink(missing_ok=True)
     HELD.unlink(missing_ok=True)
-    await_amonet_fastboot()
+    await_amonet_fastboot(little_kernel=little_kernel)
     return True
 
 

@@ -182,24 +182,8 @@ def restart_refusals() -> list[tuple[str, str]]:
 
 
 def stage_amonet_v1_1_0_recovery() -> bool:
-    unlocked = ""
-    for _ in range(PUSH_TRIES):
-        unlocked = getvar(name="unlock_status").lower()
-        if unlocked in {"true", "false"}:
-            break
-        time.sleep(1)
-    if unlocked == "false":
-        PROGRESS.note(
-            message=f"The {title()} came back in its own locked fastboot rather than"
-            " amonet's, which accepts nothing this needs. This run unlocks it again"
-            " and goes on from v2's recovery."
-        )
+    if not unlocked_fastboot():
         return False
-    if unlocked != "true":
-        raise FatalError(
-            message=f"the {title()}'s fastboot did not say whether it is unlocked. "
-            + again()
-        )
     amonet = unpack(download=biscuit.V1_1_0_SOURCE)
     twrp = fetch(download=biscuit.BBOE_RECOVERY)
     PROGRESS.begin(
@@ -227,15 +211,30 @@ def stage_amonet_v1_1_0_recovery() -> bool:
 
 
 def stage_amonet_v2_recovery() -> bool:
-    say(text=f"This {title()} is in amonet v2's fastboot. Starting its TWRP.")
+    if not unlocked_fastboot():
+        return False
+    unlock = FASTBRICKS[ARGUMENTS.target.device]
+    if (
+        unlock.little_kernel
+        and getvar(name="lk_build_desc", strict=True) == unlock.little_kernel
+    ):
+        PROGRESS.begin(estimate="40 s", label="writing TWRP and waiting for it")
+        run(
+            arguments=["fastboot", "-S", "256M", "flash", "recovery", "bin/twrp.img"],
+            check=True,
+            directory=unpack(download=unlock.source),
+            timeout=120,
+        )
+    else:
+        PROGRESS.begin(estimate="40 s", label="waiting for TWRP to start")
     if restart_refusals():
+        PROGRESS.end(skipped=True)
         say(
             text=f"This {title()}'s fastboot took neither command that starts its"
             " TWRP. Unplug it, and hold the + button while you plug it back in,"
             " which starts TWRP itself."
         )
         return False
-    PROGRESS.begin(estimate="40 s", label="waiting for TWRP to start")
     return True
 
 
@@ -255,11 +254,16 @@ def stage_downgrade() -> bool:
         raise FatalError(
             message=f"the {title()} already runs amonet v1.1.0's bootloader. " + again()
         )
+    if little_kernel == FASTBRICKS[ARGUMENTS.target.device].little_kernel:
+        stage_amonet_v2_recovery()
+        return False
     PROGRESS.begin(estimate="5 s", label="erasing boot0 to reach the bootrom")
     bootrom_step(
         amonet=amonet,
         erase=erase_by_fastboot,
+        little_kernel=biscuit.AMONET_V1_1_0_LK,
         payload=amonet_v2_payload(),
+        unlock=biscuit.UNLOCK_FROM_BOOTROM,
         wheel=wheel,
     )
     return stage_amonet_v1_1_0_recovery()
@@ -304,3 +308,25 @@ def stage_fastbrick() -> None:
         message=f"the unlock did not start after 10 attempts, with {image} for"
         f" the bootloader {little_kernel}; the {title()} was not modified"
     )
+
+
+def unlocked_fastboot() -> bool:
+    unlocked = ""
+    for _ in range(PUSH_TRIES):
+        unlocked = getvar(name="unlock_status").lower()
+        if unlocked in {"true", "false"}:
+            break
+        time.sleep(1)
+    if unlocked == "false":
+        PROGRESS.note(
+            message=f"The {title()} came back in its own locked fastboot rather than"
+            " amonet's, which accepts nothing this needs. This run unlocks it again"
+            " and goes on from v2's recovery."
+        )
+        return False
+    if unlocked != "true":
+        raise FatalError(
+            message=f"the {title()}'s fastboot did not say whether it is unlocked. "
+            + again()
+        )
+    return True

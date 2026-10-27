@@ -69,6 +69,8 @@ from firebreak.unlock import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
+    from firebreak.plugin import Unlock
+
     Need = Download | Callable[[], object]
 
 
@@ -97,6 +99,15 @@ TWRPS = frozenset({
 
 
 @dataclasses.dataclass(frozen=True)
+class Chain:
+    after: Callable[[], bool]
+    little_kernel: str
+    state: State
+    then: State
+    unlock: Unlock
+
+
+@dataclasses.dataclass(frozen=True)
 class Stage:
     run: Callable[[], bool | None]
     steps: int | None
@@ -105,9 +116,27 @@ class Stage:
     passes: frozenset[State] = frozenset()
 
 
-def bootrom_needs() -> tuple[Need, ...]:
+def bootrom_chain() -> Chain:
+    if ARGUMENTS.target.unlock is biscuit.UNLOCK_TO_FIREOS5:
+        return Chain(
+            after=stage_amonet_v1_1_0_recovery,
+            little_kernel=biscuit.AMONET_V1_1_0_LK,
+            state=State.AMONET_V1_1_0_FASTBOOT,
+            then=State.AMONET_V1_1_0_BBOE_TWRP,
+            unlock=biscuit.UNLOCK_FROM_BOOTROM,
+        )
+    return Chain(
+        after=stage_amonet_v2_recovery,
+        little_kernel="",
+        state=State.AMONET_V2_FASTBOOT,
+        then=State.AMONET_V2_TWRP,
+        unlock=biscuit.UNLOCK_V2_FROM_BOOTROM,
+    )
+
+
+def bootrom_needs(*, unlock: Unlock) -> tuple[Need, ...]:
     return (
-        biscuit.V1_1_0_SOURCE,
+        unlock.source,
         pyserial_wheel,
         biscuit.V2_0_1_SOURCE,
     )
@@ -168,7 +197,7 @@ def fireos5_stages() -> dict[State, Stage]:
         ),
         State.AMONET_V2_BOOTED: reboot_stages()[State.AMONET_V2_BOOTED],
         State.AMONET_V2_FASTBOOT: Stage(
-            needs=(*bootrom_needs(), TWRP),
+            needs=(*bootrom_needs(unlock=biscuit.UNLOCK_FROM_BOOTROM), TWRP),
             passes=downgrades,
             run=stage_downgrade,
             steps=2,
@@ -392,17 +421,19 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     f" bootrom step supports only the {bootrom_device.title}, so"
                     " nothing was done."
                 )
+            chain = bootrom_chain()
             prefetch(
                 needs=dict.fromkeys((
-                    *bootrom_needs(),
-                    *needed(start=State.AMONET_V1_1_0_FASTBOOT, table=table),
+                    *bootrom_needs(unlock=chain.unlock),
+                    *needed(start=chain.state, table=table),
                 ))
             )
             if joining():
                 warn(
                     text=f"A restore left the {title()} waiting in its bootrom. This"
-                    " run joins the payload waiting there and writes amonet v1.1.0"
-                    " through it, then goes on from v1.1.0's TWRP. Leave the"
+                    " run joins the payload waiting there and writes"
+                    f" {chain.unlock.name} through it, then goes on from that TWRP."
+                    " Leave the"
                     f" {title()} plugged in: unplugging it starts the stock firmware"
                     " and loses the hold."
                 )
@@ -413,27 +444,29 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                         if done
                         else "The last run stopped after it erased boot0"
                     )
-                    + f", so the {title()} cannot start until amonet v1.1.0 is written"
-                    " through its bootrom. This run does that, then goes on"
-                    " from v1.1.0's TWRP. If nothing happens within a minute,"
+                    + f", so the {title()} cannot start until {chain.unlock.name} is"
+                    " written through its bootrom. This run does that, then goes on"
+                    " from that TWRP. If nothing happens within a minute,"
                     f" unplug the {title()} and plug it back in.",
                 )
             resumed = True
             done.difference_update(TWRPS)
-            done.add(State.AMONET_V1_1_0_FASTBOOT)
-            left = remaining(start=State.AMONET_V1_1_0_BBOE_TWRP, table=table)
+            done.add(chain.state)
+            left = remaining(start=chain.then, table=table)
             if left is not None:
                 opens = 3 if joining() or not SESSION.short else 2
                 PROGRESS.steps = PROGRESS.step + opens + left
             if bootrom_step(
-                amonet=unpack(download=biscuit.V1_1_0_SOURCE),
+                amonet=unpack(download=chain.unlock.source),
                 erase=None,
+                little_kernel=chain.little_kernel,
                 payload=amonet_v2_payload(),
+                unlock=chain.unlock,
                 wheel=pyserial_wheel(),
             ):
-                stage_amonet_v1_1_0_recovery()
+                chain.after()
             else:
-                done.discard(State.AMONET_V1_1_0_FASTBOOT)
+                done.discard(chain.state)
                 resumed = False
             seen = None
             continue
@@ -475,6 +508,11 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     + f"\n\nAn {title()} already unlocked with amonet v2 has no"
                     " fastboot: hold the + button instead while you plug it back"
                     " in, which starts its TWRP."
+                )
+            elif current == State.AMONET_V2_FASTBOOT and current not in done:
+                say(
+                    text=f"This {title()} is in amonet v2's fastboot."
+                    " Starting its recovery."
                 )
             elif current == State.EMOS and current not in done:
                 say(
@@ -646,7 +684,10 @@ def stages() -> dict[State, Stage]:
             then=State.AMONET_V1_1_0_BBOE_TWRP,
         ),
         State.AMONET_V2_FASTBOOT: Stage(
-            run=stage_amonet_v2_recovery, steps=1, then=State.AMONET_V2_TWRP
+            needs=(FASTBRICKS[ARGUMENTS.target.device].source,),
+            run=stage_amonet_v2_recovery,
+            steps=1,
+            then=State.AMONET_V2_TWRP,
         ),
     } | dict.fromkeys(
         (State.STOCK_FASTBOOT, State.STOCK_FIREOS5_FASTBOOT),

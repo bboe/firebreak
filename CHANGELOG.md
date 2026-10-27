@@ -16,6 +16,13 @@ This project adheres to [Semantic Versioning](https://semver.org).
   bootrom, because the Dot's anti-rollback bars the old preloader until the
   RPMB is zeroed, so no kernel is left to ask a stock LK for fastboot. A power
   cycle starts stock 5.5.0.3 instead. `--end-in-fireos` starts Fire OS 5.
+- A run that resumes through the bootrom writes amonet v2.0.1's chain, where
+  every target wrote v1.1.0's before. `unlock fireos5` still writes v1.1.0's,
+  because only that bootloader starts the 64-bit TWRP that target needs.
+- amonet v2's fastboot writes that unlock's TWRP before it restarts the
+  device, so a `recovery` that holds no TWRP still reaches one. From there
+  `unlock fireos5` goes on from v2's TWRP, where the bootloader is already
+  amonet's, instead of erasing boot0 to reach the bootrom.
 - `stock [BUILD]` leaves the device in fastboot at the end, so the next run
   needs no button held. `--end-in-fireos` starts the Fire OS it now holds
   instead, which is what a restore did before. `--fastboot` is gone, because

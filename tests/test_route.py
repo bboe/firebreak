@@ -38,6 +38,13 @@ class Run:
                 ),
             )
         monkeypatch.setattr(name="in_fastboot", target=unlock, value=lambda: False)
+        monkeypatch.setattr(
+            name="getvar",
+            target=unlock,
+            value=lambda **o: {"product": "BISCUIT", "unlock_status": "true"}.get(
+                o["name"], ""
+            ),
+        )
         monkeypatch.setattr(name="state", target=route, value=self.state)
         monkeypatch.setattr(name="sleep", target=route.time, value=lambda _: None)
         monkeypatch.setattr(name="monotonic", target=route.time, value=self.monotonic)
@@ -270,6 +277,19 @@ def test_a_fire_os_5_restore_left_in_twrp_is_not_reported_as_written(
         route.root()
 
 
+def test_a_fire_os_5_resume_writes_v1_1_0_through_the_bootrom(
+    *, monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    route.ERASED.touch()
+    monkeypatch.setattr(name="stages", target=route, value=route.stages)
+    run.states = [route.State.NONE, route.State.AMONET_V1_1_0_BBOE_BOOTED]
+    route.root()
+    assert run.fetched == ["v1.1.0 recovery"]
+    assert biscuit.V1_1_0_SOURCE in run.prefetched[0]
+    assert run.stepped[0]["unlock"] is biscuit.UNLOCK_FROM_BOOTROM
+    assert run.stepped[0]["little_kernel"] == biscuit.AMONET_V1_1_0_LK
+
+
 def test_a_fire_os_5_route_fetches_what_it_needs_and_builds_the_system(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -427,17 +447,20 @@ def test_a_run_after_boot0_was_erased_goes_through_the_bootrom(
     run.target(name="fireos6")
     route.ERASED.touch()
     monkeypatch.setattr(name="stages", target=route, value=route.stages)
+    monkeypatch.setattr(
+        name="stage_amonet_v2_recovery",
+        target=route,
+        value=lambda: run.fetched.append("v2.0.1 recovery"),
+    )
     run.states = [route.State.NONE, route.State.AMONET_V2_BOOTED]
     run.said["getprop ro.build.version.name"] = "Fire OS 6.5.7.4"
     route.root()
-    assert run.fetched == ["v1.1.0 recovery"]
-    assert {
-        biscuit.V1_1_0_SOURCE,
-        biscuit.V2_0_1_SOURCE,
-        route.BOOT_ROOT,
-    } <= set(run.prefetched[0])
+    assert run.fetched == ["v2.0.1 recovery"]
+    assert {biscuit.V2_0_1_SOURCE, route.BOOT_ROOT} <= set(run.prefetched[0])
+    assert biscuit.V1_1_0_SOURCE not in run.prefetched[0]
     assert run.stepped[0]["erase"] is None
-    assert "stopped after it erased boot0" in said(capsys=capsys)
+    assert run.stepped[0]["unlock"] is biscuit.UNLOCK_V2_FROM_BOOTROM
+    assert "amonet-biscuit-v2.0.1 is written" in said(capsys=capsys)
 
 
 def test_a_run_fetches_its_route_s_downloads_before_the_first_stage(
@@ -662,6 +685,15 @@ def test_a_seen_state_clears_the_bootrom_hold(
     assert not route.HELD.exists()
 
 
+def test_a_short_run_takes_the_chain_its_target_wants(*, run: Run) -> None:
+    route.SESSION.short = True
+    assert route.bootrom_chain().unlock is biscuit.UNLOCK_FROM_BOOTROM
+    run.target(name="fireos6")
+    assert route.bootrom_chain().unlock is biscuit.UNLOCK_V2_FROM_BOOTROM
+    run.target(build="8149", name="stock")
+    assert route.bootrom_chain().unlock is biscuit.UNLOCK_V2_FROM_BOOTROM
+
+
 @pytest.mark.parametrize(
     ("returned", "expected"),
     [(False, ["first", "second"]), (None, ["first"])],
@@ -826,7 +858,7 @@ def test_a_v2_0_0_dot_is_restarted_into_its_own_twrp(
     with pytest.raises(RanOutError):
         route.root()
     out = said(capsys=capsys)
-    assert "is in amonet v2's fastboot. Starting its TWRP." in out
+    assert "is in amonet v2's fastboot. Starting its recovery." in out
     assert "Rebooting it into TWRP." in out
     assert "hold the + button" not in out
 

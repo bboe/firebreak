@@ -9,6 +9,7 @@ import pytest
 
 from firebreak import plan
 from firebreak.android import gpt
+from firebreak.devices import LK_VALUES
 from firebreak.devices.biscuit import (
     BISCUIT,
     BOOT_MOVED_LAYOUT,
@@ -16,6 +17,7 @@ from firebreak.devices.biscuit import (
     UNLOCK_FROM_BOOTROM,
     UNLOCK_TO_FIREOS5,
     UNLOCK_TO_FIREOS6,
+    UNLOCK_V2_FROM_BOOTROM,
 )
 from firebreak.devices.crown import AMONET_V2_0_1
 from firebreak.devices.radar import AMONET_V1_0_0
@@ -303,6 +305,24 @@ def test_a_table_that_is_not_intact_is_refused(*, source: pathlib.Path) -> None:
         plan.resolve(raw=bytes(raw), source=source, unlock=UNLOCK_TO_FIREOS5)
 
 
+@pytest.mark.parametrize(
+    argnames="unlock",
+    argvalues=[
+        AMONET_V1_0_0,
+        AMONET_V2_0_1,
+        UNLOCK_FROM_BOOTROM,
+        UNLOCK_TO_FIREOS5,
+        UNLOCK_TO_FIREOS6,
+        UNLOCK_V2_FROM_BOOTROM,
+    ],
+    ids=lambda unlock: unlock.name,
+)
+def test_an_unlock_declares_only_a_bootloader_its_own_device_has(
+    *, unlock: Unlock
+) -> None:
+    assert not unlock.little_kernel or unlock.little_kernel in LK_VALUES[unlock.device]
+
+
 def test_crown_v2_0_1_matches_amonet(*, source: pathlib.Path) -> None:
     actions = plan.resolve(
         raw=biscuit_table(layout=CROWN_MADE_UP),
@@ -336,6 +356,7 @@ def test_crown_v2_0_1_matches_amonet(*, source: pathlib.Path) -> None:
         UNLOCK_FROM_BOOTROM,
         UNLOCK_TO_FIREOS5,
         UNLOCK_TO_FIREOS6,
+        UNLOCK_V2_FROM_BOOTROM,
         AMONET_V1_0_0,
     ],
     ids=lambda unlock: unlock.name,

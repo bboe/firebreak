@@ -11,7 +11,13 @@ from firebreak import bootrom_step
 from firebreak.amonet.payload import BLOCK_SIZE, PAYLOAD_MAGIC, Command
 from firebreak.android import gpt
 from firebreak.bootrom import USER_AREA_SIGNATURE
-from firebreak.devices.biscuit import UNLOCK_FROM_BOOTROM, UNLOCK_TO_FIREOS5
+from firebreak.devices.biscuit import (
+    AMONET_V1_1_0_LK,
+    UNLOCK_FROM_BOOTROM,
+    UNLOCK_TO_FIREOS5,
+    UNLOCK_TO_FIREOS6,
+    UNLOCK_V2_FROM_BOOTROM,
+)
 from firebreak.mediatek.usbdl import (
     HandshakeTimeoutError,
     ProductId,
@@ -19,7 +25,7 @@ from firebreak.mediatek.usbdl import (
     UsbdlError,
 )
 from firebreak.plan import Action
-from firebreak.plugin import FastbootFlash
+from firebreak.plugin import ClearBoot0Header, FastbootFlash
 from firebreak.ui import FatalError, explained
 
 if TYPE_CHECKING:
@@ -243,9 +249,21 @@ def started(*, bootrom: Client, client: type, payload: bytes) -> Live:
     return bootrom.start_payload(payload=payload)
 
 
-def step(*, erase: object = None, rig: Rig, wheel: pathlib.Path | None = None) -> bool:
+def step(
+    *,
+    erase: object = None,
+    little_kernel: str = AMONET_V1_1_0_LK,
+    rig: Rig,
+    unlock: object = UNLOCK_FROM_BOOTROM,
+    wheel: pathlib.Path | None = None,
+) -> bool:
     return bootrom_step.bootrom_step(
-        amonet=rig.amonet, erase=erase, payload=rig.payload, wheel=wheel
+        amonet=rig.amonet,
+        erase=erase,
+        little_kernel=little_kernel,
+        payload=rig.payload,
+        unlock=unlock,
+        wheel=wheel,
     )
 
 
@@ -298,6 +316,18 @@ def test_a_bootrom_that_never_answers_a_handshake_stops_the_run(*, rig: Rig) -> 
         step(rig=rig)
     assert rig.steps.count("handshake") == 1
     assert rig.written == []
+
+
+def test_a_chain_with_no_bootloader_to_check_takes_any_fastboot(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+) -> None:
+    monkeypatch.setattr(
+        name="getvar",
+        target=bootrom_step,
+        value=lambda **_: "63cb91b-20221007_072309",
+    )
+    assert step(little_kernel="", rig=rig, unlock=UNLOCK_V2_FROM_BOOTROM) is True
+    assert rig.written == [WRITES]
 
 
 def test_a_dead_emmc_stops_the_run_before_anything_is_written(*, rig: Rig) -> None:
@@ -370,7 +400,7 @@ def test_a_fastboot_check_that_times_out_is_tried_again(
         value=lambda **_: "f379dba-20170906_000423",
     )
     monkeypatch.setattr(name="sleep", target=bootrom_step.time, value=lambda _: None)
-    bootrom_step.await_amonet_fastboot()
+    bootrom_step.await_amonet_fastboot(little_kernel=AMONET_V1_1_0_LK)
 
 
 def test_a_foreign_bootloader_in_lk_b_alone_stops_the_run(*, rig: Rig) -> None:
@@ -825,7 +855,7 @@ def test_the_dot_that_never_reaches_fastboot_stops_the_run(
     *, monkeypatch: pytest.MonkeyPatch, rig: Rig
 ) -> None:
     monkeypatch.setattr(name="in_fastboot", target=bootrom_step, value=lambda: False)
-    with pytest.raises(FatalError, match=r"did not come back in v1\.1\.0's fastboot"):
+    with pytest.raises(FatalError, match="did not come back in amonet's fastboot"):
         step(rig=rig)
     assert rig.written == [WRITES]
 
@@ -897,3 +927,11 @@ def test_the_step_count_grows_with_the_steps_the_actions_take(*, rig: Rig) -> No
     bootrom_step.PROGRESS.steps = 9
     assert step(rig=rig) is True
     assert bootrom_step.PROGRESS.steps == 12
+
+
+def test_the_v2_bootrom_unlock_clears_boot0_before_amonet_s_own_plan() -> None:
+    unlock = UNLOCK_V2_FROM_BOOTROM
+    assert not unlock.files
+    assert unlock.plan[0] == ClearBoot0Header()
+    assert unlock.plan[1:] == UNLOCK_TO_FIREOS6.plan
+    assert unlock.layout is UNLOCK_TO_FIREOS6.layout
