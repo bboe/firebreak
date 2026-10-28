@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from firebreak.cache import Download
 from firebreak.devices.biscuit import BISCUIT, UNLOCK_TO_FIREOS6, WRITE_KAERU
-from firebreak.plugin import FireOs6, Target
+from firebreak.plugin import ClearBoot0Header, FireOs6, Target
 from firebreak.states import State
 from firebreak.targets import FIREOS6, STOCK
 from firebreak.updates import cdn_ota
@@ -61,6 +61,9 @@ AMONET_V1_0_0 = dataclasses.replace(
     source=SOURCE,
     version="1.0.0",
 )
+BOOTROM_UNLOCK = dataclasses.replace(
+    AMONET_V1_0_0, plan=(ClearBoot0Header(), *AMONET_V1_0_0.plan)
+)
 FASTBRICK = AMONET_V1_0_0
 TARGETS = (
     Target(
@@ -70,7 +73,6 @@ TARGETS = (
         name=STOCK,
         summary=f"Amazon's Fire OS {DEFAULT_BUILD}, which erases the whole Echo.",
         unlock=None,
-        unproven=True,
     ),
     Target(
         device=RADAR,
@@ -81,7 +83,6 @@ TARGETS = (
         " which keeps the Echo's setup; with --factory-reset, amonet-radar v1.0.0's own"
         f" procedure: Fire OS 6 {FIREOS6_BUILD}, with the Echo erased.",
         unlock=AMONET_V1_0_0,
-        unproven=True,
     ),
 )
 WAS_CALLED: dict[str, Deprecated] = {}

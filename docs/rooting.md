@@ -270,8 +270,22 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 
 - A Dot whose preloader runs but never starts LK shows no light and offers
   no fastboot: only `0e8d:2000`, the preloader, for about a second every
-  30 seconds. Its boot0 is intact, so only the eMMC test-point short reaches
-  the bootrom. `--short` runs the bootrom step for it, with no erase.
+  30 seconds. That cadence is biscuit's. Its boot0 is intact, so only the eMMC
+  test-point short reaches the bootrom. `--short` runs the bootrom step for
+  it, with no erase.
+- The preloader port is not only a failure sign. Measured on a radar on
+  2026-10-27, every ordinary boot offers `0e8d:2000` for about 0.8 seconds
+  before LK takes over, on three boots, one of them with a button held. It
+  enumerates as `MediaTek` `MT65xx Preloader`, with no serial number, so the
+  port tells one Echo from another no better than it tells a radar from a
+  biscuit.
+- Holding mic-mute at power-on latches that radar into a preloader loop: the
+  same 0.8 second window every 3.74 seconds, over 41 appearances in 150
+  seconds, with a dark ring and no adb. The button is read at start-up only,
+  so the loop goes on after it is released, and a power cycle with nothing
+  held ends it. amonet v2.0.0 added this as its "Preloader USBDL recovery
+  mode". The radar it was measured on runs amonet's own preloader, not
+  Amazon's, so whether a stock Echo offers it is unread.
 - Neither the gesture nor `FACTFACT` sent to the preloader reached fastboot.
   mtkclient's four ways to crash a preloader into the bootrom all failed on
   Amazon's: each came back as the preloader. Its register writes echoed but
@@ -292,8 +306,16 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - Nothing else in this step can tell a biscuit from an Echo (2nd Generation):
   its table has biscuit's 16 partitions and the same bootrom answers. Without
   the check, `--short` on a radar that shows no light would write biscuit's
-  amonet v1.1.0 chain, preloader included. This is read from the code and the
-  LK images, not seen on a radar.
+  amonet v1.1.0 chain, preloader included.
+- A radar reached its bootrom on 2026-10-27, so the sentence above is no
+  longer read from the code alone. Both are MT8163, and amonet ships one
+  `brom-payload/build/payload.bin` for both, 20060 bytes, byte for byte the
+  same. That payload ran on the radar and reported `BROM USBDL is enabled`,
+  which `check_brom` reads from devinfo at `0x10206060`, bit 8. Not every Echo
+  has that bit clear: the Echo Show 5 of either generation, and the Dot 3rd
+  Generation, have no bootrom USBDL at all, which is why a brick on those is
+  permanent. The fuse is per product, so a shared SoC settles nothing on its
+  own.
 - It reads ports from pyserial's USB list and opens only the bootrom's, where
   amonet opened every port to see it. On Linux the preloader's
   `/dev/ttyACM*` is `dialout`'s, and the udev rule covers only `0e8d:0003`,
@@ -330,6 +352,41 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   comes up and amonet times out waiting for it, or the bootrom step's first
   read, the partition table's `55 AA`, fails. Both stop the run before amonet
   writes anything, and a new short starts over.
+
+## A radar in its bootrom
+
+Measured on one radar on 2026-10-27, from TWRP, by clearing boot0's header by
+hand and reading the ports back.
+
+- An empty boot0 reaches the bootrom over the cable it is already on. The
+  Echo came up as `0e8d:0003`, with no test point and no case opened. So the
+  short is for the other failure, an intact boot0 whose preloader never starts
+  LK, not for this one.
+- The bootrom does not wait forever. It answered for **about 40 seconds**,
+  then went quiet and did not come back for the four minutes that followed.
+  Its own watchdog takes it. That is why `load_payload` writes `0x1971` to
+  `0x10007008` every second while it waits for the operator: once the payload
+  is running the window stops mattering, and before that it is 40 seconds per
+  power cycle, repeatable.
+- So a run that starts the step first and asks for the power cycle second
+  loses nothing, where one that asks first can miss.
+- The bootrom carries no USB strings: it reads as `0e8d:0003` with an empty
+  manufacturer, against the preloader's `MediaTek` `MT65xx Preloader`. Reading
+  vendor and product ids rather than names is what lets the step tell them
+  apart.
+- amonet-radar v1.0.0's own `bootrom-step.sh` put it back in 68 seconds, over
+  the same step order firebreak's plan uses, and it ended in unlocked
+  fastboot. Its reads ran at 0.66 MB/s and its writes at 0.47 to 0.55 MB/s.
+- A read over the payload matched what TWRP had read from the same partition:
+  `lk_a`'s first 356856 bytes hashed to amonet's own `bin/lk.bin`, by both
+  md5 and sha256. So eMMC access through the bootrom agrees with eMMC access
+  through TWRP.
+
+The consequence for the `stock` target is the part worth keeping. A radar
+restore clears boot0 at step 2 of 17 and writes the preloader back at step 16.
+A failure in that window leaves the Echo startable only from its bootrom,
+which this section shows is reachable over USB. Recovery does not mean opening
+the Echo.
 
 ## Recording a run
 

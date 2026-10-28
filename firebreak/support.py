@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from firebreak import __version__
 from firebreak.bootrom_write_test import bootrom_write_test
 from firebreak.cache import CACHE
-from firebreak.devices import BISCUIT, BY_NAME, biscuit
+from firebreak.devices import BISCUIT, BY_NAME, TARGETS
 from firebreak.host import (
     adb_shell,
     adb_state,
@@ -21,6 +21,7 @@ from firebreak.host import (
     run,
 )
 from firebreak.identify import identity_lines
+from firebreak.plugin import FireOs5
 from firebreak.probe import probed
 from firebreak.report import (
     LISTING_OK,
@@ -38,13 +39,14 @@ from firebreak.report import (
     system_record,
     whole,
 )
+from firebreak.targets import FIREOS5
 from firebreak.twrp import DISK, TABLE_OK, detect_dd
 from firebreak.ui import (
     PROGRESS,
     SESSION,
     SUPPORT,
     WAIT,
-    amonet_v2_has_no_fastboot,
+    amonet_has_no_fastboot,
     filled,
     invocation,
     program,
@@ -53,7 +55,7 @@ from firebreak.ui import (
     title,
     warn,
 )
-from firebreak.unlock import amonet_v2_payload, one_line, restart_refusals
+from firebreak.unlock import amonet_payload, one_line, restart_refusals
 from firebreak.write_test import (
     EMMC_TARGET,
     MEBIBYTE,
@@ -177,7 +179,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                             " goes on by itself.\n\n"
                             + BISCUIT.fastboot_mode
                             + "\n\n"
-                            + amonet_v2_has_no_fastboot()
+                            + amonet_has_no_fastboot()
                             + " One that shows nothing on USB is in its bootrom, and"
                             " only a root run brings it back.\n\nCtrl-C stops this."
                         )
@@ -214,6 +216,7 @@ def report() -> None:
             return TIMED_OUT
         return masked(text=said) or "<nothing>"
 
+    PROGRESS.steps = None
     show(text=SUPPORT + "\n")
     about_host()
     line("state", probed())
@@ -224,12 +227,8 @@ def report() -> None:
     line("state in recovery", probed())
     for text in dot_details(asked=asked):
         show(text=text)
-    held = CACHE / f"system-{biscuit.BUILDS['5.5.5.4'].sha256[:12]}" / "md5"
-    want, needs = system_record(text=held.read_text() if held.is_file() else "")
-    if needs:
-        line("system image", f"{needs} bytes, md5 {want}")
-    else:
-        line("system image", "not built yet, so its size is unknown")
+    said, needs = system_image()
+    line("system image", said)
     partitions = whole(
         marker=PARTITIONS_OK,
         said=asked(command=f"cat /proc/partitions; echo {PARTITIONS_OK}"),
@@ -259,11 +258,26 @@ def restart_in_recovery(*, line: Callable[[str, object], None]) -> bool:
     warn(
         text=f"This {title()}'s fastboot refused to restart it in its recovery, so"
         " this cannot reach the recovery from here."
-        f"\n\nAn {title()} unlocked with amonet v2 answers the + button instead:"
+        f"\n\nAn {title()} unlocked with amonet answers the + button instead:"
         " unplug it, hold + while you plug it back in, which starts its TWRP, then"
         " run this again."
     )
     return False
+
+
+def system_image() -> tuple[str, int]:
+    device = SESSION.device
+    if device is None:
+        return "not read: this run cannot tell which Echo this is", 0
+    target = (TARGETS.get(device) or {}).get(FIREOS5)
+    installs = target.installs if target else None
+    if not isinstance(installs, FireOs5):
+        return f"no Fire OS 5 build for the {device.title}, so none is read", 0
+    held = CACHE / f"system-{installs.package.sha256[:12]}" / "md5"
+    want, needs = system_record(text=held.read_text() if held.is_file() else "")
+    if not needs:
+        return "not built yet, so its size is unknown", 0
+    return f"{needs} bytes, md5 {want}", needs
 
 
 def tool_version(*, arguments: list[str]) -> str:
@@ -278,12 +292,11 @@ def write_test() -> None:
         except subprocess.TimeoutExpired:
             return TIMED_OUT
 
+    PROGRESS.steps = None
     show(text=SUPPORT + "\n")
     about_host()
     if SESSION.short:
-        bootrom_write_test(
-            line=line, payload=amonet_v2_payload(), wheel=pyserial_wheel()
-        )
+        bootrom_write_test(line=line, payload=amonet_payload(), wheel=pyserial_wheel())
         return
     line("state", probed())
     show(text="\n".join(identity_lines()))
@@ -291,7 +304,7 @@ def write_test() -> None:
         show(text="The test needs a recovery, so it stops here.")
         return
     detect_dd(asked=asked)
-    line(f"dd on the {title()}", SESSION.dd)
+    line("dd in recovery", SESSION.dd)
     listing = whole(
         marker=LISTING_OK, said=asked(command=f"ls -l {BY_NAME}/; echo {LISTING_OK}")
     )

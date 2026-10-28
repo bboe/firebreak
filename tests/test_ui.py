@@ -185,6 +185,18 @@ def test_progress_aligns_two_digit_counts(
     assert lines[-2].startswith("[10/16] step")
 
 
+def test_progress_leaves_out_a_count_it_cannot_know(
+    *, capsys: pytest.CaptureFixture[str]
+) -> None:
+    ui.PROGRESS.steps = None
+    ui.PROGRESS.begin(estimate="1 s", label="writing and reading cache")
+    ui.PROGRESS.end()
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("writing and reading cache")
+    assert "/" not in lines[0]
+    assert "?" not in lines[1]
+
+
 def test_progress_not_a_tty(*, capsys: pytest.CaptureFixture[str]) -> None:
     ui.PROGRESS.steps = 2
     ui.PROGRESS.begin(estimate="1 s", label="first")

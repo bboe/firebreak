@@ -4,6 +4,7 @@ from firebreak.devices.biscuit import BISCUIT
 from firebreak.devices.crown import CROWN
 from firebreak.devices.radar import RADAR
 from firebreak.devices.registry import (
+    BOOTROM_UNLOCKS,
     BUILDS,
     BY_NAME,
     DEFAULT_BUILDS,
@@ -18,6 +19,7 @@ from firebreak.devices.registry import (
 
 __all__ = [
     "BISCUIT",
+    "BOOTROM_UNLOCKS",
     "BUILDS",
     "BY_NAME",
     "CROWN",

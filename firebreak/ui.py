@@ -10,7 +10,10 @@ import sys
 import textwrap
 import threading
 import time
-from typing import NoReturn, TextIO
+from typing import TYPE_CHECKING, NoReturn, TextIO
+
+if TYPE_CHECKING:
+    from firebreak.plugin import Device
 
 ARGUMENTS = argparse.Namespace(build="", factory_reset=False, target="", verbose=False)
 BOOT0_EMPTY = (
@@ -23,7 +26,8 @@ MINUTE = 60
 RELEASES = "https://github.com/bboe/firebreak/releases/latest"
 SPINNER = "\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f"
 SUPPORT = (
-    "Please stop by #support-device-unlocking in the EchoMuse Discord,"
+    "If you are troubleshooting a problem and would like help, please stop by"
+    " #support-device-unlocking in the EchoMuse Discord,"
     " https://discord.gg/vAPHMDvREG, and paste everything below."
 )
 UVX = ["uvx", "firebreak@latest"]
@@ -56,7 +60,7 @@ class Progress:
         self.line = ""
         self.open = False
         self.step = 0
-        self.steps = 0
+        self.steps: int | None = 0
         self.stopped = threading.Event()
         self.ticker = None
 
@@ -64,9 +68,7 @@ class Progress:
         self.end()
         self.step += 1
         about = f"(~{estimate})" if estimate else ""
-        total = str(self.steps or "?")
-        digits = max(2, len(total))
-        self.line = f"[{self.step:>{digits}}/{total:>{digits}}] {label:<38} {about:<8} "
+        self.line = f"{self.counter()}{label:<38} {about:<8} "
         self.ts = time.monotonic()
         self.open = True
         if ARGUMENTS.verbose:
@@ -75,6 +77,13 @@ class Progress:
             show(text=self.line.rstrip())
         else:
             self.start()
+
+    def counter(self) -> str:
+        if self.steps is None:
+            return ""
+        total = str(self.steps or "?")
+        digits = max(2, len(total))
+        return f"[{self.step:>{digits}}/{total:>{digits}}] "
 
     def end(self, *, skipped: bool = False) -> None:
         if not self.open:
@@ -130,6 +139,7 @@ class Session:
     boot0_marker: pathlib.Path | None = None
     carries: bool | None = None
     dd: str = "dd"
+    device: Device | None = None
     fastboot: bool = False
     held: bool = False
     named: str = ""
@@ -149,9 +159,9 @@ def again() -> str:
     return f"Run {invocation(options=sys.argv[1:])} again."
 
 
-def amonet_v2_has_no_fastboot() -> str:
+def amonet_has_no_fastboot() -> str:
     return (
-        f"An {title()} already unlocked with amonet v2 has no fastboot: hold the"
+        f"An {title()} already unlocked with amonet has no fastboot: hold the"
         " + button instead while you plug it back in, which starts its TWRP."
     )
 

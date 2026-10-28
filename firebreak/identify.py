@@ -210,6 +210,7 @@ def identity_lines() -> list[str]:
     found = echo_devices()
     identity = identify(found=found)
     if identity.device:
+        SESSION.device = identity.device
         SESSION.named = identity.device.title
     title = identity.device.title if identity.device else "not known"
     return [labelled(label="device", value=f"{title}, by its {identity.how}")] + [

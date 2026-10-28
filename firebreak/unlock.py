@@ -86,6 +86,11 @@ def amonet_lk(*, node: str) -> bool:
     return False
 
 
+def amonet_payload() -> pathlib.Path:
+    amonet = unpack(download=biscuit.V2_0_1_SOURCE)
+    return amonet / "brom-payload" / "build" / "payload.bin"
+
+
 def amonet_sources() -> tuple[Download, ...]:
     device = ARGUMENTS.target.device
     others = (
@@ -94,11 +99,6 @@ def amonet_sources() -> tuple[Download, ...]:
         if target.unlock is not None
     )
     return tuple(dict.fromkeys((FASTBRICKS[device].source, *others)))
-
-
-def amonet_v2_payload() -> pathlib.Path:
-    amonet = unpack(download=biscuit.V2_0_1_SOURCE)
-    return amonet / "brom-payload" / "build" / "payload.bin"
 
 
 def check_product() -> None:
@@ -182,6 +182,34 @@ def restart_refusals() -> list[tuple[str, str]]:
     return refused
 
 
+def stage_amonet_recovery(*, carries_twrp: bool = True) -> bool:
+    if not unlocked_fastboot():
+        return False
+    unlock = FASTBRICKS[ARGUMENTS.target.device]
+    if not carries_twrp or (
+        unlock.little_kernel
+        and getvar(name="lk_build_desc", strict=True) == unlock.little_kernel
+    ):
+        PROGRESS.begin(estimate="40 s", label="writing TWRP and waiting for it")
+        run(
+            arguments=["fastboot", "-S", "256M", "flash", "recovery", "bin/twrp.img"],
+            check=True,
+            directory=unpack(download=unlock.source),
+            timeout=120,
+        )
+    else:
+        PROGRESS.begin(estimate="40 s", label="waiting for TWRP to start")
+    if restart_refusals():
+        PROGRESS.end(skipped=True)
+        say(
+            text=f"This {title()}'s fastboot took neither command that starts its"
+            " TWRP. Unplug it, and hold the + button while you plug it back in,"
+            " which starts TWRP itself."
+        )
+        return False
+    return True
+
+
 def stage_amonet_v1_1_0_recovery() -> bool:
     if not unlocked_fastboot():
         return False
@@ -211,34 +239,6 @@ def stage_amonet_v1_1_0_recovery() -> bool:
     return True
 
 
-def stage_amonet_v2_recovery() -> bool:
-    if not unlocked_fastboot():
-        return False
-    unlock = FASTBRICKS[ARGUMENTS.target.device]
-    if (
-        unlock.little_kernel
-        and getvar(name="lk_build_desc", strict=True) == unlock.little_kernel
-    ):
-        PROGRESS.begin(estimate="40 s", label="writing TWRP and waiting for it")
-        run(
-            arguments=["fastboot", "-S", "256M", "flash", "recovery", "bin/twrp.img"],
-            check=True,
-            directory=unpack(download=unlock.source),
-            timeout=120,
-        )
-    else:
-        PROGRESS.begin(estimate="40 s", label="waiting for TWRP to start")
-    if restart_refusals():
-        PROGRESS.end(skipped=True)
-        say(
-            text=f"This {title()}'s fastboot took neither command that starts its"
-            " TWRP. Unplug it, and hold the + button while you plug it back in,"
-            " which starts TWRP itself."
-        )
-        return False
-    return True
-
-
 def stage_downgrade() -> bool:
     amonet = unpack(download=biscuit.V1_1_0_SOURCE)
     wheel = pyserial_wheel()
@@ -256,14 +256,14 @@ def stage_downgrade() -> bool:
             message=f"the {title()} already runs amonet v1.1.0's bootloader. " + again()
         )
     if little_kernel == FASTBRICKS[ARGUMENTS.target.device].little_kernel:
-        stage_amonet_v2_recovery()
+        stage_amonet_recovery()
         return False
     PROGRESS.begin(estimate="5 s", label="erasing boot0 to reach the bootrom")
     bootrom_step(
         amonet=amonet,
         erase=erase_by_fastboot,
         little_kernel=biscuit.AMONET_V1_1_0_LK,
-        payload=amonet_v2_payload(),
+        payload=amonet_payload(),
         tail=None,
         unlock=biscuit.UNLOCK_FROM_BOOTROM,
         wheel=wheel,
@@ -323,7 +323,7 @@ def unlocked_fastboot() -> bool:
         PROGRESS.note(
             message=f"The {title()} came back in its own locked fastboot rather than"
             " amonet's, which accepts nothing this needs. This run unlocks it again"
-            " and goes on from v2's recovery."
+            " and goes on from amonet's recovery."
         )
         return False
     if unlocked != "true":

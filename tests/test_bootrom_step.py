@@ -11,6 +11,7 @@ from firebreak import bootrom_step
 from firebreak.amonet.payload import BLOCK_SIZE, PAYLOAD_MAGIC, Command
 from firebreak.android import gpt
 from firebreak.bootrom import USER_AREA_SIGNATURE
+from firebreak.devices import radar
 from firebreak.devices.biscuit import (
     AMONET_V1_1_0_LK,
     UNLOCK_FROM_BOOTROM,
@@ -269,11 +270,23 @@ def step(  # ruff: ignore[too-many-arguments]
     )
 
 
+def test_a_bootloader_for_another_product_names_the_echo_the_unlock_is_for(
+    *, rig: Rig
+) -> None:
+    bootrom_step.SESSION.short = True
+    with pytest.raises(FatalError, match="product BISCUIT, not RADAR") as caught:
+        step(rig=rig, unlock=radar.BOOTROM_UNLOCK)
+    assert "not an Echo (2nd Generation)" in caught.value.message
+    assert rig.written == []
+
+
 def test_a_bootloader_for_another_product_stops_the_run(*, rig: Rig) -> None:
     rig.lks[LK_FIRST["lk_a"]] = b"\0product\0RADAR\0"
     bootrom_step.SESSION.short = True
-    with pytest.raises(FatalError, match="names its product RADAR, not BISCUIT"):
+    with pytest.raises(FatalError, match="product RADAR, not BISCUIT") as caught:
         step(rig=rig)
+    assert "not an Echo Dot (2nd Generation)" in caught.value.message
+    assert "--device" in caught.value.message
     assert rig.written == []
     assert not bootrom_step.ERASED.exists()
 

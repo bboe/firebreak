@@ -174,7 +174,7 @@ def test_a_downgrade_from_amonet_s_own_bootloader_takes_the_twrp_route(
         name="bootrom_step", target=unlock, value=lambda **_: pytest.fail("erased")
     )
     monkeypatch.setattr(
-        name="stage_amonet_v2_recovery",
+        name="stage_amonet_recovery",
         target=unlock,
         value=lambda: reached.append("v2 recovery") or True,
     )
@@ -196,7 +196,7 @@ def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
         name="getvar", target=unlock, value=lambda **o: answers[o["name"]]
     )
     monkeypatch.setattr(name="bootrom_step", target=unlock, value=lambda **_: True)
-    monkeypatch.setattr(name="amonet_v2_payload", target=unlock, value=lambda: tmp_path)
+    monkeypatch.setattr(name="amonet_payload", target=unlock, value=lambda: tmp_path)
     monkeypatch.setattr(
         name="stage_amonet_v1_1_0_recovery", target=unlock, value=lambda: False
     )
@@ -336,7 +336,7 @@ def test_a_locked_fastboot_after_the_v2_chain_is_left_for_its_own_stage(
     monkeypatch.setattr(
         name="run", target=unlock, value=lambda **_: pytest.fail("flashed")
     )
-    assert unlock.stage_amonet_v2_recovery() is False
+    assert unlock.stage_amonet_recovery() is False
 
 
 def test_a_locked_fastboot_is_left_for_its_own_stage(
@@ -383,7 +383,7 @@ def test_a_v2_fastboot_that_refuses_the_restart_names_the_button(
         target=unlock,
         value=lambda **_: types.SimpleNamespace(returncode=1, stdout=""),
     )
-    assert unlock.stage_amonet_v2_recovery() is False
+    assert unlock.stage_amonet_recovery() is False
     assert "hold the + button" in " ".join(capsys.readouterr().out.split())
 
 
@@ -465,7 +465,7 @@ def test_an_unlocked_fastboot_takes_v2_to_its_own_twrp(
     )
     monkeypatch.setattr(name="unpack", target=unlock, value=lambda **_: tmp_path)
     monkeypatch.setattr(name="run", target=unlock, value=ask)
-    assert unlock.stage_amonet_v2_recovery() is True
+    assert unlock.stage_amonet_recovery() is True
     assert [words[1:] for words in ran] == [
         ["-S", "256M", "flash", "recovery", "bin/twrp.img"],
         ["oem", "reboot-recovery"],

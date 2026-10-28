@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from firebreak.plugin import Target
     from firebreak.targets import Deprecated
 
+BOOTROM_UNLOCK = None
 BUILDS: dict[str, Download] = {}
 CROWN = Device(
     features=frozenset({Feature.BOOT0, Feature.RPMB}),

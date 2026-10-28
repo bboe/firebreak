@@ -9,8 +9,9 @@
 simulator/run.sh OUT unlock fireos5
 START=no-light simulator/run.sh OUT unlock fireos5 --short
 START=twrp simulator/run.sh OUT stock 8149
-DEVICE=radar simulator/run.sh OUT unlock fireos6 --run-on-unproven-path
-DEVICE=radar START=twrp simulator/run.sh OUT stock 6436 --run-on-unproven-path
+DEVICE=radar simulator/run.sh OUT unlock fireos6
+DEVICE=radar START=twrp simulator/run.sh OUT stock 6436
+DEVICE=radar START=no-light simulator/run.sh OUT unlock fireos6 --short --device radar
 python3 simulator/trace.py OUT.jsonl             # one command per line, for diff
 python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per range
 ```
@@ -64,9 +65,15 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   and the stock LK, the model and the USB ids are radar's. firebreak names the
   device off its fastboot product and refuses a target that is not for it.
   `unlock` and `stock` both run the whole way for either device, `unlock` from
-  stock fastboot and `stock` from `START=twrp`. A radar unlock takes
-  amonet-radar v1.0.0's archive and its own fastbrick map, which the simulated
-  radar checks the flashed payload against.
+  stock fastboot or `START=no-light` and `stock` from `START=twrp`. A radar
+  unlock takes amonet-radar v1.0.0's archive and its own fastbrick map, which
+  the simulated radar checks the flashed payload against.
+- `START=no-light` takes either device. `bootrom.py` reads its payloads from
+  the biscuit archives, and that is enough for a radar because every archive
+  ships the same one: `brom-payload/build/payload.bin` is 20060 bytes and byte
+  for byte the same in amonet-biscuit v2.0.0, v2.0.1 and amonet-radar v1.0.0.
+  A radar started this way needs `--device radar`, because a Dot with no light
+  answers neither adb nor fastboot, so nothing names it.
 - firebreak's stdin is `/dev/null`. Its stdout must be unbuffered: without
   `PYTHONUNBUFFERED=1`, the prompt reached the log only at exit, and the Dot
   was never plugged in.

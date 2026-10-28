@@ -20,7 +20,7 @@ from firebreak.cache import (
     lock_for,
     unpack,
 )
-from firebreak.devices import BUILDS, FASTBRICKS, biscuit
+from firebreak.devices import BOOTROM_UNLOCKS, BUILDS, FASTBRICKS, biscuit
 from firebreak.emos import stage_emos
 from firebreak.fireos import (
     BOOT_ROOT,
@@ -48,7 +48,7 @@ from firebreak.ui import (
     WAIT,
     FatalError,
     again,
-    amonet_v2_has_no_fastboot,
+    amonet_has_no_fastboot,
     clock,
     filled,
     passed,
@@ -59,10 +59,10 @@ from firebreak.ui import (
 )
 from firebreak.unlock import (
     amonet_chain,
+    amonet_payload,
     amonet_sources,
-    amonet_v2_payload,
+    stage_amonet_recovery,
     stage_amonet_v1_1_0_recovery,
-    stage_amonet_v2_recovery,
     stage_downgrade,
     stage_fastbrick,
 )
@@ -89,6 +89,7 @@ NO_FASTBOOT_DRIVER = (
     " https://github.com/bboe/firebreak#windows in an administrator PowerShell."
     " The run goes on when fastboot sees the Echo."
 )
+POWER_CYCLE = 60
 RESTARTS = 5
 TWRPS = frozenset({
     State.AMONET_V1_1_0_TWRP,
@@ -126,11 +127,11 @@ def bootrom_chain() -> Chain:
             unlock=biscuit.UNLOCK_FROM_BOOTROM,
         )
     return Chain(
-        after=stage_amonet_v2_recovery,
+        after=functools.partial(stage_amonet_recovery, carries_twrp=False),
         little_kernel="",
         state=State.AMONET_V2_FASTBOOT,
         then=State.AMONET_V2_TWRP,
-        unlock=biscuit.UNLOCK_V2_FROM_BOOTROM,
+        unlock=BOOTROM_UNLOCKS[ARGUMENTS.target.device],
     )
 
 
@@ -275,6 +276,14 @@ def ota_build() -> None:
         updates.download(build=build, builds=BUILDS[ARGUMENTS.target.device])
 
 
+def power_cycle() -> str:
+    return (
+        f"This {title()} has shown nothing on USB since boot-root ran. Unplug"
+        " its power cable, then plug it back in. The run continues by itself once"
+        " adb comes back."
+    )
+
+
 def prebuild() -> None:
     with contextlib.suppress(Exception):
         system_image(package=ARGUMENTS.target.installs.package)
@@ -359,7 +368,9 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
     deadline = None
     driver_check = 0.0
     driver_misses = 0
+    prompted = False
     restarts = 0
+    since = 0.0
     while True:
         current = state()
         installed = (
@@ -389,8 +400,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             SESSION.short = False
         parked = ERASED.exists() or HELD.exists() or SESSION.short
         if current == State.NONE and parked and not (resumed or SESSION.held):
-            bootrom_device = biscuit.UNLOCK_FROM_BOOTROM.device
-            if target.device != bootrom_device:
+            if target.device not in BOOTROM_UNLOCKS:
                 if ERASED.exists():
                     why = (
                         "has an erased boot0, which only its bootrom can start it from"
@@ -400,9 +410,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 else:
                     why = "was asked for with --short, which waits for its bootrom"
                 raise FatalError(
-                    message=f"this {target.device.title} {why}, and firebreak's"
-                    f" bootrom step supports only the {bootrom_device.title}, so"
-                    " nothing was done."
+                    message=f"this {target.device.title} {why}, and firebreak has"
+                    " no bootrom chain for it, so nothing was done."
                 )
             chain = bootrom_chain()
             prefetch(
@@ -439,7 +448,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 amonet=unpack(download=chain.unlock.source),
                 erase=None,
                 little_kernel=chain.little_kernel,
-                payload=amonet_v2_payload(),
+                payload=amonet_payload(),
                 tail=remaining(start=chain.then, table=table),
                 unlock=chain.unlock,
                 wheel=pyserial_wheel(),
@@ -453,6 +462,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
         if current != seen:
             seen = current
             deadline = time.monotonic() + WAIT
+            prompted = False
+            since = time.monotonic()
             restarts = (
                 restarts + (current == State.NONE)
                 if current in {State.NONE, State.STARTING}
@@ -486,11 +497,11 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     " root it, start it in fastboot mode.\n\n"
                     + target.device.fastboot_mode
                     + "\n\n"
-                    + amonet_v2_has_no_fastboot()
+                    + amonet_has_no_fastboot()
                 )
             elif current == State.AMONET_V2_FASTBOOT and current not in done:
                 say(
-                    text=f"This {title()} is in amonet v2's fastboot."
+                    text=f"This {title()} is in amonet's fastboot."
                     " Starting its recovery."
                 )
             elif current == State.EMOS and current not in done:
@@ -509,7 +520,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 and current != target.goal
             ):
                 say(
-                    text=f"This {title()} runs rooted Fire OS 6 on amonet v2."
+                    text=f"This {title()} runs rooted Fire OS 6 on amonet's bootloader."
                     " Rebooting it into TWRP."
                 )
             elif current == State.NONE and not done and not PROGRESS.open and guided:
@@ -634,6 +645,14 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 driver_misses = driver_misses + 1 if fastboot_driver_missing() else 0
                 if driver_misses == DRIVER_MISSES:
                     warn(text=NO_FASTBOOT_DRIVER)
+            if (
+                current == State.NONE
+                and awaiting == State.AMONET_V2_BOOTED
+                and not prompted
+                and time.monotonic() - since > POWER_CYCLE
+            ):
+                prompted = True
+                PROGRESS.note(message=power_cycle())
             time.sleep(2)
             continue
         if not done:
@@ -664,7 +683,7 @@ def stages() -> dict[State, Stage]:
         ),
         State.AMONET_V2_FASTBOOT: Stage(
             needs=(FASTBRICKS[ARGUMENTS.target.device].source,),
-            run=stage_amonet_v2_recovery,
+            run=stage_amonet_recovery,
             steps=1,
             then=State.AMONET_V2_TWRP,
         ),

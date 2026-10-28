@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import identify, support, ui, unlock
-from firebreak.devices import RADAR, biscuit
+from firebreak.devices import BISCUIT, RADAR, biscuit
 from firebreak.identify import Identity, UsbDevice
 
 if TYPE_CHECKING:
@@ -238,6 +238,25 @@ def test_a_report_names_the_firebreak_version(
     assert shown[-1] == "The report stops with what is above."
 
 
+def test_a_report_reads_no_system_image_for_an_echo_with_no_fire_os_5(
+    *,
+    adb: FakeAdb,
+    monkeypatch: pytest.MonkeyPatch,
+    shown: list[str],
+) -> None:
+    held = support.CACHE / f"system-{biscuit.BUILDS['5.5.5.4'].sha256[:12]}" / "md5"
+    held.parent.mkdir(parents=True)
+    held.write_text("abc 2 1\n")
+    monkeypatch.setattr(name="into_recovery", target=support, value=lambda **_: True)
+    adb.answers["ls -l"] = [LISTING]
+    adb.answers["cat /proc/partitions"] = [PARTITIONS]
+    support.report()
+    text = "\n".join(shown)
+    assert "no Fire OS 5 build" in text
+    assert "md5 abc" not in text
+    assert "system_a spare" not in text
+
+
 @pytest.mark.parametrize("built", [False, True])
 def test_a_report_reads_the_dot_s_recovery(
     *,
@@ -250,6 +269,11 @@ def test_a_report_reads_the_dot_s_recovery(
         held = support.CACHE / f"system-{biscuit.BUILDS['5.5.5.4'].sha256[:12]}" / "md5"
         held.parent.mkdir(parents=True)
         held.write_text("abc 2 1\n")
+    monkeypatch.setattr(
+        name="identify",
+        target=identify,
+        value=lambda **_: Identity(device=BISCUIT, how="USB product 'AEOBC'"),
+    )
     monkeypatch.setattr(name="into_recovery", target=support, value=lambda **_: True)
     adb.answers["ls -l"] = [LISTING]
     adb.answers["cat /proc/partitions"] = [PARTITIONS]
@@ -464,7 +488,7 @@ def test_the_write_test_with_short_goes_through_the_bootrom(
 ) -> None:
     ran: list[dict[str, object]] = []
     monkeypatch.setattr(
-        name="amonet_v2_payload", target=support, value=lambda: "payload.bin"
+        name="amonet_payload", target=support, value=lambda: "payload.bin"
     )
     monkeypatch.setattr(
         name="bootrom_write_test", target=support, value=lambda **said: ran.append(said)

@@ -49,11 +49,11 @@ def test_each_target_names_its_goal_its_install_and_its_unlock() -> None:
     }
 
 
-def test_only_an_unproven_target_says_so() -> None:
+def test_no_target_is_unproven() -> None:
     unproven = {
         (device.name, target.name)
         for device, targets in TARGETS.items()
         for target in targets.values()
         if target.unproven
     }
-    assert unproven == {("radar", "fireos6"), ("radar", "stock")}
+    assert unproven == set()

@@ -261,12 +261,6 @@ def clone(*, source: pathlib.Path, target: pathlib.Path) -> None:
 
 
 def create(*, cache: pathlib.Path, device: str, runner: int, start: str) -> None:
-    if device != "biscuit" and start == "no-light":
-        message = (
-            f"a {device} cannot start with no light: bootrom.py knows only"
-            " biscuit's payloads"
-        )
-        raise SystemExit(message)
     refuse_real_caches()
     previous = load().get("runner") if STATE.exists() else None
     if previous and previous != runner and is_runner(pid=previous):

@@ -113,7 +113,7 @@ def test_a_bootrom_build_writes_its_preloader_through_the_bootrom(
     writes = wrote(monkeypatch=monkeypatch)
     finished: list[dict[str, object]] = []
     monkeypatch.setattr(
-        name="amonet_v2_payload",
+        name="amonet_payload",
         target=stock,
         value=lambda: tmp_path / "payload.bin",
     )

@@ -6,8 +6,9 @@ import types
 import pytest
 
 from firebreak import route, twrp, ui, unlock
-from firebreak.devices import BISCUIT, TARGETS, biscuit
+from firebreak.devices import BISCUIT, RADAR, TARGETS, biscuit, radar
 from firebreak.devices.biscuit import BUILDS
+from firebreak.plugin import ClearBoot0Header
 
 
 class RanOutError(Exception):
@@ -70,7 +71,7 @@ class Run:
         monkeypatch.setattr(name="bootrom_step", target=route, value=self.bootrom_step)
         monkeypatch.setattr(name="unpack", target=route, value=lambda **_: None)
         monkeypatch.setattr(name="pyserial_wheel", target=route, value=lambda: None)
-        monkeypatch.setattr(name="amonet_v2_payload", target=route, value=lambda: None)
+        monkeypatch.setattr(name="amonet_payload", target=route, value=lambda: None)
         monkeypatch.setattr(
             name="stage_amonet_v1_1_0_recovery",
             target=route,
@@ -222,6 +223,23 @@ def test_a_dot_at_v2_0_0_s_goal_says_it_has_root_adb(
     assert "rooted: Fire OS 6.5.7.4, with root adb" in said(capsys=capsys)
 
 
+def test_a_dot_that_stays_dark_after_boot_root_asks_for_a_power_cycle(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    run.target(name="fireos6")
+    table = {
+        route.State.AMONET_V2_TWRP: route.Stage(
+            run=lambda: None, steps=1, then=route.State.AMONET_V2_BOOTED
+        )
+    }
+    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
+    run.states = [route.State.AMONET_V2_TWRP, *[route.State.NONE] * 6]
+    run.tick = route.POWER_CYCLE
+    with pytest.raises(RanOutError):
+        route.root()
+    assert "Unplug its power cable, then plug it back in" in said(capsys=capsys)
+
+
 @pytest.mark.parametrize(
     ("name", "states", "done", "message"),
     [
@@ -369,6 +387,22 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
     assert got == [downloaded]
 
 
+def test_a_radar_takes_amonet_radars_chain_not_biscuits(
+    *, monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    route.SESSION.short = True
+    monkeypatch.setattr(
+        name="target", target=route.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
+    )
+    unlocking = route.bootrom_chain().unlock
+    assert unlocking is radar.BOOTROM_UNLOCK
+    assert unlocking.device.product == "RADAR"
+    assert unlocking.plan[0] == ClearBoot0Header()
+    assert unlocking.plan[1:] == radar.AMONET_V1_0_0.plan
+    assert "radar-kaeru" in str(unlocking.plan)
+    assert run.stepped == []
+
+
 def test_a_reset_route_takes_five_steps(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="factory_reset", target=route.ARGUMENTS, value=True)
     monkeypatch.setattr(
@@ -451,9 +485,9 @@ def test_a_run_after_boot0_was_erased_goes_through_the_bootrom(
     route.ERASED.touch()
     monkeypatch.setattr(name="stages", target=route, value=route.stages)
     monkeypatch.setattr(
-        name="stage_amonet_v2_recovery",
+        name="stage_amonet_recovery",
         target=route,
-        value=lambda: run.fetched.append("v2.0.1 recovery"),
+        value=lambda **_: run.fetched.append("v2.0.1 recovery"),
     )
     run.states = [route.State.NONE, route.State.AMONET_V2_BOOTED]
     run.said["getprop ro.build.version.name"] = "Fire OS 6.5.7.4"
@@ -863,7 +897,7 @@ def test_a_v2_0_0_dot_is_restarted_into_its_own_twrp(
     with pytest.raises(RanOutError):
         route.root()
     out = said(capsys=capsys)
-    assert "is in amonet v2's fastboot. Starting its recovery." in out
+    assert "is in amonet's fastboot. Starting its recovery." in out
     assert "Rebooting it into TWRP." in out
     assert "hold the + button" not in out
 
@@ -897,7 +931,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             frozenset(),
         ),
         state.AMONET_V2_FASTBOOT: (
-            route.stage_amonet_v2_recovery,
+            route.stage_amonet_recovery,
             1,
             state.AMONET_V2_TWRP,
             frozenset(),

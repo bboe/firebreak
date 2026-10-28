@@ -193,6 +193,29 @@ partitions each OTA writes, for every build above, read as biscuit's are.
   6436 `ac9825e8`. Build numbers do not follow release order: 6302 is Fire
   OS 6.4.6.6, and 6813 is 6.5.6.6.
 
+### eMMC chips
+
+Read as biscuit's are, and from `report` on 2026-10-28.
+
+| chip | maker | date | boot0, boot1 | sectors | Echoes |
+| --- | --- | --- | --- | --- | --- |
+| `P1J94M` | Micron (`0xfe`) | 09/2017 | 1 MiB each | 7651328 | 1 |
+| `FJ25AB` | Samsung (`0x15`) | 09/2017 | 4 MiB each | 7634944 | 1 |
+
+- Both chips also turn up in biscuit, on other dates.
+- **The two differ in capacity**, by 16384 sectors, so the last usable sector
+  and the place of the backup table differ between them: 7634910 and 7634943
+  on the `FJ25AB` one. A restore builds the table from the Echo's own rather
+  than from a fixed one, which is what makes that safe.
+- boot0 is 1 MiB on the `P1J94M` one and 4 MiB on the `FJ25AB` one, as on
+  biscuit, and every stock `preloader.img` is 1 MiB, so the restore pads it
+  with zeros to boot0's size.
+- `report` also reads `prv`, `pre_eol_info` and `life_time`. The `FJ25AB` one
+  read `0x2`, `01` and `0x01 0x01`, and the `P1J94M` one `00` and
+  `0x00 0x00`. These say how worn the card is; neither is near its limit.
+- An Echo with an 8 GB eMMC has been seen, and nothing about its chip or its
+  table was written down. Running `report` once on one would fill this in.
+
 ## crown
 
 The Echo Show 8 (1st Generation), whose OTAs give `ro.product.model` as

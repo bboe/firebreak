@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import sys
 from typing import TYPE_CHECKING
 
@@ -352,6 +353,11 @@ def test_an_unproven_target_goes_on_only_when_asked(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ran(device=RADAR, monkeypatch=monkeypatch)
+    monkeypatch.setitem(
+        TARGETS[RADAR],
+        "stock",
+        dataclasses.replace(TARGETS[RADAR]["stock"], unproven=True),
+    )
     monkeypatch.setattr(name="argv", target=sys, value=["firebreak", "stock", "6436"])
     with pytest.raises(
         main.FatalError,

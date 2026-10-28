@@ -155,7 +155,7 @@ def bootloader_plan(
         ) from error
     entries = raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE]
     if gpt_intact(entries=entries, header=raw[SECTOR_SIZE : 2 * SECTOR_SIZE]):
-        check_bootloaders(entries=entries, live=live, want=unlock.device.product)
+        check_bootloaders(entries=entries, live=live, unlock=unlock)
     try:
         resolved = resolve(raw=raw, source=amonet, unlock=unlock)
     except (FileNotFoundError, KeyError, ValueError) as error:
@@ -250,7 +250,8 @@ def bootrom_step(  # ruff: ignore[too-many-arguments]
     return True
 
 
-def check_bootloaders(*, entries: bytes, live: Emmc, want: str) -> None:
+def check_bootloaders(*, entries: bytes, live: Emmc, unlock: Unlock) -> None:
+    want = unlock.device.product
     parts = partition_map(entries=entries)
     named: set[str] = set()
     for slot in LK_SLOTS:
@@ -276,15 +277,16 @@ def check_bootloaders(*, entries: bytes, live: Emmc, want: str) -> None:
     if other:
         raise FatalError(
             message=f"the {title()}'s bootloader names its product {', '.join(other)},"
-            f" not {want}, so it is not an Echo Dot (2nd Generation)."
-            f" {unwritten()} Unplug it: firebreak's bootrom step supports only the"
-            " Echo Dot (2nd Generation)."
+            f" not {want}, so it is not an {unlock.device.title}."
+            f" {unwritten()} Unplug it, then run firebreak again with --device for"
+            " the Echo it is."
         )
     if want not in named:
         raise FatalError(
             message="neither lk_a nor lk_b holds a bootloader that names its"
-            " product, so this run cannot tell that this is an Echo Dot (2nd"
-            f" Generation). {unwritten()} Unplug the {title()}. " + asked_for()
+            f" product, so this run cannot tell that this is an"
+            f" {unlock.device.title}. {unwritten()} Unplug the {title()}. "
+            + asked_for()
         )
 
 

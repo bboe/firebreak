@@ -35,6 +35,45 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - `write-test` names the device it ran on, as `report` does. Its output is
   meant to be pasted into a support channel, and it said neither the model nor
   the USB ids. It also called the device `Echo` where it had no name to use.
+- `report` and `write-test` ask for their output only if you want help, where
+  they read as though every run belonged in the support channel. Either one
+  also reads an Echo for its own sake.
+- Six lines a run can print about an Echo (2nd Generation) said amonet v2,
+  which is the Echo Dot's: that Echo has only amonet-radar v1.0.0. They name
+  no version now. The ones left naming one are on paths only an Echo Dot
+  reaches.
+- An Echo (2nd Generation) reached through its bootrom is given TWRP. The
+  bootrom route stops its plan at the reboot, before the plan's own write of
+  `recovery`, and the step that writes it afterwards only did so for a
+  bootloader whose build description the unlock names. radar's unlock names
+  none, because kaeru reports the stock one, so nothing wrote TWRP and the run
+  waited for a recovery that was never there.
+- A bootrom step that refuses an Echo names the one it expected, where it
+  said the step supports only the Echo Dot however it was run, and it now
+  says to name the Echo with `--device`.
+- `report` reads the Fire OS 5 system image of the Echo in front of it, says
+  there is none, or says it cannot tell which Echo this is. It read the Echo
+  Dot's whichever Echo it ran on, so on an Echo (2nd Generation) it printed
+  another model's image, and only when this computer happened to hold one.
+- `write-test` keeps its reading of the Echo's `dd` in the same column as
+  every other reading, where naming the model there ran past the column and
+  left the value hanging.
+- Neither Echo (2nd Generation) target asks for `--run-on-unproven-path` any
+  more. Both have run on one, and the risk that kept them behind the flag was
+  a failure between the boot0 erase and the preloader write, which is now
+  recoverable over USB rather than by opening the Echo.
+- An Echo (2nd Generation) whose boot0 is erased is picked up from its
+  bootrom, where the step refused any device but the Echo Dot. A restore
+  clears boot0 before it writes the preloader back, so a run that failed in
+  between left an Echo this could not reach. amonet-radar's chain was already
+  the one to write there; only the choice of it was missing.
+- `report` and `write-test` label their long steps by name alone, where each
+  carried a `[ 1/ ?]` that never resolved. Neither follows a plan, so there is
+  no count to fill in.
+- A run waiting for a rooted Fire OS 6 to come back says to unplug the Echo's
+  power cable and plug it back in, where it waited without a word. The Echo
+  has shown nothing on USB after boot-root on every Echo (2nd Generation) run
+  here, and amonet's own guide says the same.
 
 ## 0.9.0 - 2026-10-25
 

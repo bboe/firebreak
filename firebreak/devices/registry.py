@@ -16,6 +16,11 @@ if TYPE_CHECKING:
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
 LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
 SUPPORTED = ((BISCUIT, biscuit), (CROWN, crown), (RADAR, radar))
+BOOTROM_UNLOCKS: dict[Device, Unlock] = {
+    device: module.BOOTROM_UNLOCK
+    for device, module in SUPPORTED
+    if module.BOOTROM_UNLOCK is not None
+}
 BUILDS: dict[Device, dict[str, Download]] = {
     device: module.BUILDS for device, module in SUPPORTED if module.BUILDS
 }

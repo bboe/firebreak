@@ -105,11 +105,15 @@ a TWRP version, says in its name which release it belongs to.
 `firebreak/devices/registry.py` gathers what the core asks for across devices,
 and the package re-exports it, so `DEVICES`, `TARGETS`, `DEPRECATED` and
 `DEFAULTS` are assembled from each module rather than listed twice. A device
-module declares its own `TARGETS`, `WAS_CALLED`, `DEFAULT_TARGET`, `LK_VALUES`
-and `FASTBRICK`, the unlock whose archive holds its fastbrick payloads; a
-device with no target or LK yet declares them empty, and names no fastbrick
-either, because every device a run can take anywhere is reachable from stock
-fastboot and so needs one. Each plan is amonet's
+module declares its own `TARGETS`, `WAS_CALLED`, `DEFAULT_TARGET`, `LK_VALUES`,
+`FASTBRICK`, the unlock whose archive holds its fastbrick payloads, and
+`BOOTROM_UNLOCK`, the chain to write to an Echo held in its bootrom; a
+device with no target or LK yet declares them empty, and names neither a
+fastbrick nor a bootrom chain, because every device a run can take anywhere is
+reachable from stock fastboot and so needs the first. A module that leaves
+`BOOTROM_UNLOCK` out does not import, and one that declares it `None`
+has no bootrom route: a run that finds such a device with an erased boot0 says
+so and writes nothing. Each plan is amonet's
 `modules/main.py` and then its `fastboot-step.sh`, step for step. The Fire
 OS 5 unlock writes TWRP 3.7.0_9-bboe2, a download of its own, which is why
 an unlock carries `files` beside its archive. The bootrom route writes the

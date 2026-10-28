@@ -54,7 +54,7 @@ from firebreak.ui import (
     title,
     warn,
 )
-from firebreak.unlock import amonet_v2_payload
+from firebreak.unlock import amonet_payload
 
 if TYPE_CHECKING:
     import pathlib
@@ -276,9 +276,9 @@ def confirm(*, build: str) -> None:
 def known_twrp(*, version: str) -> None:
     if not version.startswith(TWRP_VERSIONS):
         raise FatalError(
-            message=f"this needs a TWRP for this {title()}: v1.1.0's 3.2.3,"
-            f" v2's 3.7.0, or the {biscuit.BBOE_TWRP_VERSION} that firebreak"
-            " installs"
+            message=f"this needs a TWRP for this {title()}: a 3.2 or a 3.7,"
+            f" the {biscuit.BBOE_TWRP_VERSION} that firebreak installs"
+            " included"
         )
 
 
@@ -381,7 +381,7 @@ def restore(  # ruff: ignore[complex-structure]
             run(arguments=["adb", "shell", "-n", "reboot"], timeout=60)
         stock_preloader(
             build=build,
-            payload=amonet_v2_payload(),
+            payload=amonet_payload(),
             preloader=(work / "preloader.img").read_bytes(),
             wheel=pyserial_wheel(),
         )
