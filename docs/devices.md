@@ -25,6 +25,8 @@ The Echo Dot (2nd Generation). Read in October 2026 from 37 Fire OS 6 OTAs on
 ftvdb, 4310 to 8149, and from the Fire OS 5.5.0.3, 5.5.3.1, 5.5.4.6, 5.5.4.9,
 5.5.5.0 and 5.5.5.4 OTAs. 8338 and 8344 are read from the OTAs Amazon's own
 CDN serves, which is where a Dot on 8338 led: ftvdb lists neither.
+[unlocking.md](unlocking.md#echo-dot-2nd-generation) has the routes this
+device alone takes.
 
 ### Builds
 
@@ -146,6 +148,8 @@ The Echo (2nd Generation), model XC56PY. Read in October 2026 from the 16 OTAs
 on ftvdb: Fire OS 5.5.5.4 and Fire OS 6 4305, 4315, 4929, 4936, 6199, 6208,
 6220, 6302, 6425, 6436, 6813, 8149, 8338, 8344 and 8349. ftvdb has no other
 radar OTA.
+[unlocking.md](unlocking.md#echo-2nd-generation) has what this device alone
+does.
 
 ### Builds
 
@@ -254,6 +258,8 @@ The Echo Show 8 (1st Generation), whose OTAs give `ro.product.model` as
 6574.1, as biscuit's 8146 also names itself. ftvdb has no other crown OTA.
 Crown's build numbers are its own: its 6208, 6436, 8146 and 8149 are not
 biscuit's or radar's builds of those numbers.
+[unlocking.md](unlocking.md#echo-show-8-1st-generation) says why no route
+reaches it.
 
 ### Builds
 

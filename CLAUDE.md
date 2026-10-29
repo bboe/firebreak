@@ -4,8 +4,9 @@ firebreak changes the firmware on an Echo Dot (2nd Generation) (model RS03QR,
 codename biscuit) over USB. README.md has the targets and how to run it.
 `docs/unlocking.md` says why each step is there; read the section for a step
 **before** you touch it. Most of it was measured on hardware rather than
-reasoned out. `docs/plugins.md` covers the plugin API: devices, unlocks and
-their plans.
+reasoned out. Its sections are the general process, and its `Each device`
+section holds what one device alone does. `docs/plugins.md` covers the plugin
+API: devices, unlocks and their plans.
 
 ## Commands
 
