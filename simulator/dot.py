@@ -583,7 +583,7 @@ def erase(*, part: str, state: dict) -> int:
     return 0
 
 
-def fastboot(*, arguments: list[str]) -> int:  # ruff: ignore[complex-structure, too-many-return-statements]
+def fastboot(*, arguments: list[str]) -> int:  # ruff: ignore[complex-structure, too-many-branches, too-many-return-statements]
     entry = {"argv": arguments, "tool": "fastboot"}
     sparse = None
     while arguments and arguments[0] in FASTBOOT_FLAGS:
@@ -606,6 +606,9 @@ def fastboot(*, arguments: list[str]) -> int:  # ruff: ignore[complex-structure,
     if verb == "devices":
         if state["mode"] == "fastboot":
             print(f"{state['serial']}\tfastboot")
+        return 0
+    if verb == "--version":
+        print(f"fastboot version 37.0.0-sim\nInstalled as {HERE / 'bin' / 'fastboot'}")
         return 0
     while state["mode"] != "fastboot":
         time.sleep(0.5)

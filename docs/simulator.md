@@ -68,6 +68,10 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   stock fastboot or `START=no-light` and `stock` from `START=twrp`. A radar
   unlock takes amonet-radar v1.0.0's archive and its own fastbrick map, which
   the simulated radar checks the flashed payload against.
+- `report` and `write-test` take any start, because `run.sh` passes the target
+  through as a command. `write-test --short` needs `START=no-light`, and is the
+  only way here to reach the bootrom write test: both of them return before a
+  target is chosen, so that run reads an Echo nothing has named.
 - `START=no-light` takes either device. `bootrom.py` reads its payloads from
   the biscuit archives, and that is enough for a radar because every archive
   ships the same one: `brom-payload/build/payload.bin` is 20060 bytes and byte
@@ -335,6 +339,12 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 
 ### fastboot
 
+- `devices` and `--version` answer whatever mode the Echo is in, and every
+  other verb waits for it to reach fastboot. Both are about the host rather
+  than the Echo: `report` and `write-test` read the version in their host
+  block, before they look at an Echo at all, and an Echo that shows no light
+  never reaches fastboot. Without that, `--version` fell into the wait and the
+  run stopped on firebreak's own 30 second tool timeout.
 - A locked LK refuses `flash` and `erase` with `the command you input is
   restricted on locked hw`, which a locked v1.1.0 LK printed.
 - `flash` of an image larger than its partition fails with `size too large`.
