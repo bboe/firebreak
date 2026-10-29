@@ -124,7 +124,6 @@ FIREOS5_BUILDS = frozenset({
     "5.5.5.0",
     "5.5.5.4",
 })
-FIREOS6_BUILD = "8146"
 FLASH_AMONET_TWRP = FastbootFlash(
     image="bin/twrp.img", label="write TWRP", target="recovery"
 )
@@ -319,12 +318,12 @@ TARGETS = (
     Target(
         device=BISCUIT,
         goal=State.AMONET_BOOTED,
-        installs=FireOs6(build=FIREOS6_BUILD),
+        installs=FireOs6(build=DEFAULT_BUILD),
         name=FIREOS6,
         summary="boot-root.zip's root adb on the Fire OS 6 already installed,"
-        " which keeps the Dot's setup; with --factory-reset, amonet v2.0.1's own"
-        f" procedure: Fire OS 6 {FIREOS6_BUILD} with TWRP"
-        f" {V2_0_1_TWRP_VERSION}, with the Dot erased.",
+        " which keeps the Dot's setup; with --factory-reset, Fire OS 6"
+        f" {DEFAULT_BUILD} with TWRP {V2_0_1_TWRP_VERSION}, with the Dot"
+        " erased.",
         unlock=UNLOCK_TO_FIREOS6,
     ),
 )

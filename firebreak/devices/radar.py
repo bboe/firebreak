@@ -71,7 +71,6 @@ DEFAULT_BUILD = "8149"
 DEFAULT_TARGET = FIREOS6
 FIREOS5_BUILDS = frozenset({"5.5.5.4"})
 FIREOS5_CHAIN = None
-FIREOS6_BUILD = "6436"
 LK_VALUES = frozenset({
     "59779ca-20220524_183401",
     "63cb91b-20221007_073612",
@@ -128,11 +127,11 @@ TARGETS = (
     Target(
         device=RADAR,
         goal=State.AMONET_BOOTED,
-        installs=FireOs6(build=FIREOS6_BUILD),
+        installs=FireOs6(build=DEFAULT_BUILD),
         name=FIREOS6,
         summary="boot-root.zip's root adb on the Fire OS 6 already installed,"
-        " which keeps the Echo's setup; with --factory-reset, amonet-radar v1.0.0's own"
-        f" procedure: Fire OS 6 {FIREOS6_BUILD}, with the Echo erased.",
+        " which keeps the Echo's setup; with --factory-reset, Fire OS 6"
+        f" {DEFAULT_BUILD}, with the Echo erased.",
         unlock=AMONET_V1_0_0,
     ),
 )

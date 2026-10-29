@@ -1044,7 +1044,7 @@ ring read white.
 | target | ends in | stops at |
 | --- | --- | --- |
 | `unlock fireos5` | amonet v1.1.0, TWRP 3.7.0_9-bboe2, rooted Fire OS 5.5.5.4 | amonet-fireos5-bboe-booted |
-| `unlock fireos6 [--factory-reset]`, the default | amonet v2.0.1's TWRP, `boot-root.zip` on the Fire OS 6 installed; with `--factory-reset`, or no Fire OS 6 installed, on 8146 in both slots | amonet-booted |
+| `unlock fireos6 [--factory-reset]`, the default | amonet v2.0.1's TWRP, `boot-root.zip` on the Fire OS 6 installed; with `--factory-reset`, or no Fire OS 6 installed, on 8149 in both slots | amonet-booted |
 | `stock [BUILD]` | Amazon's Fire OS 6 `BUILD`, 8149 when left out, the whole Dot erased | stock-booted |
 
 - Each poll picks the stage for the state found and the target, so a run
@@ -1219,6 +1219,7 @@ ring read white.
 | amonet-booted | stock 5.5.0.3 | 3 min 38 s, on 2026-10-26, from rooted Fire OS 6: `[1/19]` to `[19/19]`, TWRP 19 s, both `/system` writes 80 s, the bootrom 5 s after the reboot, the RPMB 1 s, the preloader 8 s, and no reboot after it. It ended `waits in its bootrom`, with `bootrom-held` written and the payload still on its serial port. From v2's TWRP it is 18 steps, without the wait for TWRP |
 | bootrom, held | `unlock fireos6` | 6 min 05 s, on 2026-10-26, with no button held: joining the held payload under 1 s, then amonet v1.1.0 through it and TWRP by 1 min 35 s, v1.1.0's TWRP 19 s, amonet v2.0.1 and its TWRP by 1 min 55 s, and the fallback's installs 98 s and 115 s, `boot-root.zip` 9 s, rooted 8146's boot 24 s. Measured before the bootrom grouped its steps, so it showed 28 where the same run now shows 24 |
 | amonet-fastboot, on amonet v2's own bootloader | `unlock fireos5` | 7 min 40 s, on 2026-10-26, over 10 steps and with no bootrom: v2's TWRP 19 s, the table under 1 s, recovery 19 s, amonet v1.1.0-bboe 5 s, TWRP 4 s, userdata 3 s, `/system` 80 s, boot and Magisk 4 s, the preloader under 1 s, Fire OS 5's first boot 320 s. The run opened at 6 steps, and the gate's `False` re-planned it to 10. adb answered 24 s into that boot and held through setup mode |
+| stock-fastboot, locked | `unlock fireos6 --factory-reset` | 4 min 58 s, on 2026-10-29, the first run of that path on 8149 rather than 8146: the fastbrick 8 s, v2's TWRP 34 s, the wipe 3 s, the installs 103 s and 115 s, `boot-root.zip` 9 s, rooted 8149's boot 23 s. The slot guard passed after each install. The 8146 runs above took 96 s and 115 s, and 98 s and 115 s, each from another starting state |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.
@@ -1764,8 +1765,8 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   downloads the build before it touches the Dot.
 - Each device has its own builds. biscuit's and radar's OTAs share build
   numbers but not firmware, so the run picks the build only after it knows
-  the device. radar has one, 6436, Fire OS 6.5.7.2, its newest, which both of
-  its targets install.
+  the device. radar has thirteen, and 8149, Fire OS 6574.1, is the newest of
+  them and what both of its targets install when no build is named.
 - Before it writes anything, the restore checks that the OTA's
   `ro.product.device`, without `_puffin`, names the device. A wrong entry in
   the build table would otherwise write one device's bootloaders on another.
