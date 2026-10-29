@@ -141,26 +141,38 @@ and from each boot area's `size`, in 512-byte sectors.
 
 ## radar
 
-The Echo (2nd Generation), model XC56PY. Read in October 2026 from the 10 OTAs
-on ftvdb: Fire OS 5.5.5.4 and Fire OS 6 4305, 4929, 6199, 6208, 6220, 6302,
-6425, 6436 and 6813. ftvdb has no other radar OTA.
+The Echo (2nd Generation), model XC56PY. Read in October 2026 from the 16 OTAs
+on ftvdb: Fire OS 5.5.5.4 and Fire OS 6 4305, 4315, 4929, 4936, 6199, 6208,
+6220, 6302, 6425, 6436, 6813, 8149, 8338, 8344 and 8349. ftvdb has no other
+radar OTA.
 
 ### Builds
 
 | ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK | fastbrick image |
 | --- | --- | --- | --- | --- | --- |
-| Fire OS 6 4929 to 6813 | `63cb91b-20221007_073612` | `bd7ae89-20221003_221237` | [2](#tee-images-1) | 0x0005, 0x0102, 0x0001 | `fastbrick.img` |
-| Fire OS 6 4305 | `41fb3ce-20221007_153017` | `919cae9-20221006_205014` | biscuit's [3](#tee-images) | 0x0005, 0x0102, 0x0001 | `fastbrick.img` |
+| Fire OS 6 8338 to 8349 | `2c3569d-20260617_051433` | `bd7ae89-20221003_221237` | [3](#tee-images-1) | 0x0005, 0x0102, 0x0001 | none |
+| Fire OS 6 4929 to 8149 | `63cb91b-20221007_073612` | `bd7ae89-20221003_221237` | [2](#tee-images-1) | 0x0005, 0x0102, 0x0001 | `fastbrick.img` |
+| Fire OS 6 4305, 4315 | `41fb3ce-20221007_153017` | `919cae9-20221006_205014` | [4](#tee-images-1) | 0x0005, 0x0102, 0x0001 | `fastbrick.img` |
 | Fire OS 5.5.5.4 | `59779ca-20220524_183401` | `642551b-20211203_021230` | [1](#tee-images-1) | 0x0005, 0x0102, 0x0001 | `fastbrick-20220524.img` |
 
 - amonet-radar v1.0.0's `profile.sh` chooses the fastbrick image by the LK,
-  as biscuit's does. Only 5.5.5.4's LK gets its own image. Both Fire OS 6 LKs
-  get the default, `fastbrick.img`.
-- No one has unlocked a radar on 4305 here. Its LK is `41fb3ce`, the same
-  commit as biscuit's 4310 to 4315 LK. On biscuit, that LK is unlocked by the
-  image its `63cb91b` LK gets, which amonet's own map does not give it. On
-  radar, amonet's map does give it that image, the default `fastbrick.img`.
-  Whether that unlocks radar 4305 is not known.
+  as biscuit's does. Only 5.5.5.4's LK gets its own image. The `63cb91b` and
+  `41fb3ce` LKs get the default, `fastbrick.img`. The `2c3569d` LK of 8338 and
+  later is newer than anything amonet-radar was built for, so no image unlocks
+  it.
+- `stock` does not offer 8338, 8344 or 8349, which is the only place the table
+  above runs ahead of the code. `unlock.newer_than_known` refuses a bootloader
+  no older than the newest firebreak has a payload for, so a restore to one of
+  those builds would leave an Echo that firebreak cannot unlock again. biscuit
+  has no such gap: amonet v2.0.1 ships `fastbrick-20260617.img` for the same
+  commit's LK, which is why biscuit offers 8338 and 8344.
+- The default `fastbrick.img` unlocks a radar on 4305, measured on 2026-10-29
+  from stock fastboot: the fastbrick took 13 s, TWRP started 28 s later, and
+  the run rooted 4305 in place in 1 min 11 s with no restart by hand. Their LK
+  is `41fb3ce`, the same commit as biscuit's 4310 to 4315 LK. On biscuit, that
+  LK is unlocked by the image its `63cb91b` LK gets, which amonet's own map
+  does not give it. On radar, amonet's map does give it that image. 4315 shares
+  the LK and the preloader, and is not measured on its own.
 - The preloaders of one row differ between builds only in boot0's GPT, as on
   biscuit.
 - No OTA raises an anti-rollback version, and none is higher than biscuit's.
@@ -170,25 +182,42 @@ on ftvdb: Fire OS 5.5.5.4 and Fire OS 6 4305, 4929, 6199, 6208, 6220, 6302,
 
 | TEE | bytes | md5 | sha256 |
 | --- | --- | --- | --- |
+| 4 | 2812928 | `78f671ba4540a70e760459ce54a1a5fa` | `f4ec7c909c610f1b915c5bc3e9e995b97d554b9ac99018818a0055a19cdd326e` |
+| 3 | 1781760 | `669a952109fd134b4588afb719603fcf` | `76774007979064e329eb1fd6e87053b8ab72853680e9b370b51805bc13634bc0` |
 | 2 | 1781760 | `13a2f357ddf719afccfb707a7f1668d2` | `15cd40caafa6cd8bb8c4e4ed173c973569a8a2b026235d81776ec888f1522c72` |
 | 1 | 2641920 | `2ce20a3462ab227aa750c0f9c026d6d3` | `80e54029f5defc087ff14e5da27dd9739cbf9f684b2ed8bdc3803fd1b77db856` |
+
+- 4 is the same image as biscuit's [3](#tee-images). Each radar TEE is
+  numbered here, so a number in the table above is always radar's own.
 
 ### Partition hashes
 
 [radar-partitions.csv](radar-partitions.csv) has the sha256 of the 5
 partitions each OTA writes, for every build above, read as biscuit's are.
 
-- 5.5.5.4 and 4305 are block OTAs. As on biscuit, a radar that Amazon's
+- 5.5.5.4, 4305 and 4315 are block OTAs. As on biscuit, a radar that Amazon's
   updater installed matches their `/system` only if its eMMC reads erased
   blocks as zeros.
-- Every radar Fire OS 6 build has what biscuit's `boot-root.zip` changes:
-  each file, one autoroot site in `sbin/adbd`, a `veritykeyid` boot command
-  line, and verity metadata at the offset the zip computes.
+- The three readings below need what is inside `/system`, not its hash, and
+  cover only the ten OTAs read before 2026-10-28. 8338, 8344 and 8349 are in
+  the tables and the csv above, but nothing here has looked inside their
+  `/system`, and `stock` does not offer them. 4315, 4936 and 8149 are unread
+  too and do not need the reading: `boot-root.zip` rooted each of them in
+  place on a radar on 2026-10-29, in 1 min 11 s to 1 min 13 s, which is the
+  stronger test. So every build `stock` offers is either read below or rooted
+  in place, and none reaches the zip unverified. That matters because
+  `BUILDS` is also what `fireos.installed_build` checks before the zip
+  patches a build in place, so a build added for `stock` is a build the
+  in-place root will accept.
+- Each of the nine Fire OS 6 builds among them has what biscuit's
+  `boot-root.zip` changes: each file, one autoroot site in `sbin/adbd`, a
+  `veritykeyid` boot command line, and verity metadata at the offset the zip
+  computes.
 - `boot-root.zip` patches the sepolicy with `magiskpolicy32`. If that fails,
   it falls back to a bundled policy, and only radar 6302's and 6813's stock
   policy, `8f6dd232a590337314bb372e84b84e77`, has one. Nothing here has run
   it on a radar.
-- The stock sepolicy md5 of each radar build: 4305 `d88b3344`, 4929
+- The stock sepolicy md5 of each of those nine: 4305 `d88b3344`, 4929
   `88d5111f`, 6199 to 6220 `59fb0d21`, 6302 and 6813 `8f6dd232`, 6425 and
   6436 `ac9825e8`. Build numbers do not follow release order: 6302 is Fire
   OS 6.4.6.6, and 6813 is 6.5.6.6.

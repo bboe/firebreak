@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import updates
-from firebreak.devices import BUILDS, DEFAULT_BUILDS, biscuit
+from firebreak.devices import BUILDS, DEFAULT_BUILDS, FIREOS5_BUILDS, biscuit
 
 if TYPE_CHECKING:
     import pathlib
@@ -71,4 +71,4 @@ def test_every_build_has_a_whole_pin_on_amazon_s_cdn() -> None:
             assert device.name in download.name
             assert len(download.sha256) == 64
         assert DEFAULT_BUILDS[device] in builds
-    assert set(biscuit.FIREOS5_BUILDS) <= set(biscuit.BUILDS)
+        assert set(FIREOS5_BUILDS[device]) <= set(builds)

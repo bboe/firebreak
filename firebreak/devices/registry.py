@@ -41,6 +41,9 @@ FASTBRICKS: dict[Device, Unlock] = {
     for device, module in SUPPORTED
     if module.FASTBRICK is not None
 }
+FIREOS5_BUILDS: dict[Device, frozenset[str]] = {
+    device: module.FIREOS5_BUILDS for device, module in SUPPORTED
+}
 FIREOS5_CHAINS: dict[Device, FireOs5Chain] = {
     device: module.FIREOS5_CHAIN
     for device, module in SUPPORTED

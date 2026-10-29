@@ -27,6 +27,7 @@ from firebreak.devices import (
     DEFAULT_BUILDS,
     DEFAULTS,
     DEPRECATED,
+    FIREOS5_BUILDS,
     TARGETS,
     biscuit,
 )
@@ -422,10 +423,11 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
 
 
 def ordered(*, builds: Iterable[str]) -> list[str]:
+    fireos5 = frozenset().union(*FIREOS5_BUILDS.values())
     return sorted(
         builds,
         key=lambda build: (
-            build not in biscuit.FIREOS5_BUILDS,
+            build not in fireos5,
             tuple(map(int, build.split("."))),
         ),
         reverse=True,

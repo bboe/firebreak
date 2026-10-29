@@ -91,10 +91,13 @@ def test_a_build_the_device_has_no_ota_for_is_refused(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ran(device=RADAR, monkeypatch=monkeypatch)
-    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", "stock", "8149"])
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "stock", "5.5.0.3"]
+    )
     with pytest.raises(
         main.FatalError,
-        match="the Echo \\(2nd Generation\\) has no stock build 8149: use one of 6436",
+        match=r"the Echo \(2nd Generation\) has no stock build 5\.5\.0\.3: use"
+        r" one of 8149",
     ):
         main.cli()
 
@@ -138,8 +141,8 @@ def test_a_deprecated_name_parses_but_is_not_in_the_help(
         ),
         (["--device", "crown"], "argument --device: invalid choice"),
         (
-            ["--device", "radar", "stock", "8149"],
-            "the Echo (2nd Generation) has no stock build 8149",
+            ["--device", "radar", "stock", "5.5.0.3"],
+            "the Echo (2nd Generation) has no stock build 5.5.0.3",
         ),
         (
             ["--device", "biscuit", "survey", "x"],
@@ -502,7 +505,7 @@ def test_stock_takes_no_wait(*, monkeypatch: pytest.MonkeyPatch) -> None:
         (["stock"], BISCUIT, "8149"),
         (["stock", "4315"], BISCUIT, "4315"),
         (["unlock", "fireos6"], BISCUIT, ""),
-        (["stock", "--run-on-unproven-path"], RADAR, "6436"),
+        (["stock", "--run-on-unproven-path"], RADAR, "8149"),
     ],
     ids=["stock-alone", "stock-with-a-build", "another-target", "radar-stock"],
 )

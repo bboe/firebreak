@@ -14,7 +14,7 @@ from firebreak.android.gpt import SECTOR_SIZE, gpt_intact, stock_gpt
 from firebreak.android.ota import extract
 from firebreak.bootrom_step import stock_preloader
 from firebreak.cache import CACHE, ERASED, digest
-from firebreak.devices import BUILDS, biscuit
+from firebreak.devices import BUILDS, FIREOS5_BUILDS, biscuit
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
     adb_shell,
@@ -409,7 +409,7 @@ def restore(  # ruff: ignore[complex-structure]
     if SESSION.fastboot:
         reboot_into_fastboot()
         return
-    if build in biscuit.FIREOS5_BUILDS:
+    if build in FIREOS5_BUILDS[ARGUMENTS.target.device]:
         PROGRESS.begin(estimate="5 s", label=f"rebooting into stock {build}")
     else:
         PROGRESS.begin(estimate="90 s", label=f"waiting for stock {build} to start")

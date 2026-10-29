@@ -113,9 +113,9 @@ the words that ask for fastboot mode, its stock builds and the OTA each one
 downloads, its unlocks and its targets. `firebreak/updates.py` keeps only what
 every device shares: Amazon's CDN, the pin an OTA is built from, and the
 caching a build's download goes through, which takes the builds to look in
-rather than reading one device's. Every caller passes biscuit's, because the
-routes are biscuit's. A second device must pass its own, and nothing yet
-fails a run that forgets to. `biscuit.py` carries amonet v1.1.0's
+rather than reading one device's. Every caller passes the device's own, which
+is what makes a second device's pins reachable at all. `biscuit.py` carries
+amonet v1.1.0's
 chain and amonet v2.0.1, with `crown.py` and `radar.py` carrying one each. A
 device's own module is where its next amonet release goes, so a release has no
 file of its own and a constant that two releases would share, such as a zip or
@@ -124,8 +124,9 @@ a TWRP version, says in its name which release it belongs to.
 and the package re-exports it, so `DEVICES`, `TARGETS`, `DEPRECATED` and
 `DEFAULTS` are assembled from each module rather than listed twice. A device
 module declares its own `TARGETS`, `WAS_CALLED`, `DEFAULT_TARGET`, `LK_VALUES`,
-`FASTBRICK`, the unlock whose archive holds its fastbrick payloads,
-`FIREOS5_CHAIN`, the earlier amonet it can be on, and
+`FIREOS5_BUILDS`, which of its builds are Fire OS 5 and so show nothing on USB
+once they start, `FASTBRICK`, the unlock whose archive holds its fastbrick
+payloads, `FIREOS5_CHAIN`, the earlier amonet it can be on, and
 `BOOTROM_UNLOCK`, the chain to write to an Echo held in its bootrom; a
 device with no target or LK yet declares them empty, and names neither a
 fastbrick nor a bootrom chain, because every device a run can take anywhere is

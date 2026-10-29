@@ -8,6 +8,14 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 - `stock 5.5.5.4` returns an Echo (2nd Generation) to Fire OS 5.5.5.4, where
   `stock` there took only the Fire OS 6 build it installs when left out.
+- `stock` with no build on an Echo (2nd Generation) installs Fire OS 6 8149,
+  where it installed 6436. 8149 is the newest build firebreak offers that
+  device, and it is the one `unlock` then roots in place. `unlock fireos6`
+  still installs 6436 when it has to install one.
+- `stock` on an Echo (2nd Generation) takes thirteen builds, every OTA ftvdb
+  lists for it except 8338, 8344 and 8349. Those three carry a bootloader no
+  amonet-radar payload unlocks, so a restore to one of them would leave an
+  Echo firebreak cannot unlock again. `docs/devices.md` records all sixteen.
 
 ### Changed
 

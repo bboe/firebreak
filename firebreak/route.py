@@ -24,6 +24,7 @@ from firebreak.devices import (
     BOOTROM_UNLOCKS,
     BUILDS,
     FASTBRICKS,
+    FIREOS5_BUILDS,
     FIREOS5_CHAINS,
     biscuit,
 )
@@ -557,7 +558,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             current in {State.STOCK_BOOTED, State.STOCK_FASTBOOT}
             or (
                 restored
-                and ARGUMENTS.build in biscuit.FIREOS5_BUILDS
+                and ARGUMENTS.build in FIREOS5_BUILDS[target.device]
                 and current not in TWRPS
             )
         ):
@@ -579,7 +580,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                         message=f"Stock {ARGUMENTS.build} is written, and the"
                         f" {title()} waits in fastboot."
                     )
-                elif ARGUMENTS.build in biscuit.FIREOS5_BUILDS:
+                elif ARGUMENTS.build in FIREOS5_BUILDS[target.device]:
                     passed(
                         message=f"Stock {ARGUMENTS.build} is written, and the {title()}"
                         " is rebooting into it."
