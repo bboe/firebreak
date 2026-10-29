@@ -195,7 +195,7 @@ def bootrom_client(
                 ) from error
             PROGRESS.note(
                 message=f"The {title()}'s bootrom did not answer ({error}). Unplug"
-                f" the {title()} and plug it back in; the run goes on when its"
+                f" the {title()} and plug it back in; the run continues when its"
                 " bootrom returns."
             )
             await_port_gone(deadline=overall, name=port.name)

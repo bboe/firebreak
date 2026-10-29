@@ -176,7 +176,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                         + filled(
                             text=f"The rest of this report comes from the {title()}'s"
                             f" recovery. Start the {title()} in fastboot mode and this"
-                            " goes on by itself.\n\n"
+                            " continues by itself.\n\n"
                             + BISCUIT.fastboot_mode
                             + "\n\n"
                             + amonet_has_no_fastboot()

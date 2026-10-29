@@ -306,7 +306,7 @@ def cli() -> None:
     if ARGUMENTS.target.unproven and not options.run_on_unproven_path:
         raise FatalError(
             message=f"{ARGUMENTS.target.name} is not proven on an actual"
-            f" {device.title}, so it needs --run-on-unproven-path to go on"
+            f" {device.title}, so it needs --run-on-unproven-path to continue"
         )
     root()
 
@@ -369,7 +369,7 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
         (
             "--run-on-unproven-path",
             (
-                "go on with a target that has never run on the device it is for,"
+                "continue with a target that has never run on the device it is for,"
                 " which is refused without it"
             ),
         ),
@@ -378,7 +378,7 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
             (
                 "for an Echo that shows no light and needs its test point"
                 " shorted: wait for its bootrom, say when the short may come"
-                " off, then go on"
+                " off, then continue"
             ),
         ),
         (

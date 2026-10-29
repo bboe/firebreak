@@ -331,7 +331,7 @@ def unlocked_fastboot() -> bool:
         PROGRESS.note(
             message=f"The {title()} came back in its own locked fastboot rather than"
             " amonet's, which accepts nothing this needs. This run unlocks it again"
-            " and goes on from amonet's recovery."
+            " and continues from amonet's recovery."
         )
         return False
     if unlocked != "true":

@@ -93,7 +93,7 @@ NO_FASTBOOT_DRIVER = (
     "Windows sees an Echo in fastboot mode, but fastboot does not, so its driver"
     " is missing. Install the drivers from"
     " https://github.com/bboe/firebreak#windows in an administrator PowerShell."
-    " The run goes on when fastboot sees the Echo."
+    " The run continues when fastboot sees the Echo."
 )
 POWER_CYCLE = 60
 RESTARTS = 5
@@ -432,7 +432,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 warn(
                     text=f"A restore left the {title()} waiting in its bootrom. This"
                     " run joins the payload waiting there and writes"
-                    f" {chain.unlock.name} through it, then goes on from that TWRP."
+                    f" {chain.unlock.name} through it, then continues from that TWRP."
                     " Leave the"
                     f" {title()} plugged in: unplugging it starts the stock firmware"
                     " and loses the hold."
@@ -445,7 +445,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                         else "The last run stopped after it erased boot0"
                     )
                     + f", so the {title()} cannot start until {chain.unlock.name} is"
-                    " written through its bootrom. This run does that, then goes on"
+                    " written through its bootrom. This run does that, then continues"
                     " from that TWRP. If nothing happens within a minute,"
                     f" unplug the {title()} and plug it back in.",
                 )

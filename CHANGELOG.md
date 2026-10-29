@@ -21,7 +21,7 @@ This project adheres to [Semantic Versioning](https://semver.org).
   because only that bootloader starts the 64-bit TWRP that target needs.
 - amonet v2's fastboot writes that unlock's TWRP before it restarts the
   device, so a `recovery` that holds no TWRP still reaches one. From there
-  `unlock fireos5` goes on from v2's TWRP, where the bootloader is already
+  `unlock fireos5` continues from v2's TWRP, where the bootloader is already
   amonet's, instead of erasing boot0 to reach the bootrom.
 - `stock [BUILD]` leaves the device in fastboot at the end, so the next run
   needs no button held. `--end-in-fireos` starts the Fire OS it now holds
@@ -92,6 +92,9 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - A run on an Echo (2nd Generation) takes the bootrom payload from that Echo's
   own archive, where it fetched a 73 MB Echo Dot zip for the one file. The
   payload in both is the same 20060 bytes, byte for byte.
+- Ten messages say a run `continues` where they said it `goes on`, which
+  ASD-STE100 discourages as a phrasal verb. The style this project writes in
+  approves `continue`, and one of the ten already said it.
 
 ## 0.9.0 - 2026-10-25
 

@@ -154,7 +154,7 @@ is. Only the `stock` target takes it.
 
 Use `--short` when the Dot shows no light and gives no fastboot. The run reaches
 the Dot's bootrom by shorting its eMMC bus as it powers up, writes the amonet
-the target needs, and then goes on to that target. It takes any target;
+the target needs, and then continues to that target. It takes any target;
 `--short` to `unlock fireos6` has not been run on a Dot.
 
 1. Open the Dot with a Torx T8 screwdriver. Lift the shield's lid off the eMMC

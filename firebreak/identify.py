@@ -247,7 +247,7 @@ def named_device(*, devices: str) -> Identity:
         if polls == NAME_POLLS:
             warn(
                 text="Waiting for the Echo to say which device it is, which it"
-                " does in fastboot and in a recovery. This goes on by itself once"
+                " does in fastboot and in a recovery. This continues by itself once"
                 " it does. An Echo that shows no light never says, and needs"
                 f" --device instead: {devices}."
             )

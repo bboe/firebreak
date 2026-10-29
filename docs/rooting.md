@@ -106,7 +106,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   keeps running from RAM after the restore to stock clears boot0.
 - Which chain the bootrom writes follows the target, and nothing else.
   `unlock fireos5` takes amonet v1.1.0's, which is its goal. `stock` and
-  `unlock fireos6` take amonet v2.0.1's and go on from v2's TWRP, which saves
+  `unlock fireos6` take amonet v2.0.1's and continue from v2's TWRP, which saves
   them the hop: v1.1.0's chain bought nothing but a recovery, on the boot-moved
   table a restore then has to undo, and the one reported Dot that came back
   **locked** from a bootrom step came back from that chain.
@@ -164,7 +164,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - On macOS, a run stopped 12 seconds into amonet's `tz` write resumed this
   way: amonet found the bootrom 4 seconds after the run started, and the root
   finished.
-- From Linux, with boot0 erased, the resume went on after 30 seconds, twice,
+- From Linux, with boot0 erased, the resume continued after 30 seconds, twice,
   with no one touching the Dot. From macOS the bootrom gives one window per
   power-on: after `adb reboot` from TWRP it appeared 4 s later, stayed 40 s,
   and then showed nothing on USB for the 2.5 minutes watched. Only a replug
@@ -189,7 +189,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   Enter that ends amonet's short prompt has already been sent, so a second
   short would get no countdown. Before this, the replug
   failed the run with `Device not configured`, and a rerun inside the new
-  window went on through the root. With the limit, on a Dot stopped the same
+  window continued through the root. With the limit, on a Dot stopped the same
   way, the resume asked for the replug 10 s after it took the port, and the
   same run finished the root to the bboe TWRP in 9 min 6 s.
 - The replug gets its own 10 minutes for the port to return, and the step
@@ -256,7 +256,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   Dot's serial number. Measured on a Dot with emOS 0.10 on amonet v2.0.0.
 - That shell's `/init recovery` reboots into the bootloader's TWRP, and the
   port goes away within a second. From v2.0.0's TWRP, 20 s later, the root
-  goes on as from amonet-twrp. `stock` takes the same path: from emOS
+  continues as from amonet-twrp. `stock` takes the same path: from emOS
   0.10 on amonet v1.1.0 with TWRP 3.7.0_9-bboe2 it restored 8146 in 3 min
   3 s.
 - Finding the port by USB ID needs pyserial, so the probe runs a child that
@@ -293,7 +293,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - Holding mic-mute at power-on latches that radar into a preloader loop: the
   same 0.8 second window every 3.74 seconds, over 41 appearances in 150
   seconds, with a dark ring and no adb. The button is read at start-up only,
-  so the loop goes on after it is released, and a power cycle with nothing
+  so the loop continues after it is released, and a power cycle with nothing
   held ends it. amonet v2.0.0 added this as its "Preloader USBDL recovery
   mode". The radar it was measured on runs amonet's own preloader, not
   Amazon's, so whether a stock Echo offers it is unread.
@@ -313,7 +313,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   names another product, and refuses when neither names `BISCUIT`. One LK is
   enough, because the plan writes `lk_a`, then `lk_b`, so a run cut short
   leaves the other whole. It looks only on a table whose CRCs pass; a torn
-  table goes on to the plan, which refuses it.
+  table continues to the plan, which refuses it.
 - Nothing else in this step can tell a biscuit from an Echo (2nd Generation):
   its table has biscuit's 16 partitions and the same bootrom answers. Without
   the check, `--short` on a radar that shows no light would write biscuit's
@@ -340,7 +340,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   state turns it off, so a later reboot cannot start the short flow. That
   includes `starting`, which covers a probe that timed out as well as a Dot
   half started; after a timeout the run asks for fastboot, and a rerun with
-  `--short` goes on.
+  `--short` continues.
 - amonet takes any port that appears after it lists the ports at start. So
   `--short` asks for the short only once amonet logs that it is waiting, and
   sends no reset first: a Dot plugged in earlier would be in that list and
@@ -348,7 +348,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - The short must be off before the payload starts the eMMC, its first act.
   Nothing before that touches the eMMC, and the handshake disables the
   watchdog. So the run holds amonet at its "Remove the short" prompt, counts
-  down 5 seconds, then lets it go on.
+  down 5 seconds, then lets it continue.
 - amonet's first write clears boot0's header. Under `--short` its bootrom
   step creates `boot0-erased` just before each write, after amonet's first
   boot0 check, as the erase path creates it before the erase. A run that
@@ -737,7 +737,7 @@ ring read white.
 - A zip's unpacked tree lives under the name its `Download` carries, and
   `unpack` rebuilds it only when that directory is missing. Re-pinning a zip
   that keeps its old directory name therefore downloads the new archive and
-  goes on using the old tree. v2.0.1's name carries a `-2` for that reason.
+  continues using the old tree. v2.0.1's name carries a `-2` for that reason.
 - A download sends firebreak's own `User-Agent`. Cloudflare answers
   `Python-urllib` with a 403 and the body `error code: 1010`, which bans a
   request by its browser signature. Amazon's CDN, GitHub and PyPI all serve
@@ -946,7 +946,7 @@ ring read white.
   nothing; read in the unlocked branch, where a stock Dot cannot be, it does.
 - `unlock fireos5` overrides the stage, because for that target v2's fastboot
   can be the way into the bootrom. It no longer always is: where the
-  bootloader is the declared one, the run writes that TWRP and goes on from
+  bootloader is the declared one, the run writes that TWRP and continues from
   v2's TWRP to write v1.1.0's chain in place, which is the route the section
   below prefers anyway, and boot0 is never erased. The erase and the bootrom
   stay for an unlocked bootloader that is not amonet's, where no TWRP can be
@@ -1082,7 +1082,7 @@ ring read white.
   inactive slot and makes it active, so the flip would make the second
   install write the same slot again. The run reads `bcbtool get_active`
   before and after each install, and stops unless it changed.
-- A USB drop during `twrp install` ends `adb shell` with 255, but TWRP goes on
+- A USB drop during `twrp install` ends `adb shell` with 255, but TWRP continues
   installing. On a radar, an install that lost adb 17 seconds in finished
   about 80 seconds later and changed the slot. So the run reads the slot only
   once adb answers and no `update_engine` runs, for up to 10 minutes. TWRP's
@@ -1090,7 +1090,7 @@ ring read white.
   characters: `update_engine_sideload` prints as `update_engine_s`, so a
   count of the full name is always 0 and only the shorter name counts the
   install. Measured on a radar, 2026-10-17: each install lost adb, the first
-  for about 3 minutes, and the run went on after each.
+  for about 3 minutes, and the run continued after each.
 - The reboot into the rooted system is tried again only while `adb get-state`
   still says `recovery`. A dropped reply can arrive after the Echo has already
   acted on the reboot, and a second `adb reboot` then lands on a system that
@@ -1099,7 +1099,7 @@ ring read white.
   `unlock fireos6` install a Dot's `misc` read 3 tries on slot b, so three of
   them would hand the Echo back to the other slot. It also cuts across the
   `pm hide` of Amazon's OTA app, which the run does once Fire OS 6 is up.
-  `get-state` saying `device` means the reboot took, so the run goes on. Two
+  `get-state` saying `device` means the reboot took, so the run continues. Two
   minutes of no answer at all is not a boot that is working, since the
   measured first boot is 24 seconds, so the run tries the reboot again.
 - `boot-root.zip` patches both slots. It is an XDA attachment, and XDA sends
@@ -1117,7 +1117,7 @@ ring read white.
 - `boot-root.zip` goes the same way. On that radar it lost adb 2 seconds in
   and printed nothing, yet TWRP's log shows it patched both slots. So the run
   reads TWRP's log until the last `Installing zip file` is `boot-root.zip`'s
-  and the `Updater process ended with RC=` line after it, and goes on only on
+  and the `Updater process ended with RC=` line after it, and continues only on
   `RC=0`. The `adb reboot` after it also found no device and left the Echo in
   TWRP, so the reboot is tried 3 times, each after `adb wait-for-recovery`.
 - `RC=0` alone does not show that the zip patched anything: it skips a slot
@@ -1150,7 +1150,7 @@ ring read white.
   with nothing changed.
 - boot0's header is cleared first, with `boot0-erased`, as the zip copy did
   and the restore does. From there to the preloader, any stop lands in the
-  bootrom, and the resume writes amonet v1.1.0 and goes on from its TWRP. A
+  bootrom, and the resume writes amonet v1.1.0 and continues from its TWRP. A
   stock table under amonet v1.1.0's LK would not boot, so nothing is
   written before the clear.
 - Then the table goes back to stock, as the zip's `restore_gpt` does, by
@@ -1170,13 +1170,13 @@ ring read white.
   itself when the zip logged `Updating tz`, after LK and before the
   preloader. The bootrom appeared 4 s later, the same run's resume took it
   with no one touching the Dot, wrote amonet v1.1.0, installed the zip again
-  from bboe2, and went on to amonet v2.0.0: `[1/8]` to `[13/13]`, 6 min 43 s
+  from bboe2, and continued to amonet v2.0.0: `[1/8]` to `[13/13]`, 6 min 43 s
   in all. This TWRP has no `/proc/sysrq-trigger` and its `reboot` takes no
   `-f`, so the cut was a plain `reboot`. The plan clears boot0 first and
   writes the preloader last, as that copy did.
 - A resume without an erase or `--short` that sees the preloader,
   `0e8d:2000`, takes boot0 as intact: it stops the bootrom step, deletes the
-  marker, and goes on polling. On a Dot rebooted from Fire OS 6 with the
+  marker, and continues polling. On a Dot rebooted from Fire OS 6 with the
   marker set by hand, the run said so 2 s later and ended at
   amonet-booted, with nothing written.
 - An amonet v1.1.0 Dot started in fastboot reads as stock-fireos5-fastboot,
@@ -1192,7 +1192,7 @@ ring read white.
 - In v2.0.0's fastboot the run asks for the + button at power-on, which
   starts v2.0.0's TWRP, and waits for it without limit.
 - `--short` goes with any target. Its bootrom step writes the chain that
-  target's resume writes, and the run goes on from that TWRP like any other.
+  target's resume writes, and the run continues from that TWRP like any other.
 - Measured on a Dot, 2026-10-04, each with no one touching the Dot:
 
 | from | to | took |
@@ -1864,7 +1864,7 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   window was open when the rerun's bootrom step started, and amonet then
   skipped ports already present. The window closed, and nothing showed on USB
   for 9.5 minutes, until the cable was unplugged and plugged back in. The
-  bootrom step then found it, and the run went on through amonet v1.1.0's TWRP
+  bootrom step then found it, and the run continued through amonet v1.1.0's TWRP
   and the whole restore to stock 8146: `[1/19]` to `[19/19]`, 13 min 50 s with
   the wait. The resume now takes a bootrom port already present, and asks for
   the replug only if nothing happens within a minute.
