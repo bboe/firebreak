@@ -123,8 +123,8 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                 warn(
                     text=f"This {title()}'s bootloader is locked, so it holds no"
                     " recovery to collect from and nothing here can give it one."
-                    f" Root it first: run {invocation(options=[])}, and follow what it"
-                    " asks."
+                    f" Unlock it first: run {invocation(options=['unlock'])}, and"
+                    " follow what it asks."
                 )
                 return False
             if not restart_in_recovery(line=line):
@@ -156,8 +156,8 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                         text=f"This {title()} runs Fire OS without root, so its"
                         " recovery is Amazon's, which holds nothing to collect from."
                         " Root it"
-                        f" first: run {invocation(options=[])}, and follow what it"
-                        " asks."
+                        f" first: run {invocation(options=['unlock'])}, and follow"
+                        " what it asks."
                     )
                     return False
                 PROGRESS.begin(estimate="40 s", label="restarting into recovery")
@@ -196,7 +196,7 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
             warn(
                 text=f"The {title()} did not come back in a recovery that answers adb"
                 " within 3 minutes. It is most likely in Amazon's recovery, which a"
-                f" root run replaces: run {invocation(options=[])}."
+                f" root run replaces: run {invocation(options=['unlock'])}."
             )
             return False
         time.sleep(5)
