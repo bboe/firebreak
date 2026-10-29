@@ -2,7 +2,7 @@
 
 firebreak changes the firmware on an Echo Dot (2nd Generation) (model RS03QR,
 codename biscuit) over USB. README.md has the targets and how to run it.
-`docs/rooting.md` says why each step is there; read the section for a step
+`docs/unlocking.md` says why each step is there; read the section for a step
 **before** you touch it. Most of it was measured on hardware rather than
 reasoned out. `docs/plugins.md` covers the plugin API: devices, unlocks and
 their plans.
@@ -38,7 +38,7 @@ uvx --with tox-uv tox -e build,floor   # macOS only: pytest and coverage on Appl
   and the HTML in a `coverage` artifact. The tests build their own payloads, boot
   images and tables, and fake adb, pyserial and amonet; none needs a Dot or a
   download.
-- The code carries no explanatory comments. The why goes in `docs/rooting.md`,
+- The code carries no explanatory comments. The why goes in `docs/unlocking.md`,
   on the section that covers the step. `# ruff: ignore[...]` lines stay.
 - Nothing here proves a change but a run on a Dot. Each target has a different
   starting state, and a bug in one route does not show on another.

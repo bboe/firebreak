@@ -184,14 +184,14 @@ reaching it is a choice rather than an accident, and the refusal names the
 device so it is clear what has not been proven. A route nobody has run is
 unproven, and so is one whose runs needed a step firebreak does not yet take.
 A target loses the field once a run on that device is recorded in
-docs/rooting.md.
+docs/unlocking.md.
 
 v2.0.0's `main.py` has two branches its plan leaves out: `fixgpt`, a manual
 mode that writes its own table, and a run from the preloader, which leaves
 boot0 alone. firebreak reaches the bootrom, so the plan writes the preloader.
 
 From an amonet v1.1.0 TWRP, firebreak carries out v2.0.0's plan in place of
-its zip: docs/rooting.md has the route. From stock, the fastbrick unlocks
+its zip: docs/unlocking.md has the route. From stock, the fastbrick unlocks
 the Dot instead. In the plan, as in `main.py`, `FASTBOOT_PLEASE` lands after
 the preloader, so a bootrom route that stops between the two is past a
 resume and has no fastboot marker. The TWRP route leaves that step out.
@@ -287,7 +287,7 @@ shuffle.
 ## The recovery executor
 
 `firebreak/recovery.py` carries out a plan's actions with `dd` under TWRP.
-Its `carry_out` is the TWRP route in `docs/rooting.md`. The caller passes what
+Its `carry_out` is the TWRP route in `docs/unlocking.md`. The caller passes what
 is not the plan's: the check that the Dot is amonet's, the step before the
 preloader, the partitions to zero, and the reboot after.
 

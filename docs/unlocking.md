@@ -1,6 +1,6 @@
-# Rooting
+# Unlocking
 
-firebreak takes a Dot from stock Fire OS 6 to rooted Fire OS 5.5.5.4. It polls
+firebreak takes a Dot from stock Fire OS 6 to a rooted one. It polls
 the Dot every 2 seconds, does the stage for the state it finds, and stops when
 the Dot is in the state its optional target names. The table gives the stages
 for the default, `unlock fireos6`; [Targets](#targets) has the
@@ -1097,8 +1097,7 @@ ring read white.
   is starting. That interrupts the boot before it marks itself good, and each
   interrupted boot spends one of the boot control block's tries: after an
   `unlock fireos6` install a Dot's `misc` read 3 tries on slot b, so three of
-  them would hand the Echo back to the other slot. It also cuts across the
-  `pm hide` of Amazon's OTA app, which the run does once Fire OS 6 is up.
+  them would hand the Echo back to the other slot.
   `get-state` saying `device` means the reboot took, so the run continues. Two
   minutes of no answer at all is not a boot that is working, since the
   measured first boot is 24 seconds, so the run tries the reboot again.

@@ -5,7 +5,7 @@ the Echo is on the target: it waits while the Echo reboots, and while you take
 a step it asks for. Stopped, it picks up where it left off on the next run. It
 uses the one Echo on USB; set ANDROID_SERIAL when several are. It needs Python
 3.9 or later, and adb and fastboot from Android platform-tools.
-https://github.com/bboe/firebreak/blob/main/docs/rooting.md says why each
+https://github.com/bboe/firebreak/blob/main/docs/unlocking.md says why each
 step is there.
 """
 

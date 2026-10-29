@@ -290,7 +290,7 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   names one finds nothing.
 - adb answers 5 s before MTP is on. Until then `sys.usb.config` is `adb` and
   `ro.twrp.version` is not set. The 5 s is from the ring's timing in
-  rooting.md.
+  unlocking.md.
 - The switch to `mtp,adb` drops USB for 1 s. A call made then fails with
   adb's error text, and `adb devices` lists nothing. A shell call running
   across the switch runs to its end, prints the first half of its output

@@ -112,7 +112,7 @@ firebreak stops on it.
   already installed, and keep the device's Wi-Fi and Alexa setup. Unlock it
   soon after setup, before it can update. `--factory-reset` erases the device and
   installs the target's build instead.
-- [docs/rooting.md][rooting] says why each step is there.
+- [docs/unlocking.md][unlocking] says why each step is there.
 
 ## Bootloaders
 
@@ -249,4 +249,4 @@ endorsed by, or supported by Amazon.
 [fireos-radar-5554]: https://ftvdb.com/echo/firmware/com.amazon.radar.android.os/e7338ac28c64f1846389c8a7bf871c94-680767620-fire-os-5-5-5-4-680767620-2022-11-18/
 [fireos-radar-8149]: https://ftvdb.com/echo/firmware/com.amazon.radar.android.os/43c054c90359193ce6c1d0b65fbfeb0e-13222532484-fire-os-6574-1-ns65741-8149-2026-09-29/
 [licence]: https://github.com/bboe/firebreak/blob/main/LICENSE.txt
-[rooting]: https://github.com/bboe/firebreak/blob/main/docs/rooting.md
+[unlocking]: https://github.com/bboe/firebreak/blob/main/docs/unlocking.md

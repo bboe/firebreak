@@ -39,7 +39,8 @@ CDN serves, which is where a Dot on 8338 led: ftvdb lists neither.
 | Fire OS 5.5.3.1 to 5.5.4.6 | `f379dba-20170906_000423` | `531fa14-20170929_175429` | [1](#tee-images) | 0x0005, 0x0102, 0x0001 | `fastbrick.img` |
 | Fire OS 5.5.0.3 | `0e1d0d9-20161018_220224` | `292ae9d-20160915_232723` | [1](#tee-images) | 0x0003, 0x0102, 0x0001 | `fastbrick.img` |
 
-- Only the LK chooses the fastbrick image. [rooting.md](rooting.md#unlock-amonet-v2)
+- Only the LK chooses the fastbrick image.
+  [unlocking.md](unlocking.md#unlock-amonet-v2)
   says how, and why one row takes that image from amonet v2.0.0 where the
   others take v2.0.1's.
 - The preloaders of one row differ between builds only in boot0's GPT, whose

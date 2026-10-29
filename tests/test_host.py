@@ -535,7 +535,7 @@ def test_stream_to_a_reader_that_left_reports_its_exit(
 
 
 def test_the_docs_hold_the_same_udev_rules() -> None:
-    docs = pathlib.Path(__file__).parent.parent / "docs" / "rooting.md"
+    docs = pathlib.Path(__file__).parent.parent / "docs" / "unlocking.md"
     written = [
         line.strip()
         for line in docs.read_text(encoding="utf-8").splitlines()
