@@ -39,8 +39,8 @@ def guard(
     numbers = {"lk_a": 3, "lk_b": 5}
     held = {f"{unlock.DISK}p{numbers[slot]}": data for slot, data in slots.items()}
     releases = {
-        unlock.biscuit.V1_1_0_SOURCE.name: LK["v1.1.0"],
-        unlock.biscuit.V2_0_1_SOURCE.name: LK["v2.0.0"],
+        biscuit.V1_1_0_SOURCE.name: LK["v1.1.0"],
+        biscuit.V2_0_1_SOURCE.name: LK["v2.0.0"],
     }
 
     def unpacked(*, download: object) -> pathlib.Path:
@@ -108,7 +108,7 @@ def test_a_device_that_lists_no_bootloader_refuses_the_one_it_is_given(
                 "product": "BISCUIT",
                 "unlock_status": "true",
             },
-            "already runs amonet v1.1.0's bootloader",
+            "already runs the bootloader this would write",
         ),
     ],
 )
@@ -149,7 +149,7 @@ def test_a_downgrade_erases_boot0_through_fastboot(
         name="bootrom_step", target=unlock, value=lambda **o: stepped.append(o)
     )
     monkeypatch.setattr(
-        name="stage_amonet_v1_1_0_recovery", target=unlock, value=lambda: True
+        name="stage_fireos5_recovery", target=unlock, value=lambda: True
     )
     assert unlock.stage_downgrade() is True
     assert stepped[0]["erase"] is unlock.erase_by_fastboot
@@ -198,7 +198,7 @@ def test_a_downgrade_that_meets_a_locked_fastboot_returns_false(
     monkeypatch.setattr(name="bootrom_step", target=unlock, value=lambda **_: True)
     monkeypatch.setattr(name="amonet_payload", target=unlock, value=lambda: tmp_path)
     monkeypatch.setattr(
-        name="stage_amonet_v1_1_0_recovery", target=unlock, value=lambda: False
+        name="stage_fireos5_recovery", target=unlock, value=lambda: False
     )
     assert unlock.stage_downgrade() is False
 
@@ -215,7 +215,7 @@ def test_a_fastboot_that_never_says_whether_it_is_unlocked_stops_cleanly(
         name="run", target=unlock, value=lambda **_: pytest.fail("flashed")
     )
     with pytest.raises(FatalError, match="did not say whether it is unlocked"):
-        unlock.stage_amonet_v1_1_0_recovery()
+        unlock.stage_fireos5_recovery()
     assert asked == ["unlock_status"] * unlock.PUSH_TRIES
 
 
@@ -349,7 +349,7 @@ def test_a_locked_fastboot_is_left_for_its_own_stage(
         target=unlock,
         value=lambda **options: ran.append(options["arguments"]),
     )
-    assert unlock.stage_amonet_v1_1_0_recovery() is False
+    assert unlock.stage_fireos5_recovery() is False
     assert ran == []
     assert "locked fastboot" in capsys.readouterr().out
 
@@ -442,7 +442,7 @@ def test_an_unlocked_fastboot_takes_v1_1_0_to_its_recovery(
         target=unlock,
         value=lambda **options: ran.append(options["arguments"]),
     )
-    assert unlock.stage_amonet_v1_1_0_recovery() is True
+    assert unlock.stage_fireos5_recovery() is True
     assert [words[1:4] for words in ran] == [
         ["-S", "256M", "flash"],
         ["-S", "256M", "flash"],
@@ -502,6 +502,37 @@ def test_the_amonet_sources_are_the_device_s_own(
         name="target", target=unlock.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
     )
     assert unlock.amonet_sources() == (radar.SOURCE,)
+
+
+def test_the_bootrom_payload_comes_from_whichever_device_is_known(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    unpacked: list[object] = []
+    monkeypatch.setattr(
+        name="unpack",
+        target=unlock,
+        value=lambda *, download: (unpacked.append(download), tmp_path)[1],
+    )
+    assert unlock.amonet_payload().parts[-3:] == (
+        "brom-payload",
+        "build",
+        "payload.bin",
+    )
+    monkeypatch.setattr(
+        name="target", target=unlock.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
+    )
+    unlock.amonet_payload()
+    monkeypatch.setattr(name="target", target=unlock.ARGUMENTS, value="")
+    monkeypatch.setattr(name="device", target=unlock.SESSION, value=RADAR)
+    unlock.amonet_payload()
+    monkeypatch.setattr(name="device", target=unlock.SESSION, value=CROWN)
+    unlock.amonet_payload()
+    assert unpacked == [
+        biscuit.V2_0_1_SOURCE,
+        radar.SOURCE,
+        radar.SOURCE,
+        biscuit.V2_0_1_SOURCE,
+    ]
 
 
 def test_the_fastbrick_knows_only_the_bootloaders_the_device_lists() -> None:

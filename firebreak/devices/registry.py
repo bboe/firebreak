@@ -10,7 +10,7 @@ from firebreak.devices.radar import RADAR
 
 if TYPE_CHECKING:
     from firebreak.cache import Download
-    from firebreak.plugin import Device, Target, Unlock
+    from firebreak.plugin import Device, FireOs5Chain, Target, Unlock
     from firebreak.targets import Deprecated
 
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
@@ -40,6 +40,11 @@ FASTBRICKS: dict[Device, Unlock] = {
     device: module.FASTBRICK
     for device, module in SUPPORTED
     if module.FASTBRICK is not None
+}
+FIREOS5_CHAINS: dict[Device, FireOs5Chain] = {
+    device: module.FIREOS5_CHAIN
+    for device, module in SUPPORTED
+    if module.FIREOS5_CHAIN is not None
 }
 LK_VALUES: dict[Device, frozenset[str]] = {
     device: module.LK_VALUES for device, module in SUPPORTED

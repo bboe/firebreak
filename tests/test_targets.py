@@ -36,12 +36,12 @@ def test_each_target_names_its_goal_its_install_and_its_unlock() -> None:
         for name, target in TARGETS[BISCUIT].items()
     } == {
         "fireos5": (
-            State.AMONET_V1_1_0_BBOE_BOOTED,
+            State.AMONET_FIREOS5_BBOE_BOOTED,
             FireOs5(package=BUILDS["5.5.5.4"]),
             UNLOCK_TO_FIREOS5,
         ),
         "fireos6": (
-            State.AMONET_V2_BOOTED,
+            State.AMONET_BOOTED,
             FireOs6(build="8146"),
             UNLOCK_TO_FIREOS6,
         ),

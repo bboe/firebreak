@@ -1,17 +1,30 @@
 from __future__ import annotations
 
-import hashlib
 import subprocess
+from typing import TYPE_CHECKING
 
-from firebreak.devices import BY_NAME, LITTLE_KERNEL_DESCRIPTION, biscuit
+from firebreak.devices import BY_NAME, FIREOS5_CHAINS, LITTLE_KERNEL_DESCRIPTION
 from firebreak.emos import emos
 from firebreak.host import adb_shell, adb_state, command, getvar, in_fastboot
 from firebreak.report import masked
 from firebreak.states import State
 from firebreak.twrp import partition_table
-from firebreak.ui import SESSION, FatalError, explained
+from firebreak.ui import ARGUMENTS, SESSION, FatalError, explained
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from firebreak.plugin import FireOs5Chain
 
 NO_SHELL = "exec '/system/bin/sh' failed"
+
+
+def chains() -> tuple[FireOs5Chain, ...]:
+    device = ARGUMENTS.target.device if ARGUMENTS.target else SESSION.device
+    if device is None:
+        return tuple(FIREOS5_CHAINS.values())
+    chain = FIREOS5_CHAINS.get(device)
+    return () if chain is None else (chain,)
 
 
 def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-statements, too-many-branches]
@@ -19,17 +32,21 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
         unlock = getvar(name="unlock_status").lower()
         if unlock == "false":
             little_kernel = getvar(name="lk_build_desc")
-            if little_kernel == biscuit.AMONET_V1_1_0_LK:
-                return State.STOCK_FIREOS5_FASTBOOT
-            return State.STOCK_FASTBOOT
+            found = recognised(
+                ask=lambda chain: chain.fastboot(
+                    little_kernel=little_kernel, unlocked=False
+                )
+            )
+            return State.STOCK_FASTBOOT if found is None else found
         if unlock != "true":
             return State.STARTING
         little_kernel = getvar(name="lk_build_desc")
         if not little_kernel:
             return State.STARTING
-        if little_kernel == biscuit.AMONET_V1_1_0_LK:
-            return State.AMONET_V1_1_0_FASTBOOT
-        return State.AMONET_V2_FASTBOOT
+        found = recognised(
+            ask=lambda chain: chain.fastboot(little_kernel=little_kernel, unlocked=True)
+        )
+        return State.AMONET_FASTBOOT if found is None else found
     connected = adb_state()
     if "unauthorized" in connected:
         return State.STOCK_BOOTED
@@ -42,13 +59,14 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
             return State.STARTING
         if "mtp" not in adb_shell(command="getprop sys.usb.config", timeout=30):
             return State.STARTING
-        if little_kernel != biscuit.AMONET_V1_1_0_LK:
-            if "boot_a_x" in partition_table():
-                return State.AMONET_V2_TWRP_V1_1_0_TABLE
-            return State.AMONET_V2_TWRP
-        if version != biscuit.BBOE_TWRP_VERSION:
-            return State.AMONET_V1_1_0_TWRP
-        return State.AMONET_V1_1_0_BBOE_TWRP
+        found = recognised(
+            ask=lambda chain: chain.twrp(little_kernel=little_kernel, version=version)
+        )
+        if found is not None:
+            return found
+        if "boot_a_x" in partition_table():
+            return State.AMONET_TWRP_BOOT_MOVED
+        return State.AMONET_TWRP
     if connected == "device":
         completed = adb_shell(command="getprop sys.boot_completed", timeout=30)
         if NO_SHELL in completed:
@@ -58,7 +76,7 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
             "Fire OS 6"
         ):
             if "uid=0" in adb_shell(command="id; su -c id", timeout=30):
-                return State.AMONET_V2_BOOTED
+                return State.AMONET_BOOTED
             return State.STOCK_BOOTED
         if booted and "uid=0" in adb_shell(command="su -c id", timeout=30):
             return rooted()
@@ -87,12 +105,15 @@ def read_recovery(*, size: int) -> bytes:
     ).stdout
 
 
+def recognised(*, ask: Callable[[FireOs5Chain], State | None]) -> State | None:
+    return next(
+        (found for chain in chains() if (found := ask(chain)) is not None), None
+    )
+
+
 def rooted() -> State:
-    bboe = biscuit.BBOE_RECOVERY
-    data = read_recovery(size=bboe.size)
-    if hashlib.sha256(data).hexdigest() == bboe.sha256:
-        return State.AMONET_V1_1_0_BBOE_BOOTED
-    return State.ROOTED
+    found = recognised(ask=lambda chain: chain.booted(read=read_recovery))
+    return State.ROOTED if found is None else found
 
 
 def state() -> State:

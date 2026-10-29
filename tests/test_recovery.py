@@ -601,59 +601,6 @@ def test_a_write_that_does_not_land_stops_it(*, dot: FakeDot) -> None:
     assert dot.media[recovery.DISK][:512] == b"\x11" * 512
 
 
-def test_amonet_v1_1_0_clears_boot0_then_writes_the_preloader_last(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    calls: list[tuple] = []
-    carry(
-        actions=(*ACTIONS, LK_WRITE),
-        calls=calls,
-        monkeypatch=monkeypatch,
-    )
-    assert carry_v1(calls=calls) is True
-    assert calls == [
-        ("guard",),
-        ("nodes", ((f"{recovery.DISK}p4", LIVE["part3"].size),)),
-        ("check", ("lk", "preloader", "twrp", "lk"), False, {}),
-        ("boot0", True),
-        ("apply", ("lk", "lk"), True, {}),
-        ("execute", ("twrp",), True, {}),
-        ("install", True),
-        ("execute", ("preloader",), True, {}),
-        ("after", False),
-    ]
-
-
-@pytest.mark.parametrize(argnames="field", argvalues=["first", "number", "sectors"])
-def test_amonet_v1_1_0_writes_a_table_that_moves_its_targets_alone(
-    *, field: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    calls: list[tuple] = []
-    partition = LIVE["part3"]
-    moved = dataclasses.replace(
-        LK_WRITE,
-        partition=dataclasses.replace(
-            partition, **{field: getattr(partition, field) + 1}
-        ),
-    )
-    carry(
-        actions=(*TABLE_WRITES, moved, *ACTIONS),
-        calls=calls,
-        monkeypatch=monkeypatch,
-    )
-    assert carry_v1(calls=calls) is False
-    assert calls == [
-        ("guard",),
-        ("execute", ("table", "table"), False, {}),
-        (
-            "reboot",
-            (),
-            False,
-            {"label": "waiting for TWRP to reread table"},
-        ),
-    ]
-
-
 def test_amonet_v2_0_0_clears_boot0_then_writes_the_table_backup_first(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -781,6 +728,59 @@ def test_steps_recovery_cannot_run_stop_the_plan_first(*, dot: FakeDot) -> None:
     with pytest.raises(FatalError, match="ZeroRpmb"):
         recovery.execute(actions=(write, Action(kind="ZeroRpmb", label="rpmb")))
     assert dot.asked == []
+
+
+def test_the_fireos5_chain_clears_boot0_then_writes_the_preloader_last(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple] = []
+    carry(
+        actions=(*ACTIONS, LK_WRITE),
+        calls=calls,
+        monkeypatch=monkeypatch,
+    )
+    assert carry_v1(calls=calls) is True
+    assert calls == [
+        ("guard",),
+        ("nodes", ((f"{recovery.DISK}p4", LIVE["part3"].size),)),
+        ("check", ("lk", "preloader", "twrp", "lk"), False, {}),
+        ("boot0", True),
+        ("apply", ("lk", "lk"), True, {}),
+        ("execute", ("twrp",), True, {}),
+        ("install", True),
+        ("execute", ("preloader",), True, {}),
+        ("after", False),
+    ]
+
+
+@pytest.mark.parametrize(argnames="field", argvalues=["first", "number", "sectors"])
+def test_the_fireos5_chain_writes_a_table_that_moves_its_targets_alone(
+    *, field: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple] = []
+    partition = LIVE["part3"]
+    moved = dataclasses.replace(
+        LK_WRITE,
+        partition=dataclasses.replace(
+            partition, **{field: getattr(partition, field) + 1}
+        ),
+    )
+    carry(
+        actions=(*TABLE_WRITES, moved, *ACTIONS),
+        calls=calls,
+        monkeypatch=monkeypatch,
+    )
+    assert carry_v1(calls=calls) is False
+    assert calls == [
+        ("guard",),
+        ("execute", ("table", "table"), False, {}),
+        (
+            "reboot",
+            (),
+            False,
+            {"label": "waiting for TWRP to reread table"},
+        ),
+    ]
 
 
 def test_toybox_writes_without_truncating(*, dot: FakeDot) -> None:

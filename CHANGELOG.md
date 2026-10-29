@@ -74,6 +74,24 @@ This project adheres to [Semantic Versioning](https://semver.org).
   power cable and plug it back in, where it waited without a word. The Echo
   has shown nothing on USB after boot-root on every Echo (2nd Generation) run
   here, and amonet's own guide says the same.
+- No state a run prints names an amonet version, because a version is only
+  unique to one Echo: the Echo Dot's chains are amonet v1.1.0 and v2, and an
+  Echo (2nd Generation) has neither. `amonet-v2-booted`, `amonet-v2-fastboot`
+  and `amonet-v2-twrp` drop a version nothing reads, becoming `amonet-booted`,
+  `amonet-fastboot` and `amonet-twrp`. The four `amonet-v1.1.0` states become
+  `amonet-fireos5`, which is the chain they are on rather than one Echo's
+  release of it. `amonet-v2-twrp-v1.1.0-table` becomes
+  `amonet-twrp-boot-moved`, after the partition layout the probe actually
+  reads.
+- A run takes the earlier amonet it writes from the Echo in front of it. The
+  downgrade and the probe read the Echo Dot's bootloader, TWRP and archive
+  whatever Echo was plugged in, which was right only because no other Echo
+  reports that bootloader. An Echo that has no such chain, which is every one
+  but the Echo Dot, now reads the states above and reaches none of the Fire
+  OS 5 ones.
+- A run on an Echo (2nd Generation) takes the bootrom payload from that Echo's
+  own archive, where it fetched a 73 MB Echo Dot zip for the one file. The
+  payload in both is the same 20060 bytes, byte for byte.
 
 ## 0.9.0 - 2026-10-25
 

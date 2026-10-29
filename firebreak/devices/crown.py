@@ -33,6 +33,7 @@ CROWN = Device(
 DEFAULT_BUILD = None
 DEFAULT_TARGET = None
 FASTBRICK = None
+FIREOS5_CHAIN = None
 LK_VALUES: frozenset[str] = frozenset()
 SOURCE = Download(
     browser=True,

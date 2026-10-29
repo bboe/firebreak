@@ -28,6 +28,7 @@ PURE = (
     ast.BoolOp,
     ast.Compare,
     ast.Constant,
+    ast.IfExp,
     ast.Load,
     ast.Name,
     ast.Subscript,

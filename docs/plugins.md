@@ -48,14 +48,32 @@ a device gets its LKs in the same change as its unlock.
 An LK is named only where it means something other than itself. biscuit names
 `AMONET_V1_1_0_LK`, the LK amonet v1.1.0 keeps, which is also the stock LK of
 Fire OS 5.5.3.1 to 5.5.4.6, so it says which bootloader a Dot runs and never
-whether amonet wrote it: `unlock_status` makes that call. `probe` reads it on
-both sides of that answer, for Fire OS 5's locked fastboot and for amonet
-v1.1.0's against v2's, and again to tell v1.1.0's TWRP from v2's. The
+whether amonet wrote it: `unlock_status` makes that call. The
 downgrade reads it to tell a Dot already on v1.1.0, and the bootrom step to
 tell that its unlock took. Everywhere else an LK is its own description: the payload
 map is keyed by it, so the map's dates can be read against the image names.
 A name for one build that ships an LK would be a second fact to keep right,
 where one LK ships in as many as 34 builds.
+
+A device's `FIREOS5_CHAIN` is the earlier amonet it can be on, and the one
+place that LK is read. It is a `FireOs5Chain`: the LK, the TWRP version its
+unlock installs, that TWRP's download, and the unlock that writes the chain.
+Given an `lk_build_desc` and a `ro.twrp.version`, or a reader for `recovery`,
+it answers with one of its states or with nothing, as a `Layout` answers for a
+table. biscuit declares one and answers the four amonet-fireos5 states and Fire
+OS 5's locked fastboot; radar and crown declare `None`, so those five states
+cannot be reached on them. The chain is why no module outside
+`firebreak/devices/` names an amonet version: `probe` keeps no LK, version or
+hash, the downgrade takes its archive, bootloader and TWRP from the chain
+rather than from biscuit, and the state names say `fireos5` where they said
+`v1.1.0`. A version is only unique to one device, so it says nothing without
+one: biscuit's chain is amonet v1.1.0, and radar has no v1.1.0 at all.
+
+`probe` asks the chain of the target's device, or of every device that declares
+one before a target names it. Two things stay outside a device: `boot_a_x`,
+which is the boot moved layout's name and which `fireos.py` reads too, and the
+Fire OS 5 and bootrom build sets, which are still biscuit's wherever they are
+read.
 
 An unlock's `little_kernel` is the one other place an LK is named: the
 `lk_build_desc` the unlock's own `lk.bin` reports once it is written. It says
@@ -106,14 +124,15 @@ a TWRP version, says in its name which release it belongs to.
 and the package re-exports it, so `DEVICES`, `TARGETS`, `DEPRECATED` and
 `DEFAULTS` are assembled from each module rather than listed twice. A device
 module declares its own `TARGETS`, `WAS_CALLED`, `DEFAULT_TARGET`, `LK_VALUES`,
-`FASTBRICK`, the unlock whose archive holds its fastbrick payloads, and
+`FASTBRICK`, the unlock whose archive holds its fastbrick payloads,
+`FIREOS5_CHAIN`, the earlier amonet it can be on, and
 `BOOTROM_UNLOCK`, the chain to write to an Echo held in its bootrom; a
 device with no target or LK yet declares them empty, and names neither a
 fastbrick nor a bootrom chain, because every device a run can take anywhere is
 reachable from stock fastboot and so needs the first. A module that leaves
-`BOOTROM_UNLOCK` out does not import, and one that declares it `None`
-has no bootrom route: a run that finds such a device with an erased boot0 says
-so and writes nothing. Each plan is amonet's
+`BOOTROM_UNLOCK` or `FIREOS5_CHAIN` out does not import, and one that declares
+either `None` has no such route: a run that finds a device with an erased boot0
+and no bootrom chain says so and writes nothing. Each plan is amonet's
 `modules/main.py` and then its `fastboot-step.sh`, step for step. The Fire
 OS 5 unlock writes TWRP 3.7.0_9-bboe2, a download of its own, which is why
 an unlock carries `files` beside its archive. The bootrom route writes the
@@ -127,8 +146,10 @@ boot0 is not the way back.
 amonet-radar v1.0.0 runs biscuit v2.0.0's scripts and payload byte for byte,
 and its `main.py` differs only in file names and one log line. So its plan is
 v2.0.0's, with `radar-kaeru.bin` in `expdb`, and its module builds it from
-v2.0.0's. No target uses it yet: the probe, the routes and the gesture are
-biscuit's.
+v2.0.0's. Its targets take biscuit's routes and gesture, and the amonet states,
+because it declares no Fire OS 5 chain. Its archive also holds the bootrom
+payload, byte for byte biscuit's, so a radar run unpacks its own rather than
+fetching biscuit's zip for one file.
 
 amonet-crown v2.0.1's `main.py`, from the bootrom, writes what biscuit's
 v2.0.0 writes, in the same order, with crown's names: one `lk`, `MISC` in

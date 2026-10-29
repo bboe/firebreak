@@ -21,6 +21,7 @@ BUILDS = {
 }
 DEFAULT_BUILD = "6436"
 DEFAULT_TARGET = FIREOS6
+FIREOS5_CHAIN = None
 FIREOS6_BUILD = "6436"
 LK_VALUES = frozenset({
     "59779ca-20220524_183401",
@@ -76,7 +77,7 @@ TARGETS = (
     ),
     Target(
         device=RADAR,
-        goal=State.AMONET_V2_BOOTED,
+        goal=State.AMONET_BOOTED,
         installs=FireOs6(build=FIREOS6_BUILD),
         name=FIREOS6,
         summary="boot-root.zip's root adb on the Fire OS 6 already installed,"

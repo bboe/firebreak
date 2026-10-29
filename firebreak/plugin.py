@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+import hashlib
 from typing import TYPE_CHECKING, Protocol, Union
 
+from firebreak.states import State
+
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from firebreak.cache import Download
     from firebreak.plan import Action
 
@@ -44,6 +49,34 @@ class Feature(enum.Enum):
 @dataclasses.dataclass(frozen=True)
 class FireOs5:
     package: Download
+
+
+@dataclasses.dataclass(frozen=True)
+class FireOs5Chain:
+    little_kernel: str
+    recovery: Download
+    twrp_version: str
+    unlock: Unlock
+
+    def booted(self, *, read: Callable[..., bytes]) -> State | None:
+        data = read(size=self.recovery.size)
+        if hashlib.sha256(data).hexdigest() != self.recovery.sha256:
+            return None
+        return State.AMONET_FIREOS5_BBOE_BOOTED
+
+    def fastboot(self, *, little_kernel: str, unlocked: bool) -> State | None:
+        if little_kernel != self.little_kernel:
+            return None
+        if unlocked:
+            return State.AMONET_FIREOS5_FASTBOOT
+        return State.STOCK_FIREOS5_FASTBOOT
+
+    def twrp(self, *, little_kernel: str, version: str) -> State | None:
+        if little_kernel != self.little_kernel:
+            return None
+        if version != self.twrp_version:
+            return State.AMONET_FIREOS5_TWRP
+        return State.AMONET_FIREOS5_BBOE_TWRP
 
 
 @dataclasses.dataclass(frozen=True)

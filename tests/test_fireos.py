@@ -456,13 +456,13 @@ def test_fire_os_6_reboots_again_when_adb_stays_silent(
 
 
 @pytest.mark.usefixtures("fireos6")
-def test_fire_os_6_refuses_amonet_v1_1_0_s_table(
+def test_fire_os_6_refuses_the_boot_moved_table(
     *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
         name="partition_table", target=fireos, value=lambda: " 1 boot_a_x\n"
     )
-    with pytest.raises(FatalError, match=r"runs on amonet v1\.1\.0's partition table"):
+    with pytest.raises(FatalError, match=r"runs on a boot moved partition table"):
         fireos.stage_install_fireos6()
     assert adb.commands(holding="twrp wipe") == []
 

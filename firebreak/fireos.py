@@ -360,7 +360,7 @@ def stage_install_fireos6() -> None:
     zip_path = fetch(download=BOOT_ROOT)
     if "boot_a_x" in partition_table():
         raise FatalError(
-            message="v2's TWRP runs on amonet v1.1.0's partition table. " + again()
+            message="this TWRP runs on a boot moved partition table. " + again()
         )
     build = "" if ARGUMENTS.factory_reset else installed_build(slot=active_slot())
     if not ARGUMENTS.factory_reset:

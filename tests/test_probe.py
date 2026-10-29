@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import host, probe
+from firebreak.devices import BISCUIT, RADAR, TARGETS, biscuit
 from firebreak.states import State
 from firebreak.ui import FatalError
 
@@ -31,13 +32,16 @@ def dot(*, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch) -> FakeAdb:
 
 @pytest.fixture
 def recoveries(*, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        name="BBOE_RECOVERY",
-        target=probe.biscuit,
-        value=dataclasses.replace(
-            probe.biscuit.BBOE_RECOVERY,
-            sha256=hashlib.sha256(TWRP_BBOE).hexdigest(),
-            size=len(TWRP_BBOE),
+    monkeypatch.setitem(
+        probe.FIREOS5_CHAINS,
+        BISCUIT,
+        dataclasses.replace(
+            biscuit.FIREOS5_CHAIN,
+            recovery=dataclasses.replace(
+                biscuit.BBOE_RECOVERY,
+                sha256=hashlib.sha256(TWRP_BBOE).hexdigest(),
+                size=len(TWRP_BBOE),
+            ),
         ),
     )
 
@@ -71,7 +75,7 @@ def recovery(
 @pytest.mark.parametrize(
     ("name", "root", "found"),
     [
-        ("Fire OS 6.5.7.4", "uid=0(root)", State.AMONET_V2_BOOTED),
+        ("Fire OS 6.5.7.4", "uid=0(root)", State.AMONET_BOOTED),
         ("Fire OS 6.5.7.4", "Permission denied", State.STOCK_BOOTED),
         ("Fire OS 5.5.5.4", "Permission denied", State.BOOTED),
     ],
@@ -88,6 +92,28 @@ def test_a_booting_fire_os_5_is_not_yet_rooted(*, dot: FakeAdb) -> None:
     dot.answers["sys.boot_completed"] = [""]
     assert probe.probe() == State.BOOTED
     assert dot.commands(holding="exec-out") == []
+
+
+def test_a_device_with_no_fire_os_5_chain_reads_the_amonet_states(
+    *, dot: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="target", target=probe.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
+    )
+    fastboot(dot=dot, little_kernel="f379dba-20170906_000423", unlock="true")
+    assert probe.probe() == State.AMONET_FASTBOOT
+    dot.answers.clear()
+    recovery(
+        dot=dot,
+        little_kernel="f379dba-20170906_000423",
+        version=biscuit.BBOE_TWRP_VERSION,
+    )
+    assert probe.probe() == State.AMONET_TWRP
+    dot.answers.clear()
+    booted(dot=dot, name="Fire OS 5.5.5.4")
+    dot.raw = TWRP_BBOE
+    assert probe.probe() == State.ROOTED
+    assert dot.commands(holding="dd if=") == []
 
 
 @pytest.mark.parametrize(("found", "state"), [("1", State.EMOS), ("0", State.NONE)])
@@ -107,10 +133,18 @@ def test_a_fire_os_with_no_system_has_no_shell(*, dot: FakeAdb) -> None:
     assert probe.probe() == State.NO_SYSTEM
 
 
+def test_a_probe_before_a_target_is_named_asks_every_chain(
+    *, dot: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="target", target=probe.ARGUMENTS, value="")
+    fastboot(dot=dot, little_kernel="f379dba-20170906_000423", unlock="true")
+    assert probe.probe() == State.AMONET_FIREOS5_FASTBOOT
+
+
 @pytest.mark.parametrize(
     ("held", "found"),
     [
-        (TWRP_BBOE, State.AMONET_V1_1_0_BBOE_BOOTED),
+        (TWRP_BBOE, State.AMONET_FIREOS5_BBOE_BOOTED),
         (TWRP_3_2_3 + b"tail", State.ROOTED),
         (b"other" * 2000, State.ROOTED),
     ],
@@ -146,8 +180,8 @@ def test_an_unauthorized_dot_is_stock(*, dot: FakeAdb) -> None:
         ("false", "2c3569d-20260617_045829", State.STOCK_FASTBOOT),
         ("", "f379dba-20170906_000423", State.STARTING),
         ("true", "", State.STARTING),
-        ("true", "f379dba-20170906_000423", State.AMONET_V1_1_0_FASTBOOT),
-        ("TRUE", "63cb91b-20221007_072309", State.AMONET_V2_FASTBOOT),
+        ("true", "f379dba-20170906_000423", State.AMONET_FIREOS5_FASTBOOT),
+        ("TRUE", "63cb91b-20221007_072309", State.AMONET_FASTBOOT),
     ],
 )
 def test_fastboot_is_read_from_its_unlock_and_bootloader(
@@ -214,19 +248,19 @@ def test_the_recovery_read_names_the_partition_by_name(*, dot: FakeAdb) -> None:
 @pytest.mark.parametrize(
     ("version", "little_kernel", "table", "found"),
     [
-        ("3.2.3-0", "f379dba-20170906_000423", "boot_a", State.AMONET_V1_1_0_TWRP),
+        ("3.2.3-0", "f379dba-20170906_000423", "boot_a", State.AMONET_FIREOS5_TWRP),
         (
-            probe.biscuit.BBOE_TWRP_VERSION,
+            biscuit.BBOE_TWRP_VERSION,
             "f379dba-20170906_000423",
             "boot_a",
-            State.AMONET_V1_1_0_BBOE_TWRP,
+            State.AMONET_FIREOS5_BBOE_TWRP,
         ),
-        ("3.7.0_9-0", "63cb91b-20221007_072309", "boot_a", State.AMONET_V2_TWRP),
+        ("3.7.0_9-0", "63cb91b-20221007_072309", "boot_a", State.AMONET_TWRP),
         (
             "3.7.0_9-0",
             "63cb91b-20221007_072309",
             "boot_a_x",
-            State.AMONET_V2_TWRP_V1_1_0_TABLE,
+            State.AMONET_TWRP_BOOT_MOVED,
         ),
         ("", "f379dba-20170906_000423", "boot_a", State.STARTING),
         ("3.2.3-0", "", "boot_a", State.STARTING),

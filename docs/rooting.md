@@ -9,19 +9,30 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 | state | how it is recognised | what the run does |
 | --- | --- | --- |
 | stock-booted | `adb get-state` says `unauthorized`, or Fire OS 6 without root | prints the fastboot gesture, and the + gesture for a Dot already on amonet v2.0.0 |
-| stock-fastboot | `unlock_status` is `false`, and `lk_build_desc` is none of the two below | amonet v2's fastbrick |
-| stock-fireos5-fastboot | `unlock_status` is `false`, and `lk_build_desc` is `f379dba-20170906_000423`, Fire OS 5's, which amonet v1.1.0 keeps: Fire OS 5's own fastboot, locked, on a stock Dot or one on amonet v1.1.0 | the same |
+| stock-fastboot | `unlock_status` is `false`, and `lk_build_desc` is none of the two below | the device's fastbrick |
+| stock-fireos5-fastboot | `unlock_status` is `false`, and `lk_build_desc` is the device's Fire OS 5 chain's, `f379dba-20170906_000423` on a Dot, which that chain keeps: Fire OS 5's own fastboot, locked, on a stock Dot or one on the chain. A device that declares no chain cannot reach it | the same |
 | emos | no adb or fastboot, and one serial port with USB ID `1949:2007` | `/init recovery` at emOS's serial console |
 | no-system | adb answers as `device`, and `adb shell` fails with `exec '/system/bin/sh' failed` | `adb reboot recovery`, for every target |
-| amonet-v2-booted | Fire OS 6, and `id` or `su -c id` answers uid 0 | `adb reboot recovery`, into amonet v2's TWRP; ends an `unlock fireos6` run |
-| amonet-v2-twrp | unlocked, `lk_build_desc` is not amonet v1.1.0's, `mtp` in `sys.usb.config` | makes room for amonet v1.1.0 in the table, then reboots so the kernel rereads it |
-| amonet-v2-twrp-v1.1.0-table | amonet-v2-twrp, and `sgdisk --print` lists `boot_a_x` | writes amonet v1.1.0's chain and Fire OS 5.5.5.4, preloader last |
-| amonet-v2-fastboot | unlocked, `lk_build_desc` is not amonet v1.1.0's | starts v2's TWRP where the bootloader is the one the device declares as amonet's, and downgrades to amonet v1.1.0 through the bootrom where it is not |
-| amonet-v1.1.0-fastboot | `unlock_status` is `true`, and `lk_build_desc` is `f379dba-20170906_000423` | amonet v1.1.0 TEE and TWRP 3.7.0_9-bboe2, then recovery |
-| amonet-v1.1.0-twrp | recovery, amonet v1.1.0's `lk_build_desc`, another `ro.twrp.version`, `mtp` in `sys.usb.config` | writes TWRP 3.7.0_9-bboe2 to `recovery`, reboots into it |
-| amonet-v1.1.0-bboe-twrp | recovery, amonet v1.1.0's `lk_build_desc`, `ro.twrp.version` 3.7.0_9-bboe2, `mtp` in `sys.usb.config` | Fire OS 5.5.5.4, boot and /system patches, Magisk 17.3 |
-| amonet-v1.1.0-bboe-booted, rooted | `sys.boot_completed` is 1 and `su -c id` answers uid 0; `recovery` hashes as TWRP 3.7.0_9-bboe2, or as anything else | the target's state: hides the updater and checks it; another: writes the target's TWRP to `recovery` |
+| amonet-booted | Fire OS 6, and `id` or `su -c id` answers uid 0 | `adb reboot recovery`, into the device's own TWRP; ends an `unlock fireos6` run |
+| amonet-twrp | unlocked, `lk_build_desc` is not the device's Fire OS 5 chain's, `mtp` in `sys.usb.config` | moves boot in the table to make room for that chain, then reboots so the kernel rereads it |
+| amonet-twrp-boot-moved | amonet-twrp, and `sgdisk --print` lists `boot_a_x`, the boot moved layout's name | writes the Fire OS 5 chain and Fire OS 5.5.5.4, preloader last |
+| amonet-fastboot | unlocked, `lk_build_desc` is not the device's Fire OS 5 chain's | starts the device's own TWRP where the bootloader is the one its unlock declares, and downgrades to its Fire OS 5 chain through the bootrom where it is not |
+| amonet-fireos5-fastboot | `unlock_status` is `true`, and `lk_build_desc` is the Fire OS 5 chain's | that chain's TEE and its TWRP, 3.7.0_9-bboe2 on a Dot, then recovery |
+| amonet-fireos5-twrp | recovery, the Fire OS 5 chain's `lk_build_desc`, a `ro.twrp.version` that is not the chain's, `mtp` in `sys.usb.config` | writes the chain's TWRP to `recovery`, reboots into it |
+| amonet-fireos5-bboe-twrp | recovery, the Fire OS 5 chain's `lk_build_desc` and its `ro.twrp.version`, `mtp` in `sys.usb.config` | Fire OS 5.5.5.4, boot and /system patches, Magisk 17.3 |
+| amonet-fireos5-bboe-booted, rooted | `sys.boot_completed` is 1 and `su -c id` answers uid 0; `recovery` hashes as the Fire OS 5 chain's TWRP, or as anything else | the target's state: hides the updater and checks it; another: writes the target's TWRP to `recovery` |
 
+- The four amonet-fireos5 states and stock-fireos5-fastboot are a device's Fire
+  OS 5 chain, which only biscuit declares: its LK, the TWRP it installs, that
+  TWRP's hash, and the unlock that writes it. No state names an amonet version,
+  because a version is only unique to one device: biscuit's chain is amonet
+  v1.1.0 and radar has no v1.1.0 at all. The probe asks the chain of the device
+  the target names, or of every device that declares one where no target has
+  named it yet, as in a `report` before it says which Echo this is. A device
+  without one, radar and crown, reads the amonet states instead, and a locked
+  one reads stock-fastboot rather than stock-fireos5-fastboot. Before this, the
+  probe held biscuit's LK and TWRP itself and compared every device against
+  them, which only worked because no other device reports that LK.
 - A probe can land part way through a boot. TWRP answers adb before it sets
   `ro.twrp.version`, and while USB drops for MTP, `adb shell` answers with
   adb's error text. Either would read as amonet v2.0.0's and start a downgrade.
@@ -65,7 +76,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - adbd's other wording of the failure, if one exists, reads as booted, as
   before. That costs the 10-minute wait, not a wrong reboot.
 - Each state is acted on at most once per run, so a stale read cannot repeat a
-  stage. The downgrade ends with amonet-v1.1.0-fastboot's stage, and counts as
+  stage. The downgrade ends with amonet-fireos5-fastboot's stage, and counts as
   both.
 - That stage needs amonet's fastboot, and the bootrom step does not always
   leave the Dot in it. On a resumed run reported from Windows the step wrote
@@ -245,7 +256,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   Dot's serial number. Measured on a Dot with emOS 0.10 on amonet v2.0.0.
 - That shell's `/init recovery` reboots into the bootloader's TWRP, and the
   port goes away within a second. From v2.0.0's TWRP, 20 s later, the root
-  goes on as from amonet-v2-twrp. `stock` takes the same path: from emOS
+  goes on as from amonet-twrp. `stock` takes the same path: from emOS
   0.10 on amonet v1.1.0 with TWRP 3.7.0_9-bboe2 it restored 8146 in 3 min
   3 s.
 - Finding the port by USB ID needs pyserial, so the probe runs a child that
@@ -917,7 +928,7 @@ ring read white.
   `fastboot reboot-recovery`, so every target starts it from there rather than
   asking for the + button, which is left for a bootloader that takes neither
   that command nor the oem one. Both are asked for, in that order, because
-  `State.AMONET_V2_FASTBOOT` is any unlocked LK that is not v1.1.0's: biscuit's
+  `State.AMONET_FASTBOOT` is any unlocked LK that is not v1.1.0's: biscuit's
   older ones and radar's, where neither command is measured. The transition
   sits beside v1.1.0's fastboot in the table every target shares.
 - The stage writes the device's own TWRP to `recovery` first, as amonet's
@@ -1032,8 +1043,8 @@ ring read white.
 
 | target | ends in | stops at |
 | --- | --- | --- |
-| `unlock fireos5` | amonet v1.1.0, TWRP 3.7.0_9-bboe2, rooted Fire OS 5.5.5.4 | amonet-v1.1.0-bboe-booted |
-| `unlock fireos6 [--factory-reset]`, the default | amonet v2.0.1's TWRP, `boot-root.zip` on the Fire OS 6 installed; with `--factory-reset`, or no Fire OS 6 installed, on 8146 in both slots | amonet-v2-booted |
+| `unlock fireos5` | amonet v1.1.0, TWRP 3.7.0_9-bboe2, rooted Fire OS 5.5.5.4 | amonet-fireos5-bboe-booted |
+| `unlock fireos6 [--factory-reset]`, the default | amonet v2.0.1's TWRP, `boot-root.zip` on the Fire OS 6 installed; with `--factory-reset`, or no Fire OS 6 installed, on 8146 in both slots | amonet-booted |
 | `stock [BUILD]` | Amazon's Fire OS 6 `BUILD`, 8149 when left out, the whole Dot erased | stock-booted |
 
 - Each poll picks the stage for the state found and the target, so a run
@@ -1167,10 +1178,10 @@ ring read white.
   `0e8d:2000`, takes boot0 as intact: it stops the bootrom step, deletes the
   marker, and goes on polling. On a Dot rebooted from Fire OS 6 with the
   marker set by hand, the run said so 2 s later and ended at
-  amonet-v2-booted, with nothing written.
+  amonet-booted, with nothing written.
 - An amonet v1.1.0 Dot started in fastboot reads as stock-fireos5-fastboot,
   and the fastbrick leaves it in v2.0.0's TWRP on amonet v1.1.0's partition
-  table. The probe reads that as amonet-v2-twrp-v1.1.0-table, and for
+  table. The probe reads that as amonet-twrp-boot-moved, and for
   `unlock fireos6` the run carries out the plan there first. The amonet v2 install
   itself stops if `boot_a_x` is still there, or if
   `sgdisk` prints no `userdata`.
@@ -1187,27 +1198,27 @@ ring read white.
 | from | to | took |
 | --- | --- | --- |
 | rooted, with amonet's TWRP 3.2.3 in `recovery` | `unlock fireos5` | 9 s |
-| amonet-v1.1.0-bboe-booted | `unlock fireos6` | 5 min 11 s, on 2026-10-09, by the plan: recovery 28 s, boot0 under 1 s, the table 1 s, the writes 5 s with TWRP 3 s of it, the preloader under 1 s, recovery 19 s, the wipes 4 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s. The zip took 5 min 22 s, its install 19 s and its reboot 19 s |
-| amonet-v2-booted | `unlock fireos5` | 7 min 42 s, with no bootrom: recovery 19 s, the table 1 s, recovery 19 s, boot0 under 1 s, the chain 6 s, `misc` under 1 s, userdata 4 s, `/system` 79 s, the boot image 3 s, Magisk 1 s, the preloader under 1 s, Fire OS 5's first boot 321 s |
-| stock-fastboot | `unlock fireos5` | 8 min 3 s, with no bootrom: the fastbrick, then the same route as from amonet-v2-booted. 8 min 04 s again on 2026-10-26, over 11 steps, with 318 s of it Fire OS 5's first boot |
+| amonet-fireos5-bboe-booted | `unlock fireos6` | 5 min 11 s, on 2026-10-09, by the plan: recovery 28 s, boot0 under 1 s, the table 1 s, the writes 5 s with TWRP 3 s of it, the preloader under 1 s, recovery 19 s, the wipes 4 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s. The zip took 5 min 22 s, its install 19 s and its reboot 19 s |
+| amonet-booted | `unlock fireos5` | 7 min 42 s, with no bootrom: recovery 19 s, the table 1 s, recovery 19 s, boot0 under 1 s, the chain 6 s, `misc` under 1 s, userdata 4 s, `/system` 79 s, the boot image 3 s, Magisk 1 s, the preloader under 1 s, Fire OS 5's first boot 321 s |
+| stock-fastboot | `unlock fireos5` | 8 min 3 s, with no bootrom: the fastbrick, then the same route as from amonet-booted. 8 min 04 s again on 2026-10-26, over 11 steps, with 318 s of it Fire OS 5's first boot |
 | held in the bootrom, after `stock 5.5.0.3` | `unlock fireos6` | 5 min 16 s, on 2026-10-26: amonet v2.0.1's chain 38 s, amonet's fastboot 8 s after the reboot, v2's TWRP 19 s, Fire OS 6 8146 into both slots 212 s |
 | held in the bootrom, after `stock 5.5.0.3` | `stock 8149` | 4 min 26 s, on 2026-10-26, over 27 steps: the chain and v2's TWRP 1 min 05 s, the restore 3 min 21 s with 160 s of it the two system writes |
-| amonet-v1.1.0-bboe-booted | stock 8146 `--end-in-fireos` | 3 min 11 s: recovery 30 s, `system_a` 81 s, the rest under 7 s each, stock's first boot 32 s |
-| amonet-v1.1.0-bboe-twrp | stock 8149 `--end-in-fireos` | 4 min 3 s, on 2026-10-24, on amonet v2.0.1: both `/system` writes 81 s and 80 s, the rest under 7 s each, stock's first boot 34 s |
+| amonet-fireos5-bboe-booted | stock 8146 `--end-in-fireos` | 3 min 11 s: recovery 30 s, `system_a` 81 s, the rest under 7 s each, stock's first boot 32 s |
+| amonet-fireos5-bboe-twrp | stock 8149 `--end-in-fireos` | 4 min 3 s, on 2026-10-24, on amonet v2.0.1: both `/system` writes 81 s and 80 s, the rest under 7 s each, stock's first boot 34 s |
 | stock-fastboot | `unlock fireos6` | 5 min 18 s, on 2026-10-24, from stock 8149 whose LK takes `fastbrick-20221007.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 115 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
-| amonet-v2-booted | stock 8344 `--end-in-fireos` | 4 min 4 s, on 2026-10-25, on amonet v2.0.1: recovery 19 s, both `/system` writes 80 s, the rest under 6 s each, stock's first boot 34 s |
+| amonet-booted | stock 8344 `--end-in-fireos` | 4 min 4 s, on 2026-10-25, on amonet v2.0.1: recovery 19 s, both `/system` writes 80 s, the rest under 6 s each, stock's first boot 34 s |
 | stock-fastboot | `unlock fireos6` | 5 min 14 s, on 2026-10-25, from stock 8344 whose LK takes `fastbrick-20260617.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 116 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
 | stock-fastboot | `unlock fireos6` | 4 min 54 s, on 2026-10-25, from stock 4315 whose LK takes amonet v2.0.0's `fastbrick-20221007.img`: the fastbrick 8 s, v2 recovery 35 s, the wipes 3 s, the installs 96 s and 115 s, `boot-root.zip` 8 s, Fire OS 6's boot 24 s |
-| amonet-v2-booted | stock 4315 | 3 min 33 s, on 2026-10-25: `[1/17]` to `[17/17]`, the last step `rebooting into fastboot` in 10 s, where the images were built from the OTA rather than read from the cache |
-| amonet-v2-booted | stock 4405 | 3 min 38 s, on 2026-10-25, from cached images: the same 17 steps, both `/system` writes 80 s, the rest under 6 s each |
-| amonet-v2-booted | stock 5.5.5.4 | 3 min 35 s, on 2026-10-25, its images built from the OTA: the same 17 steps, both `/system` writes 80 s |
+| amonet-booted | stock 4315 | 3 min 33 s, on 2026-10-25: `[1/17]` to `[17/17]`, the last step `rebooting into fastboot` in 10 s, where the images were built from the OTA rather than read from the cache |
+| amonet-booted | stock 4405 | 3 min 38 s, on 2026-10-25, from cached images: the same 17 steps, both `/system` writes 80 s, the rest under 6 s each |
+| amonet-booted | stock 5.5.5.4 | 3 min 35 s, on 2026-10-25, its images built from the OTA: the same 17 steps, both `/system` writes 80 s |
 | stock-fastboot | `unlock fireos5` | 8 min 6 s, on 2026-10-25, from stock 5.5.5.4 whose LK takes v2.0.1's default `fastbrick.img`: the fastbrick 13 s, v2 recovery 30 s, the table 19 s, amonet v1.1.0-bboe 5 s, TWRP 4 s, userdata 3 s, `/system` 81 s, boot and Magisk 4 s, Fire OS 5's first boot 320 s |
-| amonet-v2-booted | stock 8338 | 3 min 52 s, on 2026-10-26, its images built from the OTA: the same 17 steps, both `/system` writes 81 s, the last step `rebooting into fastboot` in 10 s |
+| amonet-booted | stock 8338 | 3 min 52 s, on 2026-10-26, its images built from the OTA: the same 17 steps, both `/system` writes 81 s, the last step `rebooting into fastboot` in 10 s |
 | stock-fastboot | `unlock fireos6` | 1 min 18 s, on 2026-10-26, from stock 8338 patched in place: the fastbrick 8 s, v2 recovery 35 s, the build read under 1 s, `boot-root.zip` 9 s, rooted 8338's boot 24 s. No wipe and no OTA install, where `--factory-reset` takes 7 steps |
 | stock-fastboot | `unlock fireos6` | 4 min 56 s, on 2026-10-26, from stock 5.5.0.3, whose slot holds no Fire OS 6: the fastbrick 13 s, v2 recovery 31 s, the build read under 1 s, then the fallback's 8 steps, the installs 96 s and 115 s, `boot-root.zip` 9 s, rooted 8146's boot 25 s |
-| amonet-v2-booted | stock 5.5.0.3 | 3 min 38 s, on 2026-10-26, from rooted Fire OS 6: `[1/19]` to `[19/19]`, TWRP 19 s, both `/system` writes 80 s, the bootrom 5 s after the reboot, the RPMB 1 s, the preloader 8 s, and no reboot after it. It ended `waits in its bootrom`, with `bootrom-held` written and the payload still on its serial port. From v2's TWRP it is 18 steps, without the wait for TWRP |
+| amonet-booted | stock 5.5.0.3 | 3 min 38 s, on 2026-10-26, from rooted Fire OS 6: `[1/19]` to `[19/19]`, TWRP 19 s, both `/system` writes 80 s, the bootrom 5 s after the reboot, the RPMB 1 s, the preloader 8 s, and no reboot after it. It ended `waits in its bootrom`, with `bootrom-held` written and the payload still on its serial port. From v2's TWRP it is 18 steps, without the wait for TWRP |
 | bootrom, held | `unlock fireos6` | 6 min 05 s, on 2026-10-26, with no button held: joining the held payload under 1 s, then amonet v1.1.0 through it and TWRP by 1 min 35 s, v1.1.0's TWRP 19 s, amonet v2.0.1 and its TWRP by 1 min 55 s, and the fallback's installs 98 s and 115 s, `boot-root.zip` 9 s, rooted 8146's boot 24 s. Measured before the bootrom grouped its steps, so it showed 28 where the same run now shows 24 |
-| amonet-v2-fastboot, on amonet v2's own bootloader | `unlock fireos5` | 7 min 40 s, on 2026-10-26, over 10 steps and with no bootrom: v2's TWRP 19 s, the table under 1 s, recovery 19 s, amonet v1.1.0-bboe 5 s, TWRP 4 s, userdata 3 s, `/system` 80 s, boot and Magisk 4 s, the preloader under 1 s, Fire OS 5's first boot 320 s. The run opened at 6 steps, and the gate's `False` re-planned it to 10. adb answered 24 s into that boot and held through setup mode |
+| amonet-fastboot, on amonet v2's own bootloader | `unlock fireos5` | 7 min 40 s, on 2026-10-26, over 10 steps and with no bootrom: v2's TWRP 19 s, the table under 1 s, recovery 19 s, amonet v1.1.0-bboe 5 s, TWRP 4 s, userdata 3 s, `/system` 80 s, boot and Magisk 4 s, the preloader under 1 s, Fire OS 5's first boot 320 s. The run opened at 6 steps, and the gate's `False` re-planned it to 10. adb answered 24 s into that boot and held through setup mode |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.
@@ -1247,19 +1258,19 @@ Every entry state, and the TWRPs its path to each target runs under or writes:
 | `stock-fastboot` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `stock-fireos5-fastboot` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `stock-booted` | -- | -- | nothing to restore |
-| `amonet-v1.1.0-fastboot` | bboe2 | bboe2, v2 3.7.0 | bboe2 |
-| `amonet-v2-fastboot` | v2 3.7.0, bboe2; bboe2 alone where the bootloader is not amonet's | v2 3.7.0 | v2 3.7.0 |
-| `amonet-v1.1.0-twrp` | 3.2.3, bboe2 | 3.2.3, v2 3.7.0 | 3.2.3 |
-| `amonet-v1.1.0-bboe-twrp` | bboe2 | bboe2, v2 3.7.0 | bboe2 |
-| `amonet-v2-twrp` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
-| `amonet-v2-twrp-v1.1.0-table` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
-| `amonet-v1.1.0-bboe-booted` | the goal | bboe2, v2 3.7.0 | bboe2 |
+| `amonet-fireos5-fastboot` | bboe2 | bboe2, v2 3.7.0 | bboe2 |
+| `amonet-fastboot` | v2 3.7.0, bboe2; bboe2 alone where the bootloader is not amonet's | v2 3.7.0 | v2 3.7.0 |
+| `amonet-fireos5-twrp` | 3.2.3, bboe2 | 3.2.3, v2 3.7.0 | 3.2.3 |
+| `amonet-fireos5-bboe-twrp` | bboe2 | bboe2, v2 3.7.0 | bboe2 |
+| `amonet-twrp` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
+| `amonet-twrp-boot-moved` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
+| `amonet-fireos5-bboe-booted` | the goal | bboe2, v2 3.7.0 | bboe2 |
 | `rooted` | bboe2 | 3.2.3, v2 3.7.0 | 3.2.3 |
-| `amonet-v2-booted` | v2 3.7.0, bboe2 | the goal | v2 3.7.0 |
+| `amonet-booted` | v2 3.7.0, bboe2 | the goal | v2 3.7.0 |
 | `booted`, `emos`, `no-system` | one reboot, then the probe decides | the same | the same |
 
 So bboe2 is on every `unlock fireos5` path, and on one other state:
-`amonet-v1.1.0-fastboot`, where the LK is v1.1.0's and the recovery there
+`amonet-fireos5-fastboot`, where the LK is v1.1.0's and the recovery there
 cannot be trusted, so any target writes a known arm64 TWRP to reach a TWRP at
 all.
 
@@ -1267,14 +1278,14 @@ all.
 flowchart LR
   brom["nothing on USB<br/>boot0-erased, bootrom-held, --short"]
   sfb["stock-fastboot<br/>stock-fireos5-fastboot"]
-  v1fb["amonet-v1.1.0-fastboot"]
-  v2fb["amonet-v2-fastboot"]
-  v1twrp["amonet-v1.1.0-twrp<br/>runs 3.2.3"]
-  bboe["amonet-v1.1.0-bboe-twrp<br/>runs bboe2"]
-  v2twrp["amonet-v2-twrp<br/>runs v2 3.7.0"]
-  v2tbl["amonet-v2-twrp-v1.1.0-table<br/>runs v2 3.7.0"]
-  fireos5(["amonet-v1.1.0-bboe-booted"])
-  fireos6(["amonet-v2-booted"])
+  v1fb["amonet-fireos5-fastboot"]
+  v2fb["amonet-fastboot"]
+  v1twrp["amonet-fireos5-twrp<br/>runs 3.2.3"]
+  bboe["amonet-fireos5-bboe-twrp<br/>runs bboe2"]
+  v2twrp["amonet-twrp<br/>runs v2 3.7.0"]
+  v2tbl["amonet-twrp-boot-moved<br/>runs v2 3.7.0"]
+  fireos5(["amonet-fireos5-bboe-booted"])
+  fireos6(["amonet-booted"])
   stock(["stock-booted"])
 
   brom -->|"fireos5: v1.1.0 chain"| v1fb
@@ -1297,14 +1308,14 @@ flowchart LR
   v2tbl -->|"stock: restore"| stock
 ```
 
-The two edges between `amonet-v2-twrp` and `amonet-v2-twrp-v1.1.0-table` are a
+The two edges between `amonet-twrp` and `amonet-twrp-boot-moved` are a
 pair, not a loop: a run takes one or the other, never both. `unlock fireos5`
 cuts amonet v1.1.0's partitions in, and `unlock fireos6` puts the stock table
 back on a Dot found part way through that. The chain under both states is
 amonet v2's, so only the table differs.
 
-A booted Dot reaches those by one reboot: `amonet-v2-booted` into v2's TWRP,
-`amonet-v1.1.0-bboe-booted` into bboe2's, and `rooted` into whatever `recovery`
+A booted Dot reaches those by one reboot: `amonet-booted` into v2's TWRP,
+`amonet-fireos5-bboe-booted` into bboe2's, and `rooted` into whatever `recovery`
 holds, which the route predicts as amonet's 3.2.3. `rooted` is the exception to
 the reboot: `unlock fireos5` writes bboe2 there through `su` and is then done.
 
@@ -1350,7 +1361,7 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   route does not need. Its exit status proves nothing: on a file over 2 GiB it
   read the size wrong, did not write the backup copy, and exited 0.
 - Measured on a Dot, 2026-10-10, each run from where the last ended:
-  amonet-v1.1.0-bboe-booted to `amonet-biscuit-v2.0.0` in 4 min 54 s, then
+  amonet-fireos5-bboe-booted to `amonet-biscuit-v2.0.0` in 4 min 54 s, then
   `amonet-biscuit-v1.1.0` in 7 min 47 s, then `amonet-biscuit-v2.0.0` from
   TWRP 3.2.3 in 5 min 17 s, then `amonet-biscuit-v1.1.0-bboe` in 7 min 48 s.
   Each table copy took under 1 s. On all three TWRPs the backup copy went in
@@ -1399,7 +1410,7 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   stock LK and keeps its build string, so an amonet v2.0.0 Dot and a locked
   stock 8146 both read `63cb91b-20221007_072309`; `unlock_status` is in
   fastboot only. The `stock` target writes no `recovery`, so a restored Dot
-  keeps the TWRP it had, and the probe would read that as amonet-v2-twrp.
+  keeps the TWRP it had, and the probe would read that as amonet-twrp.
 - A locked Dot cannot reach that state, so the reading above is a gap in the
   logic and not a route. Measured twice on a Dot restored to stock 8146 with an
   amonet TWRP left in `recovery`, v2.0.0's and 3.7.0_9-bboe2's:
@@ -1471,7 +1482,7 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   not `true`, or whose `product` is not `BISCUIT`. Every unlocked amonet LK
   answers this fastboot. Without the `product` check, an Echo (2nd
   Generation) on amonet-radar, whose LK says `RADAR`, would read as
-  amonet-v2-fastboot, and a run would erase its boot0 and write
+  amonet-fastboot, and a run would erase its boot0 and write
   biscuit's preloader and LK to it. This is read from the code and the LK
   images, not seen on a radar.
 - It runs `fastboot erase boot0` and `fastboot reboot`, and the Dot drops into
@@ -1876,11 +1887,11 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   `toybox dd`.
 - Measured on a Dot, 2026-10-04, before `stock` was a target: `stock 8146` from
   rooted, through v1.1.0's TWRP 3.2.3, in 6 min 9 s; from
-  amonet-v2-booted, through v2.0.0's TWRP, in 2 min 59 s; from
-  amonet-v1.1.0-bboe-booted in 1 min 52 s. Each was rooted again after the
+  amonet-booted, through v2.0.0's TWRP, in 2 min 59 s; from
+  amonet-fireos5-bboe-booted in 1 min 52 s. Each was rooted again after the
   fastboot gesture: to `unlock fireos6` in 7 steps and `unlock fireos5` in 9,
   as the table counted then.
-- As the target: from amonet-v1.1.0-bboe-booted in 3 min 11 s, `[1/17]` to
+- As the target: from amonet-fireos5-bboe-booted in 3 min 11 s, `[1/17]` to
   `[17/17]`, ending when stock started, and 4315 in 4 min 9 s, which rooted
   back in 9 min 8 s. Run again on the stock Dot, it reported nothing to restore
   and downloaded nothing.

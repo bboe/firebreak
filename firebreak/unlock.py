@@ -7,11 +7,12 @@ from typing import TYPE_CHECKING
 from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import ERASED, digest, fetch, unpack
 from firebreak.devices import (
+    BISCUIT,
     FASTBRICKS,
+    FIREOS5_CHAINS,
     LITTLE_KERNEL_DESCRIPTION,
     LK_VALUES,
     TARGETS,
-    biscuit,
 )
 from firebreak.host import (
     PUSH_TRIES,
@@ -28,6 +29,7 @@ from firebreak.twrp import DISK, partitions
 from firebreak.ui import (
     ARGUMENTS,
     PROGRESS,
+    SESSION,
     FatalError,
     again,
     asked_for,
@@ -87,7 +89,10 @@ def amonet_lk(*, node: str) -> bool:
 
 
 def amonet_payload() -> pathlib.Path:
-    amonet = unpack(download=biscuit.V2_0_1_SOURCE)
+    device = ARGUMENTS.target.device if ARGUMENTS.target else SESSION.device
+    amonet = unpack(
+        download=FASTBRICKS[device if device in FASTBRICKS else BISCUIT].source
+    )
     return amonet / "brom-payload" / "build" / "payload.bin"
 
 
@@ -151,7 +156,7 @@ def newer_than_known(*, little_kernel: str) -> None:
     bootrom = (
         " Its bootrom still unlocks it: README.md's --short section says how to"
         " open it."
-        if ARGUMENTS.target.device == biscuit.UNLOCK_FROM_BOOTROM.device
+        if ARGUMENTS.target.device == BISCUIT
         else ""
     )
     raise FatalError(
@@ -210,37 +215,9 @@ def stage_amonet_recovery(*, carries_twrp: bool = True) -> bool:
     return True
 
 
-def stage_amonet_v1_1_0_recovery() -> bool:
-    if not unlocked_fastboot():
-        return False
-    amonet = unpack(download=biscuit.V1_1_0_SOURCE)
-    twrp = fetch(download=biscuit.BBOE_RECOVERY)
-    PROGRESS.begin(
-        estimate="30 s",
-        label=f"waiting for TWRP {biscuit.BBOE_TWRP_VERSION}",
-    )
-    run(
-        arguments=["fastboot", "-S", "256M", "flash", "tee2", "bin/tz.img"],
-        check=True,
-        directory=amonet,
-        timeout=120,
-    )
-    run(
-        arguments=["fastboot", "-S", "256M", "flash", "recovery", twrp],
-        check=True,
-        timeout=120,
-    )
-    run(
-        arguments=["fastboot", "oem", "reboot-recovery"],
-        check=True,
-        directory=amonet,
-        timeout=60,
-    )
-    return True
-
-
 def stage_downgrade() -> bool:
-    amonet = unpack(download=biscuit.V1_1_0_SOURCE)
+    chain = FIREOS5_CHAINS[ARGUMENTS.target.device]
+    amonet = unpack(download=chain.unlock.source)
     wheel = pyserial_wheel()
     if getvar(name="unlock_status").lower() != "true":
         raise FatalError(message="not in amonet's fastboot")
@@ -251,9 +228,10 @@ def stage_downgrade() -> bool:
             message=f"the {title()} did not report its bootloader version;"
             " boot0 was not erased. " + again()
         )
-    if little_kernel == biscuit.AMONET_V1_1_0_LK:
+    if little_kernel == chain.little_kernel:
         raise FatalError(
-            message=f"the {title()} already runs amonet v1.1.0's bootloader. " + again()
+            message=f"the {title()} already runs the bootloader this would write. "
+            + again()
         )
     if little_kernel == FASTBRICKS[ARGUMENTS.target.device].little_kernel:
         stage_amonet_recovery()
@@ -262,13 +240,13 @@ def stage_downgrade() -> bool:
     bootrom_step(
         amonet=amonet,
         erase=erase_by_fastboot,
-        little_kernel=biscuit.AMONET_V1_1_0_LK,
+        little_kernel=chain.little_kernel,
         payload=amonet_payload(),
         tail=None,
-        unlock=biscuit.UNLOCK_FROM_BOOTROM,
+        unlock=chain.unlock,
         wheel=wheel,
     )
-    return stage_amonet_v1_1_0_recovery()
+    return stage_fireos5_recovery()
 
 
 def stage_fastbrick() -> None:
@@ -310,6 +288,36 @@ def stage_fastbrick() -> None:
         message=f"the unlock did not start after 10 attempts, with {image} for"
         f" the bootloader {little_kernel}; the {title()} was not modified"
     )
+
+
+def stage_fireos5_recovery() -> bool:
+    if not unlocked_fastboot():
+        return False
+    chain = FIREOS5_CHAINS[ARGUMENTS.target.device]
+    amonet = unpack(download=chain.unlock.source)
+    twrp = fetch(download=chain.recovery)
+    PROGRESS.begin(
+        estimate="30 s",
+        label=f"waiting for TWRP {chain.twrp_version}",
+    )
+    run(
+        arguments=["fastboot", "-S", "256M", "flash", "tee2", "bin/tz.img"],
+        check=True,
+        directory=amonet,
+        timeout=120,
+    )
+    run(
+        arguments=["fastboot", "-S", "256M", "flash", "recovery", twrp],
+        check=True,
+        timeout=120,
+    )
+    run(
+        arguments=["fastboot", "oem", "reboot-recovery"],
+        check=True,
+        directory=amonet,
+        timeout=60,
+    )
+    return True
 
 
 def unlocked_fastboot() -> bool:

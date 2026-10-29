@@ -11,6 +11,7 @@ from firebreak.plugin import (
     FastbootFlash,
     Feature,
     FireOs5,
+    FireOs5Chain,
     FireOs6,
     ForceFastboot,
     Reboot,
@@ -26,6 +27,8 @@ from firebreak.targets import FIREOS5, FIREOS6, STOCK, Deprecated
 from firebreak.updates import cdn_ota
 
 AMONET_V1_1_0_LK = "f379dba-20170906_000423"
+
+
 AMONET_V2_LK = "63cb91b-20221007_072309"
 BBOE_TWRP_VERSION = "3.7.0_9-bboe2"
 BBOE_RECOVERY = Download(
@@ -138,8 +141,6 @@ LK_VALUES = frozenset({
     "2c3569d-20260617_045829",
 })
 PAYLOAD_SEEK = 223207
-
-
 STOCK_LAYOUT = StockLayout(partitions=16)
 BISCUIT = Device(
     fastboot_mode=FASTBOOT_MODE,
@@ -150,6 +151,8 @@ BISCUIT = Device(
     product="BISCUIT",
     title="Echo Dot (2nd Generation)",
 )
+
+
 V1_1_0_SOURCE = Download(
     browser=True,
     directory="v1",
@@ -211,6 +214,12 @@ UNLOCK_FROM_BOOTROM = dataclasses.replace(
     ),
     version="1.1.0",
 )
+FIREOS5_CHAIN = FireOs5Chain(
+    little_kernel=AMONET_V1_1_0_LK,
+    recovery=BBOE_RECOVERY,
+    twrp_version=BBOE_TWRP_VERSION,
+    unlock=UNLOCK_FROM_BOOTROM,
+)
 V2_0_0_SOURCE = Download(
     browser=True,
     directory="v2.0.0",
@@ -229,9 +238,9 @@ V2_0_1_SOURCE = Download(
     size=73550504,
     url="https://xdaforums.com/attachments/amonet-biscuit-v2-0-1-zip.6400450/",
 )
-
-
 V2_0_1_TWRP_VERSION = "3.7.0"
+
+
 WAS_CALLED = {
     "amonet-biscuit-v1.1.0": Deprecated(
         device=BISCUIT,
@@ -247,8 +256,6 @@ WAS_CALLED = {
     ),
 }
 WRITE_KAERU = Write(image="bin/biscuit-kaeru.bin", label="write kaeru", target="expdb")
-
-
 UNLOCK_TO_FIREOS6 = Unlock(
     device=BISCUIT,
     family="amonet",
@@ -302,7 +309,7 @@ TARGETS = (
     ),
     Target(
         device=BISCUIT,
-        goal=State.AMONET_V1_1_0_BBOE_BOOTED,
+        goal=State.AMONET_FIREOS5_BBOE_BOOTED,
         installs=FireOs5(package=BUILDS["5.5.5.4"]),
         name=FIREOS5,
         summary="rooted Fire OS 5.5.5.4 on amonet v1.1.0, with TWRP"
@@ -311,7 +318,7 @@ TARGETS = (
     ),
     Target(
         device=BISCUIT,
-        goal=State.AMONET_V2_BOOTED,
+        goal=State.AMONET_BOOTED,
         installs=FireOs6(build=FIREOS6_BUILD),
         name=FIREOS6,
         summary="boot-root.zip's root adb on the Fire OS 6 already installed,"
@@ -321,7 +328,11 @@ TARGETS = (
         unlock=UNLOCK_TO_FIREOS6,
     ),
 )
+
+
 UNLOCK_V2_FROM_BOOTROM = dataclasses.replace(
     UNLOCK_TO_FIREOS6, plan=(ClearBoot0Header(), *UNLOCK_TO_FIREOS6.plan)
 )
+
+
 BOOTROM_UNLOCK = UNLOCK_V2_FROM_BOOTROM
