@@ -4,6 +4,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- `stock 5.5.5.4` returns an Echo (2nd Generation) to Fire OS 5.5.5.4, where
+  `stock` there took only the Fire OS 6 build it installs when left out.
+
 ### Changed
 
 - `unlock fireos6` roots the Fire OS 6 build already installed, with no wipe

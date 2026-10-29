@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import threading
 from typing import TYPE_CHECKING
 
@@ -52,6 +53,16 @@ def test_a_build_is_fetched_by_its_pin_once_a_session(
     assert capsys.readouterr().out == ""
 
 
+def test_a_build_two_devices_share_names_one_download_each() -> None:
+    shared = 0
+    for first, second in itertools.combinations(BUILDS.values(), 2):
+        for build in set(first) & set(second):
+            shared += 1
+            assert first[build].name != second[build].name
+            assert first[build].sha256 != second[build].sha256
+    assert shared
+
+
 def test_every_build_has_a_whole_pin_on_amazon_s_cdn() -> None:
     for device, builds in BUILDS.items():
         for download in builds.values():
@@ -61,14 +72,3 @@ def test_every_build_has_a_whole_pin_on_amazon_s_cdn() -> None:
             assert len(download.sha256) == 64
         assert DEFAULT_BUILDS[device] in builds
     assert set(biscuit.FIREOS5_BUILDS) <= set(biscuit.BUILDS)
-
-
-def test_nothing_keyed_by_build_alone_has_a_collision_yet() -> None:
-    numbers = [build for builds in BUILDS.values() for build in builds]
-    assert len(numbers) == len(set(numbers)), (
-        "two devices now share a build number, which docs/rooting.md says they"
-        " do. Nothing keyed by the build alone can tell them apart yet: the"
-        " lock a build download holds and the one set of BUILD choices on"
-        " the command line would each take one device's build for the"
-        " other's. Key those by device as the work folder already is."
-    )

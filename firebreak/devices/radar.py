@@ -14,6 +14,10 @@ if TYPE_CHECKING:
     from firebreak.targets import Deprecated
 
 BUILDS = {
+    "5.5.5.4": cdn_ota(
+        path="b3a81477c5aebe779bc95b837e374311/update-kindle-csm_radar-288.6.8.0_user_680767620.bin",
+        sha256="9acebcd78c6837d428ee7eff3c1f57a89f895f8968b4d7afe3e84986f01dcd52",
+    ),
     "6436": cdn_ota(
         path="2026/3/21/22138e24-4af9-483b-8b47-0420835a92fd/update-kindle-radar_puffin-NS6572_user_6436_0012718777476.bin",
         sha256="976e2761c5bb9e5d3d9a2b1b9bc2f2296b89a5b37057ab1780743aa075f2df48",
@@ -72,7 +76,8 @@ TARGETS = (
         goal=State.STOCK_BOOTED,
         installs=FireOs6(build=None),
         name=STOCK,
-        summary=f"Amazon's Fire OS {DEFAULT_BUILD}, which erases the whole Echo.",
+        summary=f"Amazon's Fire OS BUILD, {DEFAULT_BUILD} when left out,"
+        " which erases the whole Echo.",
         unlock=None,
     ),
     Target(

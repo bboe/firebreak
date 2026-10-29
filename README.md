@@ -19,7 +19,7 @@ after `boot0` was erased, and `stock 5.5.0.3`.
 | --- | --- | --- |
 | `unlock fireos6` (default) | rooted Fire OS 6 [8146][fireos-8146] on amonet v2.0.1, TWRP 3.7.0; also needs `boot-root.zip`. On an Echo (2nd Generation), rooted Fire OS 6 [6436][fireos-6436] on amonet-radar v1.0.0 | about 5 min from `unlock fireos5` |
 | `unlock fireos5` | rooted Fire OS [5.5.5.4][fireos-5554] on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
-| `stock [BUILD]` | stock Fire OS at that build, with the device erased: Fire OS 6 [8149][fireos-8149] when left out, or Fire OS 5 from [5.5.0.3][fireos-5503] to [5.5.5.4][fireos-5554] | about 3 min from `unlock fireos5` |
+| `stock [BUILD]` | stock Fire OS at that build, with the device erased: Fire OS 6 [8149][fireos-8149] when left out, or Fire OS 5 from [5.5.0.3][fireos-5503] to [5.5.5.4][fireos-5554]. On an Echo (2nd Generation), Fire OS 6 [6436][fireos-6436] when left out, or Fire OS [5.5.5.4][fireos-radar-5554] | about 3 min from `unlock fireos5` |
 
 `unlock` takes the newest amonet that firebreak supports for that Fire OS, so
 a target no longer names an amonet version. `unlock` with no target takes
@@ -183,12 +183,12 @@ afterwards.
 
 `report` also names the device and lists its USB devices. An Echo (2nd
 Generation) takes `unlock fireos6`, which roots Fire OS 6 [6436][fireos-6436]
-with amonet-radar v1.0.0, and `stock`, which returns one on amonet to that
-build. Both have run on an Echo, and neither is proven: the first boot after
-the root needed the Echo power-cycled by hand, which firebreak does not ask
-for. Both are refused unless the run passes `--run-on-unproven-path`. Every
-other target is for the Echo Dot (2nd Generation). The report is the same on
-other Echo devices and helps add them.
+with amonet-radar v1.0.0, and `stock [BUILD]`, which returns one on amonet to
+that build or to Fire OS [5.5.5.4][fireos-radar-5554]. Both have run on an
+Echo. The first boot after the root has sometimes shown nothing on USB; the run
+waits, and after a minute it asks for the Echo's power to be unplugged and
+plugged back in. Every other target is for the Echo Dot (2nd Generation). The
+report is the same on other Echo devices and helps add them.
 
 `write-test` then tells a failing eMMC from a failing cable. It pushes a
 pattern into the Dot's RAM, then has the Dot write it over its own `cache`
@@ -244,5 +244,6 @@ endorsed by, or supported by Amazon.
 [fireos-6436]: https://ftvdb.com/echo/firmware/com.amazon.radar.android.os/17af64ecc5b8f0303daf4e2a37c75b1a-12718777476-fire-os-6-5-7-2-ns6572-6436-2026-03-21/
 [fireos-8146]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/8ca06ee4ef2806c974d2944b7fadd543-13222531716-fire-os-6574-1-ns65741-8146-2026-09-17/
 [fireos-8149]: https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/a01de630f6d943dddc9b751ae74bbb52-13222532484-fire-os-6574-1-ns65741-8149-2026-09-29/
+[fireos-radar-5554]: https://ftvdb.com/echo/firmware/com.amazon.radar.android.os/e7338ac28c64f1846389c8a7bf871c94-680767620-fire-os-5-5-5-4-680767620-2022-11-18/
 [licence]: https://github.com/bboe/firebreak/blob/main/LICENSE.txt
 [rooting]: https://github.com/bboe/firebreak/blob/main/docs/rooting.md
