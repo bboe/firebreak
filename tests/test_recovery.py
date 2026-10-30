@@ -781,7 +781,7 @@ def test_the_fireos5_chain_writes_a_table_that_moves_its_targets_alone(
             "reboot",
             (),
             False,
-            {"label": "waiting for TWRP to reread table"},
+            {"label": "restarting into TWRP to reread the table"},
         ),
     ]
 

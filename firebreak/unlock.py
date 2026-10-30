@@ -215,7 +215,7 @@ def stage_amonet_recovery(*, carries_twrp: bool = True) -> bool:
             timeout=120,
         )
     else:
-        PROGRESS.begin(estimate="40 s", label="waiting for TWRP to start")
+        PROGRESS.begin(estimate="40 s", label="waiting for TWRP")
     if restart_refusals():
         PROGRESS.end(skipped=True)
         say(
@@ -296,7 +296,7 @@ def stage_fastbrick() -> None:
                 message="the payload rejected this device; it was not modified"
             )
         if started:
-            PROGRESS.begin(estimate="40 s", label="waiting for TWRP to start")
+            PROGRESS.begin(estimate="40 s", label="waiting for TWRP")
             return
     raise FatalError(
         message=f"the unlock did not start after 10 attempts, with {image} for"

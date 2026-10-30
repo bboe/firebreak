@@ -300,7 +300,7 @@ def ota_images(*, build: str, device: Device, work: pathlib.Path) -> None:
 
 
 def reboot_into_fastboot() -> None:
-    PROGRESS.begin(estimate="20 s", label="rebooting into fastboot")
+    PROGRESS.begin(estimate="20 s", label="restarting into fastboot")
     with contextlib.suppress(subprocess.TimeoutExpired):
         run(arguments=["adb", "reboot", "bootloader"], timeout=60)
     wait_for_fastboot()
@@ -376,7 +376,7 @@ def restore(  # ruff: ignore[complex-structure]
         )
 
     if build in biscuit.BOOTROM_BUILDS:
-        PROGRESS.begin(estimate="5 s", label="rebooting into the bootrom")
+        PROGRESS.begin(estimate="5 s", label="restarting into the bootrom")
         with contextlib.suppress(subprocess.TimeoutExpired):
             run(arguments=["adb", "shell", "-n", "reboot"], timeout=60)
         stock_preloader(
@@ -410,9 +410,9 @@ def restore(  # ruff: ignore[complex-structure]
         reboot_into_fastboot()
         return
     if build in FIREOS5_BUILDS[ARGUMENTS.target.device]:
-        PROGRESS.begin(estimate="5 s", label=f"rebooting into stock {build}")
+        PROGRESS.begin(estimate="5 s", label=f"restarting into stock {build}")
     else:
-        PROGRESS.begin(estimate="90 s", label=f"waiting for stock {build} to start")
+        PROGRESS.begin(estimate="90 s", label=f"waiting for stock {build}")
     with contextlib.suppress(subprocess.TimeoutExpired):
         run(arguments=["adb", "shell", "-n", "reboot"], timeout=60)
 

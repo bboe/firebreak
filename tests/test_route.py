@@ -976,8 +976,8 @@ def test_a_v2_0_0_dot_that_refuses_the_restart_is_told_about_its_button(
 
 def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) -> None:
     state = route.State
-    to_recovery = (route.reboot, {"label": "waiting for recovery"})
-    to_twrp = (route.reboot, {"label": "waiting for TWRP to start"})
+    to_recovery = (route.reboot, {"label": "restarting into recovery"})
+    to_twrp = (route.reboot, {"label": "restarting into TWRP"})
     shared = {
         state.AMONET_FIREOS5_FASTBOOT: (
             route.stage_fireos5_recovery,
@@ -1067,7 +1067,7 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
                     {
                         "estimate": "345 s",
                         "into": "",
-                        "label": "waiting for rooted Fire OS 5 to boot",
+                        "label": "waiting for rooted Fire OS 5",
                     },
                 ),
                 "before_preloader": (

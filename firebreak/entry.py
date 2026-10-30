@@ -335,11 +335,11 @@ def revisited(
 
 
 def to_fastboot() -> None:
-    reboot(into="bootloader", label="waiting for fastboot")
+    reboot(into="bootloader", label="restarting into fastboot")
 
 
 def to_twrp() -> None:
-    reboot(label="waiting for TWRP to start")
+    reboot(label="restarting into TWRP")
 
 
 def twrp_entry(*, force: bool) -> None:

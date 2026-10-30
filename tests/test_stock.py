@@ -157,7 +157,7 @@ def test_a_fire_os_5_restore_reboots_without_waiting(
         parts=PARTITIONS,
         work=tmp_path,
     )
-    assert "rebooting into stock 5.5.5.4" in stock.PROGRESS.line
+    assert "restarting into stock 5.5.5.4" in stock.PROGRESS.line
     assert restored.asked[-1][-1] == "reboot"
 
 
@@ -174,7 +174,7 @@ def test_a_restore_can_leave_the_dot_in_fastboot(
         parts=PARTITIONS,
         work=tmp_path,
     )
-    assert "rebooting into fastboot" in stock.PROGRESS.line
+    assert "restarting into fastboot" in stock.PROGRESS.line
     assert restored.asked[-1][-2:] == ["reboot", "bootloader"]
 
 

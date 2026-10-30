@@ -444,7 +444,7 @@ def started_payload(
     elif SESSION.short:
         ask_for_short()
     else:
-        PROGRESS.begin(estimate="40 s", label="waiting for the restart")
+        PROGRESS.begin(estimate="40 s", label="waiting for the bootrom")
     client, live = bootrom_client(
         deadline=time.monotonic() + (60 if erase else 600), erase=erase
     )
@@ -486,7 +486,7 @@ def stock_preloader(
             target=BOOT0,
         ),
     )
-    started = (Action(kind=bootrom.REBOOT, label=f"rebooting into stock {build}"),)
+    started = (Action(kind=bootrom.REBOOT, label=f"restarting into stock {build}"),)
     bootrom.execute(
         actions=written if SESSION.fastboot else written + started, payload=live
     )

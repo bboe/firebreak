@@ -775,7 +775,7 @@ def test_a_stock_preloader_step_zeroes_the_rpmb_and_writes_boot0(
                 offset=0,
                 target=bootrom_step.BOOT0,
             ),
-            Action(kind="Reboot", label="rebooting into stock 5.5.0.3"),
+            Action(kind="Reboot", label="restarting into stock 5.5.0.3"),
         )
     ]
     assert rig.clients[0].port.closed

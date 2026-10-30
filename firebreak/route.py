@@ -173,7 +173,7 @@ def fireos5_stages() -> dict[State, Stage]:
             reboot,
             estimate="345 s",
             into="",
-            label="waiting for rooted Fire OS 5 to boot",
+            label="waiting for rooted Fire OS 5",
         ),
         before_preloader=functools.partial(
             stage_install_fireos, reboot=False, slot="_a"
@@ -225,7 +225,7 @@ def fireos6_stages() -> dict[State, Stage]:
     installed = (unlock.source, *unlock.files.values())
     install = functools.partial(
         recovery.carry_out,
-        after=functools.partial(reboot, label="waiting for TWRP to start"),
+        after=functools.partial(reboot, label="restarting into TWRP"),
         guard=amonet_chain,
         unlock=unlock,
         zero=("misc",),
@@ -323,8 +323,8 @@ def prefetch(*, needs: Iterable[Need]) -> None:
 
 
 def reboot_stages() -> dict[State, Stage]:
-    to_recovery = functools.partial(reboot, label="waiting for recovery")
-    to_twrp = functools.partial(reboot, label="waiting for TWRP to start")
+    to_recovery = functools.partial(reboot, label="restarting into recovery")
+    to_twrp = functools.partial(reboot, label="restarting into TWRP")
     return {
         State.AMONET_BOOTED: Stage(run=to_twrp, steps=1, then=State.AMONET_TWRP),
         State.BOOTED: Stage(run=to_recovery, steps=1, then=None),

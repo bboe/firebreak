@@ -145,7 +145,7 @@ def carry_out(
         for action in writes
     ):
         execute(actions=table)
-        reboot(label="waiting for TWRP to reread table")
+        reboot(label="restarting into TWRP to reread the table")
         return False
     wrong = check_nodes(
         want={

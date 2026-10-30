@@ -351,7 +351,7 @@ def stage_install_fireos(*, reboot: bool = True, slot: str = "") -> None:
 
         install_magisk(magisk=magisk, work=work)
     if reboot:
-        PROGRESS.begin(estimate="345 s", label="waiting for rooted Fire OS 5 to boot")
+        PROGRESS.begin(estimate="345 s", label="waiting for rooted Fire OS 5")
         run(arguments=["adb", "reboot"])
 
 
