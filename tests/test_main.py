@@ -95,7 +95,7 @@ def test_a_bootrom_names_the_device_before_the_target_is_chosen(
     monkeypatch.setattr(
         name="choose_target",
         target=main,
-        value=lambda *, device, name: (
+        value=lambda *, device, name, **_: (
             asked.append(device),
             TARGETS[RADAR][name or DEFAULTS[RADAR]],
         )[1],

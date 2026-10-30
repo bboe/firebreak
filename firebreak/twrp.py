@@ -5,7 +5,7 @@ import subprocess
 import time
 from typing import TYPE_CHECKING
 
-from firebreak.cache import CACHE, ERASED, SYSTEM_SLICE_BYTES, digest, gzip_intact
+from firebreak.cache import CACHE, SYSTEM_SLICE_BYTES, digest, gzip_intact
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
     PUSH_TRIES,
@@ -108,7 +108,7 @@ def clear_boot0() -> None:
         return
     read, *still_set = answer or [""]
     if read == "4096" and still_set:
-        ERASED.unlink(missing_ok=True)
+        SESSION.boot0_erased = False
         raise FatalError(
             message="boot0's header did not clear, so a failure from here would brick"
             " rather than fall into the bootrom; nothing else was written",

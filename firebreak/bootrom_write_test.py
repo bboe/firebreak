@@ -20,7 +20,6 @@ from firebreak.bootrom_step import (
     bootrom_client,
     check_emmc,
     exploit,
-    poke_live_payload,
 )
 from firebreak.mediatek.usbdl import UsbdlError
 from firebreak.plan import TABLE_SECTORS
@@ -68,7 +67,6 @@ def bootrom_write_test(
     joined = live is not None
     if live is None:
         status(text="Waiting for the bootrom, where a run left this Echo.")
-        poke_live_payload()
         client, late = bootrom_client(
             deadline=time.monotonic() + REPLUG_WAIT, erase=None
         )

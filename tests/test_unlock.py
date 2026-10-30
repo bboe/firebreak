@@ -480,7 +480,7 @@ def test_erasing_boot0_reboots_the_dot(*, adb: FakeAdb) -> None:
 def test_erasing_boot0_that_fails_leaves_no_marker(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    unlock.ERASED.touch()
+    unlock.SESSION.boot0_erased = True
     answers = iter([1, 0, 1])
     monkeypatch.setattr(
         name="run",
@@ -488,10 +488,10 @@ def test_erasing_boot0_that_fails_leaves_no_marker(
         value=lambda **_: types.SimpleNamespace(returncode=next(answers), stdout="no"),
     )
     assert unlock.erase_by_fastboot().startswith("fastboot erase boot0 failed")
-    assert not unlock.ERASED.exists()
-    unlock.ERASED.touch()
+    assert unlock.SESSION.boot0_erased is False
+    unlock.SESSION.boot0_erased = True
     assert unlock.erase_by_fastboot().startswith("fastboot reboot failed")
-    assert unlock.ERASED.exists()
+    assert unlock.SESSION.boot0_erased is True
 
 
 def test_the_amonet_sources_are_the_device_s_own(

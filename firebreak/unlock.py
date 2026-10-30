@@ -5,7 +5,7 @@ import time
 from typing import TYPE_CHECKING
 
 from firebreak.bootrom_step import bootrom_step
-from firebreak.cache import ERASED, digest, fetch, unpack
+from firebreak.cache import digest, fetch, unpack
 from firebreak.devices import (
     BISCUIT,
     FASTBRICKS,
@@ -136,7 +136,7 @@ def current_device() -> Device:
 def erase_by_fastboot() -> str:
     erased = run(arguments=["fastboot", "erase", "boot0"], timeout=60)
     if erased.returncode != 0:
-        ERASED.unlink(missing_ok=True)
+        SESSION.boot0_erased = False
         return f"fastboot erase boot0 failed:\n{erased.stdout}"
     rebooted = run(arguments=["fastboot", "reboot"], timeout=60)
     if rebooted.returncode != 0:

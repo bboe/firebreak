@@ -12,10 +12,8 @@ from firebreak.bootrom_step import (
     bootrom_client,
     exploit,
     payload_device,
-    poke_live_payload,
 )
-from firebreak.cache import ERASED
-from firebreak.devices import BOOTROM_UNLOCKS, DEVICES, FASTBRICKS
+from firebreak.devices import BOOTROM_UNLOCKS, FASTBRICKS
 from firebreak.host import pyserial_wheel, run
 from firebreak.identify import POLL, identify
 from firebreak.probe import state
@@ -117,7 +115,7 @@ def awaited() -> State:
 
 
 def awaiting() -> str:
-    if ERASED.exists():
+    if SESSION.boot0_erased:
         return (
             f"boot0 is erased, so this {known()} starts nothing but its bootrom."
             " Power it on: its bootrom answers for about 40 seconds, and this"
@@ -175,7 +173,7 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
             what=f"clearing boot0's header leaves the {device.title} able to start"
             " from its bootrom alone, until something writes a preloader back",
         )
-        ERASED.write_text(device.name)
+        SESSION.boot0_erased = True
         clear_boot0()
         run(arguments=["adb", "reboot"], timeout=60)
         parked(live=reached(erase=None))
@@ -186,7 +184,7 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
             what=f"erasing boot0 leaves the {device.title} able to start from its"
             " bootrom alone, until something writes a preloader back",
         )
-        ERASED.write_text(device.name)
+        SESSION.boot0_erased = True
         parked(live=reached(erase=erase_by_fastboot))
     elif current in LOCKED_FASTBOOTS:
         raise FatalError(
@@ -236,20 +234,13 @@ def gesture() -> None:
 
 
 def known() -> str:
-    device = SESSION.device or marked()
+    device = SESSION.device
     return device.title if device is not None else title()
 
 
 def known_device() -> Device:
     noticed()
     return current_device()
-
-
-def marked() -> Device | None:
-    if ERASED.exists():
-        name = ERASED.read_text(encoding="utf-8").strip()
-        return next((each for each in DEVICES if each.name == name), None)
-    return None
 
 
 def noticed() -> None:
@@ -282,7 +273,7 @@ def parked(*, live: Client) -> None:
         + (
             "boot0 is erased, so a power cycle brings its bootrom back, and the"
             " run after that writes a chain through it."
-            if ERASED.exists()
+            if SESSION.boot0_erased
             else f"Leave the {known()} plugged in: a power cycle loses the"
             " hold, and starts the firmware boot0 still holds."
         )
@@ -298,8 +289,6 @@ def reached(*, erase: Callable[[], str] | None) -> Client:
         failure = erase()
         if failure:
             raise FatalError(message=failure)
-    elif not SESSION.short:
-        poke_live_payload()
     PROGRESS.begin(estimate="15 s", label="starting amonet's payload")
     client, live = bootrom_client(
         deadline=time.monotonic() + waiting(erase=erase), erase=erase
@@ -422,7 +411,7 @@ def walk(
                 message=f"the {known()} reads as {current.value}, which nothing"
                 f" here can reach a {what} from." + WAYS_OUT.get(current, "")
             )
-        if current == State.NONE and ERASED.exists():
+        if current == State.NONE and SESSION.boot0_erased:
             raise FatalError(
                 message=f"boot0 is erased, so this {known()} starts nothing but"
                 f" its bootrom and reaches no {what} until a chain is written"

@@ -30,10 +30,8 @@ def carried() -> None:
 
 
 @pytest.fixture
-def erased() -> pathlib.Path:
-    twrp.ERASED.touch()
-    twrp.SESSION.boot0_marker = twrp.ERASED
-    return twrp.ERASED
+def erased() -> None:
+    twrp.SESSION.boot0_erased = True
 
 
 @pytest.fixture
@@ -89,10 +87,11 @@ def test_a_block_device_check_with_every_node_right_says_nothing(
     assert f"for p in {twrp.DISK}p3:512;" in asked
 
 
-def test_a_cleared_boot0_goes_on(*, adb: FakeAdb, erased: pathlib.Path) -> None:
+@pytest.mark.usefixtures("erased")
+def test_a_cleared_boot0_goes_on(*, adb: FakeAdb) -> None:
     adb.answers["force_ro"] = ["4096 0"]
     twrp.clear_boot0()
-    assert erased.exists()
+    assert twrp.SESSION.boot0_erased is True
 
 
 @pytest.mark.parametrize(
@@ -450,7 +449,7 @@ def test_a_write_that_does_not_flush_stops_it(
 
 
 def test_a_write_that_does_not_verify_stops_it(
-    *, adb: FakeAdb, erased: pathlib.Path, image: pathlib.Path
+    *, adb: FakeAdb, erased: None, image: pathlib.Path
 ) -> None:
     del erased
     adb.answers["md5sum"] = [md5(data=b"old")]
@@ -478,20 +477,21 @@ def test_a_write_with_a_matching_head_still_checks_the_whole(
     assert len(adb.commands(holding="of=" + twrp.DISK)) == 1
 
 
+@pytest.mark.usefixtures("erased")
 def test_an_uncleared_boot0_header_stops_before_the_bootrom_fallback(
-    *, adb: FakeAdb, erased: pathlib.Path
+    *, adb: FakeAdb
 ) -> None:
     adb.answers["force_ro"] = ["4096 12"]
     with pytest.raises(FatalError, match="did not clear") as stopped:
         twrp.clear_boot0()
-    assert not erased.exists()
+    assert twrp.SESSION.boot0_erased is False
     said = " ".join(explained(error=stopped.value).split())
     assert "nothing else was written" in said
     assert "boot0 may hold no preloader" not in said
 
 
 def test_an_unread_boot0_says_the_dot_cannot_start(
-    *, adb: FakeAdb, erased: pathlib.Path
+    *, adb: FakeAdb, erased: None
 ) -> None:
     del erased
     adb.answers["force_ro"] = [""]

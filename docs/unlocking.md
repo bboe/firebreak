@@ -98,12 +98,13 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   stage.
 - Rooting formats userdata. A registered Echo loses its Wi-Fi and its Alexa
   registration, and finishes in setup mode.
-- After boot0 is erased the Echo shows up only as the bootrom's serial
-  port, which no probe sees. So the script creates `boot0-erased` in its cache
-  before the erase. It deletes the file once amonet logs `Reboot to unlocked
-  fastboot`, when boot0 is written, and whenever it sees the Echo booted or in
-  fastboot, which only a preloader in boot0 reaches. TWRP does not count: it
-  keeps running from RAM after the restore to stock clears boot0.
+- After boot0 is erased the Echo shows up only as the bootrom's serial port,
+  which no probe sees. A run that erases boot0 records that for itself, in
+  memory, from just before the erase until boot0 is written back: amonet's
+  `Reboot to unlocked fastboot`, or the Echo seen booted or in fastboot, which
+  only a preloader in boot0 reaches. TWRP does not count, because it keeps
+  running from RAM after the restore to stock clears boot0. Nothing is written
+  to the cache, so the next run starts over and reads the Echo instead.
 - Which chain the bootrom writes follows the target, and nothing else.
   `unlock fireos5` takes amonet v1.1.0's, which is its goal. `stock` and
   `unlock fireos6` take amonet v2.0.1's and continue from v2's TWRP, which saves
@@ -151,14 +152,12 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - That run measures the gate's string. An amonet v2 Dot in its own fastboot
   reported `63cb91b-20221007_072309`, which the step that follows proves,
   because it wrote the TWRP rather than restarting alone.
-- A run that finds the file and no Echo runs the bootrom step again, without
-  the erase. A run stopped inside amonet's payload leaves the Echo there, and
-  the payload never restarts. So the resume first sends every MediaTek port
-  the payload's reboot command, `0xf00dd00d` then `0x3000`; the Dot came back
-  as its bootrom within 5 seconds. Sent to a live bootrom on a Dot, it did
-  no harm: the handshake that followed went through.
-- The run then waits up to those 5 seconds for each port it poked to go, so
-  it does not open a payload's port while the payload reboots.
+- A run that finds no Echo runs the bootrom step again, without the erase. A
+  run stopped inside amonet's payload leaves the Echo there, and the payload
+  never restarts. The resume used to send every MediaTek port the payload's
+  reboot command, `0xf00dd00d` then `0x3000`, and the Dot came back as its
+  bootrom within 5 seconds; it now joins that payload instead, which costs no
+  reboot and works whatever boot0 holds.
 - On macOS, a run stopped 12 seconds into amonet's `tz` write resumed this
   way: amonet found the bootrom 4 seconds after the run started, and the root
   finished.
@@ -239,16 +238,14 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   one two devices share, and `--device` names none, a run that reads `bootrom`
   reads that bootloader before it chooses the target. It joins a payload that
   already holds the bootrom, and starts one where none does. Such a run was
-  going to exploit that bootrom anyway, so the read costs nothing but one
-  restart: the chain step pokes the payload left running, and an Echo whose
-  boot0 is erased comes back in its bootrom. The read happens before the
-  target is chosen, so a run that ends in a refusal, as `unlock fireos5` on a
-  radar does, has run the payload before it refuses.
-- `boot0-erased` still holds the name of the device the run that wrote it was
-  on, and naming the Echo is all it is read for. That
-  name is the fallback now: a bootloader that names no product, or a partition
-  table that does not read, leaves it. Two Echo devices in the same erased
-  state, swapped between runs, are each named by their own flash. `--short`
+  going to exploit that bootrom anyway, so the read costs nothing: the chain
+  step joins the same payload rather than starting another. The read happens
+  before the target is chosen, so a run that ends in a refusal, as `unlock
+  fireos5` on a radar does, has run the payload before it refuses.
+- Nothing in the cache names the Echo any more. A bootloader that names no
+  product, or a partition table that does not read, leaves a run with no name
+  and it asks for `--device`, where a marker used to answer for it. Two Echo
+  devices swapped between runs are each named by their own flash. `--short`
   still needs `--device`, because where the test point is differs by device
   and the run has to say that before any bootrom answers.
 - In fastboot, the report also prints `antirback_pl_version`,
@@ -448,11 +445,11 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   Nothing before that touches the eMMC, and the handshake disables the
   watchdog. So the run holds amonet at its "Remove the short" prompt, counts
   down 5 seconds, then lets it continue.
-- amonet's first write clears boot0's header. Under `--short` its bootrom
-  step creates `boot0-erased` just before each write, after amonet's first
-  boot0 check, as the erase path creates it before the erase. A run that
-  stops before that leaves boot0 intact and no file. A run that fails or is
-  stopped after it is resumed by a plain rerun.
+- amonet's first write clears boot0's header. Under `--short` its bootrom step
+  notes boot0 as erased just before each write, after amonet's first boot0
+  check, as the erase path notes it before the erase. A run that stops before
+  that leaves boot0 intact. A run that fails after it is resumed by a plain
+  rerun, which reads the bootrom it finds rather than any record of it.
 - The bootrom step logs the error for a port it still cannot open after 1
   second, once, and the run shows it at once. udev can set a new port's mode
   a moment after it appears, so a first failure alone means nothing. A
@@ -476,11 +473,13 @@ testing a single stage mean reaching its state by hand first.
   the recovery a reboot would reach is Amazon's, not a TWRP.
 - A state that does not move for 10 minutes stops the run, as it does for a
   target. The gesture is the exception, because it waits on a person.
-- Nothing on USB is a wait, because that is what a reboot reads as. With
-  `boot0-erased` set it is not: that Echo starts nothing but its bootrom, so no
-  fastboot and no recovery can ever appear, and `fastboot` and `twrp` stop
-  rather than wait for a state they cannot reach. The way out of a bootrom is a
-  chain, which `unlock` and `stock` write.
+- Nothing on USB is a wait, because that is what a reboot reads as. In a run
+  that erased boot0 itself it is not: that Echo starts nothing but its bootrom,
+  so no fastboot and no recovery can ever appear, and `fastboot` and `twrp`
+  stop rather than wait for a state they cannot reach. A later run has no
+  record of the erase and waits instead, until the bootrom appears and says so
+  itself. The way out of a bootrom is a chain, which `unlock` and `stock`
+  write.
 - The macOS read is not always steady. On 2026-10-29 the IOUSB plane left a
   live bootrom out of three reads over about 30 seconds and then listed it
   again by itself, 207,395 bytes against the 210,142 that hold it. **Why is
@@ -502,11 +501,10 @@ testing a single stage mean reaching its state by hand first.
   did. A prompt also names it when the question is asked, not when the table
   of states is built, because `twrp` builds that table before `walk` reads
   the Echo at all.
-- A run that means to handshake pokes a live payload first, as the unlock
-  route always has. A payload holding the bootrom answers no handshake, so
-  without the poke the run spends the 10 second handshake limit and then asks
-  for a replug, which on an intact boot0 starts the firmware instead. That is
-  also why `write-test` probes for a payload before it handshakes: it meets a
+- A run probes a bootrom port before it handshakes at one, because a payload
+  holding the bootrom answers no handshake: the run would spend the 10 second
+  limit and then ask for a replug, which on an intact boot0 starts the
+  firmware instead. `write-test` probes for the same reason, since it meets a
   live payload where the old `--short` flag always met a bare bootrom.
 - A test that joined a hold leaves it held. The bootrom write test reboots
   the payload at the end, which is right where it started one, and wrong
@@ -584,11 +582,14 @@ testing a single stage mean reaching its state by hand first.
   Which device it is does not come into holding a bootrom -- one payload runs
   on both, byte for byte -- so a run reads the name out of the bootloader in
   flash rather than asking for `--device`.
-- `boot0-erased` stays, because nothing on the wire can replace it. It says
-  what boot0 holds, which an Echo that is powered off or showing no light
-  cannot be asked, and it is what tells such a run to wait for a bootrom
-  instead of a firmware boot. A hold is the opposite: a live payload is on
-  USB by definition, so one byte settles it.
+- `boot0-erased` is gone too, and with it the last thing firebreak believed
+  about an Echo it had not read. It said what boot0 holds, which an Echo that
+  is powered off cannot be asked, so it could only ever be a claim about the
+  last Echo some earlier run touched. What it bought was a name and a wording
+  before the Echo was reachable, not a decision: a bootrom that appears
+  answers for itself, on its USB id and then in its flash. A run keeps the
+  fact in memory for as long as it is the run that erased boot0, so its own
+  errors still say `Only boot0 was erased.`
 - `bootrom` reads which Echo it holds from the bootloader in flash, and a
   target run reads the same way before it chooses its target:
   [Which device is plugged in](#which-device-is-plugged-in) says why, and what
@@ -1352,19 +1353,16 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   A power cycle starts stock 5.5.0.3
   instead, since boot0 now holds its preloader. `--end-in-fireos` sends the
   reboot and starts Fire OS 5.
-- A held payload is joined, never poked. The resume for an erased boot0 sends
-  the payload's reboot command and lets the bootrom come back, which works only
-  because boot0 holds no preloader. A held Dot has one, so that reboot starts
-  Fire OS 5 and loses the hold: measured on a Dot, 2026-10-26, where the
-  restore's own run poked the payload it had just parked. So the run that parks
-  the Dot does not also resume it, and a later run opens each MediaTek bootrom
-  port, probes it with a frame's first byte, and joins the one that answers
-  nothing. A Dot that was powered off lists no port at all, so the run waits
-  for one to appear before it probes: the port a restore parked can take a
-  moment to show up, and giving up on the first listing threw the hold away
-  while the Dot still held it. Once a bootrom port is there its answer is
-  final, so a bare bootrom falls through to the handshake at once rather than
-  being waited on. `--short` does not: a hold means the bootrom is
+- A held payload is joined, never rebooted. Sending the payload's reboot
+  command to get a fresh bootrom works only where boot0 holds no preloader. A
+  held Dot has one, so that reboot starts Fire OS 5 and loses the hold:
+  measured on a Dot, 2026-10-26, where the restore's own run rebooted the
+  payload it had just parked. So a run opens each MediaTek bootrom port,
+  probes it with a frame's first byte, and joins the one that answers nothing.
+  A Dot that was powered off lists no port at all, and the wait for one to
+  appear belongs to the step that handshakes, which probes each port it opens
+  before it does: a hold whose port shows up late is joined there rather than
+  handshaked. `--short` skips none of this: a hold means the bootrom is
   already there, so asking for the test point and then handshaking at a live
   payload only ended in advice to unplug, which starts the firmware and loses
   the hold.
@@ -1391,17 +1389,17 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   So the message says "appears", then names the + gesture, which starts v2.0.0's
   TWRP, for a Dot unlocked with amonet v2.0.0. The condition comes first, so the
   owner of a plain stock Echo can skip it.
-- The restore clears boot0 first and writes it back last. It creates
-  `boot0-erased` before the clear and deletes it once boot0 reads back, as the
-  downgrade does. So a restore stopped in between, then rebooted, is resumed
-  through the bootrom step and amonet v2.0.1's TWRP, and restored again.
+- The restore clears boot0 first and writes it back last, and notes boot0 as
+  erased in between, as the downgrade does. So a restore stopped in between,
+  then rebooted, is resumed through the bootrom step and amonet v2.0.1's TWRP,
+  and restored again. The resume reads the bootrom it finds, not a record of
+  the run that left it.
 - A resume clears the TWRP states from the run's acted-on set, so a run
   that started in TWRP acts on TWRP again after the bootrom step.
 - A bootrom that answers is reason enough on its own: a run resumes through it
-  whether a marker is there or not, and seeing it clears neither marker,
-  because a bootrom says nothing about what boot0 holds. Every other state
-  does clear them, since reaching it proves boot0 starts something. So
-  deleting `boot0-erased` by hand costs a run its wording, not its route.
+  either way, and seeing it says nothing about what boot0 holds. Every other
+  state does, since reaching it proves boot0 starts something, and that is
+  where a run forgets its own erase.
 - Both ways of carrying out a plan group the actions that share a label into
   one step, so a plan reads the same whether a recovery or the bootrom runs it.
   Two writes with one label are one step on purpose: a boot slot takes a header
@@ -1601,7 +1599,7 @@ Every entry state, and the TWRPs its path to each target runs under or writes:
 
 | entry state | `unlock fireos5` | `unlock fireos6` | `stock` |
 | --- | --- | --- | --- |
-| bootrom, or nothing on USB with `boot0-erased` | bboe2 | v2 3.7.0 | v2 3.7.0 |
+| bootrom, or nothing on USB in a run that erased boot0 | bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `stock-fastboot` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `stock-fireos5-fastboot` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `stock-booted` | -- | -- | nothing to restore |
@@ -1623,7 +1621,7 @@ all.
 
 ```mermaid
 flowchart LR
-  brom["bootrom<br/>boot0-erased"]
+  brom["bootrom"]
   sfb["stock-fastboot<br/>stock-fireos5-fastboot"]
   v1fb["amonet-fireos5-fastboot"]
   v2fb["amonet-fastboot"]
@@ -1673,7 +1671,7 @@ the reboot: `unlock fireos5` writes bboe2 there through `su` and is then done.
   A rooted Dot first goes to recovery. The plan resolves against the Dot's
   table before anything is written, so a table that does not fit is refused
   with nothing changed.
-- boot0's header is cleared first, with `boot0-erased`, as the zip copy did
+- boot0's header is cleared first, and noted as erased, as the zip copy did
   and the restore does. From there to the preloader, any stop lands in the
   bootrom, and the resume writes amonet v1.1.0 and continues from its TWRP. A
   stock table under amonet v1.1.0's LK would not boot, so nothing is
@@ -1730,7 +1728,7 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   Otherwise every partition the plan writes must be a block device of the size
   the table gives, or the Dot restarts into recovery with nothing written:
   a kernel holding another table would put a write by name in RAM.
-- Then boot0's header is cleared, with `boot0-erased` set, then the table, the
+- Then boot0's header is cleared, with boot0 noted as erased, then the table, the
   writes but TWRP, TWRP, and the preloader last. amonet v2.0.0's writes end
   with zeroing `misc`, as its zip does. amonet v1.1.0's route installs Fire
   OS 5.5.5.4 between TWRP and the preloader.

@@ -9,7 +9,7 @@ import tempfile
 from typing import TYPE_CHECKING
 
 from firebreak.android.gpt import ENTRIES_SIZE, partition_map
-from firebreak.cache import CACHE, ERASED, unpack
+from firebreak.cache import CACHE, unpack
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
     PUSH_TRIES,
@@ -23,7 +23,7 @@ from firebreak.host import (
 from firebreak.plan import SECTOR_SIZE, TABLE_SECTORS, Action, resolve, whole_sectors
 from firebreak.plugin import BOOT0, ClearBoot0Header, Repartition
 from firebreak.twrp import CLEAR_BOOT0, DISK, check_nodes, read_sectors, reboot
-from firebreak.ui import PROGRESS, FatalError, again, title
+from firebreak.ui import PROGRESS, SESSION, FatalError, again, title
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -163,11 +163,11 @@ def carry_out(
         )
     checked = check(actions=(*table, *writes))
     PROGRESS.begin(estimate="10 s", label=f"write {unlock.family} v{unlock.version}")
-    ERASED.write_text(unlock.device.name)
+    SESSION.boot0_erased = True
     answer = adb_shell(command=CLEAR_BOOT0, timeout=60).split()
     if answer[-2:] != ["4096", "0"]:
         if answer[-2:-1] == ["4096"]:
-            ERASED.unlink(missing_ok=True)
+            SESSION.boot0_erased = False
         raise FatalError(
             message=f"boot0's header did not read back as cleared, so {unlock.name}"
             " was not written. " + again()
@@ -183,7 +183,7 @@ def carry_out(
     execute(actions=tuple(action for action in writes if action.target == "recovery"))
     before_preloader()
     execute(actions=tuple(action for action in writes if action.unrecoverable))
-    ERASED.unlink(missing_ok=True)
+    SESSION.boot0_erased = False
     after()
     return True
 

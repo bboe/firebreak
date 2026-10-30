@@ -136,7 +136,7 @@ class Progress:
 
 @dataclasses.dataclass
 class Session:
-    boot0_marker: pathlib.Path | None = None
+    boot0_erased: bool = False
     carries: bool | None = None
     dd: str = "dd"
     device: Device | None = None
@@ -216,7 +216,7 @@ def explained(*, error: FatalError) -> str:
         text = textwrap.fill(
             break_long_words=False, break_on_hyphens=False, text=text, width=79
         )
-    if SESSION.boot0_marker is not None and SESSION.boot0_marker.exists():
+    if SESSION.boot0_erased:
         text += "\n\n" + textwrap.fill(
             break_long_words=False,
             break_on_hyphens=False,

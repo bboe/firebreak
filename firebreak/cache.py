@@ -118,7 +118,6 @@ def cache_dir() -> pathlib.Path:
 
 
 CACHE = cache_dir()
-ERASED = CACHE / "boot0-erased"
 
 
 def cache_note() -> None:

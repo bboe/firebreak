@@ -142,7 +142,7 @@ def test_a_bootrom_entry_asks_before_it_erases_boot0(
     assert "asked: erasing boot0 leaves" in done[0]
     assert done[1:3] == ["erased", "looked for the bootrom to erase for"]
     assert "boot0 is erased" in done[-1]
-    assert entry.ERASED.read_text(encoding="utf-8") == "biscuit"
+    assert entry.SESSION.boot0_erased is True
 
 
 @pytest.mark.parametrize(
@@ -157,7 +157,7 @@ def test_a_bootrom_entry_clears_no_boot0_it_cannot_write_back(
     with pytest.raises(FatalError, match="no bootrom chain for the Echo Show 8"):
         entry.bootrom_entry(force=True, short=False)
     assert done == []
-    assert not entry.ERASED.exists()
+    assert entry.SESSION.boot0_erased is False
 
 
 def test_a_bootrom_entry_from_a_recovery_clears_the_header(
@@ -187,18 +187,6 @@ def test_a_bootrom_entry_needs_no_device_to_hold_one(
     monkeypatch.setattr(name="answering_payload", target=entry, value=lambda: None)
     entry.bootrom_entry(force=False, short=False)
     assert "The Echo waits in its bootrom" in capsys.readouterr().out
-
-
-def test_a_bootrom_entry_pokes_a_payload_before_it_handshakes(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    done = bootrom(monkeypatch=monkeypatch, states=[State.BOOTROM])
-    monkeypatch.setattr(
-        name="poke_live_payload", target=entry, value=lambda: done.append("poked")
-    )
-    monkeypatch.setattr(name="payload_device", target=entry, value=lambda **_: BISCUIT)
-    entry.bootrom_entry(force=False, short=False)
-    assert done[:3] == ["poked", "looked for the bootrom", "ran the payload"]
 
 
 def test_a_bootrom_entry_reboots_a_booted_echo_into_its_twrp(
@@ -298,7 +286,7 @@ def test_a_bootrom_entry_waits_for_an_echo_it_cannot_see(
     done = bootrom(
         monkeypatch=monkeypatch, states=[State.NONE, State.NONE, State.BOOTROM]
     )
-    entry.ERASED.write_text(data="radar", encoding="utf-8")
+    entry.SESSION.boot0_erased = True
     monkeypatch.setattr(name="device", target=SESSION, value=None)
     monkeypatch.setattr(name="identify", target=entry, value=lambda: NOTHING)
     monkeypatch.setattr(name="target", target=ARGUMENTS, value="")
@@ -306,7 +294,7 @@ def test_a_bootrom_entry_waits_for_an_echo_it_cannot_see(
     monkeypatch.setattr(name="payload_device", target=entry, value=lambda **_: RADAR)
     entry.bootrom_entry(force=False, short=False)
     said = " ".join(done[0].split())
-    assert "boot0 is erased, so this Echo (2nd Generation) starts nothing" in said
+    assert "boot0 is erased, so this Echo starts nothing" in said
     assert "its bootrom answers for about 40 seconds" in said
     assert done[1:3] == ["looked for the bootrom", "ran the payload"]
 
@@ -384,7 +372,7 @@ def test_a_marker_from_another_echo_is_corrected_not_obeyed(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bootrom(monkeypatch=monkeypatch, states=[State.BOOTROM])
-    entry.ERASED.write_text(data="biscuit", encoding="utf-8")
+    entry.SESSION.boot0_erased = True
     monkeypatch.setattr(name="device", target=SESSION, value=None)
     monkeypatch.setattr(name="target", target=ARGUMENTS, value="")
     monkeypatch.setattr(name="identify", target=entry, value=lambda: NOTHING)
@@ -401,7 +389,7 @@ def test_a_short_bootrom_entry_holds_the_payload(
     entry.bootrom_entry(force=False, short=True)
     assert done[:2] == ["looked for the bootrom", "ran the payload"]
     assert "the next run joins that payload" in done[2]
-    assert not entry.ERASED.exists()
+    assert entry.SESSION.boot0_erased is False
     assert entry.SESSION.held is True
     assert "a power cycle loses the hold" in done[-1]
 
@@ -676,6 +664,6 @@ def test_an_entry_will_not_wait_for_an_echo_whose_boot0_is_erased(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     reads(monkeypatch=monkeypatch, states=[State.NONE])
-    entry.ERASED.write_text(data="biscuit", encoding="utf-8")
+    entry.SESSION.boot0_erased = True
     with pytest.raises(FatalError, match="reaches no fastboot until a chain"):
         entry.fastboot_entry()

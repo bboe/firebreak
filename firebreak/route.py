@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 from firebreak import recovery, updates
 from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import (
-    ERASED,
     MAGISK,
     Download,
     cache_note,
@@ -408,14 +407,13 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             State.STARTING,
             *TWRPS,
         }:
-            ERASED.unlink(missing_ok=True)
-        SESSION.boot0_marker = ERASED
-        parked = ERASED.exists() or current == State.BOOTROM
+            SESSION.boot0_erased = False
+        parked = SESSION.boot0_erased or current == State.BOOTROM
         if current in BOOTROMS and parked and not (resumed or SESSION.held):
             if target.device not in BOOTROM_UNLOCKS:
                 why = (
                     "has an erased boot0, which only its bootrom can start"
-                    if ERASED.exists()
+                    if SESSION.boot0_erased
                     else "answers on its bootrom's own USB id"
                 )
 
@@ -430,25 +428,13 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     *needed(start=chain.state, table=table),
                 ))
             )
-            if ERASED.exists():
+            if SESSION.boot0_erased:
                 warn(
-                    text=(
-                        "This run erased boot0"
-                        if done
-                        else "The last run stopped after it erased boot0"
-                    )
-                    + f", so the {title()} cannot start until {chain.unlock.name} is"
-                    " written through its bootrom. This run does that, then continues"
-                    " from that TWRP. If nothing happens within a minute,"
-                    f" unplug the {title()} and plug it back in.",
-                )
-            else:
-                warn(
-                    text=f"The {title()} waits in its bootrom. This run writes"
-                    f" {chain.unlock.name} through it, then continues from that"
-                    f" TWRP. Leave the {title()} plugged in: a power cycle ends"
-                    " the bootrom's own 40 second window, and loses a payload's"
-                    " hold if a restore left one there."
+                    text=f"This run erased boot0, so the {title()} cannot start"
+                    f" until {chain.unlock.name} is written through its bootrom."
+                    " This run does that, then continues from that TWRP. If"
+                    f" nothing happens within a minute, unplug the {title()} and"
+                    " plug it back in.",
                 )
             resumed = True
             done.difference_update(TWRPS)

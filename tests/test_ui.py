@@ -5,15 +5,11 @@ import io
 import sys
 import time
 import types
-from typing import TYPE_CHECKING
 
 import pytest
 
 from firebreak import ui
 from firebreak.devices import BISCUIT, RADAR, TARGETS
-
-if TYPE_CHECKING:
-    import pathlib
 
 URL = (
     "https://ftvdb.com/echo/firmware/com.amazon.biscuit.android.os/"
@@ -144,22 +140,14 @@ def test_explained_keeps_newlines() -> None:
     assert ui.explained(error=error) == "one\ntwo"
 
 
-def test_explained_says_nothing_of_boot0_without_its_marker(
-    *, tmp_path: pathlib.Path
-) -> None:
+def test_explained_says_nothing_of_boot0_that_is_not_erased() -> None:
     error = ui.FatalError(message="stopped", prefix="")
-    ui.SESSION.boot0_marker = tmp_path / "boot0-erased"
-    assert ui.explained(error=error) == "stopped"
-    ui.SESSION.boot0_marker = None
-    (tmp_path / "boot0-erased").touch()
+    ui.SESSION.boot0_erased = False
     assert ui.explained(error=error) == "stopped"
 
 
-def test_explained_says_the_dot_cannot_start_while_boot0_is_empty(
-    *, tmp_path: pathlib.Path
-) -> None:
-    ui.SESSION.boot0_marker = tmp_path / "boot0-erased"
-    ui.SESSION.boot0_marker.touch()
+def test_explained_says_the_dot_cannot_start_while_boot0_is_empty() -> None:
+    ui.SESSION.boot0_erased = True
     first, _, note = ui.explained(
         error=ui.FatalError(message="stopped", prefix="")
     ).partition("\n\n")

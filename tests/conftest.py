@@ -120,7 +120,6 @@ def no_real_cache(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) ->
             continue
         for attribute, value in (
             ("CACHE", directory),
-            ("ERASED", directory / "boot0-erased"),
             ("mediatek_ports", no_real_ports),
             ("usb_devices", no_real_usb),
         ):

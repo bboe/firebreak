@@ -172,7 +172,7 @@ def rig(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> Rig:
     found.payload.write_bytes(data=PAYLOAD)
 
     def executed(*, actions: tuple[Action, ...], payload: Live) -> None:
-        found.erased.append(bootrom_step.ERASED.exists())
+        found.erased.append(bootrom_step.SESSION.boot0_erased)
         found.steps.append(f"execute {payload}")
         found.written.append(tuple(action.label for action in actions))
         if found.write_error is not None:
@@ -301,7 +301,7 @@ def test_a_bootloader_for_another_product_stops_the_run(*, rig: Rig) -> None:
     assert "not an Echo Dot (2nd Generation)" in caught.value.message
     assert "--device" in caught.value.message
     assert rig.written == []
-    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is False
 
 
 def test_a_bootloader_that_cannot_be_read_stops_the_run(
@@ -327,6 +327,12 @@ def test_a_bootrom_port_is_taken_over_a_preloader_in_the_same_pass(
     assert step(rig=rig) is True
     assert rig.opened == [("/dev/b-bootrom", bootrom_step.BOOTROM_WRITE_TIMEOUT)]
     assert "missed" not in capsys.readouterr().out
+
+
+def test_a_bootrom_port_that_comes_and_goes_is_handshaked_once(*, rig: Rig) -> None:
+    rig.ports = [BOOTROM, BOOTROM, {}, BOOTROM]
+    assert step(rig=rig) is True
+    assert rig.steps.count("handshake") == 1
 
 
 def test_a_bootrom_that_does_not_answer_as_one_stops_the_run(*, rig: Rig) -> None:
@@ -377,7 +383,7 @@ def test_a_dead_emmc_stops_the_run_before_anything_is_written(*, rig: Rig) -> No
     with pytest.raises(FatalError, match="eMMC did not answer: block 0"):
         step(rig=rig)
     assert rig.written == []
-    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is False
 
 
 def test_a_dead_emmc_with_the_short_on_blames_the_short(*, rig: Rig) -> None:
@@ -403,7 +409,7 @@ def test_a_dot_whose_bootloaders_name_no_product_stops_the_run(*, rig: Rig) -> N
 def test_a_failed_erase_stops_the_run_with_its_own_message(*, rig: Rig) -> None:
     with pytest.raises(FatalError, match="boot0 did not erase"):
         step(erase=lambda: "boot0 did not erase", rig=rig)
-    assert bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is True
     assert rig.clients == []
 
 
@@ -412,7 +418,7 @@ def test_a_failed_exploit_stops_the_run_with_nothing_written(*, rig: Rig) -> Non
     with pytest.raises(FatalError, match="exploit did not go through"):
         step(rig=rig)
     assert rig.written == []
-    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is False
 
 
 def test_a_failure_after_the_erase_says_only_boot0_was_erased(*, rig: Rig) -> None:
@@ -527,7 +533,7 @@ def test_a_missed_short_is_counted_and_the_run_keeps_waiting(
     assert "Short 1 missed" in capsys.readouterr().out
     assert rig.steps[:3] == ["handshake", "watchdog", "countdown"]
     assert rig.written == [WRITES]
-    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is False
 
 
 def test_a_missed_short_on_a_terminal_starts_a_new_line(
@@ -628,7 +634,7 @@ def test_a_plan_that_does_not_resolve_stops_before_anything_is_written(
     ):
         step(rig=rig)
     assert rig.written == []
-    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is False
 
 
 def test_a_plan_with_no_reboot_is_carried_out_whole(*, rig: Rig) -> None:
@@ -653,11 +659,11 @@ def test_a_port_that_will_not_open_is_named_once_after_a_second(
 def test_a_preloader_means_boot0_is_intact_and_needs_no_bootrom_step(
     *, capsys: pytest.CaptureFixture[str], rig: Rig, tmp_path: pathlib.Path
 ) -> None:
-    bootrom_step.ERASED.touch()
+    bootrom_step.SESSION.boot0_erased = True
     rig.ports = [{}, {}, {}, PRELOADER]
     wheel = tmp_path / "pyserial.whl"
     assert step(rig=rig, wheel=wheel) is False
-    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is False
     assert rig.written == []
     assert str(wheel) in bootrom_step.sys.path
     assert "boot0 is intact" in capsys.readouterr().out
@@ -665,7 +671,7 @@ def test_a_preloader_means_boot0_is_intact_and_needs_no_bootrom_step(
 
 def test_a_resumed_run_on_a_foreign_dot_says_only_boot0_was_erased(*, rig: Rig) -> None:
     rig.lks[LK_FIRST["lk_a"]] = b"\0product\0RADAR\0"
-    bootrom_step.ERASED.touch()
+    bootrom_step.SESSION.boot0_erased = True
     with pytest.raises(FatalError) as caught:
         step(rig=rig)
     said = " ".join(explained(error=caught.value).split())
@@ -714,26 +720,26 @@ def test_a_stock_preloader_step_held_in_the_bootrom_sends_no_reboot(
         value=lambda *, actions, **_: carried.append(actions),
     )
     bootrom_step.SESSION.fastboot = True
-    bootrom_step.ERASED.touch()
+    bootrom_step.SESSION.boot0_erased = True
     bootrom_step.stock_preloader(
         build="5.5.0.3", payload=rig.payload, preloader=b"P" * 1024, wheel=None
     )
     assert [action.kind for action in carried[0]] == ["ZeroRpmb", "Write"]
-    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is False
     assert bootrom_step.SESSION.held is True
 
 
 def test_a_stock_preloader_step_that_meets_a_preloader_stops_the_run(
     *, rig: Rig
 ) -> None:
-    bootrom_step.ERASED.touch()
+    bootrom_step.SESSION.boot0_erased = True
     rig.ports = [{}, {}, PRELOADER]
     with pytest.raises(FatalError, match="boot0 was not clear"):
         bootrom_step.stock_preloader(
             build="5.5.0.3", payload=rig.payload, preloader=b"P" * 512, wheel=None
         )
     assert rig.written == []
-    assert bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is True
 
 
 def test_a_stock_preloader_step_zeroes_the_rpmb_and_writes_boot0(
@@ -745,7 +751,7 @@ def test_a_stock_preloader_step_zeroes_the_rpmb_and_writes_boot0(
         target=bootrom_step.bootrom,
         value=lambda *, actions, **_: carried.append(actions),
     )
-    bootrom_step.ERASED.touch()
+    bootrom_step.SESSION.boot0_erased = True
     wheel = tmp_path / "pyserial.whl"
     bootrom_step.stock_preloader(
         build="5.5.0.3", payload=rig.payload, preloader=b"P" * 1024, wheel=wheel
@@ -773,7 +779,7 @@ def test_a_stock_preloader_step_zeroes_the_rpmb_and_writes_boot0(
         )
     ]
     assert rig.clients[0].port.closed
-    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is False
     assert str(wheel) in bootrom_step.sys.path
 
 
@@ -788,7 +794,7 @@ def test_a_table_that_cannot_be_read_stops_the_run(
     with pytest.raises(FatalError, match="partition table could not be read"):
         step(rig=rig)
     assert rig.written == []
-    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is False
 
 
 def test_a_table_without_an_lk_slot_stops_the_run(*, rig: Rig) -> None:
@@ -927,7 +933,7 @@ def test_the_erase_route_waits_for_the_port_without_poking_a_payload(
     rig.ports = [{}, BOOTROM]
     rig.tick = [20.0]
     assert step(erase=lambda: "", rig=rig) is True
-    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is False
     assert rig.opened == [("/dev/bootrom", bootrom_step.BOOTROM_WRITE_TIMEOUT)]
     assert rig.written == [WRITES]
 
@@ -935,7 +941,7 @@ def test_the_erase_route_waits_for_the_port_without_poking_a_payload(
 def test_the_erased_marker_is_in_place_for_the_first_write(*, rig: Rig) -> None:
     assert step(rig=rig) is True
     assert rig.erased == [True]
-    assert not bootrom_step.ERASED.exists()
+    assert bootrom_step.SESSION.boot0_erased is False
 
 
 def test_the_plan_is_carried_out_through_the_payload_and_stops_at_its_reboot(
@@ -962,27 +968,6 @@ def test_the_plan_is_carried_out_through_the_payload_and_stops_at_its_reboot(
         ("/dev/bootrom", bootrom_step.BOOTROM_WRITE_TIMEOUT),
         ("/dev/bootrom", bootrom_step.BOOTROM_WRITE_TIMEOUT),
     ]
-
-
-def test_the_resume_poke_reboots_every_mediatek_port(*, rig: Rig) -> None:
-    bootrom_step.ERASED.touch()
-    rig.ports = [{**BOOTROM, **PRELOADER}]
-    assert step(rig=rig) is True
-    assert [connection.writes for connection in rig.connections[1:3]] == [
-        [REBOOT_COMMAND],
-        [REBOOT_COMMAND],
-    ]
-    assert rig.opened[:3] == [
-        ("/dev/bootrom", bootrom_step.BOOTROM_WRITE_TIMEOUT),
-        ("/dev/bootrom", bootrom_step.POKE_WRITE_TIMEOUT),
-        ("/dev/preloader", bootrom_step.POKE_WRITE_TIMEOUT),
-    ]
-
-
-def test_the_resume_poke_waits_for_the_payload_to_go(*, rig: Rig) -> None:
-    rig.ports = [BOOTROM, BOOTROM, {}, BOOTROM]
-    assert step(rig=rig) is True
-    assert rig.steps.count("handshake") == 1
 
 
 def test_the_step_count_grows_with_the_steps_the_actions_take(*, rig: Rig) -> None:

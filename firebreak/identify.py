@@ -10,7 +10,6 @@ import time
 import xml.parsers.expat
 from typing import TYPE_CHECKING
 
-from firebreak.cache import ERASED
 from firebreak.devices import DEFAULTS, DEPRECATED, DEVICES, TARGETS
 from firebreak.host import (
     USER_SERIAL,
@@ -28,6 +27,8 @@ from firebreak.targets import REMOVED_IN
 from firebreak.ui import SESSION, FatalError, warn
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from firebreak.plugin import Device, Target
 
 ECHO_IDS = frozenset({(0x0BB4, 0x0C01), (0x18D1, 0x4EE2), (0x18D1, 0xD001)})
@@ -96,7 +97,12 @@ def choices(*, device: Device | None, name: str | None) -> list[Target]:
     ]
 
 
-def choose_target(*, device: Device | None, name: str | None) -> Target:
+def choose_target(
+    *,
+    device: Device | None,
+    name: str | None,
+    reader: Callable[[], Device | None] | None = None,
+) -> Target:
     was = DEPRECATED.get(name or "")
     if was is not None:
         warn(
@@ -119,11 +125,10 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
     )
     identity = named_device(devices=devices)
     found, how = identity.device, identity.how
-    if found is None and ERASED.exists():
-        marked = ERASED.read_text().strip()
-        found = next((each for each in DEVICES if each.name == marked), None)
+    if found is None and reader is not None:
+        found = reader()
         if found is not None:
-            how = f"the device named in {ERASED.name}"
+            how = "the bootloader in its flash"
     for target in picked:
         if target.device == found:
             return target
@@ -252,7 +257,9 @@ def linux_devices() -> list[UsbDevice]:
 def named_device(*, devices: str) -> Identity:
     identity = identify()
     polls = 0
-    while identity.device is None and not (SESSION.short or ERASED.exists()):
+    while identity.device is None and not (
+        SESSION.short or downloading() == State.BOOTROM
+    ):
         if polls == NAME_POLLS:
             warn(
                 text="Waiting for the Echo to say which device it is, which it"

@@ -5,7 +5,7 @@ import types
 
 import pytest
 
-from firebreak import route, twrp, ui, unlock
+from firebreak import route, twrp, unlock
 from firebreak.devices import BISCUIT, RADAR, TARGETS, biscuit, radar
 from firebreak.devices.biscuit import BUILDS
 from firebreak.plugin import ClearBoot0Header
@@ -159,6 +159,15 @@ def test_a_bootrom_build_restores_with_the_bootrom_s_downloads_and_steps(
     assert stage.steps == steps
 
 
+def test_a_bootrom_no_run_here_erased_gets_no_warning(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    monkeypatch.setattr(name="stages", target=route, value=route.stages)
+    run.states = [route.State.BOOTROM, route.State.AMONET_FIREOS5_BBOE_BOOTED]
+    route.root()
+    assert "erased boot0" not in said(capsys=capsys)
+
+
 @pytest.mark.parametrize("fastboot", [True, False])
 def test_a_bootrom_restore_counts_the_same_whichever_way_it_ends(
     *, fastboot: bool, monkeypatch: pytest.MonkeyPatch
@@ -176,7 +185,7 @@ def test_a_bootrom_step_that_finds_a_preloader_is_not_counted(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
     run.bootrom_answer = False
-    route.ERASED.touch()
+    route.SESSION.boot0_erased = True
     monkeypatch.setattr(name="stages", target=route, value=dict)
     run.states = [route.State.NONE, route.State.AMONET_FIREOS5_BBOE_BOOTED]
     route.root()
@@ -191,19 +200,32 @@ def test_a_bootrom_that_answers_is_resumed_with_no_marker(
     run.states = [route.State.BOOTROM, route.State.AMONET_FIREOS5_BBOE_BOOTED]
     route.root()
     assert run.stepped[0]["unlock"] is biscuit.UNLOCK_FROM_BOOTROM
-    assert not route.ERASED.exists()
+    assert route.SESSION.boot0_erased is False
 
 
 def test_a_bootrom_that_answers_keeps_the_markers_a_run_left(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
-    route.ERASED.touch()
+    route.SESSION.boot0_erased = True
     monkeypatch.setattr(name="held", target=route.SESSION, value=True)
     monkeypatch.setattr(name="stages", target=route, value=dict)
     run.states = [route.State.BOOTROM]
     with pytest.raises(RanOutError):
         route.root()
-    assert route.ERASED.exists()
+    assert route.SESSION.boot0_erased is True
+
+
+def test_a_bootrom_this_run_erased_boot0_for_says_what_a_stall_needs(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    route.SESSION.boot0_erased = True
+    monkeypatch.setattr(name="stages", target=route, value=route.stages)
+    run.states = [route.State.BOOTROM, route.State.AMONET_FIREOS5_BBOE_BOOTED]
+    route.root()
+    assert (
+        "This run erased boot0, so the Echo Dot (2nd Generation) cannot start"
+        " until amonet-biscuit-v1.1.0 is written through its bootrom."
+    ) in said(capsys=capsys)
 
 
 def test_a_browser_download_comes_first(*, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -322,7 +344,7 @@ def test_a_fire_os_5_restore_left_in_twrp_is_not_reported_as_written(
 def test_a_fire_os_5_resume_writes_v1_1_0_through_the_bootrom(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
-    route.ERASED.touch()
+    route.SESSION.boot0_erased = True
     monkeypatch.setattr(name="stages", target=route, value=route.stages)
     run.states = [route.State.NONE, route.State.AMONET_FIREOS5_BBOE_BOOTED]
     route.root()
@@ -412,13 +434,13 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
 def test_a_preloader_is_waited_through_and_keeps_the_markers(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
-    route.ERASED.touch()
+    route.SESSION.boot0_erased = True
     monkeypatch.setattr(name="held", target=route.SESSION, value=True)
     monkeypatch.setattr(name="stages", target=route, value=dict)
     run.states = [route.State.PRELOADER]
     with pytest.raises(RanOutError):
         route.root()
-    assert route.ERASED.exists()
+    assert route.SESSION.boot0_erased is True
 
 
 def test_a_preloader_that_never_chains_names_the_test_point(
@@ -526,7 +548,7 @@ def test_a_run_after_boot0_was_erased_goes_through_the_bootrom(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
     run.target(name="fireos6")
-    route.ERASED.touch()
+    route.SESSION.boot0_erased = True
     monkeypatch.setattr(name="stages", target=route, value=route.stages)
     monkeypatch.setattr(
         name="stage_amonet_recovery",
@@ -696,9 +718,13 @@ def test_a_run_says_what_the_dot_needs(
 def test_a_run_that_erased_boot0_itself_does_not_blame_the_last_run(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
+    def erases() -> bool:
+        route.SESSION.boot0_erased = True
+        return True
+
     table = {
         route.State.STOCK_FASTBOOT: route.Stage(
-            run=lambda: route.ERASED.touch() or True,
+            run=erases,
             steps=2,
             then=route.State.AMONET_FIREOS5_BBOE_TWRP,
         )
@@ -743,7 +769,7 @@ def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
 def test_a_seen_state_clears_the_erased_marker(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    route.ERASED.touch()
+    route.SESSION.boot0_erased = True
     states = iter([route.State.BOOTED])
 
     def state() -> route.State:
@@ -765,7 +791,7 @@ def test_a_seen_state_clears_the_erased_marker(
     )
     with pytest.raises(KeyboardInterrupt):
         route.root()
-    assert not route.ERASED.exists()
+    assert route.SESSION.boot0_erased is False
 
 
 def test_a_short_run_takes_the_chain_its_target_wants(*, run: Run) -> None:
@@ -828,21 +854,6 @@ def test_a_stage_counts_its_passes_unless_it_returns_false(
     with pytest.raises(KeyboardInterrupt):
         route.root()
     assert ran == expected
-
-
-def test_a_stale_marker_says_nothing_before_the_dot_is_seen(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    route.ERASED.touch()
-    monkeypatch.setattr(
-        name="run", target=route, value=lambda **_: types.SimpleNamespace(stdout="")
-    )
-    with pytest.raises(route.FatalError, match="no -S option") as stopped:
-        route.root()
-    assert "boot0 may hold no preloader" not in " ".join(
-        ui.explained(error=stopped.value).split()
-    )
-    assert route.SESSION.boot0_marker is None
 
 
 def test_a_stock_fire_os_5_run_ends_after_the_restore(
@@ -1186,30 +1197,10 @@ def test_the_background_downloads_leave_the_browser_to_the_run(
     assert list(route.DOWNLOADS) == [route.ota_build]
 
 
-def test_the_session_has_no_marker_while_the_first_probe_runs(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    route.ERASED.touch()
-
-    def state() -> route.State:
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr(
-        name="run",
-        target=route,
-        value=lambda **_: types.SimpleNamespace(stdout="  -S SIZE[K|M|G]"),
-    )
-    monkeypatch.setattr(name="state", target=route, value=state)
-    monkeypatch.setattr(name="stages", target=route, value=dict)
-    with pytest.raises(KeyboardInterrupt):
-        route.root()
-    assert route.SESSION.boot0_marker is None
-
-
 def test_the_session_takes_the_marker_after_the_first_probe(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    route.ERASED.touch()
+    route.SESSION.boot0_erased = True
     states = iter([route.State.BOOTED])
 
     def state() -> route.State:
@@ -1233,5 +1224,4 @@ def test_the_session_takes_the_marker_after_the_first_probe(
     )
     with pytest.raises(KeyboardInterrupt):
         route.root()
-    assert route.SESSION.boot0_marker == route.ERASED
-    assert not route.ERASED.exists()
+    assert route.SESSION.boot0_erased is False

@@ -186,13 +186,13 @@ def carry(
             if name == "check":
                 checked.extend(done)
             labels = tuple(action.label for action in done)
-            calls.append((name, labels, recovery.ERASED.exists(), options))
+            calls.append((name, labels, recovery.SESSION.boot0_erased, options))
             return done
 
         return called
 
     def shell(**_: object) -> str:
-        calls.append(("boot0", recovery.ERASED.exists()))
+        calls.append(("boot0", recovery.SESSION.boot0_erased))
         return boot0
 
     def nodes(*, want: dict[str, int]) -> str:
@@ -212,8 +212,11 @@ def carry(
 
 def carry_v1(*, calls: list[tuple]) -> bool:
     return recovery.carry_out(
-        after=lambda: calls.append(("after", recovery.ERASED.exists())),
-        before_preloader=lambda: calls.append(("install", recovery.ERASED.exists())),
+        after=lambda: calls.append(("after", recovery.SESSION.boot0_erased)),
+        before_preloader=lambda: calls.append((
+            "install",
+            recovery.SESSION.boot0_erased,
+        )),
         guard=lambda: calls.append(("guard",)),
         unlock=biscuit.UNLOCK_TO_FIREOS5,
     )
@@ -221,7 +224,7 @@ def carry_v1(*, calls: list[tuple]) -> bool:
 
 def carry_v2(*, calls: list[tuple]) -> bool:
     return recovery.carry_out(
-        after=lambda: calls.append(("after", recovery.ERASED.exists())),
+        after=lambda: calls.append(("after", recovery.SESSION.boot0_erased)),
         guard=lambda: calls.append(("guard",)),
         unlock=biscuit.UNLOCK_TO_FIREOS6,
         zero=("misc",),
@@ -303,7 +306,7 @@ def test_a_kernel_that_holds_another_table_restarts_recovery_and_writes_nothing(
         carry_v2(calls=calls)
     assert [call[0] for call in calls] == ["guard", "nodes", "run"]
     assert calls[-1][3]["arguments"] == ["adb", "reboot", "recovery"]
-    assert not recovery.ERASED.exists()
+    assert recovery.SESSION.boot0_erased is False
 
 
 def test_a_node_that_is_not_a_block_device_stops_it(*, dot: FakeDot) -> None:
@@ -451,7 +454,7 @@ def test_a_plan_that_does_not_resolve_stops_before_anything_is_written(
         match=r"does not fit this Echo Dot \(2nd Generation\): biscuit has no",
     ):
         carry_v1(calls=[])
-    assert not recovery.ERASED.exists()
+    assert recovery.SESSION.boot0_erased is False
 
 
 def test_a_read_that_never_completes_stops_it(*, dot: FakeDot) -> None:
@@ -557,7 +560,7 @@ def test_a_table_whose_backup_copy_dd_cannot_reach_writes_nothing(
     assert "Nothing was written." in " ".join(explained(error=stopped.value).split())
     assert asked == [9999]
     assert [call[0] for call in calls] == ["guard"]
-    assert not recovery.ERASED.exists()
+    assert recovery.SESSION.boot0_erased is False
 
 
 @pytest.mark.parametrize(argnames="exit_status", argvalues=[0, 1])
@@ -660,7 +663,7 @@ def test_amonet_v2_0_0_stops_before_the_table_if_boot0_does_not_clear(
     with pytest.raises(FatalError, match="did not read back as cleared"):
         carry_v2(calls=calls)
     assert "execute" not in [call[0] for call in calls]
-    assert recovery.ERASED.exists() is marked
+    assert recovery.SESSION.boot0_erased is marked
 
 
 def test_amonet_v2_0_0_that_does_not_fit_writes_nothing(

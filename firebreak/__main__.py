@@ -335,7 +335,9 @@ def cli() -> None:
         command()
         return
     name = options.target if options.command == UNLOCK else options.command
-    ARGUMENTS.target = choose_target(device=chosen_device(name=name), name=name)
+    ARGUMENTS.target = choose_target(
+        device=chosen_device(name=name), name=name, reader=bootrom_device
+    )
     ARGUMENTS.factory_reset = options.factory_reset
     if ARGUMENTS.factory_reset and ARGUMENTS.target.name not in FACTORY_RESETS:
         raise FatalError(

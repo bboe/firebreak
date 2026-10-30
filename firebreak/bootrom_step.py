@@ -12,11 +12,9 @@ from firebreak.amonet.biscuit_v2_0_0 import Client
 from firebreak.amonet.payload import (
     Command,
     NotReadyError,
-    Payload,
     start_payload,
 )
 from firebreak.android.gpt import ENTRIES_SIZE, SECTOR_SIZE, gpt_intact, partition_map
-from firebreak.cache import ERASED
 from firebreak.devices import DEVICES
 from firebreak.emmc import EmmcArea
 from firebreak.host import getvar, in_fastboot, no_port_help
@@ -34,7 +32,6 @@ from firebreak.mediatek.usbdl import (
 from firebreak.plan import TABLE_SECTORS, Action, resolve
 from firebreak.plugin import BOOT0, Write
 from firebreak.ui import (
-    ARGUMENTS,
     MINUTE,
     PROGRESS,
     SESSION,
@@ -66,8 +63,6 @@ LK_PRODUCT = re.compile(pattern=rb"\0product\0([A-Z0-9_]+)\0")
 LK_PRODUCT_SECTORS = 1024
 LK_SLOTS = ("lk_a", "lk_b")
 OPEN_GRACE = 1
-POKE_GONE_WAIT = 5
-POKE_WRITE_TIMEOUT = 1
 REPLUG_WAIT = 600
 SHORT_WAIT = 5
 STEPS_AFTER_THE_CHAIN = 2
@@ -246,11 +241,11 @@ def bootrom_step(  # ruff: ignore[too-many-arguments]
         PROGRESS.steps = PROGRESS.step + counted + STEPS_AFTER_THE_CHAIN + tail
     elif PROGRESS.steps:
         PROGRESS.steps += counted
-    ERASED.write_text(ARGUMENTS.target.device.name)
+    SESSION.boot0_erased = True
     bootrom.execute(actions=actions, payload=live)
     with contextlib.suppress(OSError):
         live.port.close()
-    ERASED.unlink(missing_ok=True)
+    SESSION.boot0_erased = False
     await_amonet_fastboot(little_kernel=little_kernel)
     return True
 
@@ -420,20 +415,6 @@ def payload_device(*, live: Emmc) -> Device | None:
     return next((each for each in DEVICES if each.product in named), None)
 
 
-def poke_live_payload() -> None:
-    poked = []
-    for name in sorted(mediatek_ports()):
-        with (
-            contextlib.suppress(OSError),
-            open_serial_port(name=name, write_timeout=POKE_WRITE_TIMEOUT) as connection,
-        ):
-            Payload(port=connection).reboot()
-            poked.append(name)
-    deadline = time.monotonic() + POKE_GONE_WAIT
-    for name in poked:
-        await_port_gone(deadline=deadline, name=name)
-
-
 def say_missed_short(*, count: int) -> None:
     if sys.stdout.isatty():
         print()
@@ -456,15 +437,13 @@ def started_payload(
     *, erase: Callable[[], str] | None, payload: pathlib.Path
 ) -> Client | None:
     if erase:
-        ERASED.write_text(ARGUMENTS.target.device.name)
+        SESSION.boot0_erased = True
         failure = erase()
         if failure:
             raise FatalError(message=failure)
     elif SESSION.short:
         ask_for_short()
     else:
-        if ERASED.exists():
-            poke_live_payload()
         PROGRESS.begin(estimate="40 s", label="waiting for the restart")
     client, live = bootrom_client(
         deadline=time.monotonic() + (60 if erase else 600), erase=erase
@@ -472,7 +451,7 @@ def started_payload(
     if live is not None:
         return live
     if client is None:
-        ERASED.unlink(missing_ok=True)
+        SESSION.boot0_erased = False
         PROGRESS.note(
             message=f"The {title()} started its preloader, so boot0 is intact and it"
             " needs no bootrom step."
@@ -515,7 +494,7 @@ def stock_preloader(
         live.port.close()
     if SESSION.fastboot:
         SESSION.held = True
-    ERASED.unlink(missing_ok=True)
+    SESSION.boot0_erased = False
 
 
 def switched_payload(*, live: Client) -> bool:
@@ -540,4 +519,4 @@ def table_products(*, live: Emmc) -> set[str] | None:
 
 
 def unwritten() -> str:
-    return "Only boot0 was erased." if ERASED.exists() else "Nothing was written."
+    return "Only boot0 was erased." if SESSION.boot0_erased else "Nothing was written."

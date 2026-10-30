@@ -13,7 +13,7 @@ from firebreak import updates
 from firebreak.android.gpt import SECTOR_SIZE, gpt_intact, stock_gpt
 from firebreak.android.ota import extract
 from firebreak.bootrom_step import stock_preloader
-from firebreak.cache import CACHE, ERASED, digest
+from firebreak.cache import CACHE, digest
 from firebreak.devices import BUILDS, FIREOS5_BUILDS, biscuit
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
@@ -317,7 +317,7 @@ def restore(  # ruff: ignore[complex-structure]
     unmount()
 
     PROGRESS.begin(estimate="5 s", label="clear the preloader header (boot0)")
-    ERASED.write_text(ARGUMENTS.target.device.name)
+    SESSION.boot0_erased = True
     clear_boot0()
     PROGRESS.end()
 
@@ -403,7 +403,7 @@ def restore(  # ruff: ignore[complex-structure]
         raise FatalError(
             message=f"boot0 does not match the {build} preloader{wrong}; do not reboot"
         )
-    ERASED.unlink(missing_ok=True)
+    SESSION.boot0_erased = False
     PROGRESS.end()
 
     if SESSION.fastboot:

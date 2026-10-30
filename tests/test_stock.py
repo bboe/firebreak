@@ -124,7 +124,7 @@ def test_a_bootrom_build_writes_its_preloader_through_the_bootrom(
         value=lambda **options: finished.append(options),
     )
     (tmp_path / "preloader.img").write_bytes(b"P" * 1024)
-    stock.ERASED.touch()
+    stock.SESSION.boot0_erased = True
     stock.restore(
         backup_sector=9999,
         build="5.5.0.3",
@@ -143,7 +143,7 @@ def test_a_bootrom_build_writes_its_preloader_through_the_bootrom(
     assert writes[-1][0] == "write TEE image to tee1 (primary)"
     assert not any("pl.img" in " ".join(asked) for asked in restored.asked)
     assert restored.asked[-1][-1] == "reboot"
-    assert stock.ERASED.exists()
+    assert stock.SESSION.boot0_erased is True
 
 
 def test_a_fire_os_5_restore_reboots_without_waiting(
@@ -217,7 +217,7 @@ def test_a_restore_that_goes_wrong_says_do_not_reboot(  # ruff: ignore[too-many-
             work=tmp_path,
         )
     assert "do not reboot" in stopped.value.message
-    assert stock.ERASED.exists()
+    assert stock.SESSION.boot0_erased is True
 
 
 def test_a_restore_that_times_out_rebooting_still_finishes(
@@ -260,7 +260,7 @@ def test_a_restore_writes_in_order_and_starts_stock(
         ("write LK image to lk_a (live slot)", 5, "lk", 500),
         ("write TEE image to tee1 (primary)", 10, "tee", 1000),
     ]
-    assert not stock.ERASED.exists()
+    assert stock.SESSION.boot0_erased is False
     assert restored.commands(holding="if=/tmp/pl.img of=/dev/block/mmcblk0boot0 ")
     assert restored.asked[-1][-1] == "reboot"
 

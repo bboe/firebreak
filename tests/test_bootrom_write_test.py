@@ -88,9 +88,6 @@ def stubbed(*, monkeypatch: pytest.MonkeyPatch) -> types.SimpleNamespace:
         name="answering_payload", target=bootrom_write_test, value=lambda: None
     )
     monkeypatch.setattr(
-        name="poke_live_payload", target=bootrom_write_test, value=lambda: None
-    )
-    monkeypatch.setattr(
         name="bootrom_client",
         target=bootrom_write_test,
         value=lambda **_: (rig.client, None),
