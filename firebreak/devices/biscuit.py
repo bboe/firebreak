@@ -140,6 +140,11 @@ LK_VALUES = frozenset({
     "2c3569d-20260617_045829",
 })
 PAYLOAD_SEEK = 223207
+SHORT_GESTURE = (
+    "Open the base and short the eMMC data line at the passives beside R60,"
+    " as Andy Goetz's teardown shows, then plug the cable in with the short"
+    " held. https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/"
+)
 STOCK_LAYOUT = StockLayout(partitions=16)
 BISCUIT = Device(
     fastboot_mode=FASTBOOT_MODE,
@@ -148,6 +153,7 @@ BISCUIT = Device(
     models=frozenset({"AEOBC", "Echo Dot (2nd Gen)", "Echo Dot 2nd Gen"}),
     name="biscuit",
     product="BISCUIT",
+    short_gesture=SHORT_GESTURE,
     title="Echo Dot (2nd Generation)",
 )
 

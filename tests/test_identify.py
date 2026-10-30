@@ -394,18 +394,7 @@ def test_a_short_run_on_an_echo_with_no_such_target_says_which_echo_it_is(
         identify.choose_target(device=None, name="stock")
 
 
-@pytest.mark.parametrize("name", [None, "fireos6", "stock"])
-def test_a_short_run_takes_the_bootrom_s_device(
-    *, monkeypatch: pytest.MonkeyPatch, name: str | None
-) -> None:
-    connected(monkeypatch=monkeypatch)
-    monkeypatch.setattr(name="short", target=identify.SESSION, value=True)
-    monkeypatch.setattr(name="sleep", target=identify.time, value=pytest.fail)
-    chosen = identify.choose_target(device=None, name=name)
-    assert chosen == TARGETS[BISCUIT][name or "fireos6"]
-
-
-def test_a_short_run_takes_the_echo_over_the_bootrom_s_device(
+def test_a_short_run_takes_the_echo_it_finds(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     connected(fastboot="RADAR", monkeypatch=monkeypatch)

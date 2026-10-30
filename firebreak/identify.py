@@ -11,7 +11,7 @@ import xml.parsers.expat
 from typing import TYPE_CHECKING
 
 from firebreak.cache import ERASED, HELD
-from firebreak.devices import DEFAULTS, DEPRECATED, DEVICES, TARGETS, biscuit
+from firebreak.devices import DEFAULTS, DEPRECATED, DEVICES, TARGETS
 from firebreak.host import (
     USER_SERIAL,
     adb_shell,
@@ -75,11 +75,6 @@ class UsbDevice:
         )
 
 
-def bootrom_target(*, choices: list[Target]) -> Target | None:
-    device = biscuit.UNLOCK_FROM_BOOTROM.device
-    return next((each for each in choices if each.device == device), None)
-
-
 def check_target(*, target: Target) -> None:
     identity = identify()
     if identity.device is None or identity.device == target.device:
@@ -121,10 +116,6 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
     for target in choices:
         if target.device == found:
             return target
-    if found is None and SESSION.short:
-        shorted = bootrom_target(choices=choices)
-        if shorted is not None:
-            return shorted
     if found is None:
         raise FatalError(
             message=f"firebreak cannot tell which Echo this is, by its"

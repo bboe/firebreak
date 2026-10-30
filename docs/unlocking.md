@@ -330,6 +330,16 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   `/dev/ttyACM0`, and macOS names a port by its USB location. A port whose ID
   cannot be read yet, or that will not open yet, is looked at again on the
   next poll.
+- `--short` needs `--device`. Nothing on USB says which Echo is dark, and the
+  run has to name the test point before the owner shorts it, so the device
+  comes from the command line rather than from a guess. It also settles which
+  chain the bootrom writes, which the step used to take as biscuit's.
+- Where the test point is differs by device, and nothing else about the short
+  does: both are MT8163, both answer the same bootrom, and amonet ships one
+  payload for the two. So a device whose test point no one has found, which
+  today is radar, refuses `--short` unless the run also passes
+  `--run-on-unproven-path`. The refusal is about the instruction firebreak
+  cannot give, not about the exploit.
 - `--short` applies only to an Echo first seen with nothing on USB. Any other
   state turns it off, so a later reboot cannot start the short flow. That
   includes `starting`, which covers a probe that timed out as well as an Echo

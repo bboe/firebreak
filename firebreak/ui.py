@@ -143,6 +143,7 @@ class Session:
     fastboot: bool = False
     held: bool = False
     named: str = ""
+    short_gesture: str = ""
     no_wait: bool = False
     probing: bool = False
     serial_ready: bool | None = None

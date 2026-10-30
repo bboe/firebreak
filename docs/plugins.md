@@ -36,6 +36,13 @@ A device also gives its product, the name its LKs and its fastboot report:
 `BISCUIT`, `RADAR` and `CROWN`. It is not always the codename in capitals:
 amonet-crown v1.1.1's LK names `CHECKERS`.
 
+A device gives the two gestures its owner is asked for in words of its own:
+`fastboot_mode`, the button and the ring that follow it, and `short_gesture`,
+where the test point is and what to open to reach it. A device whose test
+point no one has found leaves `short_gesture` empty, and `--short` refuses it
+unless the run also passes `--run-on-unproven-path`. Only the location
+differs: the bootrom behind it is the same part on every device here.
+
 A device firebreak can unlock lists the LK build descriptions it knows: the
 rows of its Builds table in [devices.md](devices.md), and any an Echo has
 reported that no OTA there ships. The fastbrick stage refuses a bootloader it

@@ -30,6 +30,7 @@ class Device:
     fastboot_mode: str = ""
     layouts: tuple[Layout, ...] = ()
     models: frozenset[str] = frozenset()
+    short_gesture: str = ""
     twrp_models: frozenset[str] = frozenset()
 
 

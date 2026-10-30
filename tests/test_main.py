@@ -335,6 +335,51 @@ def test_a_run_with_no_update_check_does_not_check(
         main.cli()
 
 
+def test_a_short_names_the_device_whose_test_point_to_short(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran(device=BISCUIT, monkeypatch=monkeypatch)
+    monkeypatch.setattr(
+        name="argv",
+        target=sys,
+        value=["firebreak", "stock", "8149", "--device", "biscuit", "--short"],
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert "R60" in main.SESSION.short_gesture
+
+
+def test_a_short_needs_a_device(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "stock", "--short"]
+    )
+    with pytest.raises(SystemExit):
+        main.parsed()
+    assert "--short needs --device" in capsys.readouterr().err
+
+
+def test_a_short_on_a_device_with_no_test_point_found(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran(device=RADAR, monkeypatch=monkeypatch)
+    short = ["firebreak", "stock", "6436", "--device", "radar", "--short"]
+    monkeypatch.setattr(name="argv", target=sys, value=short)
+    with pytest.raises(
+        main.FatalError,
+        match=r"no one has found the Echo \(2nd Generation\)'s test point",
+    ):
+        main.cli()
+    monkeypatch.setattr(
+        name="argv", target=sys, value=[*short, "--run-on-unproven-path"]
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert main.ARGUMENTS.build == "6436"
+    assert main.SESSION.short_gesture == ""
+
+
 @pytest.mark.parametrize("into_namespace", [False, True], ids=["3.9.6", "bpo-45235"])
 def test_an_option_before_a_command_that_does_not_take_it_is_refused(
     *,
@@ -391,8 +436,14 @@ def test_no_newer_release_says_nothing(
 @pytest.mark.parametrize(
     argnames=("arguments", "parsed"),
     argvalues=[
-        (["--short", "stock"], ("stock", "", True, None, False)),
-        (["stock", "4315", "--short"], ("stock", "4315", True, None, False)),
+        (
+            ["--short", "--device", "biscuit", "stock"],
+            ("stock", "", True, "biscuit", False),
+        ),
+        (
+            ["stock", "4315", "--short", "--device", "biscuit"],
+            ("stock", "4315", True, "biscuit", False),
+        ),
         (
             ["--verbose", "--device", "biscuit", "unlock", "fireos6"],
             ("unlock", "", False, "biscuit", True),
@@ -401,8 +452,14 @@ def test_no_newer_release_says_nothing(
             ["unlock", "fireos6", "--device", "biscuit", "--verbose"],
             ("unlock", "", False, "biscuit", True),
         ),
-        (["--short", "write-test"], ("write-test", "", True, None, False)),
-        (["write-test", "--short"], ("write-test", "", True, None, False)),
+        (
+            ["--short", "--device", "biscuit", "write-test"],
+            ("write-test", "", True, "biscuit", False),
+        ),
+        (
+            ["write-test", "--short", "--device", "biscuit"],
+            ("write-test", "", True, "biscuit", False),
+        ),
         (["report", "--verbose"], ("report", "", False, None, True)),
     ],
 )

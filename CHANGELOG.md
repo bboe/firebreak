@@ -23,6 +23,10 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
+- `--short` needs `--device`, and prints where that device's test point is
+  before it waits. `write-test` takes `--device` for the same reason. No one
+  has found the Echo (2nd Generation)'s test point, so `--short` on one stops
+  unless the run also passes `--run-on-unproven-path`.
 - `unlock fireos6` roots the Fire OS 6 build already installed, with no wipe
   and no OTA install, so a device set up in the Alexa app keeps its Wi-Fi and
   Alexa setup. `--factory-reset` erases userdata and installs the target's

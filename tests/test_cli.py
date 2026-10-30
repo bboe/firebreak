@@ -90,7 +90,7 @@ def test_survey_takes_options_before_it(*, tmp_path: pathlib.Path) -> None:
         (["--short", "survey", "x.zip"], "survey takes no --short"),
         (["report", "--short"], "unrecognized arguments: --short"),
         (["report", "8149"], "unrecognized arguments: 8149"),
-        (["--device", "biscuit", "write-test"], "write-test takes no --device"),
+        (["--factory-reset", "write-test"], "write-test takes no --factory-reset"),
     ],
 )
 def test_the_positional_arguments_are_checked(

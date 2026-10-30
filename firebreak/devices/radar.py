@@ -81,6 +81,7 @@ RADAR = dataclasses.replace(
     models=frozenset({"AEORD", "Echo (2nd Gen)"}),
     name="radar",
     product="RADAR",
+    short_gesture="",
     title="Echo (2nd Generation)",
 )
 

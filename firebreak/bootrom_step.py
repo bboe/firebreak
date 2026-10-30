@@ -71,7 +71,8 @@ STEPS_AFTER_THE_CHAIN = 2
 def ask_for_short() -> None:
     warn(
         text=f"Short the {title()}'s test point and plug it in. The run waits for"
-        " its bootrom, then says when the short may come off.",
+        " its bootrom, then says when the short may come off.\n\n"
+        + SESSION.short_gesture,
     )
     status(text="Waiting for the bootrom.")
 
