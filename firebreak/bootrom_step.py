@@ -259,8 +259,8 @@ def check_bootloaders(*, entries: bytes, live: Emmc, unlock: Unlock) -> None:
         raise FatalError(
             message=f"the {title()}'s bootloader names its product {', '.join(other)},"
             f" not {want}, so it is not an {unlock.device.title}."
-            f" {unwritten()} Unplug it, then run firebreak again with --device for"
-            " the Echo it is."
+            f" {unwritten()} Unplug it, then run firebreak again: it reads which"
+            " Echo this is from the Echo itself."
         )
     if want not in named:
         raise FatalError(

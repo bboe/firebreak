@@ -12,7 +12,7 @@ import pytest
 from firebreak import identify
 from firebreak.devices import BISCUIT, CROWN, RADAR, TARGETS
 from firebreak.states import State
-from firebreak.ui import FatalError
+from firebreak.ui import FatalError, asked_for
 
 if TYPE_CHECKING:
     import pathlib
@@ -214,7 +214,7 @@ def test_a_long_wait_for_a_device_name_says_so_once(
     assert identify.choose_target(device=None, name="stock") == radar["stock"]
     said = capsys.readouterr().out
     assert said.count("Waiting for the Echo to say which device it is") == 1
-    assert "needs --device instead" in " ".join(said.split())
+    assert "hold its bootrom with `firebreak short` first" in " ".join(said.split())
     assert "stop" not in said
 
 
@@ -279,8 +279,8 @@ def test_a_name_two_devices_share_is_refused_on_an_echo_in_its_bootrom(
         identify.choose_target(device=None, name="stock", reader=lambda: None)
     assert caught.value.message == (
         "firebreak cannot tell which Echo this is, by its USB product 'Generic"
-        " CDC', so nothing was done. Run it again with --device: biscuit for the"
-        " Echo Dot (2nd Generation) or radar for the Echo (2nd Generation)."
+        " CDC' or by the bootloader in its flash, and stock is one two devices"
+        " share, so nothing was done. " + asked_for()
     )
     with pytest.raises(FatalError, match="cannot tell which Echo"):
         identify.choose_target(device=None, name=None, reader=lambda: None)

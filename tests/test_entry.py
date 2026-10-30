@@ -160,6 +160,21 @@ def test_a_bootrom_entry_clears_no_boot0_it_cannot_write_back(
     assert entry.SESSION.boot0_erased is False
 
 
+@pytest.mark.parametrize(
+    "state", [State.AMONET_TWRP, State.AMONET_FASTBOOT], ids=["twrp", "fastboot"]
+)
+def test_a_bootrom_entry_clears_no_boot0_on_an_echo_that_names_no_device(
+    *, monkeypatch: pytest.MonkeyPatch, state: State
+) -> None:
+    done = bootrom(monkeypatch=monkeypatch, states=[state])
+    monkeypatch.setattr(name="device", target=SESSION, value=None)
+    monkeypatch.setattr(name="identify", target=entry, value=lambda: NOTHING)
+    with pytest.raises(FatalError, match="a fastboot or a recovery, and it named none"):
+        entry.bootrom_entry(force=True)
+    assert done == []
+    assert entry.SESSION.boot0_erased is False
+
+
 def test_a_bootrom_entry_erases_no_boot0_it_cannot_fetch_a_payload_for(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:

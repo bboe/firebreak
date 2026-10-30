@@ -231,23 +231,24 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   one is found, the run waits, as it waits for an Echo, and says once that an
   Echo that shows no light never names one. It never guesses: each unlock
   writes a preloader made for its own device, and nothing here has run one
-  device's preloader on another. A target name that only one device has, or
-  one `--device` names, is checked as above.
+  device's preloader on another. A target name that only one device has is
+  checked as above.
 - An Echo in its bootrom names no device on USB, and carries the answer in
   its own flash: `lk_a` and `lk_b` hold `product`. So where the target name is
-  one two devices share, and `--device` names none, a run that reads `bootrom`
-  reads that bootloader before it chooses the target. It joins a payload that
+  one two devices share, a run that reads `bootrom` reads that bootloader
+  before it chooses the target. It joins a payload that
   already holds the bootrom, and starts one where none does. Such a run was
   going to exploit that bootrom anyway, so the read costs nothing: the chain
   step joins the same payload rather than starting another. The read happens
   before the target is chosen, so a run that ends in a refusal, as `unlock
   fireos5` on a radar does, has run the payload before it refuses.
-- Nothing in the cache names the Echo any more. A bootloader that names no
-  product, or a partition table that does not read, leaves a run with no name
-  and it asks for `--device`, where a marker used to answer for it. Two Echo
-  devices swapped between runs are each named by their own flash. `short`
-  still needs `--device`, because where the test point is differs by device
-  and the run has to say that before any bootrom answers.
+- Nothing in the cache names the Echo any more, and nothing on the command
+  line does either: `--device` is `short`'s alone. A bootloader that names no
+  product, or a partition table that does not read, leaves a run with no name,
+  and it stops rather than take one from the person running it. Two Echo
+  devices swapped between runs are each named by their own flash. `short` is
+  the exception because where the test point is differs by device, and the run
+  has to say that before any bootrom answers.
 - In fastboot, the report also prints `antirback_pl_version`,
   `antirback_tee_version` and `antirback_lk_version`.
 - The report shows only the first 4 characters of a serial number. Amazon's
@@ -367,9 +368,10 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   last run wrote down. A marker's name is then a fallback for the words a
   message uses before any read, and nothing more: it never becomes the device
   the run believes in, so the bootloader read corrects it rather than arguing
-  with it. A device the run was **given**, by `--device` or by a USB product,
-  is another matter: a bootloader that names a different one stops the run
-  with nothing written, because something it was told is wrong. Two Echoes
+  with it. A device the run was **given**, by a USB product or by `short`'s
+  `--device`, is another matter: a bootloader that names a different one stops
+  the run with nothing written, because something it was told is wrong. Two
+  Echoes
   with erased boot0s and one marker between them land here, and the swapped one
   is named by its own bootloader. A torn table names no Echo, and the run
   carries on with what it had.
@@ -495,6 +497,18 @@ testing a single stage mean reaching its state by hand first.
   which unlocks it and erases everything. `bootrom` clears boot0's header, or
   erases boot0 from fastboot, which is what leaves an Echo startable from its
   bootrom alone.
+- No command but `short` takes `--device`, and a run that cannot name the Echo
+  stops rather than ask for one. Every state these commands write from names
+  the device itself: a fastboot answers `getvar product`, a TWRP gives its
+  model on USB or `ro.product.device` over adb, and a bootrom carries the
+  answer in `lk_a` and `lk_b`. One radar's TWRP 3.7.0_9-0 gave only `Echo` on
+  USB and that prop named it, which is the nearest any device here has come to
+  saying nothing. So an Echo in one of those states that still names nothing
+  is one nothing here has measured, and a name off the command line would
+  write to it on a guess. `short` is the exception because the Echo it is for
+  shows no light and names nothing until its bootrom answers. Where the name
+  is only wording, as it is for a hold that writes nothing, a run says `Echo`
+  and carries on.
 - Every message names the Echo from what the run has read, which for these
   commands is a device and never a target: a run with no target says `Echo`
   where it knows the name, as `firebreak short --device biscuit`
@@ -581,7 +595,7 @@ testing a single stage mean reaching its state by hand first.
   bootrom again, as `fastboot` and `twrp` report a state they are already in.
   Which device it is does not come into holding a bootrom -- one payload runs
   on both, byte for byte -- so a run reads the name out of the bootloader in
-  flash rather than asking for `--device`.
+  flash rather than asking anyone for it.
 - `boot0-erased` is gone too, and with it the last thing firebreak believed
   about an Echo it had not read. It said what boot0 holds, which an Echo that
   is powered off cannot be asked, so it could only ever be a claim about the
@@ -598,7 +612,8 @@ testing a single stage mean reaching its state by hand first.
   rather than asking for a short of its own.
 - The three stages `twrp` reuses read their device from the target, which these
   commands do not have. They read `current_device()` instead: the target's
-  device where a target names one, and `--device` where none does.
+  device where a target names one, and the name read off the Echo where none
+  does.
   `tests/test_needs.py` resolves that call, so a stage's downloads are still
   checked against its code.
 

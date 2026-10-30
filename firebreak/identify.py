@@ -24,7 +24,7 @@ from firebreak.mediatek.usbdl import MEDIATEK_VENDOR_ID, ProductId
 from firebreak.report import labelled, whole
 from firebreak.states import State
 from firebreak.targets import REMOVED_IN
-from firebreak.ui import SESSION, FatalError, warn
+from firebreak.ui import SESSION, FatalError, asked_for, warn
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -120,10 +120,7 @@ def choose_target(
             message=f"firebreak has no {name or 'default'} target for the"
             f" {device.title}, so nothing was done."
         )
-    devices = " or ".join(
-        f"{target.device.name} for the {target.device.title}" for target in picked
-    )
-    identity = named_device(devices=devices)
+    identity = named_device()
     found, how = identity.device, identity.how
     if found is None and reader is not None:
         found = reader()
@@ -135,8 +132,9 @@ def choose_target(
     if found is None:
         raise FatalError(
             message=f"firebreak cannot tell which Echo this is, by its"
-            f" {identity.how}, so nothing was done. Run it again with --device:"
-            f" {devices}."
+            f" {identity.how} or by the bootloader in its flash, and"
+            f" {name or 'the default target'} is one two devices share, so"
+            " nothing was done. " + asked_for()
         )
     raise FatalError(
         message=f"this is an {found.title}, by its {how}, and firebreak has no"
@@ -254,7 +252,7 @@ def linux_devices() -> list[UsbDevice]:
     return found
 
 
-def named_device(*, devices: str) -> Identity:
+def named_device() -> Identity:
     identity = identify()
     polls = 0
     while identity.device is None and not (
@@ -264,8 +262,9 @@ def named_device(*, devices: str) -> Identity:
             warn(
                 text="Waiting for the Echo to say which device it is, which it"
                 " does in fastboot and in a recovery. This continues by itself once"
-                " it does. An Echo that shows no light never says, and needs"
-                f" --device instead: {devices}."
+                " it does. An Echo that shows no light never says: hold its"
+                " bootrom with `firebreak short` first, and the run after that"
+                " reads the name from its flash."
             )
         polls += 1
         time.sleep(POLL)

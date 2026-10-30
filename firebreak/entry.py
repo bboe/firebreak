@@ -12,6 +12,7 @@ from firebreak.bootrom_step import (
     bootrom_client,
     exploit,
     payload_device,
+    unwritten,
 )
 from firebreak.devices import BOOTROM_UNLOCKS, FASTBRICKS, FIREOS5_CHAINS
 from firebreak.host import pyserial_wheel, run
@@ -26,6 +27,7 @@ from firebreak.ui import (
     SESSION,
     WAIT,
     FatalError,
+    asked_for,
     confirm,
     passed,
     say,
@@ -207,12 +209,21 @@ def bootrom_entry(*, force: bool) -> None:
 
 
 def chainable() -> Device:
-    device = known_device()
+    noticed()
+    device = SESSION.device
+    if device is None:
+        raise FatalError(
+            message="this Echo is in a state that names which device it is, a"
+            " fastboot or a recovery, and it named none, so this run cannot"
+            " tell whether a chain exists to write a preloader back through its"
+            f" bootrom. {unwritten()} Power cycle it and run this again: a read"
+            " of the name can be cut. " + asked_for()
+        )
     if device not in BOOTROM_UNLOCKS:
         raise FatalError(
             message=f"firebreak has no bootrom chain for the {device.title}, so"
             " clearing boot0 would leave it starting nothing but a bootrom that"
-            " nothing here can write a preloader through. Nothing was done."
+            f" nothing here can write a preloader through. {unwritten()}"
         )
     return device
 
@@ -225,10 +236,10 @@ def checked_device(*, live: Client) -> None:
             live.port.close()
         raise FatalError(
             message=f"this Echo's bootloader names it an {found.title}, not the"
-            f" {known()} this run was told to expect. The payload holds its"
-            " bootrom, and a run that cleared or erased boot0 to get here has"
-            f" already done that: `firebreak unlock --device {found.name}`"
-            " writes a chain for the Echo this actually is."
+            f" {known()} this run expected. The payload holds its bootrom,"
+            " and a run that cleared or erased boot0 to get here has"
+            " already done that: `firebreak unlock` reads the name from that"
+            " flash and writes a chain for the Echo this actually is."
         )
     SESSION.device = found or SESSION.device
 

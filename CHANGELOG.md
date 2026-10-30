@@ -41,6 +41,13 @@ This project adheres to [Semantic Versioning](https://semver.org).
    one naming a device whose test point no one has found, are both told that
    firebreak cannot say where to short it, and both wait for a bootrom anyway.
    Nothing it does writes to the Echo.
+- `--device` is `firebreak short`'s alone, and every other command stops where
+  the Echo names no device rather than ask for one. A fastboot, a recovery and
+  the bootloader in an Echo's flash each say which device it is, and those
+  cover every state a command writes from, so a name off the command line
+  could only overrule what the Echo said or stand in for an Echo nothing here
+  has measured. `short` keeps it because an Echo that shows no light names
+  nothing, and the run has to say where the test point is before it waits.
 - `--run-on-unproven-path` is gone. It gated the short on a device with no
   known test point, which writes nothing and so needed no gate, and a target
   that says it is unproven, which no target says.
@@ -50,8 +57,8 @@ This project adheres to [Semantic Versioning](https://semver.org).
   byte of a payload command and watching for the bootrom's echo of it. It
   remembers an erase of its own for as long as that run lasts, which is what
   keeps `Only boot0 was erased.` true. What this costs: with nothing on USB a
-  run can no longer name the Echo, so one that needs the name asks for
-  `--device` until the bootrom appears and names itself from flash.
+  run can no longer name the Echo, so one that needs the name waits until the
+  bootrom appears and names itself from flash.
 - `stock`, `unlock` and `write-test` no longer short anything: park the Echo
   with `firebreak short` first, and the run after it joins the payload waiting
   there.
@@ -99,7 +106,8 @@ This project adheres to [Semantic Versioning](https://semver.org).
   waited for a recovery that was never there.
 - A bootrom step that refuses an Echo names the one it expected, where it
   said the step supports only the Echo Dot however it was run, and it now
-  says to name the Echo with `--device`.
+  says to unplug it and run firebreak again, which reads the name from the
+  Echo itself.
 - `report` reads the Fire OS 5 system image of the Echo in front of it, says
   there is none, or says it cannot tell which Echo this is. It read the Echo
   Dot's whichever Echo it ran on, so on an Echo (2nd Generation) it printed

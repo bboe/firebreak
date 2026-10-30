@@ -299,7 +299,7 @@ def test_a_bootloader_for_another_product_stops_the_run(*, rig: Rig) -> None:
     with pytest.raises(FatalError, match="product RADAR, not BISCUIT") as caught:
         step(rig=rig)
     assert "not an Echo Dot (2nd Generation)" in caught.value.message
-    assert "--device" in caught.value.message
+    assert "reads which Echo this is from the Echo itself" in caught.value.message
     assert rig.written == []
     assert bootrom_step.SESSION.boot0_erased is False
 

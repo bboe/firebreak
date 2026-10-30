@@ -155,29 +155,20 @@ def test_a_deprecated_name_parses_but_is_not_in_the_help(
             ["--device", "biscuit", "amonet-radar-v1.0.0"],
             "argument COMMAND: invalid choice",
         ),
-        (
-            ["--device", "radar", "unlock", "fireos5"],
-            "the Echo (2nd Generation) has no target fireos5",
-        ),
+        (["--device", "radar", "unlock", "fireos5"], "unlock takes no --device"),
         (["--device", "crown"], "argument --device: invalid choice"),
-        (
-            ["--device", "radar", "stock", "5.5.0.3"],
-            "the Echo (2nd Generation) has no stock build 5.5.0.3",
-        ),
-        (
-            ["--device", "biscuit", "survey", "x"],
-            "survey takes no --device",
-        ),
+        (["--device", "radar", "stock", "5.5.0.3"], "stock takes no --device"),
+        (["--device", "biscuit", "survey", "x"], "survey takes no --device"),
     ],
     ids=[
         "unknown-target",
-        "another-device-s-target",
+        "unlock",
         "device-without-targets",
-        "no-such-build",
+        "stock",
         "survey",
     ],
 )
-def test_a_device_is_one_with_targets_and_survey_takes_none(
+def test_a_device_is_one_with_targets_and_only_the_short_takes_one(
     *,
     arguments: list[str],
     capsys: pytest.CaptureFixture[str],
@@ -188,20 +179,6 @@ def test_a_device_is_one_with_targets_and_survey_takes_none(
     with pytest.raises(SystemExit):
         main.cli()
     assert said in capsys.readouterr().err
-
-
-def test_a_device_whose_module_names_no_default_target_is_refused(
-    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        name="argv", target=sys, value=["firebreak", "--device", "radar", "unlock"]
-    )
-    monkeypatch.setattr(
-        name="DEFAULTS", target=main, value={BISCUIT: DEFAULTS[BISCUIT]}
-    )
-    with pytest.raises(SystemExit):
-        main.cli()
-    assert "the Echo (2nd Generation) has no default target" in capsys.readouterr().err
 
 
 def test_a_failing_update_check_is_silent(
@@ -224,6 +201,9 @@ def test_a_failing_update_check_is_silent(
         ),
         (["--end-in-fireos", "report"], "report takes no --end-in-fireos"),
         (["--no-wait", "unlock", "fireos6"], "unlock takes no --no-wait"),
+        (["bootrom", "--device", "biscuit"], "bootrom takes no --device"),
+        (["--device", "biscuit", "bootrom"], "bootrom takes no --device"),
+        (["stock", "--device", "biscuit"], "stock takes no --device"),
     ],
 )
 def test_a_flag_is_refused_on_a_command_that_does_not_take_it(
@@ -395,30 +375,26 @@ def test_no_newer_release_says_nothing(
 @pytest.mark.parametrize(
     argnames=("arguments", "parsed"),
     argvalues=[
+        (["--force", "bootrom"], ("bootrom", "", True, None, False)),
+        (["bootrom", "--force"], ("bootrom", "", True, None, False)),
         (
-            ["--force", "--device", "biscuit", "bootrom"],
-            ("bootrom", "", True, "biscuit", False),
+            ["--device", "biscuit", "short"],
+            ("short", "", False, "biscuit", False),
         ),
         (
-            ["bootrom", "--force", "--device", "biscuit"],
-            ("bootrom", "", True, "biscuit", False),
+            ["short", "--device", "biscuit"],
+            ("short", "", False, "biscuit", False),
         ),
         (
-            ["--verbose", "--device", "biscuit", "unlock", "fireos6"],
-            ("unlock", "", False, "biscuit", True),
+            ["--verbose", "unlock", "fireos6"],
+            ("unlock", "", False, None, True),
         ),
         (
-            ["unlock", "fireos6", "--device", "biscuit", "--verbose"],
-            ("unlock", "", False, "biscuit", True),
+            ["unlock", "fireos6", "--verbose"],
+            ("unlock", "", False, None, True),
         ),
-        (
-            ["--device", "biscuit", "write-test"],
-            ("write-test", "", False, "biscuit", False),
-        ),
-        (
-            ["write-test", "--device", "biscuit"],
-            ("write-test", "", False, "biscuit", False),
-        ),
+        (["--verbose", "write-test"], ("write-test", "", False, None, True)),
+        (["write-test", "--verbose"], ("write-test", "", False, None, True)),
         (["report", "--verbose"], ("report", "", False, None, True)),
     ],
 )
@@ -481,14 +457,7 @@ def test_reset_reaches_a_fire_os_6_unlock(
     monkeypatch.setattr(
         name="argv",
         target=sys,
-        value=[
-            "firebreak",
-            "--device",
-            device.name,
-            "unlock",
-            "fireos6",
-            "--factory-reset",
-        ],
+        value=["firebreak", "unlock", "fireos6", "--factory-reset"],
     )
     with pytest.raises(SystemExit):
         main.cli()

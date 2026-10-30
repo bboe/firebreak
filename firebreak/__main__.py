@@ -140,26 +140,20 @@ def build_parser() -> argparse.ArgumentParser:
     labels = {SURVEY: " OTA [OTA ...]", UNLOCK: " [TARGET]"}
     parents = option_parents()
     quiet = option_parents(hidden=True)
-    navigating = ["--device", "--force", "--no-update-check", "--verbose"]
-    restoring = [
-        "--device",
-        "--end-in-fireos",
-        "--no-update-check",
-        "--no-wait",
-        "--verbose",
-    ]
-    rooting = ["--device", "--factory-reset", "--no-update-check", "--verbose"]
-    every = sorted({"--credits", *navigating, *restoring, *rooting})
+    navigating = ["--force", "--no-update-check", "--verbose"]
+    restoring = ["--end-in-fireos", "--no-update-check", "--no-wait", "--verbose"]
+    rooting = ["--factory-reset", "--no-update-check", "--verbose"]
+    every = sorted({"--credits", "--device", *navigating, *restoring, *rooting})
     uses = {
         BOOTROM: navigating,
-        FASTBOOT: ["--device", "--no-update-check", "--verbose"],
+        FASTBOOT: ["--no-update-check", "--verbose"],
         REPORT: ["--no-update-check", "--verbose"],
         SHORT: ["--device", "--no-update-check", "--verbose"],
         STOCK: restoring,
         SURVEY: ["--no-update-check", "--verbose"],
         TWRP: navigating,
         UNLOCK: rooting,
-        WRITE_TEST: ["--device", "--no-update-check", "--verbose"],
+        WRITE_TEST: ["--no-update-check", "--verbose"],
         **dict.fromkeys(DEPRECATED, rooting),
     }
     described = dict(about)
@@ -236,7 +230,10 @@ other commands:
         made = commands.add_parser(
             name,
             description=described[name],
-            parents=[parents[each] for each in sorted(uses[name])],
+            parents=[
+                (parents if each in uses[name] else quiet)[each]
+                for each in sorted({*uses[name], "--device"})
+            ],
         )
         if name == STOCK:
             made.add_argument(
@@ -272,11 +269,6 @@ other commands:
     return parser
 
 
-def canonical(*, name: str | None) -> str | None:
-    was = DEPRECATED.get(name or "")
-    return was.name if was else name
-
-
 def check_for_update() -> None:
     with contextlib.suppress(Exception):
         import update_checker  # ruff: ignore[import-outside-top-level]
@@ -297,8 +289,8 @@ def child_main(*, arguments: list[str], name: str) -> int:
 
 
 def chosen_device(*, name: str | None) -> Device | None:
-    if SESSION.device is not None or len(choices(device=None, name=name)) <= 1:
-        return SESSION.device
+    if len(choices(device=None, name=name)) <= 1:
+        return None
     return bootrom_device()
 
 
@@ -449,8 +441,9 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
         choices=DEVICES,
         help=argparse.SUPPRESS
         if hidden
-        else "the device the command is for, which firebreak otherwise reads"
-        " from the Echo: "
+        else "whose test point to describe, which an Echo that shows no light"
+        " cannot say itself. Every other command reads the device from the"
+        " Echo. One of: "
         + ", ".join(f"{device.name} for the {device.title}" for device in TARGETS),
     )
     return made
@@ -483,10 +476,6 @@ def parsed() -> argparse.Namespace:
         ("verbose", False),
     ):
         setattr(options, option, getattr(options, option, None) or default)
-    named = DEVICES.get(options.device)
-    bare = options.command is None or (options.command == UNLOCK and not options.target)
-    if bare and named is not None and named not in DEFAULTS:
-        parser.error(message=f"the {named.title} has no default target")
     if options.command is None:
         notice = (
             "The command line arguments have changed. What used to be the"
@@ -501,15 +490,15 @@ def parsed() -> argparse.Namespace:
         warn(text=notice)
         sys.exit(1)
     takes = {
-        BOOTROM: {"device", "force"},
-        FASTBOOT: {"device"},
+        BOOTROM: {"force"},
+        FASTBOOT: set(),
         REPORT: set(),
         SHORT: {"device"},
-        STOCK: {"device", "end_in_fireos", "no_wait"},
+        STOCK: {"end_in_fireos", "no_wait"},
         SURVEY: set(),
-        TWRP: {"device", "force"},
-        WRITE_TEST: {"device"},
-    }.get(options.command, {"device", "factory_reset"})
+        TWRP: {"force"},
+        WRITE_TEST: set(),
+    }.get(options.command, {"factory_reset"})
     for option in sorted(
         {
             "device",
@@ -523,16 +512,6 @@ def parsed() -> argparse.Namespace:
         if getattr(options, option):
             dashed = option.replace("_", "-")
             parser.error(message=f"{options.command} takes no --{dashed}")
-    device = named
-    wanted = options.target if options.command == UNLOCK else options.command
-    if (
-        device
-        and wanted in target_names()
-        and canonical(name=wanted) not in TARGETS[device]
-    ):
-        parser.error(message=f"the {device.title} has no target {wanted}")
-    if device and options.build and options.build not in BUILDS[device]:
-        parser.error(message=f"the {device.title} has no stock build {options.build}")
     return options
 
 
@@ -573,10 +552,6 @@ def target_help() -> str:
                 "  " + line for line in listed(label=label, summary=target.summary)
             )
     return "\n".join(lines)
-
-
-def target_names() -> set[str]:
-    return {name for targets in TARGETS.values() for name in targets} | set(DEPRECATED)
 
 
 def unlock_targets() -> list[str]:

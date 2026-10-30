@@ -128,8 +128,8 @@ def current_device() -> Device:
         return SESSION.device
     raise FatalError(
         message="firebreak cannot tell which Echo this is, so it cannot say what"
-        " to do with it. Run it again with --device:"
-        f" {', '.join(sorted(each.name for each in TARGETS))}."
+        " to do with it. A fastboot, a recovery and the bootloader in an Echo's"
+        " flash each name the device, and this Echo named none. " + asked_for()
     )
 
 
