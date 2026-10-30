@@ -64,7 +64,6 @@ LK_SLOTS = ("lk_a", "lk_b")
 OPEN_GRACE = 1
 POKE_GONE_WAIT = 5
 POKE_WRITE_TIMEOUT = 1
-PROBE_TIMEOUT = 1
 REPLUG_WAIT = 600
 SHORT_WAIT = 5
 STEPS_AFTER_THE_CHAIN = 2
@@ -355,18 +354,12 @@ def joined_payload(*, failures: dict[str, float], name: str) -> Client | None:
     connection = open_bootrom(failures=failures, name=name)
     if connection is None:
         return None
-    live = Client(port=connection, timeout=PROBE_TIMEOUT)
+    live = Client(port=connection, timeout=READ_TIMEOUT)
     try:
-        connection.reset_input_buffer()
-        live.switch_partition(partition=EmmcArea.USER)
-        answered = bootrom.switched(
-            block=live.read_block(index=0), partition=EmmcArea.USER
-        )
-    except (OSError, UsbdlError):
+        answered = switched_payload(live=live)
+    except (FatalError, OSError, UsbdlError):
         answered = False
     if answered:
-        live.timeout = READ_TIMEOUT
-        bootrom.switch(partition=EmmcArea.USER, payload=live)
         return live
     with contextlib.suppress(OSError):
         connection.close()
@@ -438,13 +431,10 @@ def open_serial_port(*, name: str, write_timeout: float) -> serial.Serial:
 def payload_device(*, live: Emmc) -> Device | None:
     PROGRESS.begin(estimate="5 s", label="reading which Echo this is")
     try:
-        raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
-        entries = raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE]
-        if not gpt_intact(entries=entries, header=raw[SECTOR_SIZE : 2 * SECTOR_SIZE]):
-            PROGRESS.end(skipped=True)
-            return None
-        named = lk_products(entries=entries, live=live)
-    except (OSError, UsbdlError, FatalError):
+        named = table_products(live=live)
+    except (FatalError, OSError, UsbdlError):
+        named = None
+    if named is None:
         PROGRESS.end(skipped=True)
         return None
     PROGRESS.end()
@@ -546,6 +536,25 @@ def stock_preloader(
         HELD.write_text(ARGUMENTS.target.device.name)
         SESSION.held = True
     ERASED.unlink(missing_ok=True)
+
+
+def switched_payload(*, live: Client) -> bool:
+    live.port.reset_input_buffer()
+    live.switch_partition(partition=EmmcArea.USER)
+    if not bootrom.switched(block=live.read_block(index=0), partition=EmmcArea.USER):
+        return False
+    live.timeout = READ_TIMEOUT
+    bootrom.switch(partition=EmmcArea.USER, payload=live)
+    return True
+
+
+def table_products(*, live: Emmc) -> set[str] | None:
+    bootrom.switch(partition=EmmcArea.USER, payload=live)
+    raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
+    entries = raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE]
+    if not gpt_intact(entries=entries, header=raw[SECTOR_SIZE : 2 * SECTOR_SIZE]):
+        return None
+    return lk_products(entries=entries, live=live)
 
 
 def unwritten() -> str:

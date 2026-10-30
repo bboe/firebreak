@@ -402,7 +402,13 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 if not in_browser(need=need)
             ]
             DOWNLOADER.start()
-        if current not in {State.BOOTROM, State.NONE, State.STARTING, *TWRPS}:
+        if current not in {
+            State.BOOTROM,
+            State.NONE,
+            State.PRELOADER,
+            State.STARTING,
+            *TWRPS,
+        }:
             ERASED.unlink(missing_ok=True)
             HELD.unlink(missing_ok=True)
         SESSION.boot0_marker = ERASED
@@ -436,7 +442,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     f" {title()} plugged in: unplugging it starts the stock firmware"
                     " and loses the hold."
                 )
-            else:
+            elif ERASED.exists():
                 warn(
                     text=(
                         "This run erased boot0"
@@ -447,6 +453,13 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     " written through its bootrom. This run does that, then continues"
                     " from that TWRP. If nothing happens within a minute,"
                     f" unplug the {title()} and plug it back in.",
+                )
+            else:
+                warn(
+                    text=f"The {title()} waits in its bootrom. This run writes"
+                    f" {chain.unlock.name} through it, then continues from that"
+                    f" TWRP. Leave the {title()} plugged in: a power cycle ends"
+                    " the bootrom's own 40 second window."
                 )
             resumed = True
             done.difference_update(TWRPS)
@@ -473,7 +486,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             since = time.monotonic()
             restarts = (
                 restarts + (current == State.NONE)
-                if current in {State.NONE, State.STARTING}
+                if current in {State.NONE, State.PRELOADER, State.STARTING}
                 else 0
             )
             if restarts == RESTARTS and current == State.NONE and awaiting in TWRPS:
@@ -483,7 +496,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 show(text=f"{clock()} state: {current.value}")
             if (
                 current not in done
-                and current not in {State.NONE, State.STARTING, State.BOOTED}
+                and current
+                not in {State.BOOTED, State.NONE, State.PRELOADER, State.STARTING}
                 and not (current == State.STOCK_BOOTED and installed)
             ):
                 PROGRESS.end()
@@ -617,7 +631,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             return
         if (
             current in done
-            or current in {State.NONE, State.STOCK_BOOTED, State.STARTING}
+            or current
+            in {State.NONE, State.PRELOADER, State.STOCK_BOOTED, State.STARTING}
             or (current == State.BOOTED and target.unlock is not None)
         ):
             waits = {State.NONE} if installed else {State.NONE, State.STOCK_BOOTED}
@@ -638,6 +653,13 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     raise FatalError(
                         message="Fire OS has not finished booting with root."
                         " Reboot to recovery. " + again()
+                    )
+                if current == State.PRELOADER:
+                    raise FatalError(
+                        message=f"the {title()}'s preloader has run for"
+                        f" {WAIT // 60} minutes without starting a bootloader,"
+                        " so the test point is the only way in: run"
+                        " `firebreak bootrom --short`."
                     )
                 raise FatalError(
                     message=f"the {title()} has been {current.value} for"

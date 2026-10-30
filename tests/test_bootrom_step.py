@@ -570,14 +570,18 @@ def test_a_payload_is_found_by_what_it_reads_not_by_what_it_echoes(
             opened.append(options["name"]) or Connection(name=options["name"])
         ),
     )
+    timeouts: list[float] = []
     monkeypatch.setattr(
         name="Client",
         target=bootrom_step,
-        value=lambda *, port, **_: Live(port=port, rig=rig),
+        value=lambda *, port, timeout: (
+            timeouts.append(timeout) or Live(port=port, rig=rig)
+        ),
     )
     assert bootrom_step.answering_payload() is not None
     assert opened == ["/dev/two"]
     assert rig.steps[:2] == ["switch 0", "read block 0"]
+    assert timeouts == [bootrom_step.READ_TIMEOUT]
     rig.signature = b"\x01\x02"
     assert bootrom_step.answering_payload() is None
     rig.signature = None
@@ -592,6 +596,29 @@ def test_a_payload_that_never_starts_with_the_short_on_blames_the_short(
     with pytest.raises(FatalError, match="most likely because the short"):
         step(rig=rig)
     assert rig.written == []
+
+
+def test_a_payload_whose_area_will_not_switch_is_passed_over(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+) -> None:
+    def refuses(**_: object) -> None:
+        raise bootrom_step.FatalError(message="block 0 of its user area ends")
+
+    monkeypatch.setattr(
+        name="mediatek_ports", target=bootrom_step, value=lambda: {"/dev/two": 0x0003}
+    )
+    monkeypatch.setattr(
+        name="open_bootrom",
+        target=bootrom_step,
+        value=lambda **options: Connection(name=options["name"]),
+    )
+    monkeypatch.setattr(
+        name="Client",
+        target=bootrom_step,
+        value=lambda *, port, **_: Live(port=port, rig=rig),
+    )
+    monkeypatch.setattr(name="switch", target=bootrom_step.bootrom, value=refuses)
+    assert bootrom_step.answering_payload() is None
 
 
 def test_a_plan_that_does_not_resolve_stops_before_anything_is_written(

@@ -8,7 +8,6 @@ from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import ERASED, digest, fetch, unpack
 from firebreak.devices import (
     BISCUIT,
-    DEVICES,
     FASTBRICKS,
     FIREOS5_CHAINS,
     LITTLE_KERNEL_DESCRIPTION,
@@ -130,7 +129,7 @@ def current_device() -> Device:
     raise FatalError(
         message="firebreak cannot tell which Echo this is, so it cannot say what"
         " to do with it. Run it again with --device:"
-        f" {', '.join(sorted(each.name for each in DEVICES))}."
+        f" {', '.join(sorted(each.name for each in TARGETS))}."
     )
 
 

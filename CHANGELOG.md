@@ -34,9 +34,13 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
-- `--short` needs `--device`, and prints where that device's test point is
-  before it waits. No one has found the Echo (2nd Generation)'s test point, so
-  `--short` on one stops unless the run also passes `--run-on-unproven-path`.
+- `--short` prints where the test point is before it waits, and `--device`
+  picks whose. It refuses nothing: a run that names no device, and one naming
+  a device whose test point no one has found, are both told that firebreak
+  cannot say where to short it, and both wait for a bootrom anyway.
+- `--run-on-unproven-path` is gone. It gated `--short` on a device with no
+  known test point, which writes nothing and so needed no gate, and a target
+  that says it is unproven, which no target says.
 - `--short` belongs to the new `bootrom` command alone. `stock`, `unlock` and
   `write-test` no longer take it: park the Echo with
   `firebreak bootrom --short` first, and the run after it joins the payload
@@ -93,10 +97,10 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - `write-test` keeps its reading of the Echo's `dd` in the same column as
   every other reading, where naming the model there ran past the column and
   left the value hanging.
-- Neither Echo (2nd Generation) target asks for `--run-on-unproven-path` any
-  more. Both have run on one, and the risk that kept them behind the flag was
-  a failure between the boot0 erase and the preloader write, which is now
-  recoverable over USB rather than by opening the Echo.
+- Neither Echo (2nd Generation) target is held back any more. Both have run
+  on one, and the risk that kept them behind a flag was a failure between the
+  boot0 erase and the preloader write, which is now recoverable over USB
+  rather than by opening the Echo.
 - An Echo (2nd Generation) whose boot0 is erased is picked up from its
   bootrom, where the step refused any device but the Echo Dot. A restore
   clears boot0 before it writes the preloader back, so a run that failed in

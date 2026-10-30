@@ -411,6 +411,30 @@ def test_a_fire_os_6_prefetch_downloads_its_build(
     assert got == [downloaded]
 
 
+def test_a_preloader_is_waited_through_and_keeps_the_markers(
+    *, monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    route.ERASED.touch()
+    route.HELD.touch()
+    monkeypatch.setattr(name="held", target=route.SESSION, value=True)
+    monkeypatch.setattr(name="stages", target=route, value=dict)
+    run.states = [route.State.PRELOADER]
+    with pytest.raises(RanOutError):
+        route.root()
+    assert route.ERASED.exists()
+    assert route.HELD.exists()
+
+
+def test_a_preloader_that_never_chains_names_the_test_point(
+    *, monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    monkeypatch.setattr(name="stages", target=route, value=dict)
+    run.tick = route.WAIT
+    run.states = [route.State.PRELOADER, route.State.PRELOADER]
+    with pytest.raises(route.FatalError, match="test point is the only way in"):
+        route.root()
+
+
 def test_a_radar_takes_amonet_radars_chain_not_biscuits(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from firebreak import __version__
 from firebreak.bootrom_write_test import bootrom_write_test
-from firebreak.cache import CACHE, ERASED, HELD
+from firebreak.cache import CACHE, ERASED
 from firebreak.devices import BISCUIT, BY_NAME, TARGETS
 from firebreak.host import (
     adb_shell,
@@ -22,7 +22,7 @@ from firebreak.host import (
 )
 from firebreak.identify import identity_lines
 from firebreak.plugin import FireOs5
-from firebreak.probe import probed
+from firebreak.probe import probed, state
 from firebreak.report import (
     LISTING_OK,
     PARTITIONS_OK,
@@ -39,6 +39,7 @@ from firebreak.report import (
     system_record,
     whole,
 )
+from firebreak.states import State
 from firebreak.targets import FIREOS5
 from firebreak.twrp import DISK, TABLE_OK, detect_dd
 from firebreak.ui import (
@@ -46,6 +47,7 @@ from firebreak.ui import (
     SESSION,
     SUPPORT,
     WAIT,
+    FatalError,
     amonet_has_no_fastboot,
     filled,
     invocation,
@@ -208,6 +210,13 @@ def line(label: str, value: object) -> None:
     show(text=labelled(label=label, value=value))
 
 
+def reachable() -> State | None:
+    try:
+        return state()
+    except FatalError:
+        return None
+
+
 def report() -> None:
     def asked(*, command: str, timeout: float = 60) -> str:
         try:
@@ -295,10 +304,11 @@ def write_test() -> None:
     PROGRESS.steps = None
     show(text=SUPPORT + "\n")
     about_host()
-    if HELD.exists() or ERASED.exists():
+    current = reachable()
+    if current == State.BOOTROM or (ERASED.exists() and current == State.NONE):
         bootrom_write_test(line=line, payload=amonet_payload(), wheel=pyserial_wheel())
         return
-    line("state", probed())
+    line("state", probed() if current is None else current.value)
     show(text="\n".join(identity_lines()))
     if not into_recovery(line=line):
         show(text="The test needs a recovery, so it stops here.")

@@ -75,6 +75,7 @@ def connected(
     )
     monkeypatch.setattr(name="getvar", target=identify, value=lambda **_: fastboot)
     monkeypatch.setattr(name="usb_devices", target=identify, value=lambda: usb or [])
+    identify.SESSION.usb_read = None
     monkeypatch.setattr(
         name="usb_serial", target=identify, value=lambda: recovery and "G2A0"
     )
@@ -144,8 +145,8 @@ def test_a_device_with_no_target_is_refused_without_asking_usb(
     with pytest.raises(FatalError) as caught:
         identify.choose_target(device=CROWN, name=name)
     assert caught.value.message == (
-        "this is an Echo Show 8 (1st Generation), and firebreak has no"
-        f" {name or 'default'} target for it, so nothing was done."
+        f"firebreak has no {name or 'default'} target for the Echo Show 8"
+        " (1st Generation), so nothing was done."
     )
 
 
@@ -611,6 +612,22 @@ def test_the_bootrom_and_the_preloader_are_states(
     seen.append(dataclasses.replace(AEOBC, product_id=0x0003))
     monkeypatch.setattr(name="usb_read", target=identify.SESSION, value=None)
     assert identify.downloading() is State.BOOTROM
+
+
+def test_the_echo_listing_takes_the_cached_usb_read(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads: list[int] = []
+
+    def counted() -> list[identify.UsbDevice]:
+        reads.append(1)
+        return [AEOBC]
+
+    connected(monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="usb_devices", target=identify, value=counted)
+    assert identify.echo_devices() == [AEOBC]
+    assert identify.echo_devices() == [AEOBC]
+    assert reads == [1]
 
 
 def test_the_erased_marker_does_not_overrule_the_echo(

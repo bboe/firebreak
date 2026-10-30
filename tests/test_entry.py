@@ -180,6 +180,18 @@ def test_a_bootrom_entry_holds_a_bootrom_it_finds(
     assert entry.HELD.read_text(encoding="utf-8") == "biscuit"
 
 
+def test_a_bootrom_entry_keeps_a_hold_one_probe_did_not_find(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bootrom(monkeypatch=monkeypatch, states=[State.BOOTROM])
+    entry.HELD.write_text(data="biscuit", encoding="utf-8")
+    monkeypatch.setattr(name="answering_payload", target=entry, value=lambda: None)
+    monkeypatch.setattr(name="poke_live_payload", target=entry, value=lambda: None)
+    monkeypatch.setattr(name="payload_device", target=entry, value=lambda **_: BISCUIT)
+    entry.bootrom_entry(force=False, short=False)
+    assert entry.HELD.read_text(encoding="utf-8") == "biscuit"
+
+
 def test_a_bootrom_entry_needs_no_device_to_hold_one(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -191,6 +203,18 @@ def test_a_bootrom_entry_needs_no_device_to_hold_one(
     entry.bootrom_entry(force=False, short=False)
     assert "The Echo waits in its bootrom" in capsys.readouterr().out
     assert entry.HELD.read_text(encoding="utf-8") == ""
+
+
+def test_a_bootrom_entry_pokes_a_payload_before_it_handshakes(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    done = bootrom(monkeypatch=monkeypatch, states=[State.BOOTROM])
+    monkeypatch.setattr(
+        name="poke_live_payload", target=entry, value=lambda: done.append("poked")
+    )
+    monkeypatch.setattr(name="payload_device", target=entry, value=lambda **_: BISCUIT)
+    entry.bootrom_entry(force=False, short=False)
+    assert done[:3] == ["poked", "looked for the bootrom", "ran the payload"]
 
 
 def test_a_bootrom_entry_reboots_a_booted_echo_into_its_twrp(
@@ -222,8 +246,8 @@ def test_a_bootrom_entry_refuses_a_locked_bootloader(
 def test_a_bootrom_entry_refuses_a_state_with_no_way_in(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    bootrom(monkeypatch=monkeypatch, states=[State.NONE])
-    with pytest.raises(FatalError, match="reads as none, which nothing here can"):
+    bootrom(monkeypatch=monkeypatch, states=[State.EMOS])
+    with pytest.raises(FatalError, match="reads as emos, which nothing here can"):
         entry.bootrom_entry(force=True, short=False)
 
 
@@ -235,7 +259,7 @@ def test_a_bootrom_entry_refuses_an_echo_that_is_not_the_one_named(
     monkeypatch.setattr(name="payload_device", target=entry, value=lambda **_: RADAR)
     with pytest.raises(FatalError, match="names it an Echo \\(2nd Generation\\), not"):
         entry.bootrom_entry(force=False, short=False)
-    assert not entry.HELD.exists()
+    assert entry.HELD.read_text(encoding="utf-8") == "radar"
 
 
 def test_a_bootrom_entry_reports_a_hold_it_finds(
@@ -259,20 +283,15 @@ def test_a_bootrom_entry_reports_a_hold_it_finds(
     assert "The Echo Dot (2nd Generation) already waits in its bootrom" in said
 
 
-def test_a_bootrom_entry_says_to_power_on_an_echo_it_cannot_see(
+def test_a_bootrom_entry_says_a_lost_hold_is_lost(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    bootrom(monkeypatch=monkeypatch, states=[State.NONE])
-    entry.ERASED.write_text(data="radar", encoding="utf-8")
-    monkeypatch.setattr(name="device", target=SESSION, value=None)
-    monkeypatch.setattr(name="identify", target=entry, value=lambda: NOTHING)
-    monkeypatch.setattr(name="target", target=ARGUMENTS, value="")
-    with pytest.raises(entry.FatalError, match="Power it on and run this again") as (
-        caught
-    ):
-        entry.bootrom_entry(force=False, short=False)
-    assert "Echo (2nd Generation)" in caught.value.message
-    assert SESSION.device is None
+    done = bootrom(monkeypatch=monkeypatch, states=[State.NONE, State.AMONET_TWRP])
+    entry.HELD.write_text(data="biscuit", encoding="utf-8")
+    entry.bootrom_entry(force=True, short=False)
+    said = " ".join(done[0].split())
+    assert "that hold is gone" in said
+    assert "Plug it back in" in said
 
 
 def test_a_bootrom_entry_stops_where_the_erase_fails(
@@ -301,6 +320,25 @@ def test_a_bootrom_entry_takes_the_device_from_its_bootloader(
     entry.bootrom_entry(force=False, short=False)
     assert entry.HELD.read_text(encoding="utf-8") == "radar"
     assert SESSION.device is RADAR
+
+
+def test_a_bootrom_entry_waits_for_an_echo_it_cannot_see(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    done = bootrom(
+        monkeypatch=monkeypatch, states=[State.NONE, State.NONE, State.BOOTROM]
+    )
+    entry.ERASED.write_text(data="radar", encoding="utf-8")
+    monkeypatch.setattr(name="device", target=SESSION, value=None)
+    monkeypatch.setattr(name="identify", target=entry, value=lambda: NOTHING)
+    monkeypatch.setattr(name="target", target=ARGUMENTS, value="")
+    monkeypatch.setattr(name="answering_payload", target=entry, value=lambda: None)
+    monkeypatch.setattr(name="payload_device", target=entry, value=lambda **_: RADAR)
+    entry.bootrom_entry(force=False, short=False)
+    said = " ".join(done[0].split())
+    assert "boot0 is erased, so this Echo (2nd Generation) starts nothing" in said
+    assert "its bootrom answers for about 40 seconds" in said
+    assert done[1:3] == ["looked for the bootrom", "ran the payload"]
 
 
 def test_a_bootrom_entry_with_no_bootrom_to_find(
@@ -438,9 +476,7 @@ def test_a_twrp_entry_from_the_fireos5_fastboot_writes_that_chain_s_twrp(
         states=[State.AMONET_FIREOS5_FASTBOOT, State.AMONET_FIREOS5_BBOE_TWRP],
     )
     entry.twrp_entry(force=True)
-    assert done[1] == "stage_fireos5_recovery"
-    assert "and its TEE beside it" in done[0]
-    assert "restarted" not in done
+    assert done == ["stage_fireos5_recovery"]
 
 
 def test_a_twrp_entry_reboots_a_rooted_echo(*, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -494,9 +530,17 @@ def test_a_twrp_entry_where_neither_restart_command_is_taken(
 def test_a_twrp_entry_will_not_reach_amazon_s_recovery(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    reads(monkeypatch=monkeypatch, states=[State.BOOTED])
-    with pytest.raises(FatalError, match="reads as booted, which nothing here can"):
-        entry.twrp_entry(force=False)
+    done = reads(
+        monkeypatch=monkeypatch,
+        states=[
+            State.BOOTED,
+            State.AMONET_FASTBOOT,
+            State.AMONET_TWRP,
+            State.AMONET_TWRP,
+        ],
+    )
+    entry.twrp_entry(force=False)
+    assert done == ["reboot bootloader", "restarted"]
 
 
 def test_a_twrp_entry_with_force_writes_the_recovery(
@@ -506,8 +550,75 @@ def test_a_twrp_entry_with_force_writes_the_recovery(
         monkeypatch=monkeypatch, states=[State.AMONET_FASTBOOT, State.AMONET_TWRP]
     )
     entry.twrp_entry(force=True)
-    assert done[1] == "stage_amonet_recovery"
-    assert "writes one to its recovery partition" in done[0]
+    assert done == ["stage_amonet_recovery"]
+
+
+def test_a_walk_says_a_gesture_again_after_a_missed_one(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    done = reads(
+        monkeypatch=monkeypatch,
+        states=[
+            State.STOCK_BOOTED,
+            State.NONE,
+            State.STOCK_BOOTED,
+            State.STOCK_FASTBOOT,
+        ],
+    )
+    entry.fastboot_entry()
+    assert (
+        sum("Start the Echo Dot (2nd Generation)'s fastboot" in said for said in done)
+        == 2
+    )
+
+
+def test_a_walk_stops_a_state_it_keeps_acting_on(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = [0.0]
+
+    def monotonic() -> float:
+        clock[0] += entry.STUCK
+        return clock[0]
+
+    done = reads(
+        monkeypatch=monkeypatch,
+        states=[State.AMONET_TWRP, State.NONE] * (entry.TRIES + 3),
+    )
+    monkeypatch.setattr(name="monotonic", target=entry.time, value=monotonic)
+    with pytest.raises(FatalError, match="minutes, so this run stops"):
+        entry.fastboot_entry()
+    assert done.count("reboot bootloader") == entry.TRIES
+
+
+def test_a_walk_stops_on_a_starting_that_never_moves(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = [0.0]
+
+    def monotonic() -> float:
+        clock[0] += entry.STUCK
+        return clock[0]
+
+    reads(monkeypatch=monkeypatch, states=[State.STARTING] * 4)
+    monkeypatch.setattr(name="monotonic", target=entry.time, value=monotonic)
+    with pytest.raises(FatalError, match="has read as starting for 10 minutes"):
+        entry.fastboot_entry()
+
+
+def test_a_walk_stops_waiting_for_an_echo_that_never_comes(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = [0.0]
+
+    def monotonic() -> float:
+        clock[0] += entry.STUCK
+        return clock[0]
+
+    reads(monkeypatch=monkeypatch, states=[State.NONE] * 4)
+    monkeypatch.setattr(name="monotonic", target=entry.time, value=monotonic)
+    with pytest.raises(FatalError, match="bootrom --short` reaches that one"):
+        entry.fastboot_entry()
 
 
 def test_a_wheel_goes_on_the_import_path_once(
@@ -524,7 +635,7 @@ def test_a_wheel_goes_on_the_import_path_once(
 def test_an_entry_gives_up_on_a_state_that_will_not_move(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    clock = iter([0.0, 0.0, entry.STUCK + 1])
+    clock = iter([0.0, 0.0, 0.0, entry.STUCK + 1])
     reads(monkeypatch=monkeypatch, states=[State.AMONET_BOOTED] * 3)
     monkeypatch.setattr(name="monotonic", target=entry.time, value=lambda: next(clock))
     with pytest.raises(FatalError, match="has read as amonet-booted for 10 minutes"):

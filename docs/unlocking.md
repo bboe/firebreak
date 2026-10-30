@@ -493,6 +493,38 @@ testing a single stage mean reaching its state by hand first.
   did. A prompt also names it when the question is asked, not when the table
   of states is built, because `twrp` builds that table before `walk` reads
   the Echo at all.
+- A run that means to handshake pokes a live payload first, as the unlock
+  route always has. A payload holding the bootrom answers no handshake, so
+  without the poke the run spends the 10 second handshake limit and then asks
+  for a replug, which on an intact boot0 starts the firmware instead. That is
+  also why `write-test` joins a payload `bootrom-held` claims rather than
+  handshaking at it: the route in is chosen by a marker now, not by `--short`,
+  so it meets a live payload where the old flag always met a bare bootrom.
+- A test that joined a hold leaves it held. The bootrom write test reboots
+  the payload at the end, which is right where it started one, and wrong
+  where another run was holding the bootrom: with boot0 intact that reboot
+  starts the firmware, and the next run would spend the join's 60 seconds on
+  a hold that is gone.
+- The probe takes the same 5 seconds the restore's join always had. One
+  second looked cheaper, but the cost of calling a live payload dead is that
+  the run pokes it, the Echo starts the firmware boot0 holds, and the
+  bootrom never comes back; the probe only runs where a marker claims a
+  payload, so the 5 seconds are rare.
+- A failed probe is not proof a hold is gone. One pass gives up on a port that
+  will not open yet, where the restore's join retries for 60 seconds, so
+  nothing deletes `bootrom-held` on that evidence: a state that proves boot0
+  boots is what clears it.
+- `bootrom` waits for the Echo as the other two do, rather than reading the
+  state once. Nothing on USB is what a reboot reads as, and an erased boot0
+  only answers for 40 seconds per power-on, so a run that is already waiting
+  catches that window where a run that refused would have to be typed again
+  inside it. It says what it is waiting for: boot0 erased means power it on,
+  a lost hold means plug it back in and expect the firmware.
+- A target run waits through a preloader too, and `route.py` had to be taught
+  it: on an ordinary boot the preloader shows for about 0.8 s, which closed
+  the open progress line mid-wait, reset the restart counter that catches a
+  boot loop, and read as a state the run had reached. A preloader that is
+  still there after 10 minutes names the test point instead.
 - Neither write runs on a device firebreak cannot write a chain back through.
   `bootrom` clears boot0 only where a bootrom unlock exists, and `twrp`
   unlocks only where a fastbrick does, both checked before the question is

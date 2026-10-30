@@ -201,7 +201,11 @@ def confirm(*, force: bool, what: str) -> None:
     if PROGRESS.halt():
         print()
     warn(text=f"{what}.")
-    if input("Type yes to continue: ").strip().lower() != "yes":
+    try:
+        answer = input("Type yes to continue: ")
+    except EOFError as error:
+        raise FatalError(message="Nothing was written.") from error
+    if answer.strip().lower() != "yes":
         raise FatalError(message="Nothing was written.")
     print()
 

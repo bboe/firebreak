@@ -9,8 +9,10 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import identify, support, ui, unlock
+from firebreak.cache import HELD
 from firebreak.devices import BISCUIT, RADAR, biscuit
 from firebreak.identify import Identity, UsbDevice
+from firebreak.states import State
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -444,6 +446,20 @@ def test_the_write_test_cleans_up_after_a_failed_leg(
     assert adb.commands(holding="rm -f")
 
 
+def test_the_write_test_leaves_a_stale_hold_for_a_booted_echo(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        name="bootrom_write_test", target=support, value=lambda **said: ran.append(said)
+    )
+    monkeypatch.setattr(name="state", target=support, value=lambda: State.ROOTED)
+    monkeypatch.setattr(name="into_recovery", target=support, value=lambda **_: False)
+    HELD.touch()
+    support.write_test()
+    assert ran == []
+
+
 def test_the_write_test_needs_a_recovery(
     *,
     capsys: pytest.CaptureFixture[str],
@@ -467,7 +483,8 @@ def test_the_write_test_on_a_held_echo_goes_through_the_bootrom(
         name="bootrom_write_test", target=support, value=lambda **said: ran.append(said)
     )
     monkeypatch.setattr(name="pyserial_wheel", target=support, value=lambda: None)
-    support.HELD.touch()
+    monkeypatch.setattr(name="state", target=support, value=lambda: State.BOOTROM)
+    HELD.touch()
     support.write_test()
     assert legs == []
     assert ran[0]["payload"] == "payload.bin"

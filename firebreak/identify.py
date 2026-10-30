@@ -111,8 +111,8 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
         return picked[0]
     if device is not None:
         raise FatalError(
-            message=f"this is an {device.title}, and firebreak has no"
-            f" {name or 'default'} target for it, so nothing was done."
+            message=f"firebreak has no {name or 'default'} target for the"
+            f" {device.title}, so nothing was done."
         )
     devices = " or ".join(
         f"{target.device.name} for the {target.device.title}" for target in picked
@@ -171,7 +171,7 @@ def downloading() -> State | None:
 def echo_devices() -> list[UsbDevice]:
     return [
         usb
-        for usb in usb_devices()
+        for usb in usb_seen()
         if (
             usb.vendor_id in ECHO_VENDORS or (usb.vendor_id, usb.product_id) in ECHO_IDS
         )

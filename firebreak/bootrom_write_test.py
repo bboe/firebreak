@@ -16,14 +16,16 @@ from firebreak.android.gpt import (
 )
 from firebreak.bootrom_step import (
     REPLUG_WAIT,
-    ask_for_short,
+    answering_payload,
     bootrom_client,
     check_emmc,
     exploit,
+    poke_live_payload,
 )
+from firebreak.cache import HELD
 from firebreak.mediatek.usbdl import UsbdlError
 from firebreak.plan import TABLE_SECTORS
-from firebreak.ui import SESSION, FatalError, again, show, status, title
+from firebreak.ui import FatalError, again, show, status, title
 from firebreak.write_test import EMMC_TARGET, PATTERN
 
 if TYPE_CHECKING:
@@ -32,6 +34,10 @@ if TYPE_CHECKING:
 
     from firebreak.amonet.biscuit_v2_0_0 import Client
 
+KEPT = (
+    "The payload still holds the Echo's bootrom, so the next run joins it rather"
+    " than reaching the bootrom again."
+)
 LEFT = (
     "The Echo restarts. With a preloader in boot0 it starts as before; without"
     " one it waits in its bootrom, where `firebreak bootrom --short` reaches it."
@@ -59,14 +65,15 @@ def bootrom_write_test(
 ) -> None:
     if wheel is not None and str(wheel) not in sys.path:
         sys.path.insert(0, str(wheel))
-    if SESSION.short:
-        ask_for_short()
-    else:
+    live = answering_payload() if HELD.exists() else None
+    joined = live is not None
+    if live is None:
         status(text="Waiting for the bootrom, where a run left this Echo.")
-    client = bootrom_client(deadline=time.monotonic() + REPLUG_WAIT, erase=None)
-    if client is None:
-        raise FatalError(message=f"the {title()} started its preloader. " + again())
-    live = exploit(client=client, payload=payload)
+        poke_live_payload()
+        client = bootrom_client(deadline=time.monotonic() + REPLUG_WAIT, erase=None)
+        if client is None:
+            raise FatalError(message=f"the {title()} started its preloader. " + again())
+        live = exploit(client=client, payload=payload)
     check_emmc(live=live)
     try:
         synced = legs(line=line, live=live)
@@ -75,12 +82,13 @@ def bootrom_write_test(
             message=f"the test did not go through the bootrom: {error}. " + again()
         ) from error
     finally:
-        with contextlib.suppress(OSError, UsbdlError):
-            live.reboot()
+        if not joined:
+            with contextlib.suppress(OSError, UsbdlError):
+                live.reboot()
         with contextlib.suppress(OSError):
-            client.port.close()
+            live.port.close()
     if synced:
-        show(text="\n" + LEFT)
+        show(text="\n" + (KEPT if joined else LEFT))
 
 
 def legs(*, line: Callable[[str, object], None], live: Client) -> bool:

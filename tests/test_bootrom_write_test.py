@@ -20,6 +20,7 @@ REGION = CACHE_FIRST + CACHE_SECTORS - bootrom_write_test.REGION_BLOCKS
 
 class Emmc:
     maximum_blocks = 64
+    port = types.SimpleNamespace(close=lambda: None)
     timeout = 5
 
     def __init__(
@@ -84,7 +85,10 @@ def stubbed(*, monkeypatch: pytest.MonkeyPatch) -> types.SimpleNamespace:
         shown=[],
     )
     monkeypatch.setattr(
-        name="ask_for_short", target=bootrom_write_test, value=lambda: None
+        name="answering_payload", target=bootrom_write_test, value=lambda: None
+    )
+    monkeypatch.setattr(
+        name="poke_live_payload", target=bootrom_write_test, value=lambda: None
     )
     monkeypatch.setattr(
         name="bootrom_client", target=bootrom_write_test, value=lambda **_: rig.client
@@ -184,6 +188,28 @@ def test_a_failed_read_stops_the_test_and_reboots(
         write_test(rig=stubbed)
     assert stubbed.emmc.rebooted
     assert stubbed.shown == []
+
+
+def test_a_held_payload_is_joined_rather_than_handshaked(
+    *, monkeypatch: pytest.MonkeyPatch, stubbed: types.SimpleNamespace
+) -> None:
+    def handshake(**_: object) -> None:
+        pytest.fail("handshaked at a payload that was already holding the bootrom")
+
+    closed: list[int] = []
+    stubbed.emmc.port = types.SimpleNamespace(close=lambda: closed.append(1))
+    monkeypatch.setattr(
+        name="answering_payload", target=bootrom_write_test, value=lambda: stubbed.emmc
+    )
+    monkeypatch.setattr(
+        name="bootrom_client", target=bootrom_write_test, value=handshake
+    )
+    bootrom_write_test.HELD.touch()
+    write_test(rig=stubbed)
+    assert not stubbed.emmc.rebooted
+    assert closed == [1]
+    assert stubbed.shown == ["\n" + bootrom_write_test.KEPT]
+    assert "neither the card nor the cable" in str(stubbed.said["verdict"])
 
 
 def test_a_late_answer_names_a_slow_card_and_puts_cache_back() -> None:
