@@ -24,6 +24,19 @@ def test_a_fatal_error_is_said_whole_until_it_is_stopped() -> None:
     assert ui.SESSION.shown is None
 
 
+def test_a_write_is_asked_about_below_the_step_it_interrupts(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="isatty", target=sys.stdin, value=lambda: True)
+    monkeypatch.setattr(name="isatty", target=sys.stdout, value=lambda: True)
+    monkeypatch.setattr(name="input", target=builtins, value=lambda _: "yes")
+    ui.PROGRESS.begin(estimate="40 s", label="restarting into fastboot")
+    ui.confirm(force=False, what="this writes")
+    assert ui.PROGRESS.open is False
+    said = capsys.readouterr().out
+    assert said.index("restarting into fastboot") < said.index("this writes.")
+
+
 def test_a_write_is_asked_about_once(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

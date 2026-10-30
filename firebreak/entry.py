@@ -140,8 +140,9 @@ def awaiting() -> str:
 
 
 def bootrom_device() -> Device | None:
-    if state() != State.BOOTROM:
+    if SESSION.read_flash or state() != State.BOOTROM:
         return None
+    SESSION.read_flash = True
     live = answering()
     if live is None:
         live = reached(erase=None)
@@ -189,7 +190,6 @@ def bootrom_entry(*, force: bool) -> None:
             what=f"erasing boot0 leaves the {device.title} able to start from its"
             " bootrom alone, until something writes a preloader back",
         )
-        SESSION.boot0_erased = True
         parked(live=reached(erase=erase_by_fastboot))
     elif current in LOCKED_FASTBOOTS:
         raise FatalError(
@@ -295,11 +295,12 @@ def reached(*, erase: Callable[[], str] | None) -> Client:
     if SESSION.short:
         ask_for_short()
     if erase is not None:
+        SESSION.boot0_erased = True
         failure = erase()
         if failure:
             raise FatalError(message=failure)
     if not SESSION.short:
-        PROGRESS.begin(estimate="15 s", label="starting amonet's payload")
+        PROGRESS.begin(estimate="40 s", label="waiting for the bootrom")
     client, live = bootrom_client(
         deadline=time.monotonic() + waiting(erase=erase), erase=erase
     )
@@ -307,6 +308,8 @@ def reached(*, erase: Callable[[], str] | None) -> Client:
         return live
     if client is None:
         raise FatalError(message=f"the {known()} did not reach its bootrom.")
+    if not SESSION.short:
+        PROGRESS.begin(estimate="15 s", label="starting amonet's payload")
     return exploit(client=client, payload=payload)
 
 

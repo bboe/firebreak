@@ -160,6 +160,22 @@ def test_a_bootrom_entry_clears_no_boot0_it_cannot_write_back(
     assert entry.SESSION.boot0_erased is False
 
 
+def test_a_bootrom_entry_erases_no_boot0_it_cannot_fetch_a_payload_for(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    done = bootrom(monkeypatch=monkeypatch, states=[State.AMONET_FASTBOOT])
+
+    def missing() -> str:
+        message = "payload.bin does not hash to the pin"
+        raise FatalError(message=message)
+
+    monkeypatch.setattr(name="amonet_payload", target=entry, value=missing)
+    with pytest.raises(FatalError, match="does not hash to the pin"):
+        entry.bootrom_entry(force=True)
+    assert "erased" not in done
+    assert entry.SESSION.boot0_erased is False
+
+
 def test_a_bootrom_entry_fetches_the_payload_before_it_clears_boot0(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -337,6 +353,22 @@ def test_a_bootrom_entry_with_no_bootrom_to_find(
     )
     with pytest.raises(FatalError, match="did not reach its bootrom"):
         entry.short_entry()
+
+
+def test_a_bootrom_is_read_once_however_often_it_is_asked_for(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads: list[int] = []
+    bootrom(monkeypatch=monkeypatch, states=[State.BOOTROM, State.BOOTROM])
+    monkeypatch.setattr(name="answering_payload", target=entry, value=lambda: None)
+    monkeypatch.setattr(
+        name="payload_device",
+        target=entry,
+        value=lambda **_: reads.append(1) and None,
+    )
+    assert entry.bootrom_device() is None
+    assert entry.bootrom_device() is None
+    assert reads == [1]
 
 
 def test_a_device_the_run_was_given_is_not_corrected_but_refused(

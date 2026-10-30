@@ -145,6 +145,7 @@ class Session:
     named: str = ""
     no_wait: bool = False
     probing: bool = False
+    read_flash: bool = False
     serial_ready: bool | None = None
     short: bool = False
     shown: Kind | None = None
@@ -197,8 +198,7 @@ def confirm(*, force: bool, what: str) -> None:
             message=f"{what}, and this input is not a terminal, so nothing here"
             " can ask whether that is wanted. Pass --force to write anyway."
         )
-    if PROGRESS.halt():
-        print()
+    PROGRESS.end()
     warn(text=f"{what}.")
     try:
         answer = input("Type yes to continue: ")
