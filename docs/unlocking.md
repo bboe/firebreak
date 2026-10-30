@@ -1775,10 +1775,10 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   rest, and the Dot booted rooted. It skipped the BCB too, which the stock
   install had already written. boot0's header is cleared again on every run
   that writes past the table.
-- `ERASED` is set only after the plan resolves and every node checks out, so
-  those stops leave the next run on its usual path. A stop between that and
-  the boot0 clear leaves it set with boot0 intact, which costs the next run a
-  bootrom handshake that times out.
+- A run notes boot0 as erased only after the plan resolves and every node
+  checks out, so a stop before that leaves the note unset and boot0 intact.
+  The note lives in the run that makes it and dies with it, so a later run
+  reads the Echo rather than inheriting either answer.
 - Its writes use `toybox dd` with `conv=notrunc` where it exists, as the
   `stock` path does; the `dd` on the path refuses `conv`, and does not truncate
   at a `seek` without it.

@@ -160,6 +160,19 @@ def test_a_bootrom_entry_clears_no_boot0_it_cannot_write_back(
     assert entry.SESSION.boot0_erased is False
 
 
+def test_a_bootrom_entry_fetches_the_payload_before_it_clears_boot0(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    done = bootrom(monkeypatch=monkeypatch, states=[State.AMONET_TWRP])
+    monkeypatch.setattr(
+        name="amonet_payload",
+        target=entry,
+        value=lambda: (done.append("fetched the payload"), "payload.bin")[1],
+    )
+    entry.bootrom_entry(force=True, short=False)
+    assert done.index("fetched the payload") < done.index("cleared")
+
+
 def test_a_bootrom_entry_from_a_recovery_clears_the_header(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -205,6 +218,22 @@ def test_a_bootrom_entry_reboots_a_booted_echo_into_its_twrp(
     assert done[0] == "reboot recovery"
     assert "clearing boot0's header" in done[1]
     assert done[2:4] == ["cleared", "rebooted"]
+
+
+def test_a_bootrom_entry_refuses_a_held_echo_that_is_not_the_one_named(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bootrom(monkeypatch=monkeypatch, states=[State.BOOTROM])
+    monkeypatch.setattr(
+        name="answering_payload",
+        target=entry,
+        value=lambda: types.SimpleNamespace(
+            port=types.SimpleNamespace(close=lambda: None)
+        ),
+    )
+    monkeypatch.setattr(name="payload_device", target=entry, value=lambda **_: RADAR)
+    with pytest.raises(FatalError, match="names it an Echo \\(2nd Generation\\), not"):
+        entry.bootrom_entry(force=False, short=False)
 
 
 def test_a_bootrom_entry_refuses_a_locked_bootloader(
@@ -394,6 +423,14 @@ def test_a_short_bootrom_entry_holds_the_payload(
     assert "a power cycle loses the hold" in done[-1]
 
 
+def test_a_short_bootrom_entry_opens_no_step_to_write_over_its_messages(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bootrom(monkeypatch=monkeypatch, states=[])
+    entry.bootrom_entry(force=False, short=True)
+    assert entry.PROGRESS.line == ""
+
+
 def test_a_twrp_entry_asks_before_it_unlocks_a_locked_echo(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -496,6 +533,16 @@ def test_a_twrp_entry_with_force_writes_the_recovery(
     )
     entry.twrp_entry(force=True)
     assert done == ["stage_amonet_recovery"]
+
+
+def test_a_twrp_entry_writes_no_recovery_it_has_none_for(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads(monkeypatch=monkeypatch, states=[State.AMONET_FASTBOOT])
+    monkeypatch.setattr(name="device", target=SESSION, value=CROWN)
+    monkeypatch.setattr(name="target", target=ARGUMENTS, value="")
+    with pytest.raises(FatalError, match="no fastbrick for the Echo Show 8"):
+        entry.twrp_entry(force=True)
 
 
 def test_a_walk_says_a_gesture_again_after_a_missed_one(

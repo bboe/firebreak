@@ -13,7 +13,7 @@ from firebreak.bootrom_step import (
     exploit,
     payload_device,
 )
-from firebreak.devices import BOOTROM_UNLOCKS, FASTBRICKS
+from firebreak.devices import BOOTROM_UNLOCKS, FASTBRICKS, FIREOS5_CHAINS
 from firebreak.host import pyserial_wheel, run
 from firebreak.identify import POLL, identify
 from firebreak.probe import state
@@ -152,7 +152,7 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
     if current == State.BOOTROM:
         live = answering()
         if live is not None:
-            SESSION.device = payload_device(live=live) or SESSION.device
+            checked_device(live=live)
             with contextlib.suppress(OSError):
                 live.port.close()
             passed(message=f"The {known()} already waits in its bootrom.")
@@ -173,6 +173,8 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
             what=f"clearing boot0's header leaves the {device.title} able to start"
             " from its bootrom alone, until something writes a preloader back",
         )
+        with_pyserial()
+        amonet_payload()
         SESSION.boot0_erased = True
         clear_boot0()
         run(arguments=["adb", "reboot"], timeout=60)
@@ -210,6 +212,22 @@ def chainable() -> Device:
             " nothing here can write a preloader through. Nothing was done."
         )
     return device
+
+
+def checked_device(*, live: Client) -> None:
+    found = payload_device(live=live)
+    if found is not None and SESSION.device not in {None, found}:
+        SESSION.held = True
+        with contextlib.suppress(OSError):
+            live.port.close()
+        raise FatalError(
+            message=f"this Echo's bootloader names it an {found.title}, not the"
+            f" {known()} this run was told to expect. The payload holds its"
+            " bootrom, and a run that cleared or erased boot0 to get here has"
+            f" already done that: `firebreak unlock --device {found.name}`"
+            " writes a chain for the Echo this actually is."
+        )
+    SESSION.device = found or SESSION.device
 
 
 def entries() -> tuple[str, ...]:
@@ -250,19 +268,7 @@ def noticed() -> None:
 
 def parked(*, live: Client) -> None:
     PROGRESS.end()
-    named = payload_device(live=live)
-    if named is not None and SESSION.device not in {None, named}:
-        SESSION.held = True
-        with contextlib.suppress(OSError):
-            live.port.close()
-        raise FatalError(
-            message=f"this Echo's bootloader names it an {named.title}, not the"
-            f" {known()} this run was told to expect. The payload holds its"
-            " bootrom, and a run that cleared or erased boot0 to get here has"
-            f" already done that: `firebreak unlock --device {named.name}`"
-            " writes a chain for the Echo this actually is."
-        )
-    SESSION.device = named or SESSION.device
+    checked_device(live=live)
     with contextlib.suppress(OSError):
         live.port.close()
     SESSION.held = True
@@ -289,7 +295,8 @@ def reached(*, erase: Callable[[], str] | None) -> Client:
         failure = erase()
         if failure:
             raise FatalError(message=failure)
-    PROGRESS.begin(estimate="15 s", label="starting amonet's payload")
+    if not SESSION.short:
+        PROGRESS.begin(estimate="15 s", label="starting amonet's payload")
     client, live = bootrom_client(
         deadline=time.monotonic() + waiting(erase=erase), erase=erase
     )
@@ -298,6 +305,16 @@ def reached(*, erase: Callable[[], str] | None) -> Client:
     if client is None:
         raise FatalError(message=f"the {known()} did not reach its bootrom.")
     return exploit(client=client, payload=payload)
+
+
+def registered(*, holding: dict[Device, object], what: str) -> Device:
+    device = known_device()
+    if device not in holding:
+        raise FatalError(
+            message=f"firebreak has no {what} for the {device.title}, so it"
+            " cannot write a recovery to one, and nothing was written."
+        )
+    return device
 
 
 def restarted() -> None:
@@ -343,6 +360,14 @@ def to_twrp() -> None:
 
 
 def twrp_entry(*, force: bool) -> None:
+    def amonet_recovery() -> None:
+        registered(holding=FASTBRICKS, what="fastbrick")
+        stage_amonet_recovery()
+
+    def fireos5_recovery() -> None:
+        registered(holding=FIREOS5_CHAINS, what="Fire OS 5 chain")
+        stage_fireos5_recovery()
+
     def unlocking() -> None:
         device = known_device()
         if device not in FASTBRICKS:
@@ -363,10 +388,8 @@ def twrp_entry(*, force: bool) -> None:
             **dict.fromkeys(TO_TWRP, to_twrp),
             **dict.fromkeys(LOCKED_FASTBOOTS, unlocking),
             State.BOOTED: to_fastboot,
-            State.AMONET_FASTBOOT: stage_amonet_recovery if force else restarted,
-            State.AMONET_FIREOS5_FASTBOOT: (
-                stage_fireos5_recovery if force else restarted
-            ),
+            State.AMONET_FASTBOOT: amonet_recovery if force else restarted,
+            State.AMONET_FIREOS5_FASTBOOT: fireos5_recovery if force else restarted,
             State.STOCK_BOOTED: gesture,
         },
         goal=TWRPS,
