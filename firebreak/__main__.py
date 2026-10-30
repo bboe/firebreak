@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
 import pathlib
 import shutil
 import subprocess
@@ -32,6 +33,15 @@ from firebreak.devices import (
     biscuit,
 )
 from firebreak.emos import child_emos
+from firebreak.entry import (
+    BOOTROM,
+    FASTBOOT,
+    TWRP,
+    bootrom_entry,
+    entries,
+    fastboot_entry,
+    twrp_entry,
+)
 from firebreak.host import check_adb, check_python, check_root, check_user
 from firebreak.identify import choose_target
 from firebreak.plugin import FireOs6
@@ -96,11 +106,23 @@ WRITE_TEST = "write-test"
 def build_parser() -> argparse.ArgumentParser:
     builds = ordered(builds={build for each in BUILDS.values() for build in each})
     about = {
+        BOOTROM: "hold the Echo in its bootrom, where amonet's payload can reach"
+        " the eMMC with no firmware running. It asks before it clears boot0,"
+        " which is what leaves an Echo startable from its bootrom alone."
+        " `--short` instead waits for an Echo whose test point is shorted, and"
+        " writes nothing.",
+        FASTBOOT: "start the Echo's fastboot, whichever bootloader it holds. It"
+        " reboots an Echo that answers adb, and asks for the button gesture"
+        " where it cannot. It writes nothing.",
         REPORT: "print what the Echo and this computer are, and the Echo's"
         " partition table, for a support request. It starts the Echo's recovery"
         " to read them and writes no partition.",
         SURVEY: "read each Amazon OTA zip for the tables in docs/devices.md. It"
         " needs no Echo.",
+        TWRP: "start the Echo's TWRP. On an unlocked Echo it restarts into the"
+        " recovery already there and writes nothing, and says what to do where"
+        " that is not a TWRP. A locked Echo has to be unlocked first, which"
+        " erases it, so that one is asked about.",
         UNLOCK: "unlock the Echo and root it, to TARGET or to the newest Fire OS"
         " firebreak supports when TARGET is left out.",
         WRITE_TEST: f"write a known pattern over the Echo's {EMMC_TARGET}"
@@ -108,16 +130,16 @@ def build_parser() -> argparse.ArgumentParser:
         " USB cable because nothing crosses USB. It leaves a fresh empty"
         " filesystem there, or says it could not.",
     }
-    labels = {SURVEY: " OTA [OTA ...]", UNLOCK: " [TARGET]"}
+    labels = {BOOTROM: " [--short]", SURVEY: " OTA [OTA ...]", UNLOCK: " [TARGET]"}
     parents = option_parents()
     quiet = option_parents(hidden=True)
+    navigating = ["--device", "--force", "--no-update-check", "--verbose"]
     restoring = [
         "--device",
         "--end-in-fireos",
         "--no-update-check",
         "--no-wait",
         "--run-on-unproven-path",
-        "--short",
         "--verbose",
     ]
     rooting = [
@@ -125,22 +147,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--factory-reset",
         "--no-update-check",
         "--run-on-unproven-path",
-        "--short",
         "--verbose",
     ]
-    every = sorted({"--credits", *restoring, *rooting})
+    every = sorted({"--credits", "--short", *navigating, *restoring, *rooting})
     uses = {
+        BOOTROM: [*navigating, "--run-on-unproven-path", "--short"],
+        FASTBOOT: ["--device", "--no-update-check", "--verbose"],
         REPORT: ["--no-update-check", "--verbose"],
         STOCK: restoring,
         SURVEY: ["--no-update-check", "--verbose"],
+        TWRP: navigating,
         UNLOCK: rooting,
-        WRITE_TEST: [
-            "--device",
-            "--no-update-check",
-            "--run-on-unproven-path",
-            "--short",
-            "--verbose",
-        ],
+        WRITE_TEST: ["--device", "--no-update-check", "--verbose"],
         **dict.fromkeys(DEPRECATED, rooting),
     }
     described = dict(about)
@@ -169,12 +187,21 @@ def build_parser() -> argparse.ArgumentParser:
 
 Run it again with another of these to move the Echo there.
 
+commands that reach one entry point and stop there:
+"""
+        + "\n".join(
+            line
+            for name in entries()
+            for line in listed(label=name + labels.get(name, ""), summary=about[name])
+        )
+        + """
+
 other commands:
 """
         + "\n".join(
             line
             for name in sorted(about)
-            if name != UNLOCK
+            if name not in {UNLOCK, *entries()}
             for line in listed(label=name + labels.get(name, ""), summary=about[name])
         )
         + "\n\nRun `firebreak COMMAND --help` for what that command takes.",
@@ -187,6 +214,7 @@ other commands:
                     "--device",
                     "--end-in-fireos",
                     "--factory-reset",
+                    "--force",
                     "--no-wait",
                     "--run-on-unproven-path",
                     "--short",
@@ -296,7 +324,16 @@ def cli() -> None:
         SESSION.short_gesture = short_gesture(
             name=options.device, override=options.run_on_unproven_path
         )
-    command = {REPORT: report, WRITE_TEST: write_test}.get(options.command)
+    SESSION.device = DEVICES.get(options.device)
+    command = {
+        BOOTROM: functools.partial(
+            bootrom_entry, force=options.force, short=options.short
+        ),
+        FASTBOOT: fastboot_entry,
+        REPORT: report,
+        TWRP: functools.partial(twrp_entry, force=options.force),
+        WRITE_TEST: write_test,
+    }.get(options.command)
     if command:
         command()
         return
@@ -378,6 +415,13 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
             ("start the writes at once, without the 10 seconds that Ctrl-C cancels in"),
         ),
         (
+            "--force",
+            (
+                "do not ask before a write that a command needs to reach the"
+                " state it is named for"
+            ),
+        ),
+        (
             "--run-on-unproven-path",
             (
                 "continue with a target that has never run on the device it is for,"
@@ -452,6 +496,7 @@ def parsed() -> argparse.Namespace:
         ("device", None),
         ("end_in_fireos", False),
         ("factory_reset", False),
+        ("force", False),
         ("no_update_check", False),
         ("no_wait", False),
         ("run_on_unproven_path", False),
@@ -478,16 +523,20 @@ def parsed() -> argparse.Namespace:
         warn(text=notice)
         sys.exit(1)
     takes = {
+        BOOTROM: {"device", "force", "run_on_unproven_path", "short"},
+        FASTBOOT: {"device"},
         REPORT: set(),
-        STOCK: {"device", "end_in_fireos", "no_wait", "run_on_unproven_path", "short"},
+        STOCK: {"device", "end_in_fireos", "no_wait", "run_on_unproven_path"},
         SURVEY: set(),
-        WRITE_TEST: {"device", "run_on_unproven_path", "short"},
-    }.get(options.command, {"device", "factory_reset", "run_on_unproven_path", "short"})
+        TWRP: {"device", "force"},
+        WRITE_TEST: {"device"},
+    }.get(options.command, {"device", "factory_reset", "run_on_unproven_path"})
     for option in sorted(
         {
             "device",
             "end_in_fireos",
             "factory_reset",
+            "force",
             "no_wait",
             "run_on_unproven_path",
             "short",
@@ -546,6 +595,8 @@ def stock_build(*, device: Device, wanted: str) -> None:
 def target_help() -> str:
     lines = []
     for device, targets in TARGETS.items():
+        if lines:
+            lines.append("")
         lines.append(f"commands for the {device.title}:")
         default = DEFAULTS.get(device)
         lines.extend(listed(label=STOCK + " [BUILD]", summary=targets[STOCK].summary))

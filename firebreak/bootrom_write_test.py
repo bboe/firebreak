@@ -23,7 +23,7 @@ from firebreak.bootrom_step import (
 )
 from firebreak.mediatek.usbdl import UsbdlError
 from firebreak.plan import TABLE_SECTORS
-from firebreak.ui import FatalError, again, show, title
+from firebreak.ui import SESSION, FatalError, again, show, status, title
 from firebreak.write_test import EMMC_TARGET, PATTERN
 
 if TYPE_CHECKING:
@@ -59,7 +59,10 @@ def bootrom_write_test(
 ) -> None:
     if wheel is not None and str(wheel) not in sys.path:
         sys.path.insert(0, str(wheel))
-    ask_for_short()
+    if SESSION.short:
+        ask_for_short()
+    else:
+        status(text="Waiting for the bootrom, where a run left this Echo.")
     client = bootrom_client(deadline=time.monotonic() + REPLUG_WAIT, erase=None)
     if client is None:
         raise FatalError(message=f"the {title()} started its preloader. " + again())

@@ -8,6 +8,7 @@ from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import ERASED, digest, fetch, unpack
 from firebreak.devices import (
     BISCUIT,
+    DEVICES,
     FASTBRICKS,
     FIREOS5_CHAINS,
     LITTLE_KERNEL_DESCRIPTION,
@@ -41,7 +42,7 @@ if TYPE_CHECKING:
     import pathlib
 
     from firebreak.cache import Download
-    from firebreak.plugin import Unlock
+    from firebreak.plugin import Device, Unlock
 
 
 def amonet_chain() -> None:
@@ -89,7 +90,7 @@ def amonet_lk(*, node: str) -> bool:
 
 
 def amonet_payload() -> pathlib.Path:
-    device = ARGUMENTS.target.device if ARGUMENTS.target else SESSION.device
+    device = current_device() if ARGUMENTS.target else SESSION.device
     amonet = unpack(
         download=FASTBRICKS[device if device in FASTBRICKS else BISCUIT].source
     )
@@ -97,7 +98,7 @@ def amonet_payload() -> pathlib.Path:
 
 
 def amonet_sources() -> tuple[Download, ...]:
-    device = ARGUMENTS.target.device
+    device = current_device()
     others = (
         target.unlock.source
         for target in TARGETS[device].values()
@@ -112,13 +113,25 @@ def check_product() -> None:
         raise FatalError(
             message="fastboot reports no product, so nothing was written. " + again()
         )
-    device = ARGUMENTS.target.device
+    device = current_device()
     if product != device.product:
+        asked = ARGUMENTS.target.name if ARGUMENTS.target else "this run"
         raise FatalError(
             message=f"fastboot reports {product!r}, not {device.product}, so"
-            f" nothing was written. {ARGUMENTS.target.name} is for the"
-            f" {device.title}."
+            f" nothing was written. {asked} is for the {device.title}."
         )
+
+
+def current_device() -> Device:
+    if ARGUMENTS.target:
+        return ARGUMENTS.target.device
+    if SESSION.device is not None:
+        return SESSION.device
+    raise FatalError(
+        message="firebreak cannot tell which Echo this is, so it cannot say what"
+        " to do with it. Run it again with --device:"
+        f" {', '.join(sorted(each.name for each in DEVICES))}."
+    )
 
 
 def erase_by_fastboot() -> str:
@@ -142,7 +155,7 @@ def fastbrick_payload(
 
 
 def newer_than_known(*, little_kernel: str) -> None:
-    known = LK_VALUES[ARGUMENTS.target.device]
+    known = LK_VALUES[current_device()]
     if not little_kernel or little_kernel in known:
         return
     if not LITTLE_KERNEL_DESCRIPTION.fullmatch(string=little_kernel):
@@ -154,14 +167,14 @@ def newer_than_known(*, little_kernel: str) -> None:
     if little_kernel.split(sep="-")[1] < newest:
         return
     bootrom = (
-        " Its bootrom still unlocks it: README.md's --short section says how to"
-        " open it."
-        if ARGUMENTS.target.device == BISCUIT
+        " Its bootrom still unlocks it: `firebreak bootrom --short` says where"
+        " its test point is."
+        if current_device().short_gesture
         else ""
     )
     raise FatalError(
         message=f"the bootloader {little_kernel} is no older than any firebreak"
-        f" has a payload for on the {ARGUMENTS.target.device.title}, and a"
+        f" has a payload for on the {current_device().title}, and a"
         " fastbrick payload only unlocks the bootloaders it was built for, so"
         f" the {title()} was not modified.{bootrom}"
     )
@@ -190,7 +203,7 @@ def restart_refusals() -> list[tuple[str, str]]:
 def stage_amonet_recovery(*, carries_twrp: bool = True) -> bool:
     if not unlocked_fastboot():
         return False
-    unlock = FASTBRICKS[ARGUMENTS.target.device]
+    unlock = FASTBRICKS[current_device()]
     if not carries_twrp or (
         unlock.little_kernel
         and getvar(name="lk_build_desc", strict=True) == unlock.little_kernel
@@ -209,14 +222,16 @@ def stage_amonet_recovery(*, carries_twrp: bool = True) -> bool:
         say(
             text=f"This {title()}'s fastboot took neither command that starts its"
             " TWRP. Unplug it, and hold the + button while you plug it back in,"
-            " which starts TWRP itself."
+            " which starts TWRP itself. A fastboot older than platform-tools r29"
+            " has no reboot-recovery command of its own, so check this host's"
+            " `fastboot --version` as well."
         )
         return False
     return True
 
 
 def stage_downgrade() -> bool:
-    chain = FIREOS5_CHAINS[ARGUMENTS.target.device]
+    chain = FIREOS5_CHAINS[current_device()]
     amonet = unpack(download=chain.unlock.source)
     wheel = pyserial_wheel()
     if getvar(name="unlock_status").lower() != "true":
@@ -233,7 +248,7 @@ def stage_downgrade() -> bool:
             message=f"the {title()} already runs the bootloader this would write. "
             + again()
         )
-    if little_kernel == FASTBRICKS[ARGUMENTS.target.device].little_kernel:
+    if little_kernel == FASTBRICKS[current_device()].little_kernel:
         stage_amonet_recovery()
         return False
     PROGRESS.begin(estimate="5 s", label="erasing boot0 to reach the bootrom")
@@ -250,7 +265,7 @@ def stage_downgrade() -> bool:
 
 
 def stage_fastbrick() -> None:
-    fastbrick = FASTBRICKS[ARGUMENTS.target.device]
+    fastbrick = FASTBRICKS[current_device()]
     check_product()
     little_kernel = getvar(name="lk_build_desc", strict=True)
     if not little_kernel and getvar(name="pl_build_desc", strict=True):
@@ -293,7 +308,7 @@ def stage_fastbrick() -> None:
 def stage_fireos5_recovery() -> bool:
     if not unlocked_fastboot():
         return False
-    chain = FIREOS5_CHAINS[ARGUMENTS.target.device]
+    chain = FIREOS5_CHAINS[current_device()]
     amonet = unpack(download=chain.unlock.source)
     twrp = fetch(download=chain.recovery)
     PROGRESS.begin(

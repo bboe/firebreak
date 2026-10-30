@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from firebreak import __version__
 from firebreak.bootrom_write_test import bootrom_write_test
-from firebreak.cache import CACHE
+from firebreak.cache import CACHE, ERASED, HELD
 from firebreak.devices import BISCUIT, BY_NAME, TARGETS
 from firebreak.host import (
     adb_shell,
@@ -295,7 +295,7 @@ def write_test() -> None:
     PROGRESS.steps = None
     show(text=SUPPORT + "\n")
     about_host()
-    if SESSION.short:
+    if HELD.exists() or ERASED.exists():
         bootrom_write_test(line=line, payload=amonet_payload(), wheel=pyserial_wheel())
         return
     line("state", probed())

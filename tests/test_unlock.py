@@ -357,7 +357,7 @@ def test_a_locked_fastboot_is_left_for_its_own_stage(
 def test_a_too_new_bootloader_names_the_bootrom_only_for_the_dot(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    with pytest.raises(FatalError, match=r"README\.md's --short section") as caught:
+    with pytest.raises(FatalError, match=r"`firebreak bootrom --short` says") as caught:
         unlock.newer_than_known(little_kernel="abcdef0-20991231_235959")
     assert "Echo Dot (2nd Generation)" in caught.value.message
     monkeypatch.setattr(

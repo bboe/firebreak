@@ -330,21 +330,21 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   `/dev/ttyACM0`, and macOS names a port by its USB location. A port whose ID
   cannot be read yet, or that will not open yet, is looked at again on the
   next poll.
+- `--short` belongs to `firebreak bootrom` alone. A target run never asks for
+  a short: an Echo that shows no light is parked in its bootrom by
+  `firebreak bootrom --short` first, and the target run that follows joins the
+  payload waiting there, by the same hold a `stock 5.5.0.3` restore leaves. So
+  one command asks for the test point, and a run that writes firmware never
+  waits on an operator with a wire in hand.
 - `--short` needs `--device`. Nothing on USB says which Echo is dark, and the
   run has to name the test point before the owner shorts it, so the device
-  comes from the command line rather than from a guess. It also settles which
-  chain the bootrom writes, which the step used to take as biscuit's.
+  comes from the command line rather than from a guess.
 - Where the test point is differs by device, and nothing else about the short
   does: both are MT8163, both answer the same bootrom, and amonet ships one
   payload for the two. So a device whose test point no one has found, which
   today is radar, refuses `--short` unless the run also passes
   `--run-on-unproven-path`. The refusal is about the instruction firebreak
   cannot give, not about the exploit.
-- `--short` applies only to an Echo first seen with nothing on USB. Any other
-  state turns it off, so a later reboot cannot start the short flow. That
-  includes `starting`, which covers a probe that timed out as well as an Echo
-  half started; after a timeout the run asks for fastboot, and a rerun with
-  `--short` continues.
 - amonet takes any port that appears after it lists the ports at start. So
   `--short` asks for the short only once amonet logs that it is waiting, and
   sends no reset first: an Echo plugged in earlier would be in that list and
@@ -367,6 +367,81 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   comes up and amonet times out waiting for it, or the bootrom step's first
   read, the partition table's `55 AA`, fails. Both stop the run before amonet
   writes anything, and a new short starts over.
+
+## One command per entry point
+
+`firebreak fastboot`, `firebreak twrp` and `firebreak bootrom` reach one state
+and stop there. A target walks from wherever the Echo is to a goal, which makes
+testing a single stage mean reaching its state by hand first.
+
+- Each walks the states it can act on and waits out the rest. Where adb
+  answers, that is a reboot; where it does not, the device's own gesture, which
+  it waits for without a limit as a target run does. Any other state stops the
+  run rather than guessing: `twrp` refuses a booted Echo with no root, because
+  the recovery a reboot would reach is Amazon's, not a TWRP.
+- A state that does not move for 10 minutes stops the run, as it does for a
+  target. The gesture is the exception, because it waits on a person.
+- `fastboot` writes nothing. `twrp` writes nothing either where the bootloader
+  is already unlocked: it restarts into the recovery that is there and takes
+  it where a TWRP answers, because an unlocked Echo usually holds one. No TWRP
+  in 90 s means that recovery is not one, and the run says to power cycle and
+  come back with `--force`, which writes the device's own TWRP as the unlock
+  route does. A locked Echo has no such hope: `twrp` runs the fastbrick there,
+  which unlocks it and erases everything. `bootrom` clears boot0's header, or
+  erases boot0 from fastboot, which is what leaves an Echo startable from its
+  bootrom alone.
+- Every message names the Echo from what the run has read, which for these
+  commands is a device and never a target: a run with no target says `Echo`
+  where it knows the name, as `firebreak bootrom --short --device biscuit`
+  did. A prompt also names it when the question is asked, not when the table
+  of states is built, because `twrp` builds that table before `walk` reads
+  the Echo at all.
+- Neither write runs on a device firebreak cannot write a chain back through.
+  `bootrom` clears boot0 only where a bootrom unlock exists, and `twrp`
+  unlocks only where a fastbrick does, both checked before the question is
+  asked. An Echo Show 8 is the case that matters: it has no chain and no
+  fastbrick, and firebreak names it from its TWRP, so without the check
+  `bootrom` would clear its boot0 and leave nothing able to put a preloader
+  back.
+- An erase has to be called, not passed. `await_bootrom_port` takes the erase
+  only as a flag, to tell a preloader that appears from a failure, so the
+  caller runs it before it waits, as the unlock route does. A run that passes
+  the erase and never calls it waits for a bootrom on a Dot still sitting in
+  fastboot: measured on 2026-10-29, 133 seconds with nothing erased and
+  nothing restarted. The wait after an erase is a minute, as the route
+  allows, not the half hour a run that waits on a person gets.
+- The restart is `restart_refusals()` and nothing else, the same two commands
+  the unlock route sends after its write, so no image is sent. Calling the
+  unlock stage with `carries_twrp=False` would not do: that argument means the
+  route carried no TWRP into `recovery`, so it writes one without reading the
+  bootloader at all.
+- Nothing can read `recovery` from fastboot to settle it in advance, so trying
+  the restart is the only cheap way to find out: see
+  [Unlock: amonet v2](#unlock-amonet-v2) for what that fastboot does and does
+  not answer. The unlock route writes instead, because it needs a known TWRP
+  rather than any TWRP.
+- So each asks before it writes, says what the write does, and stops when the
+  answer is not `yes`. Ctrl-C at the question stops it too, and leaves the Echo
+  as it was. `--force` answers in advance. Nothing else in firebreak
+  asks a question, so a run whose input is not a terminal cannot be answered:
+  it stops and names `--force` rather than waiting on a prompt no one sees.
+- `bootrom` ends with amonet's payload holding the bootrom and a marker in the
+  cache, so the next run joins that payload. A second `bootrom` run finds that
+  hold and says so rather than reaching the bootrom again, as `fastboot` and
+  `twrp` report a state they are already in. Which device it is does not come
+  into holding a bootrom -- one payload runs on both, byte for byte -- so a
+  run with nothing on USB reads the name out of the marker rather than asking
+  for `--device`. With `--short` the marker is
+  `bootrom-held`, boot0 still holds a preloader, and a power cycle starts the
+  firmware and loses the hold. After an erase the marker is `boot0-erased`,
+  which outranks a hold, and the Echo starts nothing but its bootrom.
+- `write-test` takes the bootrom route when one of those markers is there,
+  rather than asking for a short of its own.
+- The three stages `twrp` reuses read their device from the target, which these
+  commands do not have. They read `current_device()` instead: the target's
+  device where a target names one, and `--device` where none does.
+  `tests/test_needs.py` resolves that call, so a stage's downloads are still
+  checked against its code.
 
 ## Recording a run
 
@@ -431,12 +506,22 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   that followed one skipped its `misc` write, which a write skips only when the
   partition already matches the image, so that Dot's `misc` still held what
   stock holds. That is as far as this is measured.
-- `fastboot reboot recovery`, spelled with a space, is measured on a radar
-  unlocked with amonet-radar v1.0.0, on `63cb91b-20221007_073612`: it answered
-  `OKAY` in 0.076 s and adb saw the recovery 24 seconds later. Biscuit's LK of
-  the same build, `63cb91b-20221007_072309`, answered the hyphenated spelling
-  in 0.463 s. So each spelling is measured on one of the two, and neither on
-  both.
+- The two spellings are one command. `fastboot reboot recovery` and
+  `fastboot reboot-recovery` both send `reboot-recovery`: the host validates
+  the target itself and rejects an unknown one without sending anything, read
+  on fastboot 37.0.0, which answers `usage: unknown reboot target xyzzy`. So
+  the radar's reading, `OKAY` in 0.076 s on `63cb91b-20221007_073612` with the
+  recovery up 24 s later, and the Dot's, 0.463 s on
+  `63cb91b-20221007_072309`, measure the same device command on two devices.
+- Both arrived in the same fastboot. Android 9's `fastboot.cpp` takes
+  `reboot [bootloader|emergency]` and holds no `reboot-recovery` at all;
+  Android 10's takes `bootloader`, `recovery` and `fastboot` as targets and
+  carries the command as well. So this step needs a fastboot from
+  platform-tools r29 or newer, where the start-up check asks only for `-S`,
+  which every release back to r19 has. An older host fails the command itself,
+  and the stage reads that like a refusal from the device: the message then
+  names the + button, and says the Echo's fastboot took neither command, for
+  what is the host's age.
 - A refusal the next command recovers from is dropped; `lk_build_desc`, which
   every report names, says which commands a bootloader has. Both failing prints
   what each said and asks for the + button. Ignoring those statuses cost that
@@ -575,6 +660,13 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   python.org `python.exe` by its full path or `uv run --managed-python
   --no-project python`. It does not name `py`: the launcher lists the Store
   Python too, and `py -3.13` ran it on that host.
+- Do not pipe a `fastboot` read into `head`. The closed pipe stops the host
+  part way through the transfer and leaves the rest of the device's answers
+  queued, so the next command reads the previous one's output: after a cut
+  `getvar all`, 2026-10-29, `fastboot fetch` printed `partition-size` lines
+  and `getvar product` answered with bytes that decode to nothing. The queue
+  drains by itself over the commands that follow, and the link then answers
+  in step again. No reboot and no replug were needed.
 - On a terminal, `ERROR:` lines are red and warnings yellow. `NO_COLOR`,
   `TERM=dumb`, a pipe or a file turns that off. On Windows only Windows
   Terminal (`WT_SESSION`) gets color; the old console prints the escape codes
@@ -838,7 +930,13 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   `fastboot-step.sh` does, but only where `lk_build_desc` is the one the
   device's unlock declares as its own. Nothing else promises a TWRP is there:
   a `stock` run writes no `recovery`, and a chain write stopped between its
-  reboot and its TWRP leaves whatever was there before. The gate is what makes
+  reboot and its TWRP leaves whatever was there before. Nothing can read it
+  back from there either, so the write is what makes the restart safe:
+  measured on amonet v2's LK `63cb91b-20221007_072309`, 2026-10-29,
+  `fastboot oem help` and `fastboot get_staged` both answer
+  `unknown command`, and `fastboot fetch` reports no `max-fetch-size` at all.
+  `getvar` gives each partition's size and type, which says nothing about its
+  contents. The gate is what makes
   the write safe, because a recovery image must match the execution state its
   LK starts a kernel in, and that state is a property of the chain: see
   [Which TWRP each route needs](#which-twrp-each-route-needs). An unlocked
@@ -847,6 +945,24 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   `lk.bin` reports because it patches Fire OS 6's LK and keeps its build
   string. A locked stock 8146 reports it too, so the string alone proves
   nothing; read in the unlocked branch, where a stock Dot cannot be, it does.
+- What that fastboot reports, read whole on 2026-10-29 from a Dot on amonet
+  v2.0.1: `unlock_status` `true`, `lk_build_desc`
+  `63cb91b-20221007_072309`, `pl_build_desc` `531fa14-20170929_175430`,
+  `kaeru-version` `2.0.0-gab93750`, `brom-cmd-dis` `0`, `rpmb_state` `1`,
+  `unlock_code` `0x16aab1acfcfd6bec`, `max-download-size` `0x6d00000`,
+  `boot-reason` `BCB`, `current-slot` `a`, `slot-count` `2`, `kernel` `lk`,
+  `prod` `1`, `warranty` `no`, `secure` `yes`, the three anti-rollback
+  versions, the serial, and a size and type for each of the 16 partitions.
+  `secure` stays `yes` on an unlocked Dot, so it says nothing about the
+  unlock.
+- Two of those are leads nothing here has followed. `kaeru-version` names the
+  payload amonet v2 writes to `expdb`, so a bootloader that reports one is
+  amonet's rather than a stock LK that shares its build string, which is what
+  the gate above works around. And `brom-cmd-dis` looks like the bootrom USBDL
+  fuse that `check_brom` reads from devinfo over the payload, which would tell
+  a device whose bootrom is reachable from plain fastboot. **Neither is read
+  from a stock LK, from amonet v1.1.0's, or from a device whose fuse is set**,
+  so both are one reading on one bootloader.
 - `unlock fireos5` overrides the stage, because for that target v2's fastboot
   can be the way into the bootrom. Where the bootloader is the declared one,
   the run writes that TWRP and continues from v2's TWRP to write v1.1.0's
@@ -1950,6 +2066,9 @@ ring read white.
 | amonet-booted | stock 5.5.0.3 | 3 min 38 s, on 2026-10-26, from rooted Fire OS 6: `[1/19]` to `[19/19]`, TWRP 19 s, both `/system` writes 80 s, the bootrom 5 s after the reboot, the RPMB 1 s, the preloader 8 s, and no reboot after it. It ended `waits in its bootrom`, with `bootrom-held` written and the payload still on its serial port. From v2's TWRP it is 18 steps, without the wait for TWRP |
 | bootrom, held | `unlock fireos6` | 6 min 05 s, on 2026-10-26, with no button held: joining the held payload under 1 s, then amonet v1.1.0 through it and TWRP by 1 min 35 s, v1.1.0's TWRP 19 s, amonet v2.0.1 and its TWRP by 1 min 55 s, and the fallback's installs 98 s and 115 s, `boot-root.zip` 9 s, rooted 8146's boot 24 s |
 | amonet-fastboot, on amonet v2's own bootloader | `unlock fireos5` | 7 min 40 s, on 2026-10-26, over 10 steps and with no bootrom: v2's TWRP 19 s, the table under 1 s, recovery 19 s, amonet v1.1.0-bboe 5 s, TWRP 4 s, userdata 3 s, `/system` 80 s, boot and Magisk 4 s, the preloader under 1 s, Fire OS 5's first boot 320 s. The run opened at 6 steps, and the gate's `False` re-planned it to 10. adb answered 24 s into that boot and held through setup mode |
+| amonet-booted | `twrp` | 20 s, on 2026-10-29, the first run of an entry command on hardware: one `adb reboot recovery`, amonet v2.0.1's TWRP up 19 s later, nothing written and nothing asked |
+| amonet-twrp | `fastboot` | 11 s, on 2026-10-29: one `adb reboot bootloader`, amonet's unlocked fastboot 10 s later, nothing written. A second run in either state reported it at once and did nothing |
+| amonet-fastboot | `twrp` | 19 s, on 2026-10-29, with no write: `restart_refusals()` alone, and v2.0.1's TWRP up 19 s later. The run before this one wrote the TWRP first and took 21 s, and the question it asked was Ctrl-C'd once, which left the Dot in that fastboot |
 | stock-fastboot, locked | `unlock fireos6 --factory-reset` | 4 min 58 s, on 2026-10-29, the first run of that path on 8149 rather than 8146: the fastbrick 8 s, v2's TWRP 34 s, the wipe 3 s, the installs 103 s and 115 s, `boot-root.zip` 9 s, rooted 8149's boot 23 s. The slot guard passed after each install. The 8146 runs above took 96 s and 115 s, and 98 s and 115 s, each from another starting state |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
@@ -2000,6 +2119,20 @@ hand and reading the ports back.
   `lk_a`'s first 356856 bytes hashed to amonet's own `bin/lk.bin`, by both
   md5 and sha256. So eMMC access through the bootrom agrees with eMMC access
   through TWRP.
+
+Measured again on 2026-10-30, on a rooted radar on Fire OS 6.5.5.5
+(NS6555/4315), over the entry commands rather than by hand.
+
+- Every entry point runs as it does on a Dot: `fastboot` from rooted Fire OS
+  in 8 s, `twrp` from that fastboot in 19 s, `fastboot` back in 8 s, each
+  reporting a state it was already in without touching the Echo. `bootrom`
+  erased boot0 from amonet's fastboot and had the payload in 2 s.
+- The bootloader read names this one. `reading which Echo this is` took 2 s
+  and said `Echo (2nd Generation)` with no `--device`, where `unlock` and
+  `stock` both name a target two devices share. So the read picks either
+  device from its own flash, not biscuit alone.
+- A second `bootrom` joined the hold in 2 s, and `fastboot` from that bootrom
+  refused and named `unlock`, as on a Dot.
 
 The consequence for the `stock` target is the part worth keeping. A radar
 restore clears boot0 at step 2 of 17 and writes the preloader back at step 16.

@@ -6,6 +6,12 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `firebreak fastboot`, `firebreak twrp` and `firebreak bootrom` reach one
+  entry point and stop there, so a stage can be tested from the state it
+  starts in. `twrp` on an unlocked Echo writes nothing: it restarts into the
+  recovery already there, and says to come back with `--force` where that is
+  not a TWRP. Each asks before a write it needs, and `--force` answers in
+  advance.
 - `stock 5.5.5.4` returns an Echo (2nd Generation) to Fire OS 5.5.5.4, where
   `stock` there took only the Fire OS 6 build it installs when left out.
 - `unlock fireos6 --factory-reset` installs the same build `stock` installs
@@ -24,9 +30,12 @@ This project adheres to [Semantic Versioning](https://semver.org).
 ### Changed
 
 - `--short` needs `--device`, and prints where that device's test point is
-  before it waits. `write-test` takes `--device` for the same reason. No one
-  has found the Echo (2nd Generation)'s test point, so `--short` on one stops
-  unless the run also passes `--run-on-unproven-path`.
+  before it waits. No one has found the Echo (2nd Generation)'s test point, so
+  `--short` on one stops unless the run also passes `--run-on-unproven-path`.
+- `--short` belongs to the new `bootrom` command alone. `stock`, `unlock` and
+  `write-test` no longer take it: park the Echo with
+  `firebreak bootrom --short` first, and the run after it joins the payload
+  waiting there.
 - `unlock fireos6` roots the Fire OS 6 build already installed, with no wipe
   and no OTA install, so a device set up in the Alexa app keeps its Wi-Fi and
   Alexa setup. `--factory-reset` erases userdata and installs the target's

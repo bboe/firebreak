@@ -12,8 +12,8 @@ browser for the thread instead, because the thread itself refuses an
 unattended download. Either way the zip is checked against a pinned hash.
 Moving an already-unlocked Dot between targets
 needs that zip too, because the run checks the bootloader against the copy in
-it, and so do the runs that go through the Dot's bootrom: `--short`, a resume
-after `boot0` was erased, and `stock 5.5.0.3`.
+it, and so do the runs that go through the Dot's bootrom: `firebreak bootrom`, a
+resume after `boot0` was erased, and `stock 5.5.0.3`.
 
 | target | the device ends with | time |
 | --- | --- | --- |
@@ -150,12 +150,28 @@ held; power the Dot off and it starts Fire OS 5 instead.
 down 10 seconds first, which is the last point Ctrl-C leaves the device as it
 is. Only the `stock` target takes it.
 
-## `--short`
+## One command per entry point
 
-Use `--short` when the Dot shows no light and gives no fastboot. The run reaches
-the Dot's bootrom by shorting its eMMC bus as it powers up, writes the amonet
-the target needs, and then continues to that target. It takes any target;
-`--short` to `unlock fireos6` has not been run on a Dot.
+A target run starts wherever the device is, so testing one stage means
+reaching its state first. Three commands do only that, and stop there.
+
+| command | where it leaves the device | writes |
+| --- | --- | --- |
+| `firebreak fastboot` | the fastboot its bootloader gives | nothing |
+| `firebreak twrp` | its TWRP | nothing, where the bootloader is unlocked and its recovery holds a TWRP; `--force` writes one |
+| `firebreak bootrom` | its bootrom, with amonet's payload holding it | boot0's header from a recovery, all of boot0 from fastboot |
+| `firebreak bootrom --short` | the same, with the test point shorted | nothing |
+
+Each asks before a write and says what the write does. `--force` answers in
+advance, and a run with no terminal to ask at stops and names it.
+
+## `bootrom --short`
+
+Use `firebreak bootrom --short` when the Dot shows no light and gives no
+fastboot. It reaches the Dot's bootrom by shorting its eMMC bus as it powers
+up, and holds it there. The run after it joins that payload with no second
+short, so this is how a target run starts on a Dot that cannot reach fastboot.
+Only this command asks for a short.
 
 1. Open the Dot with a Torx T8 screwdriver. Lift the shield's lid off the eMMC
    by its corners; its metal frame stays on the board.
@@ -164,12 +180,15 @@ the target needs, and then continues to that target. It takes any target;
    between R60 and C52 beside the eMMC ([where that is on the
    board](https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/)). Do not
    use C52, which is a capacitor.
-3. With the Dot unplugged, run `uvx firebreak@latest unlock fireos5 --short`.
+3. With the Dot unplugged, run
+   `uvx firebreak@latest bootrom --device biscuit --short`.
 4. When firebreak prints "Short … test point and plug it in", hold a wire from
    that passive to the shield frame beside it, which is ground, and plug the Dot
    in. A Dot plugged in before that message can go unseen. On "Short … missed",
    unplug it and try again.
 5. Take the wire off when firebreak prints "The short may come off now".
+6. Leave the Dot plugged in, and run the target you want, such as
+   `uvx firebreak@latest unlock`. A power cycle loses the hold.
 
 ## Reporting a problem
 
@@ -199,10 +218,11 @@ partition and read it back, so nothing crosses USB. It erases `cache`, which
 holds nothing the Dot needs, and leaves an empty filesystem there, or says
 it could not.
 
-For a Dot that shows no light, `write-test --short` reaches its bootrom as
-[`--short`](#--short) does, writes a pattern over the end of `cache` from this
-computer, and reads it back. It says whether the eMMC refused a write or the
-bytes did not arrive, and puts back what was there when the Dot still answers.
+For a Dot that shows no light, run [`bootrom --short`](#bootrom---short)
+first; `write-test` then goes through the payload waiting there, writes a
+pattern over the end of `cache` from this computer, and reads it back. It says
+whether the eMMC refused a write or the bytes did not arrive, and puts back
+what was there when the Dot still answers.
 
 ## Credits
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import io
 import sys
 import time
@@ -25,6 +26,41 @@ def test_a_fatal_error_is_said_whole_until_it_is_stopped() -> None:
     assert str(error) == "ERROR: " + "word " * 30
     assert error.message == "word " * 30
     assert ui.SESSION.shown is None
+
+
+def test_a_write_is_asked_about_once(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="isatty", target=sys.stdin, value=lambda: True)
+    monkeypatch.setattr(name="isatty", target=sys.stdout, value=lambda: True)
+    monkeypatch.setattr(name="input", target=builtins, value=lambda _: " YES \n")
+    ui.confirm(force=False, what="this writes")
+    assert "this writes." in capsys.readouterr().out
+    monkeypatch.setattr(name="input", target=builtins, value=lambda _: "no")
+    with pytest.raises(ui.FatalError, match="Nothing was written"):
+        ui.confirm(force=False, what="this writes")
+
+
+def test_a_write_is_asked_about_with_the_ticker_stopped(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="isatty", target=sys.stdin, value=lambda: True)
+    monkeypatch.setattr(name="isatty", target=sys.stdout, value=lambda: True)
+    monkeypatch.setattr(name="input", target=builtins, value=lambda _: "yes")
+    ui.PROGRESS.begin(estimate="40 s", label="waiting for fastboot")
+    assert ui.PROGRESS.ticker is not None
+    ui.confirm(force=False, what="this writes")
+    assert ui.PROGRESS.ticker is None
+    assert "this writes." in capsys.readouterr().out
+
+
+def test_a_write_with_no_terminal_to_ask_at_names_force(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="isatty", target=sys.stdin, value=lambda: False)
+    with pytest.raises(ui.FatalError, match="Pass --force to write anyway"):
+        ui.confirm(force=False, what="this writes")
+    ui.confirm(force=True, what="this writes")
 
 
 @pytest.mark.parametrize(
@@ -320,6 +356,14 @@ def test_stop_is_plain_without_color() -> None:
     with pytest.raises(expected_exception=SystemExit) as raised:
         ui.stop(error=ui.FatalError(message="one\ntwo", prefix=""))
     assert str(raised.value) == "one\ntwo"
+
+
+def test_title_names_the_device_a_run_with_no_target_read(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="target", target=ui.ARGUMENTS, value="")
+    monkeypatch.setattr(name="device", target=ui.SESSION, value=RADAR)
+    assert ui.title() == "Echo (2nd Generation)"
 
 
 @pytest.mark.parametrize(

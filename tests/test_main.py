@@ -340,9 +340,12 @@ def test_a_short_names_the_device_whose_test_point_to_short(
 ) -> None:
     ran(device=BISCUIT, monkeypatch=monkeypatch)
     monkeypatch.setattr(
+        name="bootrom_entry", target=main, value=lambda **_: sys.exit(0)
+    )
+    monkeypatch.setattr(
         name="argv",
         target=sys,
-        value=["firebreak", "stock", "8149", "--device", "biscuit", "--short"],
+        value=["firebreak", "bootrom", "--device", "biscuit", "--short"],
     )
     with pytest.raises(SystemExit):
         main.cli()
@@ -353,7 +356,7 @@ def test_a_short_needs_a_device(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        name="argv", target=sys, value=["firebreak", "stock", "--short"]
+        name="argv", target=sys, value=["firebreak", "bootrom", "--short"]
     )
     with pytest.raises(SystemExit):
         main.parsed()
@@ -364,7 +367,10 @@ def test_a_short_on_a_device_with_no_test_point_found(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ran(device=RADAR, monkeypatch=monkeypatch)
-    short = ["firebreak", "stock", "6436", "--device", "radar", "--short"]
+    monkeypatch.setattr(
+        name="bootrom_entry", target=main, value=lambda **_: sys.exit(0)
+    )
+    short = ["firebreak", "bootrom", "--device", "radar", "--short"]
     monkeypatch.setattr(name="argv", target=sys, value=short)
     with pytest.raises(
         main.FatalError,
@@ -376,7 +382,6 @@ def test_a_short_on_a_device_with_no_test_point_found(
     )
     with pytest.raises(SystemExit):
         main.cli()
-    assert main.ARGUMENTS.build == "6436"
     assert main.SESSION.short_gesture == ""
 
 
@@ -437,12 +442,12 @@ def test_no_newer_release_says_nothing(
     argnames=("arguments", "parsed"),
     argvalues=[
         (
-            ["--short", "--device", "biscuit", "stock"],
-            ("stock", "", True, "biscuit", False),
+            ["--short", "--device", "biscuit", "bootrom"],
+            ("bootrom", "", True, "biscuit", False),
         ),
         (
-            ["stock", "4315", "--short", "--device", "biscuit"],
-            ("stock", "4315", True, "biscuit", False),
+            ["bootrom", "--short", "--device", "biscuit"],
+            ("bootrom", "", True, "biscuit", False),
         ),
         (
             ["--verbose", "--device", "biscuit", "unlock", "fireos6"],
@@ -453,12 +458,12 @@ def test_no_newer_release_says_nothing(
             ("unlock", "", False, "biscuit", True),
         ),
         (
-            ["--short", "--device", "biscuit", "write-test"],
-            ("write-test", "", True, "biscuit", False),
+            ["--device", "biscuit", "write-test"],
+            ("write-test", "", False, "biscuit", False),
         ),
         (
-            ["write-test", "--short", "--device", "biscuit"],
-            ("write-test", "", True, "biscuit", False),
+            ["write-test", "--device", "biscuit"],
+            ("write-test", "", False, "biscuit", False),
         ),
         (["report", "--verbose"], ("report", "", False, None, True)),
     ],

@@ -176,7 +176,7 @@ def test_a_bootrom_step_that_finds_a_preloader_is_not_counted(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
     run.bootrom_answer = False
-    route.SESSION.short = True
+    route.ERASED.touch()
     monkeypatch.setattr(name="stages", target=route, value=dict)
     run.states = [route.State.NONE, route.State.AMONET_FIREOS5_BBOE_BOOTED]
     route.root()

@@ -143,11 +143,11 @@ class Session:
     fastboot: bool = False
     held: bool = False
     named: str = ""
-    short_gesture: str = ""
     no_wait: bool = False
     probing: bool = False
     serial_ready: bool | None = None
     short: bool = False
+    short_gesture: str = ""
     shown: Kind | None = None
     system_lock: threading.Lock = dataclasses.field(default_factory=threading.Lock)
     verified: set[pathlib.Path] = dataclasses.field(default_factory=set)
@@ -187,6 +187,22 @@ def color(*, stream: TextIO) -> bool:
     if os.name == "nt" and "WT_SESSION" not in os.environ:
         return False
     return stream.isatty()
+
+
+def confirm(*, force: bool, what: str) -> None:
+    if force:
+        return
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        raise FatalError(
+            message=f"{what}, and this input is not a terminal, so nothing here"
+            " can ask whether that is wanted. Pass --force to write anyway."
+        )
+    if PROGRESS.halt():
+        print()
+    warn(text=f"{what}.")
+    if input("Type yes to continue: ").strip().lower() != "yes":
+        raise FatalError(message="Nothing was written.")
+    print()
 
 
 def explained(*, error: FatalError) -> str:
@@ -300,6 +316,8 @@ def stop(*, error: FatalError) -> NoReturn:
 def title() -> str:
     if ARGUMENTS.target:
         return ARGUMENTS.target.device.title
+    if SESSION.device is not None:
+        return SESSION.device.title
     return SESSION.named or "Echo"
 
 

@@ -405,19 +405,14 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             ERASED.unlink(missing_ok=True)
             HELD.unlink(missing_ok=True)
         SESSION.boot0_marker = ERASED
-        if current != State.NONE:
-            SESSION.short = False
-        parked = ERASED.exists() or HELD.exists() or SESSION.short
+        parked = ERASED.exists() or HELD.exists()
         if current == State.NONE and parked and not (resumed or SESSION.held):
             if target.device not in BOOTROM_UNLOCKS:
-                if ERASED.exists():
-                    why = (
-                        "has an erased boot0, which only its bootrom can start it from"
-                    )
-                elif HELD.exists():
-                    why = "waits in its bootrom, where a restore left it"
-                else:
-                    why = "was asked for with --short, which waits for its bootrom"
+                why = (
+                    "has an erased boot0, which only its bootrom can start it from"
+                    if ERASED.exists()
+                    else "waits in its bootrom, where another run left it"
+                )
                 raise FatalError(
                     message=f"this {target.device.title} {why}, and firebreak has"
                     " no bootrom chain for it, so nothing was done."
@@ -438,7 +433,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     f" {title()} plugged in: unplugging it starts the stock firmware"
                     " and loses the hold."
                 )
-            elif not SESSION.short:
+            else:
                 warn(
                     text=(
                         "This run erased boot0"

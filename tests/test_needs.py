@@ -20,12 +20,15 @@ AMONET_LKS = {
     BISCUIT: (biscuit.V2_0_1_SOURCE, biscuit.V1_1_0_SOURCE),
     RADAR: (radar.SOURCE,),
 }
+CALLED = frozenset({"current_device"})
 EVERY_TARGET = [
     (device, name) for device, targets in TARGETS.items() for name in sorted(targets)
 ]
 PURE = (
     ast.Attribute,
     ast.BoolOp,
+    ast.Call,
+    ast.keyword,
     ast.Compare,
     ast.Constant,
     ast.IfExp,
@@ -183,10 +186,19 @@ def test_every_need_a_stage_declares_can_be_called(
 def value_of(*, node: ast.expr, scope: dict[str, object]) -> object:
     if not all(isinstance(part, PURE) for part in ast.walk(node)):
         return UNRESOLVED
+    calls = [part for part in ast.walk(node) if isinstance(part, ast.Call)]
+    if any(
+        not isinstance(call.func, ast.Name)
+        or call.func.id not in CALLED
+        or call.args
+        or call.keywords
+        for call in calls
+    ):
+        return UNRESOLVED
     try:
         return eval(  # ruff: ignore[suspicious-eval-usage]
             compile(ast.Expression(body=node), filename="<scan>", mode="eval"),
-            dict(scope),
+            {"current_device": unlock.current_device, **scope},
         )
     except Exception:  # ruff: ignore[blind-except]
         return UNRESOLVED
