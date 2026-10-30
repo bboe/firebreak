@@ -111,11 +111,6 @@ def test_cache_note(
     said = capsys.readouterr().out
     assert said.startswith("~/cache holds 3 MB of downloads")
     assert "It is safe to delete." in said
-    cache.HELD.write_text("biscuit")
-    cache.cache_note()
-    said = capsys.readouterr().out
-    assert "Keep bootrom-held" in said
-    assert "the rest is safe to delete" in said
 
 
 @pytest.mark.parametrize(

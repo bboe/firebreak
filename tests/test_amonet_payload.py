@@ -16,6 +16,7 @@ MEASURED = {
     "BLOCK_SIZE": 0x200,
     "PAYLOAD_MAGIC": 0xF00DD00D,
     "PAYLOAD_READY": b"\xb1\xb2\xb3\xb4",
+    "PROBE_TIMEOUT": 0.5,
 }
 MEASURED_ENUMS = {
     "Command": [

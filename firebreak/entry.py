@@ -14,7 +14,7 @@ from firebreak.bootrom_step import (
     payload_device,
     poke_live_payload,
 )
-from firebreak.cache import ERASED, HELD
+from firebreak.cache import ERASED
 from firebreak.devices import BOOTROM_UNLOCKS, DEVICES, FASTBRICKS
 from firebreak.host import pyserial_wheel, run
 from firebreak.identify import POLL, identify
@@ -47,7 +47,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from firebreak.amonet.biscuit_v2_0_0 import Client
-    from firebreak.bootrom import Bootrom
     from firebreak.plugin import Device
 
 BOOTROM = "bootrom"
@@ -92,8 +91,6 @@ WAYS_OUT = {
 
 
 def answering() -> Client | None:
-    if not HELD.exists():
-        return None
     with_pyserial()
     return answering_payload()
 
@@ -126,12 +123,6 @@ def awaiting() -> str:
             " Power it on: its bootrom answers for about 40 seconds, and this"
             " run takes it from there."
         )
-    if HELD.exists():
-        return (
-            f"A payload was holding this {known()}'s bootrom, and nothing is on"
-            " USB, so that hold is gone. Plug it back in: it starts the"
-            " firmware boot0 still holds, and this run clears boot0 from there."
-        )
     return (
         f"Waiting for the {known()} on USB. A reboot reads this way until it"
         " comes back."
@@ -142,15 +133,12 @@ def bootrom_device() -> Device | None:
     if state() != State.BOOTROM:
         return None
     live = answering()
-    held = live is not None
     if live is None:
-        live = reached(erase=None)[1]
+        live = reached(erase=None)
     PROGRESS.end()
     device = payload_device(live=live)
     with contextlib.suppress(OSError):
         live.port.close()
-    if not held:
-        HELD.write_text("" if device is None else device.name)
     SESSION.device = device or SESSION.device
     return device
 
@@ -160,7 +148,7 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
     noticed()
     if short:
         SESSION.short = True
-        parked(payload=reached(erase=None))
+        parked(live=reached(erase=None))
         return
     current = awaited()
     if current == State.BOOTROM:
@@ -171,7 +159,7 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
                 live.port.close()
             passed(message=f"The {known()} already waits in its bootrom.")
             return
-        parked(payload=reached(erase=None))
+        parked(live=reached(erase=None))
         return
     if current in TO_TWRP:
         current = walk(
@@ -190,7 +178,7 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
         ERASED.write_text(device.name)
         clear_boot0()
         run(arguments=["adb", "reboot"], timeout=60)
-        parked(payload=reached(erase=None))
+        parked(live=reached(erase=None))
     elif current in FASTBOOTS - LOCKED_FASTBOOTS:
         device = chainable()
         confirm(
@@ -199,7 +187,7 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
             " bootrom alone, until something writes a preloader back",
         )
         ERASED.write_text(device.name)
-        parked(payload=reached(erase=erase_by_fastboot))
+        parked(live=reached(erase=erase_by_fastboot))
     elif current in LOCKED_FASTBOOTS:
         raise FatalError(
             message=f"this {known()} is locked, and a locked bootloader"
@@ -258,10 +246,9 @@ def known_device() -> Device:
 
 
 def marked() -> Device | None:
-    for marker in (ERASED, HELD):
-        if marker.exists():
-            name = marker.read_text(encoding="utf-8").strip()
-            return next((each for each in DEVICES if each.name == name), None)
+    if ERASED.exists():
+        name = ERASED.read_text(encoding="utf-8").strip()
+        return next((each for each in DEVICES if each.name == name), None)
     return None
 
 
@@ -270,15 +257,13 @@ def noticed() -> None:
         SESSION.device = identify().device
 
 
-def parked(*, payload: tuple[Bootrom, Client]) -> None:
+def parked(*, live: Client) -> None:
     PROGRESS.end()
-    client, live = payload
     named = payload_device(live=live)
     if named is not None and SESSION.device not in {None, named}:
-        HELD.write_text(named.name)
         SESSION.held = True
         with contextlib.suppress(OSError):
-            client.port.close()
+            live.port.close()
         raise FatalError(
             message=f"this Echo's bootloader names it an {named.title}, not the"
             f" {known()} this run was told to expect. The payload holds its"
@@ -288,8 +273,7 @@ def parked(*, payload: tuple[Bootrom, Client]) -> None:
         )
     SESSION.device = named or SESSION.device
     with contextlib.suppress(OSError):
-        client.port.close()
-    HELD.write_text("" if SESSION.device is None else SESSION.device.name)
+        live.port.close()
     SESSION.held = True
     passed(message=f"The {known()} waits in its bootrom.")
     say(
@@ -305,7 +289,7 @@ def parked(*, payload: tuple[Bootrom, Client]) -> None:
     )
 
 
-def reached(*, erase: Callable[[], str] | None) -> tuple[Bootrom, Client]:
+def reached(*, erase: Callable[[], str] | None) -> Client:
     with_pyserial()
     payload = amonet_payload()
     if SESSION.short:
@@ -317,12 +301,14 @@ def reached(*, erase: Callable[[], str] | None) -> tuple[Bootrom, Client]:
     elif not SESSION.short:
         poke_live_payload()
     PROGRESS.begin(estimate="15 s", label="starting amonet's payload")
-    client = bootrom_client(
+    client, live = bootrom_client(
         deadline=time.monotonic() + waiting(erase=erase), erase=erase
     )
+    if live is not None:
+        return live
     if client is None:
         raise FatalError(message=f"the {known()} did not reach its bootrom.")
-    return client, exploit(client=client, payload=payload)
+    return exploit(client=client, payload=payload)
 
 
 def restarted() -> None:

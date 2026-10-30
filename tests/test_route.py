@@ -198,14 +198,12 @@ def test_a_bootrom_that_answers_keeps_the_markers_a_run_left(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
     route.ERASED.touch()
-    route.HELD.touch()
     monkeypatch.setattr(name="held", target=route.SESSION, value=True)
     monkeypatch.setattr(name="stages", target=route, value=dict)
     run.states = [route.State.BOOTROM]
     with pytest.raises(RanOutError):
         route.root()
     assert route.ERASED.exists()
-    assert route.HELD.exists()
 
 
 def test_a_browser_download_comes_first(*, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -415,14 +413,12 @@ def test_a_preloader_is_waited_through_and_keeps_the_markers(
     *, monkeypatch: pytest.MonkeyPatch, run: Run
 ) -> None:
     route.ERASED.touch()
-    route.HELD.touch()
     monkeypatch.setattr(name="held", target=route.SESSION, value=True)
     monkeypatch.setattr(name="stages", target=route, value=dict)
     run.states = [route.State.PRELOADER]
     with pytest.raises(RanOutError):
         route.root()
     assert route.ERASED.exists()
-    assert route.HELD.exists()
 
 
 def test_a_preloader_that_never_chains_names_the_test_point(
@@ -744,10 +740,10 @@ def test_a_run_waiting_for_the_gesture_downloads_the_fastboot_route(
     assert run.prefetched == []
 
 
-def test_a_seen_state_clears_the_bootrom_hold(
+def test_a_seen_state_clears_the_erased_marker(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    route.HELD.touch()
+    route.ERASED.touch()
     states = iter([route.State.BOOTED])
 
     def state() -> route.State:
@@ -769,7 +765,7 @@ def test_a_seen_state_clears_the_bootrom_hold(
     )
     with pytest.raises(KeyboardInterrupt):
         route.root()
-    assert not route.HELD.exists()
+    assert not route.ERASED.exists()
 
 
 def test_a_short_run_takes_the_chain_its_target_wants(*, run: Run) -> None:

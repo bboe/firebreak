@@ -22,7 +22,6 @@ from firebreak.bootrom_step import (
     exploit,
     poke_live_payload,
 )
-from firebreak.cache import HELD
 from firebreak.mediatek.usbdl import UsbdlError
 from firebreak.plan import TABLE_SECTORS
 from firebreak.ui import FatalError, again, show, status, title
@@ -65,15 +64,20 @@ def bootrom_write_test(
 ) -> None:
     if wheel is not None and str(wheel) not in sys.path:
         sys.path.insert(0, str(wheel))
-    live = answering_payload() if HELD.exists() else None
+    live = answering_payload()
     joined = live is not None
     if live is None:
         status(text="Waiting for the bootrom, where a run left this Echo.")
         poke_live_payload()
-        client = bootrom_client(deadline=time.monotonic() + REPLUG_WAIT, erase=None)
-        if client is None:
+        client, late = bootrom_client(
+            deadline=time.monotonic() + REPLUG_WAIT, erase=None
+        )
+        if late is not None:
+            live, joined = late, True
+        elif client is None:
             raise FatalError(message=f"the {title()} started its preloader. " + again())
-        live = exploit(client=client, payload=payload)
+        else:
+            live = exploit(client=client, payload=payload)
     check_emmc(live=live)
     try:
         synced = legs(line=line, live=live)

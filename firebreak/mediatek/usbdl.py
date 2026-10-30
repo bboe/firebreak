@@ -163,6 +163,8 @@ class ProductId(enum.IntEnum):
 
 
 class SerialPort(Protocol):
+    timeout: float | None
+
     def read(self, *, size: int) -> bytes: ...
 
     def reset_input_buffer(self) -> None: ...

@@ -9,13 +9,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import cache, host, ui
+from firebreak import cache, host, identify, ui
 from firebreak.devices import BISCUIT, DEFAULTS, TARGETS
 from firebreak.mediatek import gcpu, usbdl
 
 if TYPE_CHECKING:
     import pathlib
     from collections.abc import Callable, Iterator
+
+DEFINED = {(usbdl, "mediatek_ports")}
+REAL_USB_DEVICES = identify.usb_devices
 
 
 class FakeAdb:
@@ -77,6 +80,7 @@ class FakePort:
         self.flushes = 0
         self.replies = bytearray(replies)
         self.short = short
+        self.timeout: float | None = None
         self.written = bytearray()
 
     def read(self, *, size: int) -> bytes:
@@ -117,9 +121,10 @@ def no_real_cache(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) ->
         for attribute, value in (
             ("CACHE", directory),
             ("ERASED", directory / "boot0-erased"),
-            ("HELD", directory / "bootrom-held"),
+            ("mediatek_ports", no_real_ports),
+            ("usb_devices", no_real_usb),
         ):
-            if hasattr(module, attribute):
+            if hasattr(module, attribute) and (module, attribute) not in DEFINED:
                 monkeypatch.setattr(name=attribute, target=module, value=value)
     monkeypatch.setenv(name="HOME", value=str(tmp_path / "real-home"))
     monkeypatch.setenv(name="USERPROFILE", value=str(tmp_path / "real-home"))
@@ -140,6 +145,11 @@ def adb(*, monkeypatch: pytest.MonkeyPatch) -> FakeAdb:
                 )
     monkeypatch.setattr(name="sleep", target=time, value=lambda _: None)
     return fake
+
+
+@pytest.fixture
+def real_usb_devices(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(name="usb_devices", target=identify, value=REAL_USB_DEVICES)
 
 
 def acquire_replies() -> bytes:
@@ -218,6 +228,14 @@ def function_replies(*, status: int) -> bytes:
             words=(gcpu.Interrupt.BOTH,),
         )
     )
+
+
+def no_real_ports() -> dict[str, int | None]:
+    return {}
+
+
+def no_real_usb() -> list[object]:
+    return []
 
 
 def opened_a_browser(**options: str) -> None:

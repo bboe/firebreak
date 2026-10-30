@@ -41,6 +41,12 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - `--run-on-unproven-path` is gone. It gated `--short` on a device with no
   known test point, which writes nothing and so needed no gate, and a target
   that says it is unproven, which no target says.
+- The `bootrom-held` file in the cache is gone. A run now asks the Echo
+  whether a payload is holding its bootrom, by sending the first byte of a
+  payload command and watching for the bootrom's echo of it, so the two
+  states are told apart on the wire rather than from what the last run wrote
+  down. A stale file used to change what a run did to an Echo. `boot0-erased`
+  stays, because a powered-off Echo cannot be asked what boot0 holds.
 - `--short` belongs to the new `bootrom` command alone. `stock`, `unlock` and
   `write-test` no longer take it: park the Echo with
   `firebreak bootrom --short` first, and the run after it joins the payload

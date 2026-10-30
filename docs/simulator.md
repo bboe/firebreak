@@ -36,8 +36,7 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   a run builds there stays for the next run.
 - State and the trace are in `~/.cache/firebreak-sim`. `FIREBREAK_SIM` and
   `FIREBREAK_SIM_CACHE` move the two, so several Dots can run at once. Each
-  Dot needs its own pair: firebreak keeps its boot0-erased marker in the
-  cache.
+  Dot needs its own pair, so one Dot's downloads and images are not another's.
 - `create` refuses a `FIREBREAK_SIM_CACHE`, or a `firebreak` folder in it,
   that is the same directory as `~/.cache` or `~/.cache/firebreak`, or as
   `$XDG_CACHE_HOME` or its `firebreak` folder. It compares device and inode,
@@ -69,10 +68,9 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   unlock takes amonet-radar v1.0.0's archive and its own fastbrick map, which
   the simulated radar checks the flashed payload against.
 - `report` and `write-test` take any start, because `run.sh` passes the target
-  through as a command. `write-test` takes the bootrom route where a marker
-  says a bootrom holds the Echo, so `bootrom --short` first is the way here to
-  reach the bootrom write test. Both commands return before a target is
-  chosen.
+  through as a command. `write-test` takes the bootrom route where the Echo
+  reads as a bootrom, so `bootrom --short` first is the way here to reach the
+  bootrom write test. Both commands return before a target is chosen.
 - `START=no-light` takes either device. `bootrom.py` reads its payloads from
   the biscuit archives, and that is enough for a radar because every archive
   ships the same one: `brom-payload/build/payload.bin` is 20060 bytes and byte
@@ -371,6 +369,13 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - The bootrom is `simulator/bootrom.py`, on a pseudo-terminal, started at the boot
   into the bootrom. It runs no code. It answers the handshake, `0xd1`,
   `0xd4` and `0xc8`.
+- Waiting for the handshake, it answers any other byte with that byte plus
+  one, as a real bootrom does, so `0xf0` comes back as `0xf1`. That is what a
+  run's probe reads to tell a bare bootrom from a payload holding one. Until
+  it did, the simulated bootrom stayed silent and every probe took the answer
+  for a payload's, then spent the 5 second read timeout on a block that never
+  came: 25 s against 19 s on the payload step of a `bootrom --force`, in the
+  simulator's own clock.
 - The crypto engine at `0x10210000` answers function 126 only after the
   acquire words, with length 1 and slot pointers 18, 26, 26. It then writes
   the input words XOR the zero decryption to the destination.

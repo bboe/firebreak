@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import cache, identify, support, ui, unlock
+from firebreak import identify, support, ui, unlock
 from firebreak.devices import BISCUIT, RADAR, biscuit
 from firebreak.identify import Identity, UsbDevice
 from firebreak.states import State
@@ -454,7 +454,6 @@ def test_the_write_test_leaves_a_stale_hold_for_a_booted_echo(
     )
     monkeypatch.setattr(name="state", target=support, value=lambda: State.ROOTED)
     monkeypatch.setattr(name="into_recovery", target=support, value=lambda **_: False)
-    cache.HELD.touch()
     support.write_test()
     assert ran == []
 
@@ -483,7 +482,6 @@ def test_the_write_test_on_a_held_echo_goes_through_the_bootrom(
     )
     monkeypatch.setattr(name="pyserial_wheel", target=support, value=lambda: None)
     monkeypatch.setattr(name="state", target=support, value=lambda: State.BOOTROM)
-    cache.HELD.touch()
     support.write_test()
     assert legs == []
     assert ran[0]["payload"] == "payload.bin"

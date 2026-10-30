@@ -91,7 +91,9 @@ def stubbed(*, monkeypatch: pytest.MonkeyPatch) -> types.SimpleNamespace:
         name="poke_live_payload", target=bootrom_write_test, value=lambda: None
     )
     monkeypatch.setattr(
-        name="bootrom_client", target=bootrom_write_test, value=lambda **_: rig.client
+        name="bootrom_client",
+        target=bootrom_write_test,
+        value=lambda **_: (rig.client, None),
     )
     monkeypatch.setattr(
         name="check_emmc", target=bootrom_write_test, value=lambda **_: None
@@ -157,7 +159,9 @@ def test_a_dot_that_starts_its_preloader_stops_the_test(
     *, monkeypatch: pytest.MonkeyPatch, stubbed: types.SimpleNamespace
 ) -> None:
     monkeypatch.setattr(
-        name="bootrom_client", target=bootrom_write_test, value=lambda **_: None
+        name="bootrom_client",
+        target=bootrom_write_test,
+        value=lambda **_: (None, None),
     )
     with pytest.raises(FatalError, match="started its preloader"):
         write_test(rig=stubbed)
@@ -204,7 +208,6 @@ def test_a_held_payload_is_joined_rather_than_handshaked(
     monkeypatch.setattr(
         name="bootrom_client", target=bootrom_write_test, value=handshake
     )
-    bootrom_write_test.HELD.touch()
     write_test(rig=stubbed)
     assert not stubbed.emmc.rebooted
     assert closed == [1]

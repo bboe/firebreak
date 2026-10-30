@@ -278,14 +278,13 @@ def test_a_name_two_devices_share_is_refused_on_an_echo_in_its_bootrom(
     )
 
 
-def test_a_name_two_devices_share_is_taken_from_a_held_echo_s_marker(
+def test_a_name_two_devices_share_is_taken_from_an_erased_echo_s_marker(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
     connected(monkeypatch=monkeypatch)
     monkeypatch.setattr(name="ERASED", target=identify, value=tmp_path / "erased")
-    monkeypatch.setattr(name="HELD", target=identify, value=tmp_path / "held")
     monkeypatch.setattr(name="sleep", target=identify.time, value=pytest.fail)
-    (tmp_path / "held").write_text("biscuit")
+    (tmp_path / "erased").write_text("biscuit")
     assert (
         identify.choose_target(device=None, name="stock") == TARGETS[BISCUIT]["stock"]
     )
@@ -477,6 +476,7 @@ def test_android_serial_matches_whatever_its_case(
     assert identify.echo_devices() == [AEOBC]
 
 
+@pytest.mark.usefixtures("real_usb_devices")
 def test_another_platform_lists_nothing(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="platform", target=identify.sys, value="freebsd")
     assert identify.usb_devices() == []
@@ -490,6 +490,7 @@ def test_another_platform_lists_nothing(*, monkeypatch: pytest.MonkeyPatch) -> N
         ("win32", "windows_devices"),
     ],
 )
+@pytest.mark.usefixtures("real_usb_devices")
 def test_each_platform_uses_its_own_reader(
     *, monkeypatch: pytest.MonkeyPatch, platform: str, reader: str
 ) -> None:

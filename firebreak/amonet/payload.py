@@ -17,6 +17,7 @@ ACKNOWLEDGEMENT = b"\xd0\xd0\xd0\xd0"
 BLOCK_SIZE = 0x200
 PAYLOAD_MAGIC = 0xF00DD00D
 PAYLOAD_READY = b"\xb1\xb2\xb3\xb4"
+PROBE_TIMEOUT = 0.5
 
 
 class Command(enum.IntEnum):
@@ -43,11 +44,22 @@ class Payload(Connection):
         )
 
     def _send(self, *, arguments: Sequence[int] = (), command: int) -> None:
-        self.port.write(
-            data=struct.pack(
-                f">{2 + len(arguments)}I", PAYLOAD_MAGIC, command, *arguments
-            )
-        )
+        self.port.write(data=framed(arguments=arguments, command=command))
+
+    def probed_send(self, *, arguments: Sequence[int] = (), command: int) -> bool:
+        frame = framed(arguments=arguments, command=command)
+        self.port.reset_input_buffer()
+        self.port.write(data=frame[:1])
+        was = self.port.timeout
+        self.port.timeout = PROBE_TIMEOUT
+        try:
+            echoed = self.port.read(size=1)
+        finally:
+            self.port.timeout = was
+        if echoed:
+            return False
+        self.port.write(data=frame[1:])
+        return True
 
     def reboot(self) -> None:
         self._send(command=Command.REBOOT)
@@ -64,6 +76,10 @@ class Payload(Connection):
 
 
 Client = TypeVar("Client", bound=Payload)
+
+
+def framed(*, arguments: Sequence[int], command: int) -> bytes:
+    return struct.pack(f">{2 + len(arguments)}I", PAYLOAD_MAGIC, command, *arguments)
 
 
 def start_payload(*, bootrom: Bootrom, client: type[Client], payload: bytes) -> Client:

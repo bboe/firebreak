@@ -120,10 +120,12 @@ class Bootrom:
         step = 0
         while step < len(HANDSHAKE):
             sent, answer = HANDSHAKE[step]
-            if self.port.read(length=1)[0] == sent:
+            got = self.port.read(length=1)[0]
+            if got == sent:
                 self.port.write(data=bytes([answer]))
                 step += 1
             else:
+                self.port.write(data=bytes([(got + 1) & 0xFF]))
                 step = 0
         self.recorder.say(tool="bootrom", words=["handshake"])
 

@@ -244,8 +244,8 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   boot0 is erased comes back in its bootrom. The read happens before the
   target is chosen, so a run that ends in a refusal, as `unlock fireos5` on a
   radar does, has run the payload before it refuses.
-- `boot0-erased` and `bootrom-held` still hold the name of the device the run
-  that wrote them was on, and naming the Echo is all they are read for. That
+- `boot0-erased` still holds the name of the device the run that wrote it was
+  on, and naming the Echo is all it is read for. That
   name is the fallback now: a bootloader that names no product, or a partition
   table that does not read, leaves it. Two Echo devices in the same erased
   state, swapped between runs, are each named by their own flash. `--short`
@@ -402,18 +402,27 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - The probe takes 1.07 s where a payload answers and 5.03 s where none does,
   both measured. The bootrom pays the port's own 5 second timeout, because
   the read waits for a block that never comes.
-- A probe also costs the handshake behind it. Three runs on 2026-10-29 probed
-  a bare bootrom and then failed their first handshake, `no 0x5f answered
-  0xa0 within 10 seconds`, and took 76 s, 79 s and one power cycle to get
-  through where a handshake alone takes about 5 s. The probe's bytes are
-  still in the port when the handshake starts, and the bootrom answers those,
-  not it. It also costs the 40 second window, which two runs then lost.
-- So nothing probes a bootrom that nothing claims is holding a payload:
-  `bootrom-held` is what claims it, and without it a run handshakes straight
-  away, which is what a bare bootrom wants. Removing the marker was tried on
-  2026-10-29 and put back for that reason. The other way round costs as much:
-  a run that handshakes at a live payload waits out the 10 seconds without
-  `0x5f` and asks for a replug.
+- A whole payload frame sent at a bare bootrom costs the handshake behind it.
+  Three runs on 2026-10-29 did that and then failed their first handshake, `no
+  0x5f answered 0xa0 within 10 seconds`, taking 76 s, 79 s and one power cycle
+  where a handshake alone takes about 5 s. The cost was time, not corruption:
+  each frame asks for 516 bytes a bootrom never sends, so it waits out the 5
+  second read timeout, and a bare bootrom only answers for about 40 seconds
+  per power-on. `handshake()` already flushes the port on every attempt, so
+  the bytes themselves were never the problem.
+- One byte costs nothing, which is what the run sends. A payload frame starts
+  with the magic `f0 0d d0 0d`, so `0xf0` is the first byte of a real command.
+  A bare bootrom echoes it as `0xf1` and the frame is abandoned there; a
+  payload is still waiting for the other three magic bytes and says nothing,
+  so the run writes the rest and the command completes. Either way the port
+  sits on a frame boundary and neither state is left mid-command.
+- Measured on a radar on 2026-10-30. At a bare bootrom `0xf0` came back as
+  `0xf1` in 0.0002 s, five times out of five, and the handshake straight after
+  those five probes took under 0.01 s. At a payload holding the bootrom
+  nothing came back for the full 0.5 s window, the completed frame read block
+  0 correctly, and a normal join after it still worked, so the hold survived.
+  0.2 ms against a 0.5 s window is a margin of 2500, which is why calling a
+  live payload dead is not a practical worry.
 - `--short` belongs to `firebreak bootrom` alone. A target run never asks for
   a short: an Echo that shows no light is parked in its bootrom by
   `firebreak bootrom --short` first, and the target run that follows joins the
@@ -497,29 +506,38 @@ testing a single stage mean reaching its state by hand first.
   route always has. A payload holding the bootrom answers no handshake, so
   without the poke the run spends the 10 second handshake limit and then asks
   for a replug, which on an intact boot0 starts the firmware instead. That is
-  also why `write-test` joins a payload `bootrom-held` claims rather than
-  handshaking at it: the route in is chosen by a marker now, not by `--short`,
-  so it meets a live payload where the old flag always met a bare bootrom.
+  also why `write-test` probes for a payload before it handshakes: it meets a
+  live payload where the old `--short` flag always met a bare bootrom.
 - A test that joined a hold leaves it held. The bootrom write test reboots
   the payload at the end, which is right where it started one, and wrong
   where another run was holding the bootrom: with boot0 intact that reboot
-  starts the firmware, and the next run would spend the join's 60 seconds on
-  a hold that is gone.
-- The probe takes the same 5 seconds the restore's join always had. One
-  second looked cheaper, but the cost of calling a live payload dead is that
-  the run pokes it, the Echo starts the firmware boot0 holds, and the
-  bootrom never comes back; the probe only runs where a marker claims a
-  payload, so the 5 seconds are rare.
-- A failed probe is not proof a hold is gone. One pass gives up on a port that
-  will not open yet, where the restore's join retries for 60 seconds, so
-  nothing deletes `bootrom-held` on that evidence: a state that proves boot0
-  boots is what clears it.
+  starts the firmware, and the next run would find no hold to join.
+- Guessing the wrong state first is what used to be expensive, and it is why
+  there was a marker at all. Measured on a radar on 2026-10-30: a handshake
+  sent at a payload holding the bootrom fails after its 10 seconds, and the
+  join that follows fails too, so the hold is gone and only a power cycle
+  brings the bootrom back. The split frame above never makes that guess. It
+  reads the state off the wire in one byte and is harmless in both
+  directions, so there is nothing left for a marker to say.
+- `bootrom-held` is gone, and the measurement above is what removed it.
+  Removing it had been tried on 2026-10-29 and put back, because the probe of
+  the day sent a whole frame and cost the handshake behind it. A file that
+  says which of two states an Echo is in is only as good as the last run that
+  wrote it, and a stale one changed what a run did to an Echo; the wire does
+  not go stale.
+- Nothing passive tells the two apart. Both answer `0e8d:0003`, because the
+  payload keeps the bootrom's own USB stack, so no id, string or descriptor
+  differs. The one passive signal is the watchdog: a bare bootrom's serial
+  port goes away about 40 seconds after a power-on, where a payload's stays,
+  which a run could only use by waiting those 40 seconds every time.
+- That radar recovered itself. The run was already waiting when its first
+  handshake failed, and the bootrom came back 405 s later, so the chain went
+  through with nothing typed again.
 - `bootrom` waits for the Echo as the other two do, rather than reading the
   state once. Nothing on USB is what a reboot reads as, and an erased boot0
   only answers for 40 seconds per power-on, so a run that is already waiting
   catches that window where a run that refused would have to be typed again
-  inside it. It says what it is waiting for: boot0 erased means power it on,
-  a lost hold means plug it back in and expect the firmware.
+  inside it. It says what it is waiting for: boot0 erased means power it on.
 - A target run waits through a preloader too, and `route.py` had to be taught
   it: on an ordinary boot the preloader shows for about 0.8 s, which closed
   the open progress line mid-wait, reset the restart counter that catches a
@@ -559,25 +577,18 @@ testing a single stage mean reaching its state by hand first.
   two, and the only states it refuses are the ones no route runs from: a locked
   fastboot, which cannot erase boot0, and a booted Echo with no root, whose
   recovery is Amazon's.
-- `bootrom` ends with amonet's payload holding the bootrom and
-  `bootrom-held` in the cache, so the next run joins that payload rather than
-  handshaking at it, which a live payload never answers. The two markers say
-  different things and both can be true: `boot0-erased` is what boot0 holds,
-  `bootrom-held` is that a payload is running. A hold over an erased boot0
-  writes both.
-- `bootrom-held` looks redundant now that a ping can ask, and it is not. The
-  flag is what lets a run skip the ping where nothing is held, and a run that
-  pings every time sends payload bytes at a bare bootrom before the handshake
-  it actually needs. Removing it was tried on 2026-10-29 and put back for
-  that reason. A second `bootrom` run finds that
-  hold and says so rather than reaching the bootrom again, as `fastboot` and
-  `twrp` report a state they are already in. Which device it is does not come
-  into holding a bootrom -- one payload runs on both, byte for byte -- so a
-  run with nothing on USB reads the name out of the marker rather than asking
-  for `--device`. With `--short` the marker is
-  `bootrom-held`, boot0 still holds a preloader, and a power cycle starts the
-  firmware and loses the hold. After an erase the marker is `boot0-erased`,
-  which outranks a hold, and the Echo starts nothing but its bootrom.
+- `bootrom` ends with amonet's payload holding the bootrom, and nothing in the
+  cache records that. The next run probes the port and joins the payload it
+  finds, so a second `bootrom` run reports the hold rather than reaching the
+  bootrom again, as `fastboot` and `twrp` report a state they are already in.
+  Which device it is does not come into holding a bootrom -- one payload runs
+  on both, byte for byte -- so a run reads the name out of the bootloader in
+  flash rather than asking for `--device`.
+- `boot0-erased` stays, because nothing on the wire can replace it. It says
+  what boot0 holds, which an Echo that is powered off or showing no light
+  cannot be asked, and it is what tells such a run to wait for a bootrom
+  instead of a firmware boot. A hold is the opposite: a live payload is on
+  USB by definition, so one byte settles it.
 - `bootrom` reads which Echo it holds from the bootloader in flash, and a
   target run reads the same way before it chooses its target:
   [Which device is plugged in](#which-device-is-plugged-in) says why, and what
@@ -1335,8 +1346,8 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   boots the Fire OS anyway, and the only boot-mode inputs a stock LK overrides
   on, `misc`'s command field and IDME's `bootmode`, each select recovery alone.
   So the restore instead holds the Dot in the bootrom: the payload writes the
-  preloader and stops without its reboot, and `bootrom-held` tells the next run
-  to join that payload where it waits and write a chain through it: amonet
+  preloader and stops without its reboot, and the next run probes the port,
+  joins that payload where it waits and writes a chain through it: amonet
   v2.0.1's, unless that run is `unlock fireos5`.
   A power cycle starts stock 5.5.0.3
   instead, since boot0 now holds its preloader. `--end-in-fireos` sends the
@@ -1347,13 +1358,13 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   Fire OS 5 and loses the hold: measured on a Dot, 2026-10-26, where the
   restore's own run poked the payload it had just parked. So the run that parks
   the Dot does not also resume it, and a later run opens each MediaTek bootrom
-  port, builds the payload client on it, and takes the port whose user area
-  reads back its signature. A Dot that was powered off answers nothing, so the
-  hold is dropped and nothing is written, after a wait: the port a restore
-  parked can take a moment to appear, and giving up on the first listing threw
-  the hold away while the Dot still held it. An erased boot0 outranks a hold,
-  since a resume that stopped between its two markers left both, and the
-  erased one is the stronger. `--short` does not: a hold means the bootrom is
+  port, probes it with a frame's first byte, and joins the one that answers
+  nothing. A Dot that was powered off lists no port at all, so the run waits
+  for one to appear before it probes: the port a restore parked can take a
+  moment to show up, and giving up on the first listing threw the hold away
+  while the Dot still held it. Once a bootrom port is there its answer is
+  final, so a bare bootrom falls through to the handshake at once rather than
+  being waited on. `--short` does not: a hold means the bootrom is
   already there, so asking for the test point and then handshaking at a live
   payload only ended in advice to unplug, which starts the firmware and loses
   the hold.
@@ -1590,7 +1601,7 @@ Every entry state, and the TWRPs its path to each target runs under or writes:
 
 | entry state | `unlock fireos5` | `unlock fireos6` | `stock` |
 | --- | --- | --- | --- |
-| bootrom, or nothing on USB with `boot0-erased` or `bootrom-held` | bboe2 | v2 3.7.0 | v2 3.7.0 |
+| bootrom, or nothing on USB with `boot0-erased` | bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `stock-fastboot` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `stock-fireos5-fastboot` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `stock-booted` | -- | -- | nothing to restore |
@@ -1612,7 +1623,7 @@ all.
 
 ```mermaid
 flowchart LR
-  brom["bootrom<br/>boot0-erased, bootrom-held"]
+  brom["bootrom<br/>boot0-erased"]
   sfb["stock-fastboot<br/>stock-fireos5-fastboot"]
   v1fb["amonet-fireos5-fastboot"]
   v2fb["amonet-fastboot"]
@@ -2225,6 +2236,9 @@ ring read white.
 | amonet-twrp | `fastboot` | 11 s, on 2026-10-29: one `adb reboot bootloader`, amonet's unlocked fastboot 10 s later, nothing written. A second run in either state reported it at once and did nothing |
 | amonet-fastboot | `twrp` | 19 s, on 2026-10-29, with no write: `restart_refusals()` alone, and v2.0.1's TWRP up 19 s later. The run before this one wrote the TWRP first and took 21 s, and the question it asked was Ctrl-C'd once, which left the Dot in that fastboot |
 | stock-fastboot, locked | `unlock fireos6 --factory-reset` | 4 min 58 s, on 2026-10-29, the first run of that path on 8149 rather than 8146: the fastbrick 8 s, v2's TWRP 34 s, the wipe 3 s, the installs 103 s and 115 s, `boot-root.zip` 9 s, rooted 8149's boot 23 s. The slot guard passed after each install. The 8146 runs above took 96 s and 115 s, and 98 s and 115 s, each from another starting state |
+| amonet-twrp | `bootrom` | 34 s, on 2026-10-30 on a radar, with no marker to write: boot0's header cleared and TWRP's reboot by 21 s, the question answered, the handshake and the payload 3 s, the bootloader read that names the device 2 s |
+| bootrom, held | `bootrom` | 7 s and then 4 s, on 2026-10-30, two runs after the one above: each probed the port, joined the live payload, read the bootloader in 2 s and reported `already waits in its bootrom`. Nothing in the cache said a payload was there, and probing a live one twice more did not disturb it |
+| bootrom, held | `unlock` | 1 min 29 s, on 2026-10-30 on a radar whose 8149 OTA was already in the cache: the hold joined by probe with no step of its own, amonet-radar-v1.0.0's chain by 27 s with the TEE, bootloader, kaeru and TEE payload all skipped, amonet's fastboot 8 s after the forced reboot, TWRP 19 s, `boot-root.zip` 13 s, rooted 4315's boot 20 s |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.

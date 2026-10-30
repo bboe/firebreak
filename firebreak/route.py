@@ -8,10 +8,9 @@ import time
 from typing import TYPE_CHECKING
 
 from firebreak import recovery, updates
-from firebreak.bootrom_step import bootrom_step, joining
+from firebreak.bootrom_step import bootrom_step
 from firebreak.cache import (
     ERASED,
-    HELD,
     MAGISK,
     Download,
     cache_note,
@@ -410,17 +409,15 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
             *TWRPS,
         }:
             ERASED.unlink(missing_ok=True)
-            HELD.unlink(missing_ok=True)
         SESSION.boot0_marker = ERASED
-        parked = ERASED.exists() or HELD.exists() or current == State.BOOTROM
+        parked = ERASED.exists() or current == State.BOOTROM
         if current in BOOTROMS and parked and not (resumed or SESSION.held):
             if target.device not in BOOTROM_UNLOCKS:
-                if ERASED.exists():
-                    why = "has an erased boot0, which only its bootrom can start"
-                elif HELD.exists():
-                    why = "waits in its bootrom, where another run left it"
-                else:
-                    why = "answers on its bootrom's own USB id"
+                why = (
+                    "has an erased boot0, which only its bootrom can start"
+                    if ERASED.exists()
+                    else "answers on its bootrom's own USB id"
+                )
 
                 raise FatalError(
                     message=f"this {target.device.title} {why}, and firebreak has"
@@ -433,16 +430,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     *needed(start=chain.state, table=table),
                 ))
             )
-            if joining():
-                warn(
-                    text=f"A restore left the {title()} waiting in its bootrom. This"
-                    " run joins the payload waiting there and writes"
-                    f" {chain.unlock.name} through it, then continues from that TWRP."
-                    " Leave the"
-                    f" {title()} plugged in: unplugging it starts the stock firmware"
-                    " and loses the hold."
-                )
-            elif ERASED.exists():
+            if ERASED.exists():
                 warn(
                     text=(
                         "This run erased boot0"
@@ -459,7 +447,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     text=f"The {title()} waits in its bootrom. This run writes"
                     f" {chain.unlock.name} through it, then continues from that"
                     f" TWRP. Leave the {title()} plugged in: a power cycle ends"
-                    " the bootrom's own 40 second window."
+                    " the bootrom's own 40 second window, and loses a payload's"
+                    " hold if a restore left one there."
                 )
             resumed = True
             done.difference_update(TWRPS)
