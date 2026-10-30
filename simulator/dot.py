@@ -375,7 +375,7 @@ def decide(*, facts: dict, into: str, state: dict) -> dict:  # ruff: ignore[comp
     if not facts["preloader"]:
         return {"mode": "bootrom", "why": "boot0 holds no preloader"}
     if lk is None:
-        return {**none, "why": "lk_a holds no LK this simulator knows"}
+        return {"mode": "preloader", "why": "lk_a holds no LK this simulator knows"}
     description = {"stock": spec["stock_lk"], "v1": LK_FIREOS5}.get(lk, spec["v2_lk"])
     marker = (lk == "v1" and facts.get("expdb_fastboot")) or (
         lk == "v2" and facts.get("misc_fastboot")

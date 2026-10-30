@@ -96,7 +96,7 @@ def test_a_bootrom_entry_asks_before_it_erases_boot0(
     assert done[1:3] == ["erased", "looked for the bootrom to erase for"]
     assert "boot0 is erased" in done[-1]
     assert entry.ERASED.read_text(encoding="utf-8") == "biscuit"
-    assert not entry.HELD.exists()
+    assert entry.HELD.read_text(encoding="utf-8") == "biscuit"
 
 
 @pytest.mark.parametrize(
@@ -122,6 +122,16 @@ def test_a_bootrom_entry_from_a_recovery_clears_the_header(
     assert done[1:4] == ["cleared", "rebooted", "looked for the bootrom"]
 
 
+def test_a_bootrom_entry_holds_a_bootrom_it_finds(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    done = bootrom(monkeypatch=monkeypatch, states=[State.BOOTROM])
+    monkeypatch.setattr(name="answering_payload", target=entry, value=lambda: None)
+    entry.bootrom_entry(force=False, short=False)
+    assert done[:2] == ["looked for the bootrom", "ran the payload"]
+    assert entry.HELD.read_text(encoding="utf-8") == "biscuit"
+
+
 def test_a_bootrom_entry_refuses_a_locked_bootloader(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -141,20 +151,31 @@ def test_a_bootrom_entry_refuses_a_state_with_no_way_in(
 def test_a_bootrom_entry_reports_a_hold_it_finds(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    bootrom(monkeypatch=monkeypatch, states=[])
+    bootrom(monkeypatch=monkeypatch, states=[State.BOOTROM])
     entry.HELD.write_text(data="biscuit", encoding="utf-8")
-    monkeypatch.setattr(name="device", target=SESSION, value=None)
-    monkeypatch.setattr(name="identify", target=entry, value=lambda: NOTHING)
     monkeypatch.setattr(
-        name="attach_held_payload",
+        name="answering_payload",
         target=entry,
-        value=lambda **_: types.SimpleNamespace(
+        value=lambda: types.SimpleNamespace(
             port=types.SimpleNamespace(close=lambda: None)
         ),
     )
     entry.bootrom_entry(force=False, short=False)
     said = capsys.readouterr().out
     assert "The Echo Dot (2nd Generation) already waits in its bootrom" in said
+
+
+def test_a_bootrom_entry_says_to_power_on_an_echo_it_cannot_see(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bootrom(monkeypatch=monkeypatch, states=[State.NONE])
+    entry.ERASED.write_text(data="radar", encoding="utf-8")
+    monkeypatch.setattr(name="device", target=SESSION, value=None)
+    monkeypatch.setattr(name="identify", target=entry, value=lambda: NOTHING)
+    with pytest.raises(entry.FatalError, match="Power it on and run this again"):
+        entry.bootrom_entry(force=False, short=False)
+    assert SESSION.device is not None
+    assert SESSION.device.name == "radar"
 
 
 def test_a_bootrom_entry_stops_where_the_erase_fails(
@@ -169,22 +190,6 @@ def test_a_bootrom_entry_stops_where_the_erase_fails(
     with pytest.raises(FatalError, match="fastboot erase boot0 failed"):
         entry.bootrom_entry(force=True, short=False)
     assert "looked for the bootrom to erase for" not in done
-
-
-def test_a_bootrom_entry_takes_the_device_from_the_marker(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    bootrom(monkeypatch=monkeypatch, states=[State.NONE])
-    entry.ERASED.write_text(data="radar", encoding="utf-8")
-    monkeypatch.setattr(name="device", target=SESSION, value=None)
-    monkeypatch.setattr(name="identify", target=entry, value=lambda: NOTHING)
-    monkeypatch.setattr(
-        name="attach_held_payload", target=entry, value=lambda **_: None
-    )
-    with pytest.raises(entry.FatalError, match="reads as none"):
-        entry.bootrom_entry(force=False, short=False)
-    assert SESSION.device is not None
-    assert SESSION.device.name == "radar"
 
 
 def test_a_bootrom_entry_with_no_bootrom_to_find(
@@ -238,6 +243,7 @@ def test_a_short_bootrom_entry_holds_the_payload(
     assert entry.HELD.read_text(encoding="utf-8") == "biscuit"
     assert not entry.ERASED.exists()
     assert entry.SESSION.held is True
+    assert "a power cycle loses the hold" in done[-1]
 
 
 def test_a_twrp_entry_asks_before_it_unlocks_a_locked_echo(
@@ -382,6 +388,17 @@ def test_an_entry_refuses_a_state_it_cannot_reach_its_own_from(
         entry.fastboot_entry()
 
 
+def test_an_entry_says_the_way_out_of_a_state_it_cannot_use(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads(monkeypatch=monkeypatch, states=[State.BOOTROM])
+    with pytest.raises(FatalError, match="A chain written through the payload"):
+        entry.fastboot_entry()
+    reads(monkeypatch=monkeypatch, states=[State.PRELOADER])
+    with pytest.raises(FatalError, match="the test point is the only way in"):
+        entry.twrp_entry(force=False)
+
+
 def test_an_entry_waits_out_the_reboot_it_asked_for(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -400,3 +417,12 @@ def test_an_entry_waits_out_the_reboot_it_asked_for(
     assert done[0] == "reboot bootloader"
     assert "Waiting for the Echo Dot (2nd Generation) on USB" in done[1]
     assert len(done) == 2
+
+
+def test_an_entry_will_not_wait_for_an_echo_whose_boot0_is_erased(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    reads(monkeypatch=monkeypatch, states=[State.NONE])
+    entry.ERASED.write_text(data="biscuit", encoding="utf-8")
+    with pytest.raises(FatalError, match="reaches no fastboot until a chain"):
+        entry.fastboot_entry()

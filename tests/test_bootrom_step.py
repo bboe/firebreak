@@ -554,6 +554,36 @@ def test_a_missed_short_on_a_terminal_starts_a_new_line(
     assert "Short 2 missed" in out
 
 
+def test_a_payload_is_found_by_what_it_reads_not_by_what_it_echoes(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+) -> None:
+    opened: list[str] = []
+    monkeypatch.setattr(
+        name="mediatek_ports",
+        target=bootrom_step,
+        value=lambda: {"/dev/one": 0x2000, "/dev/two": 0x0003},
+    )
+    monkeypatch.setattr(
+        name="open_bootrom",
+        target=bootrom_step,
+        value=lambda **options: (
+            opened.append(options["name"]) or Connection(name=options["name"])
+        ),
+    )
+    monkeypatch.setattr(
+        name="Client",
+        target=bootrom_step,
+        value=lambda *, port, **_: Live(port=port, rig=rig),
+    )
+    assert bootrom_step.answering_payload() is not None
+    assert opened == ["/dev/two"]
+    assert rig.steps[:2] == ["switch 0", "read block 0"]
+    rig.signature = b"\x01\x02"
+    assert bootrom_step.answering_payload() is None
+    rig.signature = None
+    assert bootrom_step.answering_payload() is None
+
+
 def test_a_payload_that_never_starts_with_the_short_on_blames_the_short(
     *, rig: Rig
 ) -> None:

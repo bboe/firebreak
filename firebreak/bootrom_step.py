@@ -63,9 +63,20 @@ LK_SLOTS = ("lk_a", "lk_b")
 OPEN_GRACE = 1
 POKE_GONE_WAIT = 5
 POKE_WRITE_TIMEOUT = 1
+PROBE_TIMEOUT = 1
 REPLUG_WAIT = 600
 SHORT_WAIT = 5
 STEPS_AFTER_THE_CHAIN = 2
+
+
+def answering_payload() -> Client | None:
+    failures: dict[str, float] = {}
+    for name, product in sorted(mediatek_ports().items()):
+        if product == ProductId.BOOTROM:
+            live = joined_payload(failures=failures, name=name)
+            if live is not None:
+                return live
+    return None
 
 
 def ask_for_short() -> None:
@@ -363,7 +374,7 @@ def joined_payload(*, failures: dict[str, float], name: str) -> Client | None:
     connection = open_bootrom(failures=failures, name=name)
     if connection is None:
         return None
-    live = Client(port=connection, timeout=READ_TIMEOUT)
+    live = Client(port=connection, timeout=PROBE_TIMEOUT)
     try:
         connection.reset_input_buffer()
         live.switch_partition(partition=EmmcArea.USER)

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from firebreak.devices import BY_NAME, FIREOS5_CHAINS, LITTLE_KERNEL_DESCRIPTION
 from firebreak.emos import emos
 from firebreak.host import adb_shell, adb_state, command, getvar, in_fastboot
+from firebreak.identify import downloading
 from firebreak.report import masked
 from firebreak.states import State
 from firebreak.twrp import partition_table
@@ -81,7 +82,9 @@ def probe() -> State:  # ruff: ignore[complex-structure, too-many-return-stateme
         if booted and "uid=0" in adb_shell(command="su -c id", timeout=30):
             return rooted()
         return State.BOOTED
-    return State.EMOS if emos(action="find") == "1" else State.NONE
+    if emos(action="find") == "1":
+        return State.EMOS
+    return downloading() or State.NONE
 
 
 def probed() -> str:

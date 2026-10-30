@@ -150,6 +150,7 @@ class Session:
     short_gesture: str = ""
     shown: Kind | None = None
     system_lock: threading.Lock = dataclasses.field(default_factory=threading.Lock)
+    usb_read: tuple[float, list] | None = None
     verified: set[pathlib.Path] = dataclasses.field(default_factory=set)
 
 

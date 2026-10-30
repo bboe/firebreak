@@ -21,7 +21,9 @@ from firebreak.host import (
     run,
     usb_serial,
 )
+from firebreak.mediatek.usbdl import MEDIATEK_VENDOR_ID, ProductId
 from firebreak.report import labelled, whole
+from firebreak.states import State
 from firebreak.targets import REMOVED_IN
 from firebreak.ui import SESSION, FatalError, warn
 
@@ -38,6 +40,7 @@ POLL = 2
 SERIAL_SHOWN = 4
 SYSFS_USB = pathlib.Path("/sys/bus/usb/devices")
 TWRP_ID = (0x18D1, 0xD001)
+USB_CACHE = 10 if sys.platform == "win32" else 1
 USB_TIMEOUT = 30
 WINDOWS_QUERY = r"""$ProgressPreference = "SilentlyContinue"
 $key = "DEVPKEY_Device_BusReportedDeviceDesc"
@@ -145,6 +148,15 @@ def darwin_devices() -> list[UsbDevice]:
         for node in walked(node=tree)
         if "idVendor" in node and "idProduct" in node
     ]
+
+
+def downloading() -> State | None:
+    found = {(usb.vendor_id, usb.product_id) for usb in usb_seen()}
+    if (MEDIATEK_VENDOR_ID, ProductId.BOOTROM) in found:
+        return State.BOOTROM
+    if (MEDIATEK_VENDOR_ID, ProductId.PRELOADER) in found:
+        return State.PRELOADER
+    return None
 
 
 def echo_devices() -> list[UsbDevice]:
@@ -298,6 +310,15 @@ def usb_devices() -> list[UsbDevice]:
         return reader()
     except (OSError, subprocess.TimeoutExpired):
         return []
+
+
+def usb_seen() -> list[UsbDevice]:
+    now = time.monotonic()
+    if SESSION.usb_read is not None and now - SESSION.usb_read[0] < USB_CACHE:
+        return SESSION.usb_read[1]
+    found = usb_devices()
+    SESSION.usb_read = (now, found)
+    return found
 
 
 def walked(*, node: object) -> list[dict]:

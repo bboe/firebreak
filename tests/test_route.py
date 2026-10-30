@@ -184,6 +184,30 @@ def test_a_bootrom_step_that_finds_a_preloader_is_not_counted(
     assert "v1.1.0 recovery" not in run.fetched
 
 
+def test_a_bootrom_that_answers_is_resumed_with_no_marker(
+    *, monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    monkeypatch.setattr(name="stages", target=route, value=route.stages)
+    run.states = [route.State.BOOTROM, route.State.AMONET_FIREOS5_BBOE_BOOTED]
+    route.root()
+    assert run.stepped[0]["unlock"] is biscuit.UNLOCK_FROM_BOOTROM
+    assert not route.ERASED.exists()
+
+
+def test_a_bootrom_that_answers_keeps_the_markers_a_run_left(
+    *, monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    route.ERASED.touch()
+    route.HELD.touch()
+    monkeypatch.setattr(name="held", target=route.SESSION, value=True)
+    monkeypatch.setattr(name="stages", target=route, value=dict)
+    run.states = [route.State.BOOTROM]
+    with pytest.raises(RanOutError):
+        route.root()
+    assert route.ERASED.exists()
+    assert route.HELD.exists()
+
+
 def test_a_browser_download_comes_first(*, monkeypatch: pytest.MonkeyPatch) -> None:
     fetched: list[str] = []
     monkeypatch.setattr(

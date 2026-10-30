@@ -12,6 +12,8 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 | stock-booted | `adb get-state` says `unauthorized`, or Fire OS 6 without root | prints the fastboot gesture, and the + gesture for a Dot already on amonet v2.0.0 |
 | stock-fastboot | `unlock_status` is `false`, and `lk_build_desc` is none of the two below | the device's fastbrick |
 | stock-fireos5-fastboot | `unlock_status` is `false`, and `lk_build_desc` is the device's Fire OS 5 chain's, `f379dba-20170906_000423` on a Dot, which that chain keeps: Fire OS 5's own fastboot, locked, on a stock Dot or one on the chain. A device that declares no chain cannot reach it | the same |
+| bootrom | no adb or fastboot, and USB holds `0e8d:0003` | nothing: a chain goes in through the payload there, which `unlock` and `stock` write |
+| preloader | no adb or fastboot, and USB holds `0e8d:2000` | nothing: boot0 holds a preloader that starts no bootloader, so only the test point reaches this one |
 | emos | no adb or fastboot, and one serial port with USB ID `1949:2007` | `/init recovery` at emOS's serial console |
 | no-system | adb answers as `device`, and `adb shell` fails with `exec '/system/bin/sh' failed` | `adb reboot recovery`, for every target |
 | amonet-booted | Fire OS 6, and `id` or `su -c id` answers uid 0 | `adb reboot recovery`, into the device's own TWRP; ends an `unlock fireos6` run |
@@ -330,6 +332,48 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   `/dev/ttyACM0`, and macOS names a port by its USB location. A port whose ID
   cannot be read yet, or that will not open yet, is looked at again on the
   next poll.
+- The probe reads those two from the USB list the device names come from, not
+  from a serial port: `ioreg` on macOS, `/sys/bus/usb/devices` on Linux and
+  `Get-PnpDevice -PresentOnly` on Windows. So it needs no pyserial, and on
+  Windows it sees a bootrom whose VCOM driver is missing, where a port listing
+  would show nothing at all. The read is kept for a second, and for 10 on
+  Windows, where it starts PowerShell.
+- A preloader shows for about a second every 30, so a 2-second poll often
+  misses it and its absence proves nothing. Seeing it once is what counts: it
+  says boot0 holds a preloader, so the test point is the only way in.
+- Knowing a payload is already running is not in the probe, because that needs
+  the port opened and its signature read. `bootrom` does that itself, and the
+  markers keep their own job, which is to say what boot0 holds.
+- A payload is asked what only a payload can answer: `bootrom` switches the
+  eMMC to the user area through it and reads block 0, which has to end
+  `55 aa`. No shorter question tells a payload from a bare bootrom, because a
+  bootrom answers payload bytes of its own: measured on 2026-10-29, it
+  returns each byte sent, plus one.
+
+  ```text
+  sent      f0 0d d0 0d | 00 00 50 00 | 00 20 10 00 | 00 00 00 04
+  received  f1 0e d1 0e | 01 01 51 01 | 01 21 11 01 | 01 01 01 05
+  ```
+
+  A running payload answers that same read with `14 00 9f e5`, the first word
+  of payload.bin, twice over. So a check on the length or the shape of an
+  answer passes on a bare bootrom, and the handshake's own rule, that a
+  bootrom echoes a byte as it is, does not hold before the handshake.
+- The probe takes 1.07 s where a payload answers and 5.03 s where none does,
+  both measured. The bootrom pays the port's own 5 second timeout, because
+  the read waits for a block that never comes.
+- A probe also costs the handshake behind it. Three runs on 2026-10-29 probed
+  a bare bootrom and then failed their first handshake, `no 0x5f answered
+  0xa0 within 10 seconds`, and took 76 s, 79 s and one power cycle to get
+  through where a handshake alone takes about 5 s. The probe's bytes are
+  still in the port when the handshake starts, and the bootrom answers those,
+  not it. It also costs the 40 second window, which two runs then lost.
+- So nothing probes a bootrom that nothing claims is holding a payload:
+  `bootrom-held` is what claims it, and without it a run handshakes straight
+  away, which is what a bare bootrom wants. Removing the marker was tried on
+  2026-10-29 and put back for that reason. The other way round costs as much:
+  a run that handshakes at a live payload waits out the 10 seconds without
+  `0x5f` and asks for a replug.
 - `--short` belongs to `firebreak bootrom` alone. A target run never asks for
   a short: an Echo that shows no light is parked in its bootrom by
   `firebreak bootrom --short` first, and the target run that follows joins the
@@ -381,6 +425,17 @@ testing a single stage mean reaching its state by hand first.
   the recovery a reboot would reach is Amazon's, not a TWRP.
 - A state that does not move for 10 minutes stops the run, as it does for a
   target. The gesture is the exception, because it waits on a person.
+- Nothing on USB is a wait, because that is what a reboot reads as. With
+  `boot0-erased` set it is not: that Echo starts nothing but its bootrom, so no
+  fastboot and no recovery can ever appear, and `fastboot` and `twrp` stop
+  rather than wait for a state they cannot reach. The way out of a bootrom is a
+  chain, which `unlock` and `stock` write.
+- The macOS read is not always steady. On 2026-10-29 the IOUSB plane left a
+  live bootrom out of three reads over about 30 seconds and then listed it
+  again by itself, 207,395 bytes against the 210,142 that hold it. **Why is
+  not known**: opening and closing its port, `fastboot devices` and
+  `adb get-state` were each tried afterwards and none of them reproduced it. A
+  run that reads `none` where a bootrom is plugged in has met this.
 - `fastboot` writes nothing. `twrp` writes nothing either where the bootloader
   is already unlocked: it restarts into the recovery that is there and takes
   it where a TWRP answers, because an unlocked Echo usually holds one. No TWRP
@@ -425,8 +480,12 @@ testing a single stage mean reaching its state by hand first.
   as it was. `--force` answers in advance. Nothing else in firebreak
   asks a question, so a run whose input is not a terminal cannot be answered:
   it stops and names `--force` rather than waiting on a prompt no one sees.
-- `bootrom` ends with amonet's payload holding the bootrom and a marker in the
-  cache, so the next run joins that payload. A second `bootrom` run finds that
+- `bootrom` ends with amonet's payload holding the bootrom and
+  `bootrom-held` in the cache, so the next run joins that payload rather than
+  handshaking at it, which a live payload never answers. The two markers say
+  different things and both can be true: `boot0-erased` is what boot0 holds,
+  `bootrom-held` is that a payload is running. A hold over an erased boot0
+  writes both. A second `bootrom` run finds that
   hold and says so rather than reaching the bootrom again, as `fastboot` and
   `twrp` report a state they are already in. Which device it is does not come
   into holding a bootrom -- one payload runs on both, byte for byte -- so a
@@ -1237,6 +1296,11 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   through the bootrom step and amonet v2.0.1's TWRP, and restored again.
 - A resume clears the TWRP states from the run's acted-on set, so a run
   that started in TWRP acts on TWRP again after the bootrom step.
+- A bootrom that answers is reason enough on its own: a run resumes through it
+  whether a marker is there or not, and seeing it clears neither marker,
+  because a bootrom says nothing about what boot0 holds. Every other state
+  does clear them, since reaching it proves boot0 starts something. So
+  deleting `boot0-erased` by hand costs a run its wording, not its route.
 - Both ways of carrying out a plan group the actions that share a label into
   one step, so a plan reads the same whether a recovery or the bootrom runs it.
   Two writes with one label are one step on purpose: a boot slot takes a header

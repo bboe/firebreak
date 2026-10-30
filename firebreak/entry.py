@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING
 
 from firebreak.bootrom_step import (
     BOOTROM_STEP_TIMEOUT,
-    HELD_WAIT,
+    answering_payload,
     ask_for_short,
-    attach_held_payload,
     bootrom_client,
     exploit,
 )
@@ -42,7 +41,6 @@ from firebreak.unlock import (
 )
 
 if TYPE_CHECKING:
-    import pathlib
     from collections.abc import Callable
 
     from firebreak.amonet.biscuit_v2_0_0 import Client
@@ -78,28 +76,50 @@ TO_TWRP = frozenset({
 })
 TWRP = "twrp"
 WAITS = frozenset({State.NONE, State.STARTING})
+WAYS_OUT = {
+    State.BOOTROM: " A chain written through the payload there is the way out:"
+    " run `firebreak unlock` or `firebreak stock`.",
+    State.PRELOADER: " Its boot0 holds a preloader that never starts a"
+    " bootloader, so the test point is the only way in:"
+    " run `firebreak bootrom --short`.",
+}
+
+
+def answering() -> Client | None:
+    if not HELD.exists():
+        return None
+    with_pyserial()
+    live = answering_payload()
+    if live is None:
+        HELD.unlink(missing_ok=True)
+    return live
 
 
 def bootrom_entry(*, force: bool, short: bool) -> None:
     PROGRESS.steps = None
     noticed()
-    if not short and (ERASED.exists() or HELD.exists()):
-        live = attach_held_payload(deadline=time.monotonic() + HELD_WAIT)
-        if live is not None:
-            with contextlib.suppress(OSError):
-                live.port.close()
-            passed(message=f"The {known()} already waits in its bootrom.")
-            return
-        say(
-            text=f"The {known()} no longer waits in its bootrom, so this run"
-            " reaches it again."
-        )
     device = known_device()
     if short:
         SESSION.short = True
-        parked(marker=HELD, payload=reached(erase=None))
+        parked(payload=reached(erase=None))
         return
     current = state()
+    if current == State.BOOTROM:
+        live = answering()
+        if live is not None:
+            with contextlib.suppress(OSError):
+                live.port.close()
+            passed(message=f"The {device.title} already waits in its bootrom.")
+            return
+        parked(payload=reached(erase=None))
+        return
+    if current == State.NONE and (ERASED.exists() or HELD.exists()):
+        raise FatalError(
+            message=f"nothing is on USB, and {ERASED.name} says this"
+            f" {device.title} starts only from its bootrom. Power it on and run"
+            " this again within about 40 seconds, which is how long its bootrom"
+            " answers before its own watchdog takes it."
+        )
     if current in TWRPS:
         device = chainable()
         confirm(
@@ -110,7 +130,7 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
         ERASED.write_text(device.name)
         clear_boot0()
         run(arguments=["adb", "reboot"], timeout=60)
-        parked(marker=ERASED, payload=reached(erase=None))
+        parked(payload=reached(erase=None))
     elif current in FASTBOOTS - LOCKED_FASTBOOTS:
         device = chainable()
         confirm(
@@ -119,7 +139,7 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
             " bootrom alone, until something writes a preloader back",
         )
         ERASED.write_text(device.name)
-        parked(marker=ERASED, payload=reached(erase=erase_by_fastboot))
+        parked(payload=reached(erase=erase_by_fastboot))
     elif current in LOCKED_FASTBOOTS:
         raise FatalError(
             message=f"this {device.title} is locked, and a locked bootloader"
@@ -190,29 +210,30 @@ def noticed() -> None:
         SESSION.device = identify().device or marked()
 
 
-def parked(*, marker: pathlib.Path, payload: tuple[Bootrom, Client]) -> None:
+def parked(*, payload: tuple[Bootrom, Client]) -> None:
+    PROGRESS.end()
     client, _ = payload
     with contextlib.suppress(OSError):
         client.port.close()
     device = known_device()
-    marker.write_text(data=device.name, encoding="utf-8")
-    SESSION.held = marker is HELD
+    HELD.write_text(device.name)
+    SESSION.held = True
     passed(message=f"The {device.title} waits in its bootrom.")
     say(
-        text="amonet's payload holds it, so the next run joins that payload with"
-        f" no short of its own. Leave the {device.title} plugged in: a power"
-        " cycle loses the hold, and starts the firmware boot0 still holds."
-        if marker is HELD
-        else "boot0 is erased, so this Echo starts nothing but its bootrom. The"
-        " next run writes a chain through the payload waiting there, with no"
-        " button held."
+        text="amonet's payload holds it, so the next run joins that payload"
+        " rather than handshaking at it. "
+        + (
+            "boot0 is erased, so a power cycle brings its bootrom back, and the"
+            " run after that writes a chain through it."
+            if ERASED.exists()
+            else f"Leave the {device.title} plugged in: a power cycle loses the"
+            " hold, and starts the firmware boot0 still holds."
+        )
     )
 
 
 def reached(*, erase: Callable[[], str] | None) -> tuple[Bootrom, Client]:
-    wheel = pyserial_wheel()
-    if wheel is not None and str(wheel) not in sys.path:
-        sys.path.insert(0, str(wheel))
+    with_pyserial()
     payload = amonet_payload()
     if SESSION.short:
         ask_for_short()
@@ -220,6 +241,7 @@ def reached(*, erase: Callable[[], str] | None) -> tuple[Bootrom, Client]:
         failure = erase()
         if failure:
             raise FatalError(message=failure)
+    PROGRESS.begin(estimate="15 s", label="starting amonet's payload")
     client = bootrom_client(
         deadline=time.monotonic() + (MINUTE if erase else BOOTROM_STEP_TIMEOUT),
         erase=erase,
@@ -340,7 +362,14 @@ def walk(
         if act is None and current not in WAITS:
             raise FatalError(
                 message=f"the {known()} reads as {current.value}, which nothing"
-                f" here can reach a {what} from."
+                f" here can reach a {what} from." + WAYS_OUT.get(current, "")
+            )
+        if current == State.NONE and ERASED.exists():
+            raise FatalError(
+                message=f"boot0 is erased, so this {known()} starts nothing but"
+                f" its bootrom and reaches no {what} until a chain is written"
+                " through it: run `firebreak unlock` or `firebreak stock`."
+                " Waiting here would wait for a state it cannot reach."
             )
         if current == State.NONE and not (said or PROGRESS.open):
             said = True
@@ -359,3 +388,9 @@ def walk(
                 f" {STUCK // 60} minutes, so this run stops."
             )
         time.sleep(POLL)
+
+
+def with_pyserial() -> None:
+    wheel = pyserial_wheel()
+    if wheel is not None and str(wheel) not in sys.path:
+        sys.path.insert(0, str(wheel))

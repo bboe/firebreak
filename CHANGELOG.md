@@ -6,6 +6,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- The bootrom and the preloader are states a run can see: `bootrom` where USB
+  holds `0e8d:0003` and `preloader` where it holds `0e8d:2000`, read from the
+  same USB list the device names come from, so it works on macOS, Linux and
+  Windows without pyserial. `report` prints them, and a command that cannot
+  act on one says what does.
 - `firebreak fastboot`, `firebreak twrp` and `firebreak bootrom` reach one
   entry point and stop there, so a stage can be tested from the state it
   starts in. `twrp` on an unlocked Echo writes nothing: it restarts into the

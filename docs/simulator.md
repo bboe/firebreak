@@ -7,11 +7,11 @@
 
 ```sh
 simulator/run.sh OUT unlock fireos5
-START=no-light simulator/run.sh OUT unlock fireos5 --short
+START=no-light simulator/run.sh OUT bootrom --short --device biscuit
 START=twrp simulator/run.sh OUT stock 8149
 DEVICE=radar simulator/run.sh OUT unlock fireos6
 DEVICE=radar START=twrp simulator/run.sh OUT stock 6436
-DEVICE=radar START=no-light simulator/run.sh OUT unlock fireos6 --short --device radar
+DEVICE=radar START=no-light simulator/run.sh OUT bootrom --short --device radar
 python3 simulator/trace.py OUT.jsonl             # one command per line, for diff
 python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per range
 ```
@@ -69,9 +69,10 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   unlock takes amonet-radar v1.0.0's archive and its own fastbrick map, which
   the simulated radar checks the flashed payload against.
 - `report` and `write-test` take any start, because `run.sh` passes the target
-  through as a command. `write-test --short` needs `START=no-light`, and is the
-  only way here to reach the bootrom write test: both of them return before a
-  target is chosen, so that run reads an Echo nothing has named.
+  through as a command. `write-test` takes the bootrom route where a marker
+  says a bootrom holds the Echo, so `bootrom --short` first is the way here to
+  reach the bootrom write test. Both commands return before a target is
+  chosen.
 - `START=no-light` takes either device. `bootrom.py` reads its payloads from
   the biscuit archives, and that is enough for a radar because every archive
   ships the same one: `brom-payload/build/payload.bin` is 20060 bytes and byte
@@ -397,18 +398,29 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - `0x5000` reads any address at any length. Whether the real payload bounds
   either is not known.
 - The `0x3000` reboot hands the Dot back to the boot rules, 3 s later.
-- The port is not modelled: the short, the watchdog, the preloader's
-  `0e8d:2000` port and USB packet sizes do not exist here.
+- The port is not modelled: the short, the watchdog and USB packet sizes do
+  not exist here, and the preloader offers no `0e8d:2000` serial port.
 - `ports.py` also replaces `firebreak.identify.usb_devices`, so a run never
   sees the host's own USB devices. It lists the simulated Dot as `AEOBC`
   when it is booted, adb `unauthorized` too, as `Echo Dot (2nd Gen)` in TWRP
-  3.7.0 and as `Echo Dot 2nd Gen` in TWRP 3.2.3, and lists nothing in any
-  other mode.
+  3.7.0 and as `Echo Dot 2nd Gen` in TWRP 3.2.3, as `0e8d:0003` with no
+  strings in its bootrom, as `0e8d:2000` `MediaTek` `MT65xx Preloader` in the
+  `preloader` mode, and lists nothing in any other mode. The two download ids
+  are what firebreak reads the bootrom and preloader states from, so without
+  them a run in either state read nothing on USB at all.
+- A Dot whose boot0 holds a preloader, and whose `lk_a` holds no LK this
+  simulator knows, is in the `preloader` mode: the preloader runs and chains
+  nothing, which is the Dot that shows no light. adb and fastboot answer
+  nothing there, as in any mode but their own.
 
 ### Leniencies
 
 The simulator accepts these, where a real Dot may not:
 
+- a bootrom that answers for ever, where a Dot's own watchdog takes it after
+  about 40 seconds
+- a preloader that stays on USB, where a stuck Dot's shows for about a second
+  every 30
 - a jump without the cache-disable command (`0xC8 0xB1`)
 - a crypto engine that ignores SOURCE and does not need the key and IV slots
   cleared
@@ -522,6 +534,7 @@ bound K:
 ### Measured
 
 Measured on 2026-10-12, firebreak to each target from no light with `--short`
+on the target itself, which `firebreak bootrom --short` took over,
 and from stock fastboot, 6 Dots at once. Each Dot had its own `FIREBREAK_SIM`
 and `FIREBREAK_SIM_CACHE`. A time is from the start of `run.sh` to its
 summary line, and includes `create` and `snapshot`.

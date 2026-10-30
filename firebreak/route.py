@@ -83,6 +83,7 @@ if TYPE_CHECKING:
 
 
 AHEAD = {State.STOCK_BOOTED: State.STOCK_FASTBOOT}
+BOOTROMS = frozenset({State.BOOTROM, State.NONE})
 DOWNLOADS: list[Need] = []
 DRIVER_CHECK = 10
 DRIVER_MISSES = 2
@@ -401,18 +402,20 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 if not in_browser(need=need)
             ]
             DOWNLOADER.start()
-        if current not in {State.NONE, State.STARTING, *TWRPS}:
+        if current not in {State.BOOTROM, State.NONE, State.STARTING, *TWRPS}:
             ERASED.unlink(missing_ok=True)
             HELD.unlink(missing_ok=True)
         SESSION.boot0_marker = ERASED
-        parked = ERASED.exists() or HELD.exists()
-        if current == State.NONE and parked and not (resumed or SESSION.held):
+        parked = ERASED.exists() or HELD.exists() or current == State.BOOTROM
+        if current in BOOTROMS and parked and not (resumed or SESSION.held):
             if target.device not in BOOTROM_UNLOCKS:
-                why = (
-                    "has an erased boot0, which only its bootrom can start it from"
-                    if ERASED.exists()
-                    else "waits in its bootrom, where another run left it"
-                )
+                if ERASED.exists():
+                    why = "has an erased boot0, which only its bootrom can start"
+                elif HELD.exists():
+                    why = "waits in its bootrom, where another run left it"
+                else:
+                    why = "answers on its bootrom's own USB id"
+
                 raise FatalError(
                     message=f"this {target.device.title} {why}, and firebreak has"
                     " no bootrom chain for it, so nothing was done."

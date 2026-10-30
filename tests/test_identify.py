@@ -11,6 +11,7 @@ import pytest
 
 from firebreak import identify
 from firebreak.devices import BISCUIT, CROWN, RADAR, TARGETS
+from firebreak.states import State
 from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
@@ -581,6 +582,21 @@ def test_only_the_usb_ids_an_echo_uses_are_counted(
     assert identify.echo_devices() == [AEOBC, AEORD]
 
 
+def test_the_bootrom_and_the_preloader_are_states(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[identify.UsbDevice] = []
+    monkeypatch.setattr(name="usb_devices", target=identify, value=lambda: list(seen))
+    monkeypatch.setattr(name="usb_read", target=identify.SESSION, value=None)
+    assert identify.downloading() is None
+    seen.append(dataclasses.replace(AEOBC, product_id=0x2000))
+    monkeypatch.setattr(name="usb_read", target=identify.SESSION, value=None)
+    assert identify.downloading() is State.PRELOADER
+    seen.append(dataclasses.replace(AEOBC, product_id=0x0003))
+    monkeypatch.setattr(name="usb_read", target=identify.SESSION, value=None)
+    assert identify.downloading() is State.BOOTROM
+
+
 def test_the_erased_marker_does_not_overrule_the_echo(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
@@ -622,6 +638,23 @@ def test_the_report_lines_read_usb_once(*, monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(name="usb_devices", target=identify, value=counted)
     assert len(identify.identity_lines()) == 2
     assert reads == [1]
+
+
+def test_the_usb_read_is_kept_for_a_moment(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    reads = []
+    monkeypatch.setattr(
+        name="usb_devices", target=identify, value=lambda: reads.append(1) or []
+    )
+    monkeypatch.setattr(name="usb_read", target=identify.SESSION, value=None)
+    monkeypatch.setattr(name="monotonic", target=identify.time, value=lambda: 100.0)
+    identify.usb_seen()
+    identify.usb_seen()
+    assert len(reads) == 1
+    monkeypatch.setattr(
+        name="monotonic", target=identify.time, value=lambda: 100.0 + identify.USB_CACHE
+    )
+    identify.usb_seen()
+    assert len(reads) == 2
 
 
 def test_windows_reads_the_bus_reported_name(

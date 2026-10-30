@@ -35,6 +35,7 @@ CHUNK_SECONDS = 0.05
 MEDIATEK_VENDOR_ID = 0x0E8D
 MODULES = ("firebreak.cache", "firebreak.identify", "serial.tools.list_ports")
 NANOSECONDS = 1_000_000_000
+PRELOADER_PRODUCT_ID = 0x2000
 REAL_MONOTONIC = time.monotonic_ns
 REAL_SELECT = select.select
 REAL_SLEEP = time.sleep
@@ -299,7 +300,16 @@ def usb_devices() -> list:
     mode = state.get("mode")
     if mode == "recovery" and state.get("outcome", {}).get("flavour") == "twrp-3.2.3":
         mode = "recovery 3.2.3"
-    found = {
+    downloading = {
+        "bootrom": (MEDIATEK_VENDOR_ID, BOOTROM_PRODUCT_ID, "", ""),
+        "preloader": (
+            MEDIATEK_VENDOR_ID,
+            PRELOADER_PRODUCT_ID,
+            "MediaTek",
+            "MT65xx Preloader",
+        ),
+    }.get(mode)
+    found = downloading or {
         "biscuit": {
             "device": (MEDIATEK_VENDOR_ID, 0x201C, "MediaTek", "AEOBC"),
             "recovery": (0x18D1, 0xD001, "Amazon", "Echo Dot (2nd Gen)"),
