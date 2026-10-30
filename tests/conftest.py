@@ -108,7 +108,11 @@ def no_real_cache(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) ->
     directory = tmp_path / "real-cache"
     directory.mkdir()
     for name, module in tuple(sys.modules.items()):
-        if name != "firebreak" and not name.startswith("firebreak."):
+        if name != "firebreak" and not name.startswith((
+            "firebreak.",
+            "test_",
+            "tests.",
+        )):
             continue
         for attribute, value in (
             ("CACHE", directory),
