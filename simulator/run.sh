@@ -1,9 +1,10 @@
 #!/bin/sh
-# Usage: [DEVICE=radar] [START=no-light] simulator/run.sh OUT TARGET [FLAG...]
+# Usage: [DEVICE=radar] [START=no-light|twrp|stock-booted] simulator/run.sh OUT TARGET [FLAG...]
 # Create a fresh simulated Dot, or with DEVICE=radar an Echo (2nd
 # Generation), in stock fastboot or, with START=no-light,
 # unplugged with boot0 erased and plugged in when firebreak asks for the
-# short. START=twrp starts it unlocked with amonet v2, in that TWRP.
+# short. START=twrp starts it unlocked with amonet v2, in that TWRP, and
+# START=stock-booted starts the stock Fire OS, which answers no adb.
 # Run firebreak to TARGET with FLAGs, under the simulator's
 # virtualenv and with the simulator first on PATH, and leave
 # OUT.log, OUT.jsonl, OUT.txt, OUT.snapshot and OUT.table. Destroy the Dot

@@ -46,6 +46,11 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - `START=fastboot`, the default, starts in stock fastboot. `START=no-light`
   erases boot0 and leaves the Dot unplugged. `run.sh` plugs it in when
   firebreak prints "Short the Dot's test point".
+- `START=stock-booted` starts the stock Fire OS it was created with. Nothing
+  there answers adb, so a command that needs a reboot asks for the button
+  gesture and waits: the simulator performs no gesture, which is the one entry
+  the grid below can only check as far as the question. `bootrom` refuses that
+  state outright, which it does check.
 - `START=twrp` writes amonet v2's chain and starts its TWRP. `create` writes
   it with the same code the fastbrick does, from the same zip, so the Dot
   arrives where the fastbrick leaves it: v2's LK in both slots, v2's TEE in
@@ -59,6 +64,18 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   bootrom and the fastbrick included, so it proves nothing about reaching
   TWRP. It is what makes `stock` reach the restore, which otherwise only a
   full unlock run would get to.
+- `simulator/entries.sh OUT` runs each entry command twice on a fresh Echo,
+  once to act and once to find the state it left, and checks what each run
+  says. It is the grid the entry commands are held to, 16 cases over both
+  devices: `fastboot` and `twrp` from an amonet TWRP, from stock fastboot and
+  from a stock boot; `twrp --force` from the locked fastboot it fastbricks;
+  `bootrom --force` from an amonet TWRP, from an amonet fastboot, from the
+  locked fastboot that refuses it and from the stock boot that has no way in;
+  and `short` from no light. The second run of each is the no-op: `fastboot`
+  and `twrp` report the state they are in, `bootrom` and `short` report a hold
+  they join, and `twrp --force` writes no second fastbrick. It found the one
+  that did not hold: `short` asked for the short again on a bootrom already
+  held, with the case open and a wire in hand for nothing.
 - `DEVICE=biscuit`, the default, makes an Echo Dot (2nd Generation).
   `DEVICE=radar` makes an Echo (2nd Generation): adb and fastboot name radar,
   and the stock LK, the model and the USB ids are radar's. firebreak names the
