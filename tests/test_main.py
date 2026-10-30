@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import sys
 from typing import TYPE_CHECKING
 
@@ -225,10 +224,6 @@ def test_a_failing_update_check_is_silent(
         ),
         (["--end-in-fireos", "report"], "report takes no --end-in-fireos"),
         (["--no-wait", "unlock", "fireos6"], "unlock takes no --no-wait"),
-        (
-            ["--run-on-unproven-path", "report"],
-            "report takes no --run-on-unproven-path",
-        ),
     ],
 )
 def test_a_flag_is_refused_on_a_command_that_does_not_take_it(
@@ -373,17 +368,6 @@ def test_a_short_names_the_device_whose_test_point_to_short(
     assert "R60" in main.SESSION.short_gesture
 
 
-def test_a_short_needs_a_device(
-    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        name="argv", target=sys, value=["firebreak", "bootrom", "--short"]
-    )
-    with pytest.raises(SystemExit):
-        main.parsed()
-    assert "--short needs --device" in capsys.readouterr().err
-
-
 def test_a_short_on_a_device_with_no_test_point_found(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -393,17 +377,17 @@ def test_a_short_on_a_device_with_no_test_point_found(
     )
     short = ["firebreak", "bootrom", "--device", "radar", "--short"]
     monkeypatch.setattr(name="argv", target=sys, value=short)
-    with pytest.raises(
-        main.FatalError,
-        match=r"no one has found the Echo \(2nd Generation\)'s test point",
-    ):
+    with pytest.raises(SystemExit):
         main.cli()
+    assert "No one has found the Echo (2nd Generation)'s test point" in (
+        main.SESSION.short_gesture
+    )
     monkeypatch.setattr(
-        name="argv", target=sys, value=[*short, "--run-on-unproven-path"]
+        name="argv", target=sys, value=["firebreak", "bootrom", "--short"]
     )
     with pytest.raises(SystemExit):
         main.cli()
-    assert main.SESSION.short_gesture == ""
+    assert "without --device: biscuit, radar" in main.SESSION.short_gesture
 
 
 def test_a_target_only_one_device_has_reads_no_bootrom(
@@ -435,32 +419,6 @@ def test_an_option_before_a_command_that_does_not_take_it_is_refused(
     with pytest.raises(SystemExit):
         main.parsed()
     assert "report takes no --short" in capsys.readouterr().err
-
-
-def test_an_unproven_target_goes_on_only_when_asked(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ran(device=RADAR, monkeypatch=monkeypatch)
-    monkeypatch.setitem(
-        TARGETS[RADAR],
-        "stock",
-        dataclasses.replace(TARGETS[RADAR]["stock"], unproven=True),
-    )
-    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", "stock", "6436"])
-    with pytest.raises(
-        main.FatalError,
-        match="stock is not proven on an actual Echo \\(2nd Generation\\), so it"
-        " needs --run-on-unproven-path",
-    ):
-        main.cli()
-    monkeypatch.setattr(
-        name="argv",
-        target=sys,
-        value=["firebreak", "stock", "6436", "--run-on-unproven-path"],
-    )
-    with pytest.raises(SystemExit):
-        main.cli()
-    assert main.ARGUMENTS.build == "6436"
 
 
 def test_no_newer_release_says_nothing(
@@ -569,7 +527,6 @@ def test_reset_reaches_a_fire_os_6_unlock(
             "unlock",
             "fireos6",
             "--factory-reset",
-            "--run-on-unproven-path",
         ],
     )
     with pytest.raises(SystemExit):
@@ -602,7 +559,7 @@ def test_stock_takes_no_wait(*, monkeypatch: pytest.MonkeyPatch) -> None:
         (["stock"], BISCUIT, "8149"),
         (["stock", "4315"], BISCUIT, "4315"),
         (["unlock", "fireos6"], BISCUIT, ""),
-        (["stock", "--run-on-unproven-path"], RADAR, "8149"),
+        (["stock"], RADAR, "8149"),
     ],
     ids=["stock-alone", "stock-with-a-build", "another-target", "radar-stock"],
 )

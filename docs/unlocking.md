@@ -420,15 +420,17 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   payload waiting there, by the same hold a `stock 5.5.0.3` restore leaves. So
   one command asks for the test point, and a run that writes firmware never
   waits on an operator with a wire in hand.
-- `--short` needs `--device`. Nothing on USB says which Echo is dark, and the
-  run has to name the test point before the owner shorts it, so the device
-  comes from the command line rather than from a guess.
+- `--short` reads better with `--device`. Nothing on USB says which Echo is
+  dark, and the run has to name the test point before the owner shorts it, so
+  that name can only come from the command line.
 - Where the test point is differs by device, and nothing else about the short
   does: both are MT8163, both answer the same bootrom, and amonet ships one
-  payload for the two. So a device whose test point no one has found, which
-  today is radar, refuses `--short` unless the run also passes
-  `--run-on-unproven-path`. The refusal is about the instruction firebreak
-  cannot give, not about the exploit.
+  payload for the two. So `--short` refuses nothing. A device whose test point
+  no one has found, which today is radar, and a run that names no device at
+  all, are both told that firebreak cannot say where to short it, and the run
+  waits for a bootrom anyway. Nothing is written while it waits, and the
+  bootloader read names the Echo afterwards, so `--device` only picks whose
+  test point to describe.
 - amonet takes any port that appears after it lists the ports at start. So
   `--short` asks for the short only once amonet logs that it is waiting, and
   sends no reset first: an Echo plugged in earlier would be in that list and
@@ -729,11 +731,12 @@ testing a single stage mean reaching its state by hand first.
 - `unlock fireos6` wipes cache and `stock` formats it. `unlock fireos5`
   formats userdata
   only, so a cache damaged before a run survives it.
-- `write-test --short` runs the test through the bootrom instead, for an Echo
-  that shows no light and so has no recovery. It reads the last 64 blocks of
-  `cache` three times, then writes 1, 34 and 64 blocks there and reads each
+- `write-test` runs the test through the bootrom instead where a marker says
+  a bootrom holds the Echo. `firebreak bootrom --short` is how to reach that
+  on one that shows no light and so has no recovery. It reads the last 64
+  blocks of `cache` three times, then writes 1, 34 and 64 blocks and reads each
   back, then writes the first read back. 34 is the partition table, the first
-  bootrom write of a `--short` run; 64 is the most one command carries.
+  bootrom write of a short run; 64 is the most one command carries.
 - v2.0.0's payload answers a block write only when the eMMC took it, and the
   same silence follows when the bytes never all arrive. So after a write with
   no answer the test sends a 4-byte memory read, `0x5000`. A payload that
@@ -1270,8 +1273,9 @@ testing a single stage mean reaching its state by hand first.
 - Fire OS 6 without root for a minute after the install means
   `boot-root.zip` did not take, and the run stops. A single such read during
   the first boot does not stop it.
-- `--short` goes with any target. Its bootrom step writes the chain that
-  target's resume writes, and the run continues from that TWRP like any other.
+- No target takes `--short`. `firebreak bootrom --short` parks the Echo in
+  its bootrom, and the target run after that writes the chain its resume
+  writes and continues from that TWRP like any other.
 
 ## Back to stock: the stock target
 
@@ -1554,7 +1558,7 @@ Every entry state, and the TWRPs its path to each target runs under or writes:
 
 | entry state | `unlock fireos5` | `unlock fireos6` | `stock` |
 | --- | --- | --- | --- |
-| nothing on USB, with `boot0-erased` or `bootrom-held`, or under `--short` | bboe2 | v2 3.7.0 | v2 3.7.0 |
+| bootrom, or nothing on USB with `boot0-erased` or `bootrom-held` | bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `stock-fastboot` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `stock-fireos5-fastboot` | v2 3.7.0, bboe2 | v2 3.7.0 | v2 3.7.0 |
 | `stock-booted` | -- | -- | nothing to restore |
@@ -1576,7 +1580,7 @@ all.
 
 ```mermaid
 flowchart LR
-  brom["nothing on USB<br/>boot0-erased, bootrom-held, --short"]
+  brom["bootrom<br/>boot0-erased, bootrom-held"]
   sfb["stock-fastboot<br/>stock-fireos5-fastboot"]
   v1fb["amonet-fireos5-fastboot"]
   v2fb["amonet-fastboot"]

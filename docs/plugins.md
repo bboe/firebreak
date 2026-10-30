@@ -39,9 +39,10 @@ amonet-crown v1.1.1's LK names `CHECKERS`.
 A device gives the two gestures its owner is asked for in words of its own:
 `fastboot_mode`, the button and the ring that follow it, and `short_gesture`,
 where the test point is and what to open to reach it. A device whose test
-point no one has found leaves `short_gesture` empty, and `--short` refuses it
-unless the run also passes `--run-on-unproven-path`. Only the location
-differs: the bootrom behind it is the same part on every device here.
+point no one has found leaves `short_gesture` empty, and `--short` says so and
+waits for its bootrom anyway, because it writes nothing while it waits. Only
+the location differs: the bootrom behind it is the same part on every device
+here.
 
 A device firebreak can unlock lists the LK build descriptions it knows: the
 rows of its Builds table in [devices.md](devices.md), and any an Echo has
@@ -184,14 +185,6 @@ and is not a `--device` choice. Their goal states are in
 can name a state without the registry's imports forming a cycle. A target's
 summary is its line in `--help`, which lists each device's commands, and the
 unlock targets under `unlock` with the default first.
-
-A target whose route is not proven on the device it is for says `unproven`.
-Such a target is refused unless the run passes `--run-on-unproven-path`, so
-reaching it is a choice rather than an accident, and the refusal names the
-device so it is clear what has not been proven. A route nobody has run is
-unproven, and so is one whose runs needed a step firebreak does not yet take.
-A target loses the field once a run on that device is recorded in
-docs/unlocking.md.
 
 v2.0.0's `main.py` has two branches its plan leaves out: `fixgpt`, a manual
 mode that writes its own table, and a run from the preloader, which leaves

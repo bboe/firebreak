@@ -124,7 +124,6 @@ class Target:
     name: str
     summary: str
     unlock: Unlock | None
-    unproven: bool = False
 
 
 @dataclasses.dataclass(frozen=True)

@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 LEFT = (
     "The Echo restarts. With a preloader in boot0 it starts as before; without"
-    " one it waits in its bootrom, and a --short run takes it from there."
+    " one it waits in its bootrom, where `firebreak bootrom --short` reaches it."
 )
 READS = 3
 REGION_BLOCKS = 64

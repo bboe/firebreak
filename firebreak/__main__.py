@@ -140,19 +140,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--end-in-fireos",
         "--no-update-check",
         "--no-wait",
-        "--run-on-unproven-path",
         "--verbose",
     ]
-    rooting = [
-        "--device",
-        "--factory-reset",
-        "--no-update-check",
-        "--run-on-unproven-path",
-        "--verbose",
-    ]
+    rooting = ["--device", "--factory-reset", "--no-update-check", "--verbose"]
     every = sorted({"--credits", "--short", *navigating, *restoring, *rooting})
     uses = {
-        BOOTROM: [*navigating, "--run-on-unproven-path", "--short"],
+        BOOTROM: [*navigating, "--short"],
         FASTBOOT: ["--device", "--no-update-check", "--verbose"],
         REPORT: ["--no-update-check", "--verbose"],
         STOCK: restoring,
@@ -217,7 +210,6 @@ other commands:
                     "--factory-reset",
                     "--force",
                     "--no-wait",
-                    "--run-on-unproven-path",
                     "--short",
                 }
                 else parents
@@ -328,9 +320,7 @@ def cli() -> None:
     SESSION.no_wait = options.no_wait
     SESSION.short = options.short
     if options.short:
-        SESSION.short_gesture = short_gesture(
-            name=options.device, override=options.run_on_unproven_path
-        )
+        SESSION.short_gesture = short_gesture(name=options.device)
     SESSION.device = DEVICES.get(options.device)
     command = {
         BOOTROM: functools.partial(
@@ -356,11 +346,6 @@ def cli() -> None:
     device = ARGUMENTS.target.device
     if ARGUMENTS.target.name == STOCK:
         stock_build(device=device, wanted=options.build)
-    if ARGUMENTS.target.unproven and not options.run_on_unproven_path:
-        raise FatalError(
-            message=f"{ARGUMENTS.target.name} is not proven on an actual"
-            f" {device.title}, so it needs --run-on-unproven-path to continue"
-        )
     root()
 
 
@@ -427,18 +412,12 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
             ),
         ),
         (
-            "--run-on-unproven-path",
-            (
-                "continue with a target that has never run on the device it is for,"
-                " which is refused without it"
-            ),
-        ),
-        (
             "--short",
             (
                 "for an Echo that shows no light and needs its test point"
                 " shorted: say where to short it, wait for its bootrom, say"
-                " when the short may come off, then continue. Needs --device"
+                " when the short may come off, then continue. --device picks"
+                " whose test point to describe"
             ),
         ),
         (
@@ -504,7 +483,6 @@ def parsed() -> argparse.Namespace:
         ("force", False),
         ("no_update_check", False),
         ("no_wait", False),
-        ("run_on_unproven_path", False),
         ("short", False),
         ("target", None),
         ("verbose", False),
@@ -528,14 +506,14 @@ def parsed() -> argparse.Namespace:
         warn(text=notice)
         sys.exit(1)
     takes = {
-        BOOTROM: {"device", "force", "run_on_unproven_path", "short"},
+        BOOTROM: {"device", "force", "short"},
         FASTBOOT: {"device"},
         REPORT: set(),
-        STOCK: {"device", "end_in_fireos", "no_wait", "run_on_unproven_path"},
+        STOCK: {"device", "end_in_fireos", "no_wait"},
         SURVEY: set(),
         TWRP: {"device", "force"},
         WRITE_TEST: {"device"},
-    }.get(options.command, {"device", "factory_reset", "run_on_unproven_path"})
+    }.get(options.command, {"device", "factory_reset"})
     for option in sorted(
         {
             "device",
@@ -543,7 +521,6 @@ def parsed() -> argparse.Namespace:
             "factory_reset",
             "force",
             "no_wait",
-            "run_on_unproven_path",
             "short",
         }
         - takes
@@ -551,12 +528,6 @@ def parsed() -> argparse.Namespace:
         if getattr(options, option):
             dashed = option.replace("_", "-")
             parser.error(message=f"{options.command} takes no --{dashed}")
-    if options.short and named is None:
-        parser.error(
-            message="--short needs --device, because where the test point is"
-            " differs by device and nothing on USB says which one this is:"
-            f" {', '.join(sorted(DEVICES))}."
-        )
     device = named
     wanted = options.target if options.command == UNLOCK else options.command
     if (
@@ -570,14 +541,20 @@ def parsed() -> argparse.Namespace:
     return options
 
 
-def short_gesture(*, name: str, override: bool) -> str:
-    device = DEVICES[name]
-    if device.short_gesture or override:
+def short_gesture(*, name: str | None) -> str:
+    device = DEVICES.get(name or "")
+    if device is None:
+        return (
+            "firebreak cannot say where to short it without --device:"
+            f" {', '.join(sorted(DEVICES))}. It waits for a bootrom either way,"
+            " and writes nothing while it waits."
+        )
+    if device.short_gesture:
         return device.short_gesture
-    raise FatalError(
-        message=f"no one has found the {device.title}'s test point, so firebreak"
-        " cannot say where to short it. --short needs --run-on-unproven-path on"
-        " a device without one."
+    return (
+        f"No one has found the {device.title}'s test point, so firebreak cannot"
+        " say where to short it. It waits for a bootrom either way, and writes"
+        " nothing while it waits."
     )
 
 
