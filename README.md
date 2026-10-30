@@ -160,16 +160,16 @@ reaching its state first. Three commands do only that, and stop there.
 | `firebreak fastboot` | the fastboot its bootloader gives | nothing |
 | `firebreak twrp` | its TWRP | nothing, where the bootloader is unlocked and its recovery holds a TWRP; `--force` writes one |
 | `firebreak bootrom` | its bootrom, with amonet's payload holding it | boot0's header from a recovery, all of boot0 from fastboot |
-| `firebreak bootrom --short` | the same, with the test point shorted | nothing |
+| `firebreak short` | the same, with the test point shorted | nothing |
 
 Each asks before a write and says what the write does. `--force` answers in
 advance, and a run with no terminal to ask at stops and names it.
 
-## `bootrom --short`
+## `short`
 
-Use `firebreak bootrom --short` when the Dot shows no light and gives no
-fastboot. It reaches the Dot's bootrom by shorting its eMMC bus as it powers
-up, and holds it there. The run after it joins that payload with no second
+Use `firebreak short` when the Dot shows no light and gives no fastboot. It
+reaches the Dot's bootrom by shorting its eMMC bus as it powers up, and holds
+it there. The run after it joins that payload with no second
 short, so this is how a target run starts on a Dot that cannot reach fastboot.
 Only this command asks for a short.
 
@@ -181,7 +181,7 @@ Only this command asks for a short.
    board](https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/)). Do not
    use C52, which is a capacitor.
 3. With the Dot unplugged, run
-   `uvx firebreak@latest bootrom --device biscuit --short`.
+   `uvx firebreak@latest short --device biscuit`.
 4. When firebreak prints "Short … test point and plug it in", hold a wire from
    that passive to the shield frame beside it, which is ground, and plug the Dot
    in. A Dot plugged in before that message can go unseen. On "Short … missed",
@@ -218,7 +218,7 @@ partition and read it back, so nothing crosses USB. It erases `cache`, which
 holds nothing the Dot needs, and leaves an empty filesystem there, or says
 it could not.
 
-For a Dot that shows no light, run [`bootrom --short`](#bootrom---short)
+For a Dot that shows no light, run [`short`](#short)
 first; `write-test` then goes through the payload waiting there, writes a
 pattern over the end of `cache` from this computer, and reads it back. It says
 whether the eMMC refused a write or the bytes did not arrive, and puts back

@@ -34,11 +34,14 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
-- `--short` prints where the test point is before it waits, and `--device`
-  picks whose. It refuses nothing: a run that names no device, and one naming
-  a device whose test point no one has found, are both told that firebreak
-  cannot say where to short it, and both wait for a bootrom anyway.
-- `--run-on-unproven-path` is gone. It gated `--short` on a device with no
+- `firebreak short` is a command of its own, where it was `--short` on other
+   commands. All it does is reach the bootrom of an Echo that shows no light
+   and hold it: it says where the test point is before it waits, and
+   `--device` picks whose. It refuses nothing: a run that names no device, and
+   one naming a device whose test point no one has found, are both told that
+   firebreak cannot say where to short it, and both wait for a bootrom anyway.
+   Nothing it does writes to the Echo.
+- `--run-on-unproven-path` is gone. It gated the short on a device with no
   known test point, which writes nothing and so needed no gate, and a target
   that says it is unproven, which no target says.
 - The `bootrom-held` and `boot0-erased` files in the cache are gone, and
@@ -49,10 +52,9 @@ This project adheres to [Semantic Versioning](https://semver.org).
   keeps `Only boot0 was erased.` true. What this costs: with nothing on USB a
   run can no longer name the Echo, so one that needs the name asks for
   `--device` until the bootrom appears and names itself from flash.
-- `--short` belongs to the new `bootrom` command alone. `stock`, `unlock` and
-  `write-test` no longer take it: park the Echo with
-  `firebreak bootrom --short` first, and the run after it joins the payload
-  waiting there.
+- `stock`, `unlock` and `write-test` no longer short anything: park the Echo
+  with `firebreak short` first, and the run after it joins the payload waiting
+  there.
 - `unlock fireos6` roots the Fire OS 6 build already installed, with no wipe
   and no OTA install, so a device set up in the Alexa app keeps its Wi-Fi and
   Alexa setup. `--factory-reset` erases userdata and installs the target's

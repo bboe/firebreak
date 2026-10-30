@@ -58,6 +58,7 @@ FASTBOOTS = frozenset({
 LOCKED_FASTBOOTS = frozenset({State.STOCK_FASTBOOT, State.STOCK_FIREOS5_FASTBOOT})
 NAMELESS = frozenset({State.BOOTROM, State.NONE, State.PRELOADER})
 RECOVERY_WAIT = 90
+SHORT = "short"
 STUCK = 600
 TO_FASTBOOT = (
     frozenset({
@@ -80,12 +81,23 @@ TWRP = "twrp"
 WAITS = frozenset({State.NONE, State.PRELOADER, State.STARTING})
 WAYS_OUT = {
     State.NONE: " An Echo that shows no light never comes back on its own:"
-    " `firebreak bootrom --short` reaches that one through its test point.",
+    " `firebreak short` reaches that one through its test point.",
     State.BOOTROM: " A chain written through the payload there is the way out:"
     " run `firebreak unlock` or `firebreak stock`.",
     State.PRELOADER: " A preloader that never starts a bootloader leaves the"
-    " test point as the only way in: run `firebreak bootrom --short`.",
+    " test point as the only way in: run `firebreak short`.",
 }
+
+
+def already_held() -> bool:
+    live = answering()
+    if live is None:
+        return False
+    checked_device(live=live)
+    with contextlib.suppress(OSError):
+        live.port.close()
+    passed(message=f"The {known()} already waits in its bootrom.")
+    return True
 
 
 def answering() -> Client | None:
@@ -141,21 +153,12 @@ def bootrom_device() -> Device | None:
     return device
 
 
-def bootrom_entry(*, force: bool, short: bool) -> None:
+def bootrom_entry(*, force: bool) -> None:
     PROGRESS.steps = None
     noticed()
-    if short:
-        SESSION.short = True
-        parked(live=reached(erase=None))
-        return
     current = awaited()
     if current == State.BOOTROM:
-        live = answering()
-        if live is not None:
-            checked_device(live=live)
-            with contextlib.suppress(OSError):
-                live.port.close()
-            passed(message=f"The {known()} already waits in its bootrom.")
+        if already_held():
             return
         parked(live=reached(erase=None))
         return
@@ -192,14 +195,14 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
         raise FatalError(
             message=f"this {known()} is locked, and a locked bootloader"
             " refuses to erase boot0. Unlock it first, or run"
-            f" `firebreak {BOOTROM} --short` on an Echo that shows no light."
+            f" `firebreak {SHORT}` on an Echo that shows no light."
         )
     else:
         raise FatalError(
             message=f"the {known()} reads as {current.value}, which nothing"
             f" here can reach a {BOOTROM} from. Start its fastboot or its TWRP"
             f" first, with `firebreak {FASTBOOT}` or `firebreak {TWRP}`, or"
-            f" short its test point with `firebreak {BOOTROM} --short`."
+            f" short its test point with `firebreak {SHORT}`."
         )
 
 
@@ -231,7 +234,7 @@ def checked_device(*, live: Client) -> None:
 
 
 def entries() -> tuple[str, ...]:
-    return (FASTBOOT, TWRP, BOOTROM)
+    return (FASTBOOT, TWRP, BOOTROM, SHORT)
 
 
 def fastboot_entry() -> None:
@@ -351,6 +354,15 @@ def revisited(
     return time.monotonic()
 
 
+def short_entry() -> None:
+    PROGRESS.steps = None
+    SESSION.short = True
+    noticed()
+    if already_held():
+        return
+    parked(live=reached(erase=None))
+
+
 def to_fastboot() -> None:
     reboot(into="bootloader", label="restarting into fastboot")
 
@@ -446,7 +458,7 @@ def walk(
             say(
                 text=f"Waiting for the {known()} on USB. A reboot reads this way"
                 " until it comes back. An Echo that shows no light never does:"
-                f" `firebreak {BOOTROM} --short` reaches that one."
+                f" `firebreak {SHORT}` reaches that one."
             )
         if act is not None and current not in acted:
             acted.add(current)

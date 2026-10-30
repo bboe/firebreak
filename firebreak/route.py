@@ -634,7 +634,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                         message=f"the {title()}'s preloader has run for"
                         f" {WAIT // 60} minutes without starting a bootloader,"
                         " so the test point is the only way in: run"
-                        " `firebreak bootrom --short`."
+                        " `firebreak short`."
                     )
                 raise FatalError(
                     message=f"the {title()} has been {current.value} for"

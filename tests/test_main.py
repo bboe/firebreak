@@ -351,45 +351,6 @@ def test_a_run_with_no_update_check_does_not_check(
         main.cli()
 
 
-def test_a_short_names_the_device_whose_test_point_to_short(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ran(device=BISCUIT, monkeypatch=monkeypatch)
-    monkeypatch.setattr(
-        name="bootrom_entry", target=main, value=lambda **_: sys.exit(0)
-    )
-    monkeypatch.setattr(
-        name="argv",
-        target=sys,
-        value=["firebreak", "bootrom", "--device", "biscuit", "--short"],
-    )
-    with pytest.raises(SystemExit):
-        main.cli()
-    assert "R60" in main.SESSION.short_gesture
-
-
-def test_a_short_on_a_device_with_no_test_point_found(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ran(device=RADAR, monkeypatch=monkeypatch)
-    monkeypatch.setattr(
-        name="bootrom_entry", target=main, value=lambda **_: sys.exit(0)
-    )
-    short = ["firebreak", "bootrom", "--device", "radar", "--short"]
-    monkeypatch.setattr(name="argv", target=sys, value=short)
-    with pytest.raises(SystemExit):
-        main.cli()
-    assert "No one has found the Echo (2nd Generation)'s test point" in (
-        main.SESSION.short_gesture
-    )
-    monkeypatch.setattr(
-        name="argv", target=sys, value=["firebreak", "bootrom", "--short"]
-    )
-    with pytest.raises(SystemExit):
-        main.cli()
-    assert "without --device: biscuit, radar" in main.SESSION.short_gesture
-
-
 def test_a_target_only_one_device_has_reads_no_bootrom(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -414,11 +375,11 @@ def test_an_option_before_a_command_that_does_not_take_it_is_refused(
     if into_namespace:
         parse_into_namespace(monkeypatch=monkeypatch)
     monkeypatch.setattr(
-        name="argv", target=sys, value=["firebreak", "--short", "report"]
+        name="argv", target=sys, value=["firebreak", "--force", "report"]
     )
     with pytest.raises(SystemExit):
         main.parsed()
-    assert "report takes no --short" in capsys.readouterr().err
+    assert "report takes no --force" in capsys.readouterr().err
 
 
 def test_no_newer_release_says_nothing(
@@ -435,11 +396,11 @@ def test_no_newer_release_says_nothing(
     argnames=("arguments", "parsed"),
     argvalues=[
         (
-            ["--short", "--device", "biscuit", "bootrom"],
+            ["--force", "--device", "biscuit", "bootrom"],
             ("bootrom", "", True, "biscuit", False),
         ),
         (
-            ["bootrom", "--short", "--device", "biscuit"],
+            ["bootrom", "--force", "--device", "biscuit"],
             ("bootrom", "", True, "biscuit", False),
         ),
         (
@@ -476,7 +437,7 @@ def test_options_count_before_or_after_the_target_or_command(
     assert (
         options.command,
         options.build,
-        options.short,
+        options.force,
         options.device,
         options.verbose,
     ) == parsed

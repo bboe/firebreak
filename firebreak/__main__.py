@@ -36,11 +36,13 @@ from firebreak.emos import child_emos
 from firebreak.entry import (
     BOOTROM,
     FASTBOOT,
+    SHORT,
     TWRP,
     bootrom_device,
     bootrom_entry,
     entries,
     fastboot_entry,
+    short_entry,
     twrp_entry,
 )
 from firebreak.host import check_adb, check_python, check_root, check_user
@@ -109,15 +111,19 @@ def build_parser() -> argparse.ArgumentParser:
     about = {
         BOOTROM: "hold the Echo in its bootrom, where amonet's payload can reach"
         " the eMMC with no firmware running. It asks before it clears boot0,"
-        " which is what leaves an Echo startable from its bootrom alone."
-        " `--short` instead waits for an Echo whose test point is shorted, and"
-        " writes nothing.",
+        " which is what leaves an Echo startable from its bootrom alone. An"
+        " Echo that shows no light cannot be reached this way: `firebreak"
+        " short` is for that one.",
         FASTBOOT: "start the Echo's fastboot, whichever bootloader it holds. It"
         " reboots an Echo that answers adb, and asks for the button gesture"
         " where it cannot. It writes nothing.",
         REPORT: "print what the Echo and this computer are, and the Echo's"
         " partition table, for a support request. It starts the Echo's recovery"
         " to read them and writes no partition.",
+        SHORT: "hold the bootrom of an Echo that shows no light, by shorting its"
+        " test point. It says where to short, waits for the bootrom, says when"
+        " the short may come off, and leaves amonet's payload holding it. It"
+        " writes nothing, and --device picks whose test point to describe.",
         SURVEY: "read each Amazon OTA zip for the tables in docs/devices.md. It"
         " needs no Echo.",
         TWRP: "start the Echo's TWRP. On an unlocked Echo it restarts into the"
@@ -131,7 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
         " USB cable because nothing crosses USB. It leaves a fresh empty"
         " filesystem there, or says it could not.",
     }
-    labels = {BOOTROM: " [--short]", SURVEY: " OTA [OTA ...]", UNLOCK: " [TARGET]"}
+    labels = {SURVEY: " OTA [OTA ...]", UNLOCK: " [TARGET]"}
     parents = option_parents()
     quiet = option_parents(hidden=True)
     navigating = ["--device", "--force", "--no-update-check", "--verbose"]
@@ -143,11 +149,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--verbose",
     ]
     rooting = ["--device", "--factory-reset", "--no-update-check", "--verbose"]
-    every = sorted({"--credits", "--short", *navigating, *restoring, *rooting})
+    every = sorted({"--credits", *navigating, *restoring, *rooting})
     uses = {
-        BOOTROM: [*navigating, "--short"],
+        BOOTROM: navigating,
         FASTBOOT: ["--device", "--no-update-check", "--verbose"],
         REPORT: ["--no-update-check", "--verbose"],
+        SHORT: ["--device", "--no-update-check", "--verbose"],
         STOCK: restoring,
         SURVEY: ["--no-update-check", "--verbose"],
         TWRP: navigating,
@@ -210,7 +217,6 @@ other commands:
                     "--factory-reset",
                     "--force",
                     "--no-wait",
-                    "--short",
                 }
                 else parents
             )[name]
@@ -318,16 +324,13 @@ def cli() -> None:
     make_cache()
     SESSION.fastboot = not options.end_in_fireos
     SESSION.no_wait = options.no_wait
-    SESSION.short = options.short
-    if options.short:
-        SESSION.short_gesture = short_gesture(name=options.device)
+    SESSION.short = options.command == SHORT
     SESSION.device = DEVICES.get(options.device)
     command = {
-        BOOTROM: functools.partial(
-            bootrom_entry, force=options.force, short=options.short
-        ),
+        BOOTROM: functools.partial(bootrom_entry, force=options.force),
         FASTBOOT: fastboot_entry,
         REPORT: report,
+        SHORT: short_entry,
         TWRP: functools.partial(twrp_entry, force=options.force),
         WRITE_TEST: write_test,
     }.get(options.command)
@@ -414,15 +417,6 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
             ),
         ),
         (
-            "--short",
-            (
-                "for an Echo that shows no light and needs its test point"
-                " shorted: say where to short it, wait for its bootrom, say"
-                " when the short may come off, then continue. --device picks"
-                " whose test point to describe"
-            ),
-        ),
-        (
             "--verbose",
             (
                 "print each adb and fastboot command, its exit status and the"
@@ -485,7 +479,6 @@ def parsed() -> argparse.Namespace:
         ("force", False),
         ("no_update_check", False),
         ("no_wait", False),
-        ("short", False),
         ("target", None),
         ("verbose", False),
     ):
@@ -508,9 +501,10 @@ def parsed() -> argparse.Namespace:
         warn(text=notice)
         sys.exit(1)
     takes = {
-        BOOTROM: {"device", "force", "short"},
+        BOOTROM: {"device", "force"},
         FASTBOOT: {"device"},
         REPORT: set(),
+        SHORT: {"device"},
         STOCK: {"device", "end_in_fireos", "no_wait"},
         SURVEY: set(),
         TWRP: {"device", "force"},
@@ -523,7 +517,6 @@ def parsed() -> argparse.Namespace:
             "factory_reset",
             "force",
             "no_wait",
-            "short",
         }
         - takes
     ):
@@ -541,23 +534,6 @@ def parsed() -> argparse.Namespace:
     if device and options.build and options.build not in BUILDS[device]:
         parser.error(message=f"the {device.title} has no stock build {options.build}")
     return options
-
-
-def short_gesture(*, name: str | None) -> str:
-    device = DEVICES.get(name or "")
-    if device is None:
-        return (
-            "firebreak cannot say where to short it without --device:"
-            f" {', '.join(sorted(DEVICES))}. It waits for a bootrom either way,"
-            " and writes nothing while it waits."
-        )
-    if device.short_gesture:
-        return device.short_gesture
-    return (
-        f"No one has found the {device.title}'s test point, so firebreak cannot"
-        " say where to short it. It waits for a bootrom either way, and writes"
-        " nothing while it waits."
-    )
 
 
 def stock_build(*, device: Device, wanted: str) -> None:

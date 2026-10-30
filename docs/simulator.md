@@ -7,11 +7,11 @@
 
 ```sh
 simulator/run.sh OUT unlock fireos5
-START=no-light simulator/run.sh OUT bootrom --short --device biscuit
+START=no-light simulator/run.sh OUT short --device biscuit
 START=twrp simulator/run.sh OUT stock 8149
 DEVICE=radar simulator/run.sh OUT unlock fireos6
 DEVICE=radar START=twrp simulator/run.sh OUT stock 6436
-DEVICE=radar START=no-light simulator/run.sh OUT bootrom --short --device radar
+DEVICE=radar START=no-light simulator/run.sh OUT short --device radar
 python3 simulator/trace.py OUT.jsonl             # one command per line, for diff
 python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per range
 ```
@@ -69,7 +69,7 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   the simulated radar checks the flashed payload against.
 - `report` and `write-test` take any start, because `run.sh` passes the target
   through as a command. `write-test` takes the bootrom route where the Echo
-  reads as a bootrom, so `bootrom --short` first is the way here to reach the
+  reads as a bootrom, so `short` first is the way here to reach the
   bootrom write test. Both commands return before a target is chosen.
 - `START=no-light` takes either device. `bootrom.py` reads its payloads from
   the biscuit archives, and that is enough for a radar because every archive
@@ -538,9 +538,9 @@ bound K:
 
 ### Measured
 
-Measured on 2026-10-12, firebreak to each target from no light with `--short`
-on the target itself, which `firebreak bootrom --short` took over,
-and from stock fastboot, 6 Dots at once. Each Dot had its own `FIREBREAK_SIM`
+Measured on 2026-10-12, firebreak to each target from no light with the short
+on the target itself, which `firebreak short` took over, and from stock
+fastboot, 6 Dots at once. Each Dot had its own `FIREBREAK_SIM`
 and `FIREBREAK_SIM_CACHE`. A time is from the start of `run.sh` to its
 summary line, and includes `create` and `snapshot`.
 

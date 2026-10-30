@@ -111,11 +111,11 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   them the hop: v1.1.0's chain bought nothing but a recovery, on the boot-moved
   table a restore then has to undo, and the one reported Dot that came back
   **locked** from a bootrom step came back from that chain.
-- `--short` does not come into that choice. It decides how the bootrom is
+- The short does not come into that choice. It decides how the bootrom is
   reached, and every part of it -- the port listing, the countdown, the missed
   shorts -- is done before the payload runs, where the chain is a plan the
   payload carries out with the short already off. The one thing the two share
-  is the boot0 header clear, which `--short` leans on for its marker below and
+  is the boot0 header clear, which `short` leans on for its marker below and
   which both chains have in front.
 - v2.0.1's chain from the bootrom is amonet's own `bootrom-step.sh`, which runs
   `modules/main.py`: the table reverted to stock, the RPMB zeroed, `tz.img` to
@@ -181,7 +181,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   clears it.
 - So the handshake gives up after 10 seconds without `0x5f`, where a live
   bootrom answers in about 2 ms. The run then asks for a replug, waits for
-  the port to go and come back, and tries again. Under `--short` it stops
+  the port to go and come back, and tries again. Under `short` it stops
   instead: a replug without the short brings up the preloader, and the
   Enter that ends amonet's short prompt has already been sent, so a second
   short would get no countdown. On a Dot stopped that way, the resume asked
@@ -245,7 +245,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - Nothing in the cache names the Echo any more. A bootloader that names no
   product, or a partition table that does not read, leaves a run with no name
   and it asks for `--device`, where a marker used to answer for it. Two Echo
-  devices swapped between runs are each named by their own flash. `--short`
+  devices swapped between runs are each named by their own flash. `short`
   still needs `--device`, because where the test point is differs by device
   and the run has to say that before any bootrom answers.
 - In fastboot, the report also prints `antirback_pl_version`,
@@ -288,7 +288,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - A Dot whose preloader runs but never starts LK shows no light and offers
   no fastboot: only `0e8d:2000`, the preloader, for about a second every
   30 seconds. That cadence is biscuit's. Its boot0 is intact, so only the eMMC
-  test-point short reaches the bootrom. `--short` runs the bootrom step for
+  test-point short reaches the bootrom. `short` runs the bootrom step for
   it, with no erase.
 - The preloader port is not only a failure sign. Measured on a radar on
   2026-10-27, every ordinary boot offers `0e8d:2000` for about 0.8 seconds
@@ -309,7 +309,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   took no effect.
 - The bootrom step takes only a port it can identify as the bootrom,
   `0e8d:0003`, vendor and product both, and skips a stock preloader's, which
-  `--short` reports as a missed short. amonet would otherwise take whichever
+  `short` reports as a missed short. amonet would otherwise take whichever
   port appears first.
 - Before it resolves its plan, the step reads the first 512 KiB of `lk_a` and
   `lk_b` over the payload, so the wrong device hears that first. Each LK
@@ -322,7 +322,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   table continues to the plan, which refuses it.
 - Nothing else in this step can tell a biscuit from an Echo (2nd Generation):
   its table has biscuit's 16 partitions and the same bootrom answers. Without
-  the check, `--short` on a radar that shows no light would write biscuit's
+  the check, `short` on a radar that shows no light would write biscuit's
   amonet v1.1.0 chain, preloader included.
 - A radar reached its bootrom on 2026-10-27, so the sentence above is no
   longer read from the code alone. Both are MT8163, and amonet ships one
@@ -420,32 +420,32 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   0 correctly, and a normal join after it still worked, so the hold survived.
   0.2 ms against a 0.5 s window is a margin of 2500, which is why calling a
   live payload dead is not a practical worry.
-- `--short` belongs to `firebreak bootrom` alone. A target run never asks for
+- The short is `firebreak short` alone. A target run never asks for
   a short: an Echo that shows no light is parked in its bootrom by
-  `firebreak bootrom --short` first, and the target run that follows joins the
+  `firebreak short` first, and the target run that follows joins the
   payload waiting there, by the same hold a `stock 5.5.0.3` restore leaves. So
   one command asks for the test point, and a run that writes firmware never
   waits on an operator with a wire in hand.
-- `--short` reads better with `--device`. Nothing on USB says which Echo is
+- `short` reads better with `--device`. Nothing on USB says which Echo is
   dark, and the run has to name the test point before the owner shorts it, so
   that name can only come from the command line.
 - Where the test point is differs by device, and nothing else about the short
   does: both are MT8163, both answer the same bootrom, and amonet ships one
-  payload for the two. So `--short` refuses nothing. A device whose test point
+  payload for the two. So `short` refuses nothing. A device whose test point
   no one has found, which today is radar, and a run that names no device at
   all, are both told that firebreak cannot say where to short it, and the run
   waits for a bootrom anyway. Nothing is written while it waits, and the
   bootloader read names the Echo afterwards, so `--device` only picks whose
   test point to describe.
 - amonet takes any port that appears after it lists the ports at start. So
-  `--short` asks for the short only once amonet logs that it is waiting, and
+  `short` asks for the short only once amonet logs that it is waiting, and
   sends no reset first: an Echo plugged in earlier would be in that list and
   never count as new.
 - The short must be off before the payload starts the eMMC, its first act.
   Nothing before that touches the eMMC, and the handshake disables the
   watchdog. So the run holds amonet at its "Remove the short" prompt, counts
   down 5 seconds, then lets it continue.
-- amonet's first write clears boot0's header. Under `--short` its bootrom step
+- amonet's first write clears boot0's header. Under `short` its bootrom step
   notes boot0 as erased just before each write, after amonet's first boot0
   check, as the erase path notes it before the erase. A run that stops before
   that leaves boot0 intact. A run that fails after it is resumed by a plain
@@ -453,7 +453,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - The bootrom step logs the error for a port it still cannot open after 1
   second, once, and the run shows it at once. udev can set a new port's mode
   a moment after it appears, so a first failure alone means nothing. A
-  missing udev rule or ModemManager would otherwise hold a `--short` run
+  missing udev rule or ModemManager would otherwise hold a `short` run
   silent for 10 minutes.
 - The payload starts the eMMC once. With the short still on, either it never
   comes up and amonet times out waiting for it, or the bootrom step's first
@@ -497,7 +497,7 @@ testing a single stage mean reaching its state by hand first.
   bootrom alone.
 - Every message names the Echo from what the run has read, which for these
   commands is a device and never a target: a run with no target says `Echo`
-  where it knows the name, as `firebreak bootrom --short --device biscuit`
+  where it knows the name, as `firebreak short --device biscuit`
   did. A prompt also names it when the question is asked, not when the table
   of states is built, because `twrp` builds that table before `walk` reads
   the Echo at all.
@@ -505,7 +505,7 @@ testing a single stage mean reaching its state by hand first.
   holding the bootrom answers no handshake: the run would spend the 10 second
   limit and then ask for a replug, which on an intact boot0 starts the
   firmware instead. `write-test` probes for the same reason, since it meets a
-  live payload where the old `--short` flag always met a bare bootrom.
+  live payload where the short always met a bare bootrom.
 - A test that joined a hold leaves it held. The bootrom write test reboots
   the payload at the end, which is right where it started one, and wrong
   where another run was holding the bootrom: with boot0 intact that reboot
@@ -657,7 +657,7 @@ testing a single stage mean reaching its state by hand first.
   `fastboot reboot-recovery`. Measured 2026-10-25 on a Dot unlocked with amonet
   v2, LK `63cb91b-20221007_072309`: the oem command answers
   `FAILED (remote: 'unknown command')`, and `fastboot reboot-recovery` answers
-  `Rebooting into recovery OKAY`, in TWRP 20 seconds later. Every `--short` run
+  `Rebooting into recovery OKAY`, in TWRP 20 seconds later. Every `short` run
   measures the oem command on amonet v1.1.0's LK, `f379dba-20170906_000423`.
   The oem command goes first because a MediaTek LK can carry `reboot-recovery`
   out by writing `misc`'s boot control block, where the slot's priority and
@@ -776,7 +776,7 @@ testing a single stage mean reaching its state by hand first.
   formats userdata
   only, so a cache damaged before a run survives it.
 - `write-test` runs the test through the bootrom instead where a marker says
-  a bootrom holds the Echo. `firebreak bootrom --short` is how to reach that
+  a bootrom holds the Echo. `firebreak short` is how to reach that
   on one that shows no light and so has no recovery. It reads the last 64
   blocks of `cache` three times, then writes 1, 34 and 64 blocks and reads each
   back, then writes the first read back. 34 is the partition table, the first
@@ -1317,7 +1317,7 @@ testing a single stage mean reaching its state by hand first.
 - Fire OS 6 without root for a minute after the install means
   `boot-root.zip` did not take, and the run stops. A single such read during
   the first boot does not stop it.
-- No target takes `--short`. `firebreak bootrom --short` parks the Echo in
+- No target shorts anything. `firebreak short` parks the Echo in
   its bootrom, and the target run after that writes the chain its resume
   writes and continues from that TWRP like any other.
 
@@ -1362,7 +1362,7 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   A Dot that was powered off lists no port at all, and the wait for one to
   appear belongs to the step that handshakes, which probes each port it opens
   before it does: a hold whose port shows up late is joined there rather than
-  handshaked. `--short` skips none of this: a hold means the bootrom is
+  handshaked. `short` skips none of this: a hold means the bootrom is
   already there, so asking for the test point and then handshaking at a live
   payload only ended in advice to unplug, which starts the firmware and loses
   the hold.
@@ -1693,7 +1693,7 @@ the reboot: `unlock fireos5` writes bboe2 there through `su` and is then done.
   no one touching the Dot, wrote amonet v1.1.0 and continued to amonet
   v2.0.0, 6 min 43 s in all. This TWRP has no `/proc/sysrq-trigger` and its
   `reboot` takes no `-f`, so the cut was a plain `reboot`.
-- A resume without an erase or `--short` that sees the preloader,
+- A resume without an erase or a short that sees the preloader,
   `0e8d:2000`, takes boot0 as intact: it stops the bootrom step, deletes the
   marker, and continues polling. On a Dot rebooted from Fire OS 6 with the
   marker set by hand, the run said so 2 s later and ended at
@@ -1756,7 +1756,7 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
 #### Writing amonet v1.1.0 from v2.0.0's TWRP
 
 - The run writes v1.1.0's chain and Fire OS 5.5.5.4 from v2.0.0's TWRP. The
-  bootrom step stays for `--short` and for amonet v2.0.0's fastboot, where no
+  bootrom step stays for `short` and for amonet v2.0.0's fastboot, where no
   TWRP is up.
 - The fastbrick appears to zero RPMB itself: its payload holds `Zeroing RPMB
   block 0...` and `RPMB block 0 cleared and verified`. If so, a Dot that has
@@ -1851,11 +1851,11 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   (GPL-3.0); nothing was copied. mtkclient also clears `0x1072DC`. One write
   to `0x102868` has been enough on every run, and why is not known.
 - This route now runs from amonet v2.0.0's fastboot only where the bootloader
-  is not the one the device declares as amonet's, and for `--short`. From
+  is not the one the device declares as amonet's, and for `short`. From
   amonet v2.0.0's TWRP the targets write the chain in place instead; the
   section above has it. A resume through the bootrom takes v1.1.0's chain only
   where the target is `unlock fireos5`; the other targets write amonet
-  v2.0.1's there instead, `--short` included.
+  v2.0.1's there instead, `short` included.
 - The stage returns `False` where it takes the TWRP route, because it then
   reaches v2's TWRP rather than the v1.1.0 fastboot its table entry names, and
   a stage that returns that way counts none of the states it would otherwise
@@ -2241,7 +2241,7 @@ ring read white.
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.
 - Not run: the plan on amonet v1.1.0's partition table in v2.0.0's TWRP, and
-  `--short` to amonet v2.0.0.
+  `short` to amonet v2.0.0.
 
 - Measured on a Dot, 2026-10-10, each run from where the last ended:
   amonet-fireos5-bboe-booted to `amonet-biscuit-v2.0.0` in 4 min 54 s, then

@@ -289,6 +289,23 @@ def recovery_device() -> str | None:
         return None
 
 
+def short_gesture(*, device: Device | None) -> str:
+    if device is None:
+        names = ", ".join(sorted(each.name for each in TARGETS))
+        return (
+            "firebreak cannot say where to short it without --device:"
+            f" {names}. It waits for a bootrom either way, and writes nothing"
+            " while it waits."
+        )
+    if device.short_gesture:
+        return device.short_gesture
+    return (
+        f"No one has found the {device.title}'s test point, so firebreak cannot"
+        " say where to short it. It waits for a bootrom either way, and writes"
+        " nothing while it waits."
+    )
+
+
 def stdout_of(*, arguments: list[str]) -> str:
     return (
         command(

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import bootrom_step
+from firebreak import bootrom_step, ui
 from firebreak.amonet.payload import BLOCK_SIZE, PAYLOAD_MAGIC, Command
 from firebreak.android import gpt
 from firebreak.bootrom import USER_AREA_SIGNATURE
@@ -708,6 +708,22 @@ def test_a_serial_port_opens_at_the_bootrom_rate(
             "write_timeout": 2,
         }
     ]
+
+
+def test_a_short_is_asked_for_with_the_device_the_run_knows(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bootrom_step.SESSION.device = BISCUIT
+    bootrom_step.ask_for_short()
+    said = " ".join(capsys.readouterr().out.split())
+    assert "Short the Echo Dot (2nd Generation)'s test point" in said
+    assert "R60" in said
+    bootrom_step.SESSION.device = None
+    monkeypatch.setattr(name="target", target=ui.ARGUMENTS, value="")
+    bootrom_step.ask_for_short()
+    said = " ".join(capsys.readouterr().out.split())
+    assert "Short the Echo's test point" in said
+    assert "cannot say where to short it without --device" in said
 
 
 def test_a_stock_preloader_step_held_in_the_bootrom_sends_no_reboot(

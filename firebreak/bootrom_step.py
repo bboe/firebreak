@@ -18,6 +18,7 @@ from firebreak.android.gpt import ENTRIES_SIZE, SECTOR_SIZE, gpt_intact, partiti
 from firebreak.devices import DEVICES
 from firebreak.emmc import EmmcArea
 from firebreak.host import getvar, in_fastboot, no_port_help
+from firebreak.identify import short_gesture
 from firebreak.mediatek import range_check
 from firebreak.mediatek.usbdl import (
     BAUD_RATE,
@@ -82,7 +83,7 @@ def ask_for_short() -> None:
     warn(
         text=f"Short the {title()}'s test point and plug it in. The run waits for"
         " its bootrom, then says when the short may come off.\n\n"
-        + SESSION.short_gesture,
+        + short_gesture(device=SESSION.device),
     )
     status(text="Waiting for the bootrom.")
 
@@ -441,8 +442,6 @@ def started_payload(
         failure = erase()
         if failure:
             raise FatalError(message=failure)
-    elif SESSION.short:
-        ask_for_short()
     else:
         PROGRESS.begin(estimate="40 s", label="waiting for the bootrom")
     client, live = bootrom_client(

@@ -39,7 +39,7 @@ amonet-crown v1.1.1's LK names `CHECKERS`.
 A device gives the two gestures its owner is asked for in words of its own:
 `fastboot_mode`, the button and the ring that follow it, and `short_gesture`,
 where the test point is and what to open to reach it. A device whose test
-point no one has found leaves `short_gesture` empty, and `--short` says so and
+point no one has found leaves `short_gesture` empty, and `short` says so and
 waits for its bootrom anyway, because it writes nothing while it waits. Only
 the location differs: the bootrom behind it is the same part on every device
 here.

@@ -393,6 +393,14 @@ def test_a_recovery_that_does_not_answer_names_no_device(
     assert "ro.product.device" not in identity.how
 
 
+def test_a_short_gesture_names_where_to_short_the_device_it_is_given() -> None:
+    assert "R60" in identify.short_gesture(device=BISCUIT)
+    assert "No one has found the Echo (2nd Generation)'s test point" in (
+        identify.short_gesture(device=RADAR)
+    )
+    assert "without --device: biscuit, radar" in identify.short_gesture(device=None)
+
+
 def test_a_short_run_on_an_echo_with_no_such_target_says_which_echo_it_is(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:

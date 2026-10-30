@@ -166,8 +166,7 @@ def newer_than_known(*, little_kernel: str) -> None:
     if little_kernel.split(sep="-")[1] < newest:
         return
     bootrom = (
-        " Its bootrom still unlocks it: `firebreak bootrom --short` says where"
-        " its test point is."
+        " Its bootrom still unlocks it: `firebreak short` says where its test point is."
         if current_device().short_gesture
         else ""
     )
