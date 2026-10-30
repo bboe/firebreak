@@ -47,6 +47,7 @@ def ran(*, device: Device, monkeypatch: pytest.MonkeyPatch) -> None:
         target=main,
         value=lambda *, name, **_: TARGETS[device][name or DEFAULTS.get(device)],
     )
+    monkeypatch.setattr(name="bootrom_device", target=main, value=lambda: None)
     monkeypatch.setattr(name="root", target=main, value=lambda: sys.exit(0))
     monkeypatch.setattr(name="check_for_update", target=main, value=lambda: None)
 
@@ -85,6 +86,26 @@ def test_a_bootrom_build_is_held_in_its_bootrom_instead_of_fastboot(
     said = " ".join(capsys.readouterr().out.split())
     assert "cannot leave the Echo Dot (2nd Generation) in fastboot" in said
     assert "holds it in its bootrom" in said
+
+
+def test_a_bootrom_names_the_device_before_the_target_is_chosen(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[Device | None] = []
+    ran(device=RADAR, monkeypatch=monkeypatch)
+    monkeypatch.setattr(
+        name="choose_target",
+        target=main,
+        value=lambda *, device, name: (
+            asked.append(device),
+            TARGETS[RADAR][name or DEFAULTS[RADAR]],
+        )[1],
+    )
+    monkeypatch.setattr(name="bootrom_device", target=main, value=lambda: RADAR)
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", "unlock"])
+    with pytest.raises(SystemExit):
+        main.cli()
+    assert asked == [RADAR]
 
 
 def test_a_build_the_device_has_no_ota_for_is_refused(
@@ -383,6 +404,20 @@ def test_a_short_on_a_device_with_no_test_point_found(
     with pytest.raises(SystemExit):
         main.cli()
     assert main.SESSION.short_gesture == ""
+
+
+def test_a_target_only_one_device_has_reads_no_bootrom(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran(device=BISCUIT, monkeypatch=monkeypatch)
+    monkeypatch.setattr(
+        name="bootrom_device", target=main, value=lambda: pytest.fail("read")
+    )
+    monkeypatch.setattr(
+        name="argv", target=sys, value=["firebreak", "unlock", "fireos5"]
+    )
+    with pytest.raises(SystemExit):
+        main.cli()
 
 
 @pytest.mark.parametrize("into_namespace", [False, True], ids=["3.9.6", "bpo-45235"])

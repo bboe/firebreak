@@ -88,6 +88,14 @@ def check_target(*, target: Target) -> None:
     )
 
 
+def choices(*, device: Device | None, name: str | None) -> list[Target]:
+    return [
+        targets[wanted]
+        for each, targets in TARGETS.items()
+        if device in {None, each} and (wanted := name or DEFAULTS.get(each)) in targets
+    ]
+
+
 def choose_target(*, device: Device | None, name: str | None) -> Target:
     was = DEPRECATED.get(name or "")
     if was is not None:
@@ -97,16 +105,17 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
             " newest amonet this supports." + (" " + was.note if was.note else "")
         )
         device, name = was.device, was.name
-    choices = [
-        targets[wanted]
-        for each, targets in TARGETS.items()
-        if device in {None, each} and (wanted := name or DEFAULTS.get(each)) in targets
-    ]
-    if len(choices) == 1:
-        check_target(target=choices[0])
-        return choices[0]
+    picked = choices(device=device, name=name)
+    if len(picked) == 1:
+        check_target(target=picked[0])
+        return picked[0]
+    if device is not None:
+        raise FatalError(
+            message=f"this is an {device.title}, and firebreak has no"
+            f" {name or 'default'} target for it, so nothing was done."
+        )
     devices = " or ".join(
-        f"{target.device.name} for the {target.device.title}" for target in choices
+        f"{target.device.name} for the {target.device.title}" for target in picked
     )
     identity = named_device(devices=devices)
     found, how = identity.device, identity.how
@@ -116,7 +125,7 @@ def choose_target(*, device: Device | None, name: str | None) -> Target:
         found = next((each for each in DEVICES if each.name == marked), None)
         if found is not None:
             how = f"the device named in {marker.name}"
-    for target in choices:
+    for target in picked:
         if target.device == found:
             return target
     if found is None:

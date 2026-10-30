@@ -37,13 +37,14 @@ from firebreak.entry import (
     BOOTROM,
     FASTBOOT,
     TWRP,
+    bootrom_device,
     bootrom_entry,
     entries,
     fastboot_entry,
     twrp_entry,
 )
 from firebreak.host import check_adb, check_python, check_root, check_user
-from firebreak.identify import choose_target
+from firebreak.identify import choices, choose_target
 from firebreak.plugin import FireOs6
 from firebreak.route import root
 from firebreak.support import report, write_test
@@ -297,6 +298,12 @@ def child_main(*, arguments: list[str], name: str) -> int:
     return {"emos": child_emos}[name](action=arguments[0], want=arguments[1])
 
 
+def chosen_device(*, name: str | None) -> Device | None:
+    if SESSION.device is not None or len(choices(device=None, name=name)) <= 1:
+        return SESSION.device
+    return bootrom_device()
+
+
 def cli() -> None:
     options = parsed()
     if options.command == SURVEY:
@@ -337,10 +344,8 @@ def cli() -> None:
     if command:
         command()
         return
-    ARGUMENTS.target = choose_target(
-        device=DEVICES.get(options.device),
-        name=options.target if options.command == UNLOCK else options.command,
-    )
+    name = options.target if options.command == UNLOCK else options.command
+    ARGUMENTS.target = choose_target(device=chosen_device(name=name), name=name)
     ARGUMENTS.factory_reset = options.factory_reset
     if ARGUMENTS.factory_reset and ARGUMENTS.target.name not in FACTORY_RESETS:
         raise FatalError(

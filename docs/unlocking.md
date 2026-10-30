@@ -13,7 +13,7 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 | stock-fastboot | `unlock_status` is `false`, and `lk_build_desc` is none of the two below | the device's fastbrick |
 | stock-fireos5-fastboot | `unlock_status` is `false`, and `lk_build_desc` is the device's Fire OS 5 chain's, `f379dba-20170906_000423` on a Dot, which that chain keeps: Fire OS 5's own fastboot, locked, on a stock Dot or one on the chain. A device that declares no chain cannot reach it | the same |
 | bootrom | no adb or fastboot, and USB holds `0e8d:0003` | nothing: a chain goes in through the payload there, which `unlock` and `stock` write |
-| preloader | no adb or fastboot, and USB holds `0e8d:2000` | nothing: boot0 holds a preloader that starts no bootloader, so only the test point reaches this one |
+| preloader | no adb or fastboot, and USB holds `0e8d:2000` | waits: every boot passes through this for about 0.8 s. One that never leaves it needs the test point |
 | emos | no adb or fastboot, and one serial port with USB ID `1949:2007` | `/init recovery` at emOS's serial console |
 | no-system | adb answers as `device`, and `adb shell` fails with `exec '/system/bin/sh' failed` | `adb reboot recovery`, for every target |
 | amonet-booted | Fire OS 6, and `id` or `su -c id` answers uid 0 | `adb reboot recovery`, into the device's own TWRP; ends an `unlock fireos6` run |
@@ -230,14 +230,27 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - Two devices can have a target of the same name: `stock`, and the default
   when no target is named. Then the device found chooses which one runs. Until
   one is found, the run waits, as it waits for an Echo, and says once that an
-  Echo that shows no light never names one. `boot0-erased` holds the device
-  of the run that erased boot0, so a resume takes that device. With `--short`,
-  or with a `boot0-erased` that names none, as an older firebreak left it, the
-  Echo is in its bootrom, so the run stops at once and asks for `--device`.
-  It never guesses: each unlock writes a
-  preloader made for its own device, and nothing here has run one device's
-  preloader on another. A target name that only one device has, or one
-  `--device` names, is checked as above.
+  Echo that shows no light never names one. It never guesses: each unlock
+  writes a preloader made for its own device, and nothing here has run one
+  device's preloader on another. A target name that only one device has, or
+  one `--device` names, is checked as above.
+- An Echo in its bootrom names no device on USB, and carries the answer in
+  its own flash: `lk_a` and `lk_b` hold `product`. So where the target name is
+  one two devices share, and `--device` names none, a run that reads `bootrom`
+  reads that bootloader before it chooses the target. It joins a payload that
+  already holds the bootrom, and starts one where none does. Such a run was
+  going to exploit that bootrom anyway, so the read costs nothing but one
+  restart: the chain step pokes the payload left running, and an Echo whose
+  boot0 is erased comes back in its bootrom. The read happens before the
+  target is chosen, so a run that ends in a refusal, as `unlock fireos5` on a
+  radar does, has run the payload before it refuses.
+- `boot0-erased` and `bootrom-held` still hold the name of the device the run
+  that wrote them was on, and naming the Echo is all they are read for. That
+  name is the fallback now: a bootloader that names no product, or a partition
+  table that does not read, leaves it. Two Echo devices in the same erased
+  state, swapped between runs, are each named by their own flash. `--short`
+  still needs `--device`, because where the test point is differs by device
+  and the run has to say that before any bootrom answers.
 - In fastboot, the report also prints `antirback_pl_version`,
   `antirback_tee_version` and `antirback_lk_version`.
 - The report shows only the first 4 characters of a serial number. Amazon's
@@ -338,9 +351,31 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   Windows it sees a bootrom whose VCOM driver is missing, where a port listing
   would show nothing at all. The read is kept for a second, and for 10 on
   Windows, where it starts PowerShell.
-- A preloader shows for about a second every 30, so a 2-second poll often
-  misses it and its absence proves nothing. Seeing it once is what counts: it
-  says boot0 holds a preloader, so the test point is the only way in.
+- A preloader is not a failure. Every ordinary boot offers `0e8d:2000` for
+  about 0.8 seconds before the bootloader takes over, so a run that polls
+  through a reboot sees it in passing, and a 2-second poll misses it as often
+  as not. What it says is that boot0 holds a preloader, which is true of a
+  healthy Echo. Only a preloader that keeps coming back and never starts a
+  bootloader is the failure, and nothing can tell those apart in one read. So
+  `preloader` is a state a walk waits through, and a walk stuck in it for 10
+  minutes is what names the test point.
+- Which Echo a bootrom belongs to comes from the Echo, not from the cache.
+  Once the payload runs, `bootrom` reads the partition table and up to 512 KiB
+  of `lk_a` and `lk_b` over it, and takes the device whose product the
+  bootloader names, as the chain write already does before it writes anything.
+  Measured on a Dot, 2026-10-29: 2 s, against 5 s for the handshake and the
+  payload before it.
+  A run that finds a payload already holding the bootrom takes the same read,
+  so a hold is reported by what the bootloader says rather than by what the
+  last run wrote down. A marker's name is then a fallback for the words a
+  message uses before any read, and nothing more: it never becomes the device
+  the run believes in, so the bootloader read corrects it rather than arguing
+  with it. A device the run was **given**, by `--device` or by a USB product,
+  is another matter: a bootloader that names a different one stops the run
+  with nothing written, because something it was told is wrong. Two Echoes
+  with erased boot0s and one marker between them land here, and the swapped one
+  is named by its own bootloader. A torn table names no Echo, and the run
+  carries on with what it had.
 - Knowing a payload is already running is not in the probe, because that needs
   the port opened and its signature read. `bootrom` does that itself, and the
   markers keep their own job, which is to say what boot0 holds.
@@ -359,6 +394,11 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   of payload.bin, twice over. So a check on the length or the shape of an
   answer passes on a bare bootrom, and the handshake's own rule, that a
   bootrom echoes a byte as it is, does not hold before the handshake.
+- Switching that area is not only how the probe asks. `bootrom.read` switches
+  no area of its own, so a payload another run parked can be sitting on boot0,
+  where a read of the partition table would read boot0's first sectors
+  instead. The probe leaves every payload it finds on the user area, as the
+  join that reads a table has always done.
 - The probe takes 1.07 s where a payload answers and 5.03 s where none does,
   both measured. The bootrom pays the port's own 5 second timeout, because
   the read waits for a block that never comes.
@@ -480,12 +520,22 @@ testing a single stage mean reaching its state by hand first.
   as it was. `--force` answers in advance. Nothing else in firebreak
   asks a question, so a run whose input is not a terminal cannot be answered:
   it stops and names `--force` rather than waiting on a prompt no one sees.
+- `bootrom` reaches a TWRP first where adb answers, as `twrp` does, and clears
+  boot0's header from there. So a rooted Echo takes one command rather than
+  two, and the only states it refuses are the ones no route runs from: a locked
+  fastboot, which cannot erase boot0, and a booted Echo with no root, whose
+  recovery is Amazon's.
 - `bootrom` ends with amonet's payload holding the bootrom and
   `bootrom-held` in the cache, so the next run joins that payload rather than
   handshaking at it, which a live payload never answers. The two markers say
   different things and both can be true: `boot0-erased` is what boot0 holds,
   `bootrom-held` is that a payload is running. A hold over an erased boot0
-  writes both. A second `bootrom` run finds that
+  writes both.
+- `bootrom-held` looks redundant now that a ping can ask, and it is not. The
+  flag is what lets a run skip the ping where nothing is held, and a run that
+  pings every time sends payload bytes at a bare bootrom before the handshake
+  it actually needs. Removing it was tried on 2026-10-29 and put back for
+  that reason. A second `bootrom` run finds that
   hold and says so rather than reaching the bootrom again, as `fastboot` and
   `twrp` report a state they are already in. Which device it is does not come
   into holding a bootrom -- one payload runs on both, byte for byte -- so a
@@ -494,6 +544,10 @@ testing a single stage mean reaching its state by hand first.
   `bootrom-held`, boot0 still holds a preloader, and a power cycle starts the
   firmware and loses the hold. After an erase the marker is `boot0-erased`,
   which outranks a hold, and the Echo starts nothing but its bootrom.
+- `bootrom` reads which Echo it holds from the bootloader in flash, and a
+  target run reads the same way before it chooses its target:
+  [Which device is plugged in](#which-device-is-plugged-in) says why, and what
+  that read costs.
 - `write-test` takes the bootrom route when one of those markers is there,
   rather than asking for a short of its own.
 - The three stages `twrp` reuses read their device from the target, which these
@@ -2130,6 +2184,7 @@ ring read white.
 | amonet-booted | stock 5.5.0.3 | 3 min 38 s, on 2026-10-26, from rooted Fire OS 6: `[1/19]` to `[19/19]`, TWRP 19 s, both `/system` writes 80 s, the bootrom 5 s after the reboot, the RPMB 1 s, the preloader 8 s, and no reboot after it. It ended `waits in its bootrom`, with `bootrom-held` written and the payload still on its serial port. From v2's TWRP it is 18 steps, without the wait for TWRP |
 | bootrom, held | `unlock fireos6` | 6 min 05 s, on 2026-10-26, with no button held: joining the held payload under 1 s, then amonet v1.1.0 through it and TWRP by 1 min 35 s, v1.1.0's TWRP 19 s, amonet v2.0.1 and its TWRP by 1 min 55 s, and the fallback's installs 98 s and 115 s, `boot-root.zip` 9 s, rooted 8146's boot 24 s |
 | amonet-fastboot, on amonet v2's own bootloader | `unlock fireos5` | 7 min 40 s, on 2026-10-26, over 10 steps and with no bootrom: v2's TWRP 19 s, the table under 1 s, recovery 19 s, amonet v1.1.0-bboe 5 s, TWRP 4 s, userdata 3 s, `/system` 80 s, boot and Magisk 4 s, the preloader under 1 s, Fire OS 5's first boot 320 s. The run opened at 6 steps, and the gate's `False` re-planned it to 10. adb answered 24 s into that boot and held through setup mode |
+| amonet-twrp | `bootrom` | 10 s, on 2026-10-29: boot0's header cleared and the reboot by 3 s, the handshake and the payload 5 s, the bootloader read that names the device 2 s. A second run of it reported the hold at once |
 | amonet-booted | `twrp` | 20 s, on 2026-10-29, the first run of an entry command on hardware: one `adb reboot recovery`, amonet v2.0.1's TWRP up 19 s later, nothing written and nothing asked |
 | amonet-twrp | `fastboot` | 11 s, on 2026-10-29: one `adb reboot bootloader`, amonet's unlocked fastboot 10 s later, nothing written. A second run in either state reported it at once and did nothing |
 | amonet-fastboot | `twrp` | 19 s, on 2026-10-29, with no write: `restart_refusals()` alone, and v2.0.1's TWRP up 19 s later. The run before this one wrote the TWRP first and took 21 s, and the question it asked was Ctrl-C'd once, which left the Dot in that fastboot |

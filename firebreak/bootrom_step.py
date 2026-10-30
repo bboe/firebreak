@@ -12,6 +12,7 @@ from firebreak.amonet.biscuit_v2_0_0 import Client
 from firebreak.amonet.payload import NotReadyError, Payload, start_payload
 from firebreak.android.gpt import ENTRIES_SIZE, SECTOR_SIZE, gpt_intact, partition_map
 from firebreak.cache import ERASED, HELD
+from firebreak.devices import DEVICES
 from firebreak.emmc import EmmcArea
 from firebreak.host import getvar, in_fastboot, no_port_help
 from firebreak.mediatek import range_check
@@ -51,7 +52,7 @@ if TYPE_CHECKING:
     import serial
 
     from firebreak.emmc import Emmc
-    from firebreak.plugin import Unlock
+    from firebreak.plugin import Device, Unlock
 
 
 BOOTROM_STEP_TIMEOUT = 30 * MINUTE
@@ -264,27 +265,7 @@ def bootrom_step(  # ruff: ignore[too-many-arguments]
 
 def check_bootloaders(*, entries: bytes, live: Emmc, unlock: Unlock) -> None:
     want = unlock.device.product
-    parts = partition_map(entries=entries)
-    named: set[str] = set()
-    for slot in LK_SLOTS:
-        part = parts.get(slot)
-        if part is None:
-            raise FatalError(
-                message=f"the {title()}'s partition table has no {slot}."
-                f" {unwritten()} Unplug the {title()}. " + asked_for()
-            )
-        try:
-            held = bootrom.read(
-                count=min(part.sectors, LK_PRODUCT_SECTORS),
-                first=part.first,
-                payload=live,
-            )
-        except (OSError, UsbdlError) as error:
-            raise FatalError(
-                message=f"the {title()}'s {slot} could not be read: {error}."
-                f" {unwritten()} Unplug the {title()}. " + again()
-            ) from error
-        named.update(found.decode() for found in LK_PRODUCT.findall(held))
+    named = lk_products(entries=entries, live=live)
     other = sorted(named - {want})
     if other:
         raise FatalError(
@@ -384,6 +365,8 @@ def joined_payload(*, failures: dict[str, float], name: str) -> Client | None:
     except (OSError, UsbdlError):
         answered = False
     if answered:
+        live.timeout = READ_TIMEOUT
+        bootrom.switch(partition=EmmcArea.USER, payload=live)
         return live
     with contextlib.suppress(OSError):
         connection.close()
@@ -403,6 +386,31 @@ def keep_trying(*, message: str) -> None:
         print()
     warn(text=said)
     status(text="Waiting for the bootrom.")
+
+
+def lk_products(*, entries: bytes, live: Emmc) -> set[str]:
+    parts = partition_map(entries=entries)
+    named: set[str] = set()
+    for slot in LK_SLOTS:
+        part = parts.get(slot)
+        if part is None:
+            raise FatalError(
+                message=f"the {title()}'s partition table has no {slot}."
+                f" {unwritten()} Unplug the {title()}. " + asked_for()
+            )
+        try:
+            held = bootrom.read(
+                count=min(part.sectors, LK_PRODUCT_SECTORS),
+                first=part.first,
+                payload=live,
+            )
+        except (OSError, UsbdlError) as error:
+            raise FatalError(
+                message=f"the {title()}'s {slot} could not be read: {error}."
+                f" {unwritten()} Unplug the {title()}. " + again()
+            ) from error
+        named.update(found.decode() for found in LK_PRODUCT.findall(held))
+    return named
 
 
 def open_bootrom(*, failures: dict[str, float], name: str) -> serial.Serial | None:
@@ -425,6 +433,22 @@ def open_serial_port(*, name: str, write_timeout: float) -> serial.Serial:
         timeout=READ_TIMEOUT,
         write_timeout=write_timeout,
     )
+
+
+def payload_device(*, live: Emmc) -> Device | None:
+    PROGRESS.begin(estimate="5 s", label="reading which Echo this is")
+    try:
+        raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
+        entries = raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE]
+        if not gpt_intact(entries=entries, header=raw[SECTOR_SIZE : 2 * SECTOR_SIZE]):
+            PROGRESS.end(skipped=True)
+            return None
+        named = lk_products(entries=entries, live=live)
+    except (OSError, UsbdlError, FatalError):
+        PROGRESS.end(skipped=True)
+        return None
+    PROGRESS.end()
+    return next((each for each in DEVICES if each.product in named), None)
 
 
 def poke_live_payload() -> None:

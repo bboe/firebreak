@@ -133,6 +133,22 @@ def test_a_deprecated_name_takes_the_target_that_replaced_it(
     assert said in " ".join(warned.split())
 
 
+@pytest.mark.parametrize("name", [None, "stock"], ids=["default", "stock"])
+def test_a_device_with_no_target_is_refused_without_asking_usb(
+    *, monkeypatch: pytest.MonkeyPatch, name: str | None
+) -> None:
+    connected(monkeypatch=monkeypatch)
+    monkeypatch.setattr(
+        name="named_device", target=identify, value=lambda **_: pytest.fail("polled")
+    )
+    with pytest.raises(FatalError) as caught:
+        identify.choose_target(device=CROWN, name=name)
+    assert caught.value.message == (
+        "this is an Echo Show 8 (1st Generation), and firebreak has no"
+        f" {name or 'default'} target for it, so nothing was done."
+    )
+
+
 def test_a_dot_in_fastboot_is_named_by_its_product(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:

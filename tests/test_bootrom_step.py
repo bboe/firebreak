@@ -11,7 +11,7 @@ from firebreak import bootrom_step
 from firebreak.amonet.payload import BLOCK_SIZE, PAYLOAD_MAGIC, Command
 from firebreak.android import gpt
 from firebreak.bootrom import USER_AREA_SIGNATURE
-from firebreak.devices import radar
+from firebreak.devices import BISCUIT, RADAR, radar
 from firebreak.devices.biscuit import (
     AMONET_V1_1_0_LK,
     UNLOCK_FROM_BOOTROM,
@@ -813,6 +813,14 @@ def test_a_torn_table_is_left_to_the_plan_without_reading_an_lk(
     assert rig.written == []
 
 
+def test_a_torn_table_names_no_echo(
+    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+) -> None:
+    live = Live(port=Connection(name="/dev/one"), rig=rig)
+    monkeypatch.setattr(name="gpt_intact", target=bootrom_step, value=lambda **_: False)
+    assert bootrom_step.payload_device(live=live) is None
+
+
 def test_an_erased_boot0_outranks_a_hold_left_over_from_a_resume(*, rig: Rig) -> None:
     bootrom_step.ERASED.touch()
     bootrom_step.HELD.write_text("biscuit")
@@ -867,6 +875,14 @@ def test_one_bootloader_cut_short_still_names_the_dot(*, rig: Rig) -> None:
     rig.lks[LK_FIRST["lk_a"]] = bytes(512)
     assert step(rig=rig) is True
     assert rig.written == [WRITES]
+
+
+def test_the_bootloader_names_which_echo_is_in_the_bootrom(*, rig: Rig) -> None:
+    live = Live(port=Connection(name="/dev/one"), rig=rig)
+    assert bootrom_step.payload_device(live=live) is BISCUIT
+    rig.lks[LK_FIRST["lk_a"]] = b"\0product\0RADAR\0"
+    rig.lks[LK_FIRST["lk_b"]] = b"\0product\0RADAR\0"
+    assert bootrom_step.payload_device(live=live) is RADAR
 
 
 def test_the_bootrom_unlock_downloads_nothing_and_keeps_every_step() -> None:

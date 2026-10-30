@@ -11,6 +11,7 @@ from firebreak.bootrom_step import (
     ask_for_short,
     bootrom_client,
     exploit,
+    payload_device,
 )
 from firebreak.cache import ERASED, HELD
 from firebreak.devices import BOOTROM_UNLOCKS, DEVICES, FASTBRICKS
@@ -56,6 +57,7 @@ FASTBOOTS = frozenset({
     State.STOCK_FIREOS5_FASTBOOT,
 })
 LOCKED_FASTBOOTS = frozenset({State.STOCK_FASTBOOT, State.STOCK_FIREOS5_FASTBOOT})
+PATIENT = frozenset({State.NONE, State.STARTING})
 RECOVERY_WAIT = 90
 STUCK = 600
 TO_FASTBOOT = (
@@ -75,13 +77,12 @@ TO_TWRP = frozenset({
     State.ROOTED,
 })
 TWRP = "twrp"
-WAITS = frozenset({State.NONE, State.STARTING})
+WAITS = frozenset({State.NONE, State.PRELOADER, State.STARTING})
 WAYS_OUT = {
     State.BOOTROM: " A chain written through the payload there is the way out:"
     " run `firebreak unlock` or `firebreak stock`.",
-    State.PRELOADER: " Its boot0 holds a preloader that never starts a"
-    " bootloader, so the test point is the only way in:"
-    " run `firebreak bootrom --short`.",
+    State.PRELOADER: " A preloader that never starts a bootloader leaves the"
+    " test point as the only way in: run `firebreak bootrom --short`.",
 }
 
 
@@ -95,10 +96,26 @@ def answering() -> Client | None:
     return live
 
 
+def bootrom_device() -> Device | None:
+    if state() != State.BOOTROM:
+        return None
+    live = answering()
+    held = live is not None
+    if live is None:
+        live = reached(erase=None)[1]
+    PROGRESS.end()
+    device = payload_device(live=live)
+    with contextlib.suppress(OSError):
+        live.port.close()
+    if not held:
+        HELD.write_text("" if device is None else device.name)
+    SESSION.device = device or SESSION.device
+    return device
+
+
 def bootrom_entry(*, force: bool, short: bool) -> None:
     PROGRESS.steps = None
     noticed()
-    device = known_device()
     if short:
         SESSION.short = True
         parked(payload=reached(erase=None))
@@ -107,19 +124,28 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
     if current == State.BOOTROM:
         live = answering()
         if live is not None:
+            SESSION.device = payload_device(live=live) or SESSION.device
             with contextlib.suppress(OSError):
                 live.port.close()
-            passed(message=f"The {device.title} already waits in its bootrom.")
+            passed(message=f"The {known()} already waits in its bootrom.")
             return
         parked(payload=reached(erase=None))
         return
     if current == State.NONE and (ERASED.exists() or HELD.exists()):
         raise FatalError(
             message=f"nothing is on USB, and {ERASED.name} says this"
-            f" {device.title} starts only from its bootrom. Power it on and run"
+            f" {known()} starts only from its bootrom. Power it on and run"
             " this again within about 40 seconds, which is how long its bootrom"
             " answers before its own watchdog takes it."
         )
+    if current in TO_TWRP:
+        walk(
+            acts=dict.fromkeys(TO_TWRP, to_twrp),
+            goal=TWRPS,
+            patient=frozenset(),
+            what=TWRP,
+        )
+        current = state()
     if current in TWRPS:
         device = chainable()
         confirm(
@@ -142,7 +168,7 @@ def bootrom_entry(*, force: bool, short: bool) -> None:
         parked(payload=reached(erase=erase_by_fastboot))
     elif current in LOCKED_FASTBOOTS:
         raise FatalError(
-            message=f"this {device.title} is locked, and a locked bootloader"
+            message=f"this {known()} is locked, and a locked bootloader"
             " refuses to erase boot0. Unlock it first, or run"
             f" `firebreak {BOOTROM} --short` on an Echo that shows no light."
         )
@@ -188,7 +214,7 @@ def gesture() -> None:
 
 
 def known() -> str:
-    device = SESSION.device
+    device = SESSION.device or marked()
     return device.title if device is not None else title()
 
 
@@ -207,18 +233,27 @@ def marked() -> Device | None:
 
 def noticed() -> None:
     if SESSION.device is None:
-        SESSION.device = identify().device or marked()
+        SESSION.device = identify().device
 
 
 def parked(*, payload: tuple[Bootrom, Client]) -> None:
     PROGRESS.end()
-    client, _ = payload
+    client, live = payload
+    named = payload_device(live=live)
+    if named is not None and SESSION.device not in {None, named}:
+        with contextlib.suppress(OSError):
+            client.port.close()
+        raise FatalError(
+            message=f"this Echo's bootloader names it an {named.title}, not the"
+            f" {known()} this run was told to expect. Nothing was written, and"
+            " the payload still holds its bootrom."
+        )
+    SESSION.device = named or SESSION.device
     with contextlib.suppress(OSError):
         client.port.close()
-    device = known_device()
-    HELD.write_text(device.name)
+    HELD.write_text("" if SESSION.device is None else SESSION.device.name)
     SESSION.held = True
-    passed(message=f"The {device.title} waits in its bootrom.")
+    passed(message=f"The {known()} waits in its bootrom.")
     say(
         text="amonet's payload holds it, so the next run joins that payload"
         " rather than handshaking at it. "
@@ -226,7 +261,7 @@ def parked(*, payload: tuple[Bootrom, Client]) -> None:
             "boot0 is erased, so a power cycle brings its bootrom back, and the"
             " run after that writes a chain through it."
             if ERASED.exists()
-            else f"Leave the {device.title} plugged in: a power cycle loses the"
+            else f"Leave the {known()} plugged in: a power cycle loses the"
             " hold, and starts the firmware boot0 still holds."
         )
     )
@@ -382,10 +417,11 @@ def walk(
             acted.add(current)
             act()
             since = time.monotonic()
-        elif current not in patient | WAITS and time.monotonic() - since > STUCK:
+        elif current not in patient | PATIENT and time.monotonic() - since > STUCK:
             raise FatalError(
                 message=f"the {known()} has read as {current.value} for"
                 f" {STUCK // 60} minutes, so this run stops."
+                + WAYS_OUT.get(current, "")
             )
         time.sleep(POLL)
 
