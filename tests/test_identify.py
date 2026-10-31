@@ -117,30 +117,6 @@ def test_a_cut_answer_from_a_recovery_names_no_device(
     assert "None" not in identity.how
 
 
-@pytest.mark.parametrize(
-    argnames=("name", "chosen", "said"),
-    argvalues=[
-        ("amonet-biscuit-v1.1.0-bboe", "fireos5", ""),
-        ("amonet-biscuit-v1.1.0", "fireos5", "TWRP 3.2.3"),
-        ("amonet-biscuit-v2.0.0", "fireos6", "kaeru boots the active slot"),
-    ],
-)
-def test_a_deprecated_name_takes_the_target_that_replaced_it(
-    *,
-    capsys: pytest.CaptureFixture[str],
-    chosen: str,
-    monkeypatch: pytest.MonkeyPatch,
-    name: str,
-    said: str,
-) -> None:
-    connected(monkeypatch=monkeypatch, usb=[AEOBC])
-    assert identify.choose_target(device=None, name=name) == TARGETS[BISCUIT][chosen]
-    warned = capsys.readouterr().out
-    assert f"`{name}` goes away in firebreak 1.0" in " ".join(warned.split())
-    assert f"use `firebreak unlock {chosen}` instead" in " ".join(warned.split())
-    assert said in " ".join(warned.split())
-
-
 @pytest.mark.parametrize("name", [None, "stock"], ids=["default", "stock"])
 def test_a_device_with_no_target_is_refused_without_asking_usb(
     *, monkeypatch: pytest.MonkeyPatch, name: str | None

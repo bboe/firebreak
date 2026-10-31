@@ -51,24 +51,15 @@ def ran(*, device: Device, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="check_for_update", target=main, value=lambda: None)
 
 
-def test_a_bare_run_says_what_replaced_the_default_and_stops(
+def test_a_bare_run_prints_the_help_and_stops(
     *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(name="argv", target=sys, value=["firebreak"])
     with pytest.raises(SystemExit, match="1"):
         main.parsed()
-    said = capsys.readouterr().out
-    out = " ".join(said.split())
-    assert said.count("The command line arguments have changed") == 2
-    assert (
-        said.index("The command line arguments have changed")
-        < said.index("usage: firebreak")
-        < said.rindex("The command line arguments have changed")
-    )
-    assert "is now `firebreak unlock fireos5`" in out
-    assert "the new default is `firebreak unlock fireos6`" in out
-    assert "This warning goes away in firebreak 1.0" in out
+    out = " ".join(capsys.readouterr().out.split())
     assert "usage: firebreak" in out
+    assert "unlock [TARGET]" in out
 
 
 def test_a_bootrom_build_is_held_in_its_bootrom_instead_of_fastboot(
@@ -134,18 +125,6 @@ def test_a_child_does_not_check_for_an_update(
     )
     with pytest.raises(SystemExit, match="0"):
         main.main()
-
-
-@pytest.mark.parametrize(
-    "name",
-    ["amonet-biscuit-v1.1.0", "amonet-biscuit-v1.1.0-bboe", "amonet-biscuit-v2.0.0"],
-)
-def test_a_deprecated_name_parses_but_is_not_in_the_help(
-    *, monkeypatch: pytest.MonkeyPatch, name: str
-) -> None:
-    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", name])
-    assert main.parsed().command == name
-    assert name not in main.target_help()
 
 
 @pytest.mark.parametrize(
@@ -217,6 +196,19 @@ def test_a_flag_is_refused_on_a_command_that_does_not_take_it(
     with pytest.raises(SystemExit):
         main.parsed()
     assert message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["amonet-biscuit-v1.1.0", "amonet-biscuit-v1.1.0-bboe", "amonet-biscuit-v2.0.0"],
+)
+def test_a_name_that_carried_an_amonet_version_is_no_longer_a_command(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", name])
+    with pytest.raises(SystemExit):
+        main.parsed()
+    assert "argument COMMAND: invalid choice" in capsys.readouterr().err
 
 
 def test_a_newer_release_is_named_with_how_to_upgrade(

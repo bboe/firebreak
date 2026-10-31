@@ -18,7 +18,6 @@ from firebreak.plugin import (
 
 if TYPE_CHECKING:
     from firebreak.plugin import Target
-    from firebreak.targets import Deprecated
 
 BOOTROM_UNLOCK = None
 BUILDS: dict[str, Download] = {}
@@ -74,4 +73,3 @@ AMONET_V2_0_1 = Unlock(
     version="2.0.1",
 )
 TARGETS: tuple[Target, ...] = ()
-WAS_CALLED: dict[str, Deprecated] = {}

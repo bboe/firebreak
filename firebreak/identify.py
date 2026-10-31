@@ -10,7 +10,7 @@ import time
 import xml.parsers.expat
 from typing import TYPE_CHECKING
 
-from firebreak.devices import DEFAULTS, DEPRECATED, DEVICES, TARGETS
+from firebreak.devices import DEFAULTS, DEVICES, TARGETS
 from firebreak.host import (
     USER_SERIAL,
     adb_shell,
@@ -23,7 +23,6 @@ from firebreak.host import (
 from firebreak.mediatek.usbdl import MEDIATEK_VENDOR_ID, ProductId
 from firebreak.report import labelled, whole
 from firebreak.states import State
-from firebreak.targets import REMOVED_IN
 from firebreak.ui import SESSION, FatalError, asked_for, warn
 
 if TYPE_CHECKING:
@@ -103,14 +102,6 @@ def choose_target(
     name: str | None,
     reader: Callable[[], Device | None] | None = None,
 ) -> Target:
-    was = DEPRECATED.get(name or "")
-    if was is not None:
-        warn(
-            text=f"`{name}` goes away in firebreak {REMOVED_IN}: use"
-            f" `firebreak unlock {was.name}` instead, which always takes the"
-            " newest amonet this supports." + (" " + was.note if was.note else "")
-        )
-        device, name = was.device, was.name
     picked = choices(device=device, name=name)
     if len(picked) == 1:
         check_target(target=picked[0])

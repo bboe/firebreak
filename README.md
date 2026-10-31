@@ -23,10 +23,7 @@ resume after `boot0` was erased, and `stock 5.5.0.3`.
 
 `unlock` takes the newest amonet that firebreak supports for that Fire OS, so
 a target no longer names an amonet version. `unlock` with no target takes
-`fireos6`. The older names that carry an amonet version still work and say what
-to use instead; those names go away in firebreak 1.0. Running firebreak with no
-target at all warns which command replaced the old default, and that warning
-goes away then too.
+`fireos6`. Running firebreak with no command prints the help.
 
 ## Run it
 

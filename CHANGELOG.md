@@ -153,6 +153,15 @@ This project adheres to [Semantic Versioning](https://semver.org).
   ASD-STE100 discourages as a phrasal verb. The style this project writes in
   approves `continue`, and one of the ten already said it.
 
+### Removed
+
+- `amonet-biscuit-v1.1.0`, `amonet-biscuit-v1.1.0-bboe` and
+  `amonet-biscuit-v2.0.0` are no longer commands. 0.9.0 kept them as names for
+  `unlock fireos5` and `unlock fireos6`, and said they go away in 1.0, so the
+  release that carries this is that one. `firebreak` with no command prints the
+  help and stops, where it also warned which command replaced the old default.
+  Nothing in a device module renames a command any more.
+
 ## 0.9.0 - 2026-10-25
 
 ### Added

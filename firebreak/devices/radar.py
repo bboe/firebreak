@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING
 
 from firebreak.cache import Download
 from firebreak.devices.biscuit import BISCUIT, UNLOCK_TO_FIREOS6, WRITE_KAERU
@@ -9,9 +8,6 @@ from firebreak.plugin import ClearBoot0Header, FireOs6, Target
 from firebreak.states import State
 from firebreak.targets import FIREOS6, STOCK
 from firebreak.updates import cdn_ota
-
-if TYPE_CHECKING:
-    from firebreak.targets import Deprecated
 
 BUILDS = {
     "4305": cdn_ota(
@@ -136,4 +132,3 @@ TARGETS = (
         unlock=AMONET_V1_0_0,
     ),
 )
-WAS_CALLED: dict[str, Deprecated] = {}

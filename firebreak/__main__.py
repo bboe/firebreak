@@ -27,7 +27,6 @@ from firebreak.devices import (
     BUILDS,
     DEFAULT_BUILDS,
     DEFAULTS,
-    DEPRECATED,
     FIREOS5_BUILDS,
     TARGETS,
     biscuit,
@@ -51,7 +50,7 @@ from firebreak.plugin import FireOs6
 from firebreak.route import root
 from firebreak.support import report, write_test
 from firebreak.survey import survey_all
-from firebreak.targets import FIREOS5, FIREOS6, REMOVED_IN, STOCK
+from firebreak.targets import STOCK
 from firebreak.ui import (
     ARGUMENTS,
     SESSION,
@@ -154,7 +153,6 @@ def build_parser() -> argparse.ArgumentParser:
         TWRP: navigating,
         UNLOCK: rooting,
         WRITE_TEST: ["--no-update-check", "--verbose"],
-        **dict.fromkeys(DEPRECATED, rooting),
     }
     described = dict(about)
     summaries: dict[str, dict[Device, str]] = {}
@@ -169,12 +167,6 @@ def build_parser() -> argparse.ArgumentParser:
         if len(by_device) > 1
         else next(iter(by_device.values()))
         for name, by_device in summaries.items()
-    })
-    described.update({
-        name: f"goes away in firebreak {REMOVED_IN}: use"
-        f" `firebreak {UNLOCK} {was.name}` instead."
-        + (" " + was.note if was.note else "")
-        for name, was in DEPRECATED.items()
     })
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -477,17 +469,7 @@ def parsed() -> argparse.Namespace:
     ):
         setattr(options, option, getattr(options, option, None) or default)
     if options.command is None:
-        notice = (
-            "The command line arguments have changed. What used to be the"
-            f" default is now `firebreak {UNLOCK} {FIREOS5}`, and the new"
-            f" default is `firebreak {UNLOCK} {FIREOS6}`. This warning goes"
-            f" away in firebreak {REMOVED_IN}."
-        )
-        warn(text=notice)
-        print()
         parser.print_help()
-        print()
-        warn(text=notice)
         sys.exit(1)
     takes = {
         BOOTROM: {"force"},

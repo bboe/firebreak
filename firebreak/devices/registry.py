@@ -11,7 +11,6 @@ from firebreak.devices.radar import RADAR
 if TYPE_CHECKING:
     from firebreak.cache import Download
     from firebreak.plugin import Device, FireOs5Chain, Target, Unlock
-    from firebreak.targets import Deprecated
 
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
 LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
@@ -31,9 +30,6 @@ DEFAULTS: dict[Device, str] = {
 }
 DEFAULT_BUILDS: dict[Device, str] = {
     device: module.DEFAULT_BUILD for device, module in SUPPORTED if module.BUILDS
-}
-DEPRECATED: dict[str, Deprecated] = {
-    name: was for _, module in SUPPORTED for name, was in module.WAS_CALLED.items()
 }
 DEVICES = tuple(device for device, _ in SUPPORTED)
 FASTBRICKS: dict[Device, Unlock] = {
