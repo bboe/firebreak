@@ -64,8 +64,12 @@ DEVICES = {
         "v2_lk": "63cb91b-20221007_072309",
     },
     "radar": {
-        "amonet": "amonet-radar-v1.0.0.zip",
-        "fastbricks": {"59779ca-20220524_183401": "fastbrick-20220524.img"},
+        "amonet": "amonet-radar-v1.0.1.zip",
+        "fastbricks": {
+            "2c3569d-20260617_051433": "fastbrick-20260617.img",
+            "59779ca-20220524_183401": "fastbrick-20220524.img",
+            "63cb91b-20221007_073612": "fastbrick-20221007.img",
+        },
         "kaeru": "bin/radar-kaeru.bin",
         "model": "AEORD",
         "stock": "Fire OS 6572.1 (NS6572/6436)",

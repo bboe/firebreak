@@ -4,6 +4,27 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- `unlock` roots an Echo (2nd Generation) on Fire OS 6 8338, 8344 and 8349,
+  and `stock` installs them, where it offered none of the three and `unlock`
+  refused their bootloader. amonet-radar v1.0.1 is the first release with an
+  image for `2c3569d-20260617_051433`, which Amazon shipped to that device on
+  2026-10-14, 10-21 and 10-27. It also gives `63cb91b-20221007_073612` an
+  image of its own, where v1.0.0 gave it the default. Its
+  `fastbrick-20260617.img` is radar's own, not the biscuit image of the same
+  name, read from its tail against 8349's bootloader.
+- v1.0.1 rebuilt three files v1.0.0 shipped: `radar-kaeru.bin`, which the chain
+  writes to `expdb`, the default `fastbrick.img`, and `fastbrick-20220524.img`.
+  Everything else it writes is byte for byte v1.0.0's, the bootrom payload
+  included, so the plan is unchanged.
+- Measured on a radar on 2026-11-01, over thirteen runs: `unlock` took a locked
+  8338 to rooted Fire OS 6 8338 in 2 min 42 s, the first unlock of
+  `2c3569d-20260617_051433` on hardware. `stock` then restored 8344, 8149,
+  8349, 4305 and 5.5.5.4, and an `unlock` followed each one. So every image
+  v1.0.1 rebuilt or added ran on an Echo, and `boot-root.zip` rooted all three
+  new builds in place.
+
 ### Changed
 
 - A run that cannot yet tell which Echo is in front of it says so at once,

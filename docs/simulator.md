@@ -82,7 +82,7 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   device off its fastboot product and refuses a target that is not for it.
   `unlock` and `stock` both run the whole way for either device, `unlock` from
   stock fastboot or `START=no-light` and `stock` from `START=twrp`. A radar
-  unlock takes amonet-radar v1.0.0's archive and its own fastbrick map, which
+  unlock takes amonet-radar v1.0.1's archive and its own fastbrick map, which
   the simulated radar checks the flashed payload against.
 - `report` and `write-test` take any start, because `run.sh` passes the target
   through as a command. `write-test` takes the bootrom route where the Echo
@@ -91,7 +91,7 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - `START=no-light` takes either device. `bootrom.py` reads its payloads from
   the biscuit archives, and that is enough for a radar because every archive
   ships the same one: `brom-payload/build/payload.bin` is 20060 bytes and byte
-  for byte the same in amonet-biscuit v2.0.0, v2.0.1 and amonet-radar v1.0.0.
+  for byte the same in amonet-biscuit v2.0.0, v2.0.1 and amonet-radar v1.0.1.
   A radar started this way needs `--device radar`, because a Dot with no light
   answers neither adb nor fastboot, so nothing names it.
 - firebreak's stdin is `/dev/null`. Its stdout must be unbuffered: without

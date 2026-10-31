@@ -17,9 +17,9 @@ resume after `boot0` was erased, and `stock 5.5.0.3`.
 
 | target | the device ends with | time |
 | --- | --- | --- |
-| `unlock fireos6` (default) | rooted Fire OS 6 [8149][fireos-8149] on amonet v2.0.1, TWRP 3.7.0; also needs `boot-root.zip`. On an Echo (2nd Generation), rooted Fire OS 6 [8149][fireos-radar-8149] on amonet-radar v1.0.0 | about 5 min from `unlock fireos5` |
+| `unlock fireos6` (default) | rooted Fire OS 6 [8149][fireos-8149] on amonet v2.0.1, TWRP 3.7.0; also needs `boot-root.zip`. On an Echo (2nd Generation), rooted Fire OS 6 [8149][fireos-radar-8149] on amonet-radar v1.0.1 | about 5 min from `unlock fireos5` |
 | `unlock fireos5` | rooted Fire OS [5.5.5.4][fireos-5554] on amonet v1.1.0, TWRP 3.7.0_9-bboe2 | about 9 min from stock |
-| `stock [BUILD]` | stock Fire OS at that build, with the device erased: Fire OS 6 [8149][fireos-8149] when left out, or Fire OS 5 from [5.5.0.3][fireos-5503] to [5.5.5.4][fireos-5554]. On an Echo (2nd Generation), Fire OS 6 [8149][fireos-radar-8149] when left out, any Fire OS 6 from [4305][fireos-radar-4305] to 8149, or Fire OS [5.5.5.4][fireos-radar-5554] | about 3 min from `unlock fireos5` |
+| `stock [BUILD]` | stock Fire OS at that build, with the device erased: Fire OS 6 [8149][fireos-8149] when left out, or Fire OS 5 from [5.5.0.3][fireos-5503] to [5.5.5.4][fireos-5554]. On an Echo (2nd Generation), Fire OS 6 [8149][fireos-radar-8149] when left out, any Fire OS 6 from [4305][fireos-radar-4305] to 8349, or Fire OS [5.5.5.4][fireos-radar-5554] | about 3 min from `unlock fireos5` |
 
 `unlock` takes the newest amonet that firebreak supports for that Fire OS, so
 a target no longer names an amonet version. `unlock` with no target takes
@@ -108,7 +108,7 @@ firebreak stops on it.
   in firmly, and try another cable if it fails again.
 - Do not connect a stock device to Wi-Fi before you unlock it. Amazon can
   update it to a build firebreak does not support.
-- `amonet-biscuit-v2.0.1` and `amonet-radar-v1.0.0` root the Fire OS 6 build
+- `amonet-biscuit-v2.0.1` and `amonet-radar-v1.0.1` root the Fire OS 6 build
   already installed, and keep the device's Wi-Fi and Alexa setup. Unlock it
   soon after setup, before it can update. `--factory-reset` erases the device and
   installs the target's build instead.
@@ -202,11 +202,11 @@ afterwards.
 
 `report` also names the device and lists its USB devices. An Echo (2nd
 Generation) takes `unlock fireos6`, which roots Fire OS 6
-[8149][fireos-radar-8149] with amonet-radar v1.0.0, and `stock [BUILD]`, which
+[8149][fireos-radar-8149] with amonet-radar v1.0.1, and `stock [BUILD]`, which
 returns one on amonet to
-any of thirteen stock builds, from Fire OS [5.5.5.4][fireos-radar-5554] to
-Fire OS 6 8149. It does not offer 8338 and later, whose bootloader no
-amonet-radar payload unlocks. Both have run on an Echo. The first boot after
+any of sixteen stock builds, from Fire OS [5.5.5.4][fireos-radar-5554] to
+Fire OS 6 8349, which amonet-radar v1.0.1 is the first release to
+unlock. Both have run on an Echo. The first boot after
 the root has sometimes shown nothing on USB; the run waits, and after a minute
 it asks for the Echo's power to be unplugged and plugged back in. Every other
 target is for the Echo Dot (2nd Generation). The report is the same on other

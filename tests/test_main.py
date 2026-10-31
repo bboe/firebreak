@@ -117,7 +117,7 @@ def test_a_build_the_device_has_no_ota_for_is_refused(
     with pytest.raises(
         main.FatalError,
         match=r"the Echo \(2nd Generation\) has no stock build 5\.5\.0\.3: use"
-        r" one of 8149",
+        r" one of 8349, 8344, 8338, 8149",
     ):
         main.cli()
 
@@ -152,7 +152,7 @@ def test_a_deprecated_name_parses_but_is_not_in_the_help(
     argnames=("arguments", "said"),
     argvalues=[
         (
-            ["--device", "biscuit", "amonet-radar-v1.0.0"],
+            ["--device", "biscuit", "amonet-radar-v1.0.1"],
             "argument COMMAND: invalid choice",
         ),
         (["--device", "radar", "unlock", "fireos5"], "unlock takes no --device"),

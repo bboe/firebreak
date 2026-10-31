@@ -158,25 +158,61 @@ does.
 
 | ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK | fastbrick image |
 | --- | --- | --- | --- | --- | --- |
-| Fire OS 6 8338 to 8349 | `2c3569d-20260617_051433` | `bd7ae89-20221003_221237` | [3](#tee-images-1) | 0x0005, 0x0102, 0x0001 | none |
-| Fire OS 6 4929 to 8149 | `63cb91b-20221007_073612` | `bd7ae89-20221003_221237` | [2](#tee-images-1) | 0x0005, 0x0102, 0x0001 | `fastbrick.img` |
+| Fire OS 6 8338 to 8349 | `2c3569d-20260617_051433` | `bd7ae89-20221003_221237` | [3](#tee-images-1) | 0x0005, 0x0102, 0x0001 | `fastbrick-20260617.img` |
+| Fire OS 6 4929 to 8149 | `63cb91b-20221007_073612` | `bd7ae89-20221003_221237` | [2](#tee-images-1) | 0x0005, 0x0102, 0x0001 | `fastbrick-20221007.img` |
 | Fire OS 6 4305, 4315 | `41fb3ce-20221007_153017` | `919cae9-20221006_205014` | [4](#tee-images-1) | 0x0005, 0x0102, 0x0001 | `fastbrick.img` |
 | Fire OS 5.5.5.4 | `59779ca-20220524_183401` | `642551b-20211203_021230` | [1](#tee-images-1) | 0x0005, 0x0102, 0x0001 | `fastbrick-20220524.img` |
 
-- amonet-radar v1.0.0's `profile.sh` chooses the fastbrick image by the LK,
-  as biscuit's does. Only 5.5.5.4's LK gets its own image. The `63cb91b` and
-  `41fb3ce` LKs get the default, `fastbrick.img`. The `2c3569d` LK of 8338 and
-  later is newer than anything amonet-radar was built for, so no image unlocks
-  it.
-- `stock` does not offer 8338, 8344 or 8349, which is the only place the table
-  above runs ahead of the code. `unlock.newer_than_known` refuses a bootloader
-  no older than the newest firebreak has a payload for, so a restore to one of
-  those builds would leave an Echo that firebreak cannot unlock again. biscuit
-  has no such gap: amonet v2.0.1 ships `fastbrick-20260617.img` for the same
-  commit's LK, which is why biscuit offers 8338 and 8344.
+- amonet-radar v1.0.1's `profile.sh` chooses the fastbrick image by the LK, as
+  biscuit's does. 5.5.5.4's LK, `63cb91b` and `2c3569d` each get an image of
+  their own, and `41fb3ce` gets the default, `fastbrick.img`. v1.0.0 mapped
+  only 5.5.5.4's and gave both Fire OS 6 LKs the default, and had no image at
+  all for `2c3569d`, so `stock` offered none of 8338, 8344 or 8349 and
+  `unlock` refused them.
+- `fastbrick-20260617.img` is radar's own, not the biscuit image of the same
+  name: 114431594 bytes against 114432500, and of the 33883 distinct 16-byte
+  windows in its last 137684 bytes, at a 4-byte stride, 33735 are in 8349's
+  `lk.img`, against 30663 in 8149's and 26498 in biscuit's 8344's. Read as
+  [unlocking.md](unlocking.md#unlock-amonet-v2) reads a payload's tail.
+- v1.0.1 rebuilt three files v1.0.0 shipped, beside the two it adds:
+  `radar-kaeru.bin`, which the chain writes to `expdb`, is 264304 bytes
+  against 264544; the default `fastbrick.img` and `fastbrick-20220524.img` are
+  each within a few hundred bytes of their old size with different bytes.
+  Everything else the chain writes is byte for byte v1.0.0's, the bootrom
+  payload and `modules/main.py` included, so the plan is unchanged.
+- `fastbrick-20260617.img` unlocked a radar on `2c3569d-20260617_051433`
+  three times on 2026-11-01, each on the first flash of its run: from a locked
+  8338 in 13 s, and from a locked 8344 and a locked 8349 in 8 s each, rooting
+  each build in place in 2 min 42 s, 1 min 10 s and 1 min 10 s. So the mapping
+  that payload's tail predicted holds on an Echo, as biscuit's
+  `fastbrick-20260617.img` did on a Dot, and it covers all three builds that
+  share the LK.
+- `fastbrick-20221007.img` unlocked a radar on `63cb91b-20221007_073612`,
+  2026-11-01, on the first flash: a locked 8149 reached TWRP 32 s after a 13 s
+  fastbrick and rooted in place in 1 min 16 s. v1.0.0 gave that LK the default
+  image, so this is the mapping v1.0.1 changed for every radar on 4929 to
+  8149.
+- `fastbrick-20220524.img` unlocked a radar on `59779ca-20220524_183401`,
+  2026-11-01, on the first flash: a locked 5.5.5.4 reached TWRP 29 s after a
+  13 s fastbrick, and the run installed 8149 over both slots and rooted it in
+  3 min 54 s. That was the last of v1.0.1's five mappings to run on hardware,
+  so **every image v1.0.1 rebuilt or added is now measured on an Echo**.
+- amonet-radar's `bin/lk.bin` is radar's stock 5.5.5.4 LK, unmodified:
+  356856 bytes equal to the first 356856 of that OTA's `lk.img`, whose last
+  3592 bytes are zeros. v1.0.0 and v1.0.1 ship the same file. So radar's
+  unlocked bootloader is a stock Fire OS 5 one, where biscuit's is a patched
+  Fire OS 6 one, and `stock 5.5.5.4` skips both LK writes on a radar that
+  amonet's chain has written.
+- The rebuilt `radar-kaeru.bin` is on an Echo. A `bootrom` run on 2026-11-01
+  reported the kaeru write as already right, so `expdb` held bytes equal to
+  v1.0.1's image, and the only runs that could have put them there are that
+  day's fastbrick unlocks, which run the same plan. Every unlocked boot of
+  2026-11-01 came off it.
 - The default `fastbrick.img` unlocks a radar on 4305, measured on 2026-10-29
   from stock fastboot: the fastbrick took 13 s, TWRP started 28 s later, and
-  the run rooted 4305 in place in 1 min 11 s with no restart by hand. Their LK
+  the run rooted 4305 in place in 1 min 11 s with no restart by hand. v1.0.1's
+  rebuilt image did the same on 2026-11-01, in 13 s on its first flash and
+  1 min 10 s to a rooted 4305. Their LK
   is `41fb3ce`, the same commit as biscuit's 4310 to 4315 LK. On biscuit, that
   LK is unlocked by the image its `63cb91b` LK gets, which amonet's own map
   does not give it. On radar, amonet's map does give it that image. 4315 shares
@@ -207,16 +243,13 @@ partitions each OTA writes, for every build above, read as biscuit's are.
   updater installed matches their `/system` only if its eMMC reads erased
   blocks as zeros.
 - The three readings below need what is inside `/system`, not its hash, and
-  cover only the ten OTAs read before 2026-10-28. 8338, 8344 and 8349 are in
-  the tables and the csv above, but nothing here has looked inside their
-  `/system`, and `stock` does not offer them. 4315, 4936 and 8149 are unread
-  too and do not need the reading: `boot-root.zip` rooted each of them in
-  place on a radar on 2026-10-29, in 1 min 11 s to 1 min 13 s, which is the
-  stronger test. So every build `stock` offers is either read below or rooted
-  in place, and none reaches the zip unverified. That matters because
-  `BUILDS` is also what `fireos.installed_build` checks before the zip
-  patches a build in place, so a build added for `stock` is a build the
-  in-place root will accept.
+  cover only the ten OTAs read before 2026-10-28. 4315, 4936 and 8149 are
+  unread too and do not need the reading: `boot-root.zip` rooted each of them
+  in place on a radar on 2026-10-29, in 1 min 11 s to 1 min 13 s, which is the
+  stronger test.
+- 8338, 8344 and 8349 need no reading either: `boot-root.zip` rooted each in
+  place on a radar on 2026-11-01, in 9 s, 8 s and 9 s, which is the stronger
+  test. So every radar build the zip can reach has now run it.
 - Each of the nine Fire OS 6 builds among them has what biscuit's
   `boot-root.zip` changes: each file, one autoroot site in `sbin/adbd`, a
   `veritykeyid` boot command line, and verity metadata at the offset the zip
