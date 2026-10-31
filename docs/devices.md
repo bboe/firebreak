@@ -1,12 +1,14 @@
 # Devices
 
 The firmware each supported device's OTAs ship. radar has a `stock` target and
-an unlock, both on 8149, and crown has neither yet.
+an unlock, both on 8149, and crown and donut have neither yet.
 
 `firebreak survey OTA` prints, from one OTA zip and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build
-descriptions, the anti-rollback versions, the TEE's hashes and the 5
-partition hashes. Only the fastbrick image comes from elsewhere, amonet's
+descriptions, the anti-rollback versions, the TEE's hashes and the partition
+hashes, 5 of them, or 6 where an OTA names two TEE partitions as donut's do.
+The TEE it reports is the first of those, and it says so where the two differ.
+Only the fastbrick image comes from elsewhere, amonet's
 `profile.sh`. It needs no Dot. Its CSV rows name the build as the CSVs do,
 so each is a line of its CSV, word for word.
 
@@ -16,8 +18,9 @@ a device gives the same. The codename is `ro.product.device` without
 `_puffin`. Biscuit's and radar's Fire OS 6 OTAs add that suffix: they are
 built from a second device tree, `device/amazon/biscuit_puffin`, where their
 Fire OS 5 OTAs say `biscuit`. Crown shipped on Fire OS 6 and has no suffix.
-So `_puffin` appears to mark a Fire OS 5 device's later move to Fire OS 6;
-no OTA says so.
+Donut shipped on Fire OS 6 too, and its OTAs gain the suffix part way through:
+1895 says `donut` and every later build says `donut_puffin`. So the suffix does
+not mark a move from Fire OS 5, and what it does mark is unread. No OTA says.
 
 ## biscuit
 
@@ -312,3 +315,81 @@ partitions each OTA writes, for every build above, read as biscuit's are.
   3,253,731,328 bytes in every build.
 - Crown has no slot suffix. Hash `boot`, `system`, `lk` and `tee1` by name,
   where biscuit's steps say to use the active slot.
+
+## donut
+
+The Echo Dot (3rd Generation) of 2018, model `AEODN`. Read in October 2026 from
+the 17 OTAs on ftvdb: Fire OS 6 1895, 6009, 6071, 6077, 6086, 6176, 6193, 6199,
+6208, 6220, 6425, 6813, 8138, 8149, 8338, 8344 and 8349. ftvdb has no other
+donut OTA, and none is Fire OS 5. Its build numbers are its own, as crown's
+are, and they do not follow release order: 6813 is Fire OS 6.5.6.6, where 6425
+is 6.5.7.2.
+
+The Echo Dot (3rd Generation) Refresh of 2019 is a different device, model
+`AEOCP` and codename crumpet, and nothing here covers it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 6176 to 8349, except 6813 | `6f7225e-20230407_013816` | `<none>` | [3](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
+| Fire OS 6 6009 to 6086, and 6813 | `6f7225e-20230407_013816` | `<none>` | [2](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
+| Fire OS 6 1895 | `0d18cf4-20181206_233555` | `<none>` | [1](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
+
+- The table has no fastbrick column. kamakiri-donut v1.0.0 ships no fastbrick
+  image and no `profile.sh`, where every amonet release here ships both, so no
+  LK of donut's chooses one.
+- No donut preloader carries a build description, so `pl_build_desc` is
+  `<none>` in every build. Two preloaders ship across the 17: 1895's, of
+  147456 bytes, and one of 151552 bytes in every later build. Where biscuit's
+  and radar's preloaders of one row differ in boot0's GPT, donut's later
+  sixteen builds ship the same preloader byte for byte.
+- Only two LKs ship: 1895's, and one in every build from 6009. Each is read as
+  biscuit's are, in [Anti-rollback](#anti-rollback).
+- Every version is 1. The PL version is 1 as crown's is, where biscuit's and
+  radar's are 5, and the TEE version 0x0001 is below every other device here.
+  No OTA raises one.
+- kamakiri-donut v1.0.0 writes the LK of 6009 and later byte for byte, and the
+  TEE of 6176 and later byte for byte. Its preloader is in no OTA.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 3 | 2363392 | `3838fb54db104f8fe9799484afdd77e2` | `07cff71c598b7665f17c769b0504c8b7ad91647414c280b10a26be4ea5761194` |
+| 2 | 2367488 | `5f0569a8c128a3288f962937a0a0fc10` | `01e61100d278854620561dd1a8b3d2a1d1b91999c83a6d6e0ffb60cdf9cb7d95` |
+| 1 | 2301952 | `7db11fb38d534b993d80d10f5b9b7d64` | `d52ffd7e030898cb87a83db8ca572bd14b23e84a0c7e957edf5806499c975a14` |
+
+- Each donut TEE is numbered here, so a number in the table above is always
+  donut's own. TEE 3 is smaller than TEE 2 and newer.
+
+### Partition hashes
+
+[donut-partitions.csv](donut-partitions.csv) has the sha256 of the 6
+partitions each OTA writes, for every build above, read as biscuit's are.
+
+- donut's payload names `tee1` and `tee2` as two partitions and writes the
+  same TEE image to both, in all 17 builds. Every other device here names one
+  `tee`, so donut is the only one with 6 rows a build rather than 5. The
+  Builds table above keeps one TEE column because the two images are equal.
+- Every donut OTA is an A/B payload OTA, 1895 included. So every hash is the
+  one in its `payload.bin` manifest, and none carries the erased-block caveat
+  the block OTAs of the other three devices do: a donut that Amazon's updater
+  installed matches these `/system` hashes whatever its eMMC returns for an
+  erased block.
+- `/system` is 1073741824 bytes in every build. Every build has its own boot
+  and `/system` hash.
+- Nothing here has looked inside a donut `/system`, and nothing has run
+  `boot-root.zip` on one. Whether it roots a donut in place, as it does a
+  biscuit and a radar, is unread.
+
+### eMMC chips
+
+No donut has been seen here, so nothing is read: no chip, no capacity and no
+wear. Running `report` once on one would fill this in, as it did for radar.
+
+- kamakiri-donut v1.0.0 carries a `gpt-donut.bin` of its own, whose table has
+  16 partitions and a last usable sector of 7634910, which is the last usable
+  sector of radar's `FJ25AB` Echo, on an eMMC of 7634944 sectors. It is the
+  kit's table rather than one read off a donut, so it says
+  what the kit would write and not what a donut carries.

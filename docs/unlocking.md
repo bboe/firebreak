@@ -330,10 +330,17 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   `brom-payload/build/payload.bin` for both, 20060 bytes, byte for byte the
   same. That payload ran on the radar and reported `BROM USBDL is enabled`,
   which `check_brom` reads from devinfo at `0x10206060`, bit 8. Not every Echo
-  has that bit clear: the Echo Show 5 of either generation, and the Dot 3rd
-  Generation, have no bootrom USBDL at all, which is why a brick on those is
-  permanent. The fuse is per product, so a shared SoC settles nothing on its
-  own.
+  is said to have that bit clear: the Echo Show 5 of either generation, and the
+  Dot 3rd Generation, are reported to have no bootrom USBDL at all, which would
+  make a brick on those permanent. The fuse is per product, so a shared SoC
+  settles nothing on its own.
+- That report does not hold for the Dot 3rd Generation as written.
+  kamakiri-donut v1.0.0 drives `0e8d:0003` over raw USB, and its own
+  `main.py` clears boot0's header before it writes anything so that a stalled
+  run reaches the bootrom without a short. A bootrom that answers is a brick
+  that can be undone. Nothing here has read a donut's fuse, so what the bit
+  says on that device is still unknown, and the claim is kept above rather
+  than deleted.
 - It reads ports from pyserial's USB list and opens only the bootrom's, where
   amonet opened every port to see it. On Linux the preloader's
   `/dev/ttyACM*` is `dialout`'s, and the udev rule covers only `0e8d:0003`,
