@@ -20,7 +20,7 @@ from firebreak.devices.biscuit import (
     UNLOCK_V2_FROM_BOOTROM,
 )
 from firebreak.devices.crown import AMONET_V2_0_1
-from firebreak.devices.radar import AMONET_V1_0_0
+from firebreak.devices.radar import AMONET_V1_0_1
 from firebreak.plugin import BOOT0, Device, ResetBcb, Unlock, Write
 
 if TYPE_CHECKING:
@@ -308,7 +308,7 @@ def test_a_table_that_is_not_intact_is_refused(*, source: pathlib.Path) -> None:
 @pytest.mark.parametrize(
     argnames="unlock",
     argvalues=[
-        AMONET_V1_0_0,
+        AMONET_V1_0_1,
         AMONET_V2_0_1,
         UNLOCK_FROM_BOOTROM,
         UNLOCK_TO_FIREOS5,
@@ -357,7 +357,7 @@ def test_crown_v2_0_1_matches_amonet(*, source: pathlib.Path) -> None:
         UNLOCK_TO_FIREOS5,
         UNLOCK_TO_FIREOS6,
         UNLOCK_V2_FROM_BOOTROM,
-        AMONET_V1_0_0,
+        AMONET_V1_0_1,
     ],
     ids=lambda unlock: unlock.name,
 )
@@ -394,12 +394,12 @@ def test_no_plan_yet_has_a_recoverable_write_over_an_earlier_unrecoverable_one(
     ) == [("preloader", "patch")]
 
 
-def test_radar_v1_0_0_from_a_moved_table_matches_amonet(
+def test_radar_v1_0_1_from_a_moved_table_matches_amonet(
     *, source: pathlib.Path
 ) -> None:
     stock = biscuit_table(backup=RADAR_BACKUP_ADDRESS, layout=RADAR_STOCK)
     moved, _ = BOOT_MOVED_LAYOUT.apply(raw=stock)
-    actions = plan.resolve(raw=moved, source=source, unlock=AMONET_V1_0_0)
+    actions = plan.resolve(raw=moved, source=source, unlock=AMONET_V1_0_1)
     assert described(actions=actions) == amonet_v2_writes(backup=RADAR_BACKUP_ADDRESS)
     assert actions[0].data == stock
     assert [action.unrecoverable for action in actions].count(True) == 1
@@ -409,11 +409,11 @@ def test_radar_v1_0_0_from_a_moved_table_matches_amonet(
     assert actions[11].image == source / "bin" / "twrp.img"
 
 
-def test_radar_v1_0_0_from_stock_leaves_the_table(*, source: pathlib.Path) -> None:
+def test_radar_v1_0_1_from_stock_leaves_the_table(*, source: pathlib.Path) -> None:
     actions = plan.resolve(
         raw=biscuit_table(backup=RADAR_BACKUP_ADDRESS, layout=RADAR_STOCK),
         source=source,
-        unlock=AMONET_V1_0_0,
+        unlock=AMONET_V1_0_1,
     )
     assert (
         described(actions=actions) == amonet_v2_writes(backup=RADAR_BACKUP_ADDRESS)[2:]

@@ -1135,9 +1135,14 @@ testing a single stage mean reaching its state by hand first.
   amonet's rather than a stock LK that shares its build string, which is what
   the gate above works around. And `brom-cmd-dis` looks like the bootrom USBDL
   fuse that `check_brom` reads from devinfo over the payload, which would tell
-  a device whose bootrom is reachable from plain fastboot. **Neither is read
-  from a stock LK, from amonet v1.1.0's, or from a device whose fuse is set**,
-  so both are one reading on one bootloader.
+  a device whose bootrom is reachable from plain fastboot. **A stock LK reports
+  neither**, read on 2026-11-01 from a radar left in fastboot by `stock 8349`:
+  each `getvar` printed the name with nothing after it and finished, which is
+  how fastboot reports a variable a bootloader does not know. So the
+  `kaeru-version` gate holds on the one stock bootloader it has been asked,
+  and an amonet LK is the only one measured to answer. **Neither is read from
+  amonet v1.1.0's LK, or from a device whose fuse is set**, so the values
+  themselves are still one reading on one bootloader.
 - `unlock fireos5` overrides the stage, because for that target v2's fastboot
   can be the way into the bootrom. Where the bootloader is the declared one,
   the run writes that TWRP and continues from v2's TWRP to write v1.1.0's
@@ -1154,10 +1159,12 @@ testing a single stage mean reaching its state by hand first.
   20221007 pair; the second ships in 4310, 4313 and 4315, takes that image
   from the release below, and the default image does not unlock it. On radar
   the map is amonet-radar's own: `fastbrick-20220524.img` for
-  `59779ca-20220524_183401`, Fire OS 5.5.5.4's LK, and the default for both
-  Fire OS 6 LKs. The stage unpacks the archive the map names for the
+  `59779ca-20220524_183401`, Fire OS 5.5.5.4's LK, `fastbrick-20221007.img`
+  for `63cb91b-20221007_073612`, `fastbrick-20260617.img` for
+  `2c3569d-20260617_051433`, and the default for `41fb3ce-20221007_153017`.
+  The stage unpacks the archive the map names for the
   bootloader in front of it, which is the unlock's own unless `payloads` say
-  otherwise, so an Echo takes amonet-radar v1.0.0's payloads rather than a
+  otherwise, so an Echo takes amonet-radar v1.0.1's payloads rather than a
   biscuit zip's.
 - A `lk_build_desc` that is not one of the LKs the device's module lists, and
   is dated no earlier than the newest it does list, stops the stage before the
@@ -2252,6 +2259,19 @@ ring read white.
 | amonet-twrp | `bootrom` | 34 s, on 2026-10-30 on a radar, with no marker to write: boot0's header cleared and TWRP's reboot by 21 s, the question answered, the handshake and the payload 3 s, the bootloader read that names the device 2 s |
 | bootrom, held | `bootrom` | 7 s and then 4 s, on 2026-10-30, two runs after the one above: each probed the port, joined the live payload, read the bootloader in 2 s and reported `already waits in its bootrom`. Nothing in the cache said a payload was there, and probing a live one twice more did not disturb it |
 | bootrom, held | `unlock` | 1 min 29 s, on 2026-10-30 on a radar whose 8149 OTA was already in the cache: the hold joined by probe with no step of its own, amonet-radar-v1.0.0's chain by 27 s with the TEE, bootloader, kaeru and TEE payload all skipped, amonet's fastboot 8 s after the forced reboot, TWRP 19 s, `boot-root.zip` 13 s, rooted 4315's boot 20 s |
+| stock-fastboot, locked on 8338 | `unlock` | 2 min 42 s, on 2026-11-01 on a radar, the first run of amonet-radar v1.0.1 and the first unlock of `2c3569d-20260617_051433` on hardware: `fastbrick-20260617.img` 13 s, TWRP 29 s, the installed build read as 8338 in under 1 s, `boot-root.zip` 9 s, rooted 8338's boot 104 s. Nothing showed on USB after the zip until the power was cycled, which the run asked for after a minute. `fastboot` then reached amonet-fastboot 8 s later |
+| amonet-fastboot | `stock 8344` | 2 min 43 s, on 2026-11-01 on a radar, the first restore to a build Amazon shipped in October: the OTA's five images each matched its manifest, the table built from the Echo's own, TWRP 17 s, both `/system` writes 50 s each, `misc` and both tables skipped as already right, and the reboot to fastboot 8 s. Steps 7 to 9 skipped, so 14 of 17 wrote |
+| stock-fastboot, locked on 8344 | `unlock` | 1 min 10 s, on 2026-11-01 on a radar, straight after that restore: `fastbrick-20260617.img` 8 s on its first flash, TWRP 32 s, the installed build read as 8344, `boot-root.zip` 8 s, rooted 8344's boot 20 s. USB came back by itself here, where the 8338 run above needed a power cycle |
+| amonet-booted | `stock 8149` | 2 min 31 s, on 2026-11-01 on a radar, from rooted Fire OS 6 rather than a fastboot: TWRP 17 s after one reboot, both `/system` writes 48 s each, `tee2` skipped as already right along with `misc` and both tables, and the reboot to fastboot 8 s. 13 of 17 wrote |
+| stock-fastboot, locked on 8149 | `unlock` | 1 min 16 s, on 2026-11-01 on a radar, the first run of `fastbrick-20221007.img` on hardware, which v1.0.1 gives `63cb91b-20221007_073612` where v1.0.0 gave it the default: the fastbrick 13 s on its first flash, TWRP 32 s, the installed build read as 8149, `boot-root.zip` 8 s, rooted 8149's boot 21 s |
+| amonet-booted | `bootrom` | 37 s, on 2026-11-01 on a radar rooted on 8149: TWRP 17 s, the question answered, the handshake and the payload 1 s each, the bootloader read that names the device 2 s |
+| bootrom, held | `unlock` | 1 min 31 s, on 2026-11-01 on a radar, the first run of v1.0.1's chain over bytes v1.0.1 had already written: the TEE, bootloader, kaeru and TEE payload all skipped as already right, the preloader 6 s, amonet's fastboot 8 s after the forced reboot, TWRP 19 s, `boot-root.zip` 13 s, rooted 8149's boot 20 s |
+| amonet-booted | `stock 8349` | 2 min 41 s, on 2026-11-01 on a radar, the last radar OTA and the last build to reach `boot-root.zip` unread: the OTA's five images each matched its manifest, TWRP 17 s, both `/system` writes 48 s and 49 s, `misc` and both tables skipped as already right, and the reboot to fastboot 8 s. 14 of 17 wrote |
+| stock-fastboot, locked on 8349 | `unlock` | 1 min 10 s, on 2026-11-01 on a radar, straight after that restore and the first reading of 8349's own `/system`: `fastbrick-20260617.img` 8 s on its first flash, TWRP 32 s, the installed build read as 8349, `boot-root.zip` 9 s, rooted 8349's boot 20 s |
+| amonet-booted | `stock 4305` | 2 min 35 s, on 2026-11-01 on a radar, the first block OTA restored in this run of measurements: the four images taken from the OTA and `/system` built from the transfer list, TWRP 17 s, both `/system` writes 49 s each, `misc` and both tables skipped as already right, and the reboot to fastboot 8 s. 14 of 17 wrote |
+| stock-fastboot, locked on 4305 | `unlock` | 1 min 10 s, on 2026-11-01 on a radar, the first run of v1.0.1's rebuilt default `fastbrick.img`: 13 s on its first flash, TWRP 27 s, the installed build read as 4305, `boot-root.zip` 8 s, rooted 4305's boot 19 s. v1.0.0's image took the same 13 s on 2026-10-29 |
+| amonet-booted | `stock 5.5.5.4` | 2 min 36 s, on 2026-11-01 on a radar, the only Fire OS 5 build it has: the four images taken from the OTA and `/system` built from the transfer list, TWRP 17 s, both `/system` writes 49 s each, and the reboot to fastboot 8 s. 12 of 17 wrote: `misc` and both tables skipped as before, and **both LK writes skipped as already right**, because amonet's `lk.bin` is this build's own LK |
+| stock-fastboot, locked on 5.5.5.4 | `unlock` | 3 min 54 s, on 2026-11-01 on a radar, the first run of v1.0.1's rebuilt `fastbrick-20220524.img`: 13 s on its first flash, TWRP 29 s, the installed build read as not Fire OS 6, the wipe 2 s, the installs of 8149 69 s and 87 s, `boot-root.zip` 8 s, rooted 8149's boot 22 s. No `--factory-reset`: a slot holding Fire OS 5 reads as no build, which takes the install path anyway |
 
 - `bcbtool get_active` printed a bare `a` or `b`, and each OTA install
   changed it. The downgrade ran on the stock partition table the zip left.
@@ -2271,7 +2291,7 @@ ring read white.
 
 radar declares no Fire OS 5 chain, so it has two targets: `unlock fireos6`,
 which the process above covers whole, and `stock`. Its unlock is amonet-radar
-v1.0.0, whose fastbrick payloads and preloader are its own.
+v1.0.1, whose fastbrick payloads and preloader are its own.
 
 #### In its bootrom
 

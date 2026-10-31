@@ -152,7 +152,7 @@ nothing. The Fire OS 6 one gains `ClearBoot0Header` in front, which only the
 bootrom route needs: the fastbrick carries out that plan from the LK, where
 boot0 is not the way back.
 
-amonet-radar v1.0.0 runs biscuit v2.0.0's scripts and payload byte for byte,
+amonet-radar v1.0.1 runs biscuit v2.0.0's scripts and payload byte for byte,
 and its `main.py` differs only in file names and one log line. So its plan is
 v2.0.0's, with `radar-kaeru.bin` in `expdb`, and its module builds it from
 v2.0.0's. Its targets take biscuit's routes and gesture, and the amonet states,
@@ -253,7 +253,7 @@ v1.1.0 keeps the stock `boot_a` and `boot_b` and boots from two new
 partitions at the end of `userdata`. The same code is in every amonet release
 read here, for biscuit, radar and crown, with the same alignment and sizes;
 only the targets differ, `boot` and `recovery` on crown. Of those releases,
-only biscuit's v1.1.0 applies it. biscuit's v2.0.0 and radar's v1.0.0 undo
+only biscuit's v1.1.0 applies it. biscuit's v2.0.0 and radar's v1.0.1 undo
 it, and radar's says an older release applied it. Applying it:
 
 - round `userdata`'s last sector down to `align`, then give up `sectors` for
@@ -337,7 +337,7 @@ offers `firebreak/emmc.py`'s operations.
 ## The guardrail
 
 `tests/test_plan.py` resolves every biscuit unlock against biscuit's geometry,
-from a stock table and from a shuffled one. It resolves amonet-radar v1.0.0
+from a stock table and from a shuffled one. It resolves amonet-radar v1.0.1
 from a radar stock table and one with boot moved too, and amonet-crown v2.0.1
 from a made-up crown table. Every write must equal what amonet's scripts issue:
 kind, target, byte offset and length. Reverting the boot-moved layout after

@@ -66,6 +66,18 @@ BUILDS = {
         path="2026/9/29/54a9ed82-ce12-49e3-91da-b10f7f5b831f/update-kindle-radar_puffin-NS65741_user_8149_0013222532484.bin",
         sha256="5c001abc6b9a979bd3c536fa64c3b0567fe68dd05dbf092fbe96ddfb243abc6e",
     ),
+    "8338": cdn_ota(
+        path="2026/10/14/467e4e4d-33f8-45c7-8d54-c4ab67fee6da/update-kindle-radar_puffin-NS6575_user_8338_0013323244164.bin",
+        sha256="d187b0290e935fb2ab5df81155600decaa24057e86aefe3dcbee016f7164e2bc",
+    ),
+    "8344": cdn_ota(
+        path="2026/10/21/5c9ee383-4f5d-427f-ad31-5e2745f4bbd7/update-kindle-radar_puffin-NS6575_user_8344_0013323245700.bin",
+        sha256="6a0bb41cb2f766f31c0ff5c6f4004a48ce87e140051d7e99cdafa42206a4e8e9",
+    ),
+    "8349": cdn_ota(
+        path="2026/10/27/bfb778eb-43bd-40c7-8310-e195d8fa91f4/update-kindle-radar_puffin-NS6575_user_8349_0013323246980.bin",
+        sha256="af1269ebb5e892afc673a99d9dc322e254d5499454f29a9608ab1839a63c0736",
+    ),
 }
 DEFAULT_BUILD = "8149"
 DEFAULT_TARGET = FIREOS6
@@ -75,6 +87,7 @@ LK_VALUES = frozenset({
     "59779ca-20220524_183401",
     "63cb91b-20221007_073612",
     "41fb3ce-20221007_153017",
+    "2c3569d-20260617_051433",
 })
 RADAR = dataclasses.replace(
     BISCUIT,
@@ -88,19 +101,23 @@ RADAR = dataclasses.replace(
 
 SOURCE = Download(
     browser=True,
-    directory="radar-v1.0.0",
+    directory="radar-v1.0.1",
     mirror=True,
-    name="amonet-radar-v1.0.0.zip",
-    sha256="ecdb07bc05a508532e5ffed77121592d492b1a91572839e0f17545421f398f1a",
-    size=58531162,
-    url="https://xdaforums.com/attachments/amonet-radar-v1-0-0-zip.6384242/",
+    name="amonet-radar-v1.0.1.zip",
+    sha256="22809bc44b9b7b71750c1955bb94a92c965b557d4f9055bb7bbc098b788188a9",
+    size=94789047,
+    url="https://xdaforums.com/attachments/amonet-radar-v1-0-1-zip.6403363/",
 )
 
 
-AMONET_V1_0_0 = dataclasses.replace(
+AMONET_V1_0_1 = dataclasses.replace(
     UNLOCK_TO_FIREOS6,
     device=RADAR,
-    fastbricks={"59779ca-20220524_183401": "bin/fastbrick-20220524.img"},
+    fastbricks={
+        "2c3569d-20260617_051433": "bin/fastbrick-20260617.img",
+        "59779ca-20220524_183401": "bin/fastbrick-20220524.img",
+        "63cb91b-20221007_073612": "bin/fastbrick-20221007.img",
+    },
     little_kernel="",
     plan=tuple(
         dataclasses.replace(WRITE_KAERU, image="bin/radar-kaeru.bin")
@@ -109,12 +126,12 @@ AMONET_V1_0_0 = dataclasses.replace(
         for step in UNLOCK_TO_FIREOS6.plan
     ),
     source=SOURCE,
-    version="1.0.0",
+    version="1.0.1",
 )
 BOOTROM_UNLOCK = dataclasses.replace(
-    AMONET_V1_0_0, plan=(ClearBoot0Header(), *AMONET_V1_0_0.plan)
+    AMONET_V1_0_1, plan=(ClearBoot0Header(), *AMONET_V1_0_1.plan)
 )
-FASTBRICK = AMONET_V1_0_0
+FASTBRICK = AMONET_V1_0_1
 TARGETS = (
     Target(
         device=RADAR,
@@ -133,7 +150,7 @@ TARGETS = (
         summary="boot-root.zip's root adb on the Fire OS 6 already installed,"
         " which keeps the Echo's setup; with --factory-reset, Fire OS 6"
         f" {DEFAULT_BUILD}, with the Echo erased.",
-        unlock=AMONET_V1_0_0,
+        unlock=AMONET_V1_0_1,
     ),
 )
 WAS_CALLED: dict[str, Deprecated] = {}

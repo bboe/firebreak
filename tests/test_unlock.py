@@ -546,6 +546,7 @@ def test_the_fastbrick_knows_only_the_bootloaders_the_device_lists() -> None:
         "2c3569d-20260617_045829",
     } == biscuit.LK_VALUES
     assert {
+        "2c3569d-20260617_051433",
         "41fb3ce-20221007_153017",
         "59779ca-20220524_183401",
         "63cb91b-20221007_073612",
@@ -558,7 +559,8 @@ def test_the_fastbrick_knows_only_the_bootloaders_the_device_lists() -> None:
     ("little_kernel", "image"),
     [
         ("59779ca-20220524_183401", "bin/fastbrick-20220524.img"),
-        ("63cb91b-20221007_073612", "bin/fastbrick.img"),
+        ("63cb91b-20221007_073612", "bin/fastbrick-20221007.img"),
+        ("2c3569d-20260617_051433", "bin/fastbrick-20260617.img"),
         ("41fb3ce-20221007_153017", "bin/fastbrick.img"),
     ],
 )
