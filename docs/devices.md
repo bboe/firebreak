@@ -168,12 +168,16 @@ does.
   `41fb3ce` LKs get the default, `fastbrick.img`. The `2c3569d` LK of 8338 and
   later is newer than anything amonet-radar was built for, so no image unlocks
   it.
-- `stock` does not offer 8338, 8344 or 8349, which is the only place the table
-  above runs ahead of the code. `unlock.newer_than_known` refuses a bootloader
-  no older than the newest firebreak has a payload for, so a restore to one of
-  those builds would leave an Echo that firebreak cannot unlock again. biscuit
+- `stock` offers 8338, 8344 and 8349 only behind `--no-way-back`. Each one's
+  OTA carries `no_way_back=True`, and a run that names such a build without the
+  flag is refused before anything is written.
+  `unlock.newer_than_known` refuses a bootloader no older than the newest
+  firebreak has a payload for, so a restore to one of those builds leaves an
+  Echo that firebreak cannot unlock again. Its bootrom would still take the
+  chain, because radar declares a `BOOTROM_UNLOCK`; what is missing is a way to
+  get a locked one there, since no test point has been found. biscuit
   has no such gap: amonet v2.0.1 ships `fastbrick-20260617.img` for the same
-  commit's LK, which is why biscuit offers 8338 and 8344.
+  commit's LK, which is why biscuit offers 8338 and 8344 with no flag.
 - The default `fastbrick.img` unlocks a radar on 4305, measured on 2026-10-29
   from stock fastboot: the fastbrick took 13 s, TWRP started 28 s later, and
   the run rooted 4305 in place in 1 min 11 s with no restart by hand. Their LK
@@ -209,14 +213,18 @@ partitions each OTA writes, for every build above, read as biscuit's are.
 - The three readings below need what is inside `/system`, not its hash, and
   cover only the ten OTAs read before 2026-10-28. 8338, 8344 and 8349 are in
   the tables and the csv above, but nothing here has looked inside their
-  `/system`, and `stock` does not offer them. 4315, 4936 and 8149 are unread
+  `/system`. 4315, 4936 and 8149 are unread
   too and do not need the reading: `boot-root.zip` rooted each of them in
   place on a radar on 2026-10-29, in 1 min 11 s to 1 min 13 s, which is the
-  stronger test. So every build `stock` offers is either read below or rooted
-  in place, and none reaches the zip unverified. That matters because
-  `BUILDS` is also what `fireos.installed_build` checks before the zip
-  patches a build in place, so a build added for `stock` is a build the
-  in-place root will accept.
+  stronger test.
+- The three `--no-way-back` builds never reach the zip. `BUILDS` is also what
+  `fireos.installed_build` checks before `boot-root.zip` patches a build in
+  place, so adding them for `stock` would have made the in-place root accept
+  them as well. It refuses a build whose OTA says `no_way_back` for that
+  reason, and says to use `--factory-reset`, which installs 8149 instead.
+  Nothing here has looked inside their `/system` or run the zip on one. So
+  every build the zip patches is either read below or rooted in place, and
+  none reaches it unverified.
 - Each of the nine Fire OS 6 builds among them has what biscuit's
   `boot-root.zip` changes: each file, one autoroot site in `sbin/adbd`, a
   `veritykeyid` boot command line, and verity metadata at the offset the zip

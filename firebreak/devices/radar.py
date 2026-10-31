@@ -66,6 +66,21 @@ BUILDS = {
         path="2026/9/29/54a9ed82-ce12-49e3-91da-b10f7f5b831f/update-kindle-radar_puffin-NS65741_user_8149_0013222532484.bin",
         sha256="5c001abc6b9a979bd3c536fa64c3b0567fe68dd05dbf092fbe96ddfb243abc6e",
     ),
+    "8338": cdn_ota(
+        no_way_back=True,
+        path="2026/10/14/467e4e4d-33f8-45c7-8d54-c4ab67fee6da/update-kindle-radar_puffin-NS6575_user_8338_0013323244164.bin",
+        sha256="d187b0290e935fb2ab5df81155600decaa24057e86aefe3dcbee016f7164e2bc",
+    ),
+    "8344": cdn_ota(
+        no_way_back=True,
+        path="2026/10/21/5c9ee383-4f5d-427f-ad31-5e2745f4bbd7/update-kindle-radar_puffin-NS6575_user_8344_0013323245700.bin",
+        sha256="6a0bb41cb2f766f31c0ff5c6f4004a48ce87e140051d7e99cdafa42206a4e8e9",
+    ),
+    "8349": cdn_ota(
+        no_way_back=True,
+        path="2026/10/27/bfb778eb-43bd-40c7-8310-e195d8fa91f4/update-kindle-radar_puffin-NS6575_user_8349_0013323246980.bin",
+        sha256="af1269ebb5e892afc673a99d9dc322e254d5499454f29a9608ab1839a63c0736",
+    ),
 }
 DEFAULT_BUILD = "8149"
 DEFAULT_TARGET = FIREOS6

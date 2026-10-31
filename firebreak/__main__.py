@@ -141,7 +141,13 @@ def build_parser() -> argparse.ArgumentParser:
     parents = option_parents()
     quiet = option_parents(hidden=True)
     navigating = ["--force", "--no-update-check", "--verbose"]
-    restoring = ["--end-in-fireos", "--no-update-check", "--no-wait", "--verbose"]
+    restoring = [
+        "--end-in-fireos",
+        "--no-update-check",
+        "--no-wait",
+        "--no-way-back",
+        "--verbose",
+    ]
     rooting = ["--factory-reset", "--no-update-check", "--verbose"]
     every = sorted({"--credits", "--device", *navigating, *restoring, *rooting})
     uses = {
@@ -211,6 +217,7 @@ other commands:
                     "--factory-reset",
                     "--force",
                     "--no-wait",
+                    "--no-way-back",
                 }
                 else parents
             )[name]
@@ -229,7 +236,13 @@ other commands:
     for name in sorted(uses):
         made = commands.add_parser(
             name,
-            description=described[name],
+            description="\n".join(textwrap.wrap(described[name], width=74))
+            if name == STOCK
+            else described[name],
+            epilog=stock_builds_help() if name == STOCK else None,
+            formatter_class=argparse.RawDescriptionHelpFormatter
+            if name == STOCK
+            else argparse.HelpFormatter,
             parents=[
                 (parents if each in uses[name] else quiet)[each]
                 for each in sorted({*uses[name], "--device"})
@@ -240,15 +253,7 @@ other commands:
                 "build",
                 choices=builds,
                 default=None,
-                help="the build to install: "
-                + "; ".join(
-                    f"for the {device.title}, one of"
-                    f" {', '.join(ordered(builds=each))},"
-                    f" {DEFAULT_BUILDS[device]} when left out"
-                    if len(each) > 1
-                    else f"for the {device.title}, only {next(iter(each))}"
-                    for device, each in BUILDS.items()
-                ),
+                help="the build to install, from the list below",
                 metavar="BUILD",
                 nargs="?",
             )
@@ -342,7 +347,7 @@ def cli() -> None:
         )
     device = ARGUMENTS.target.device
     if ARGUMENTS.target.name == STOCK:
-        stock_build(device=device, wanted=options.build)
+        stock_build(allowed=options.no_way_back, device=device, wanted=options.build)
     root()
 
 
@@ -400,6 +405,13 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
         (
             "--no-wait",
             ("start the writes at once, without the 10 seconds that Ctrl-C cancels in"),
+        ),
+        (
+            "--no-way-back",
+            (
+                "install a stock build whose bootloader no payload here unlocks,"
+                " which leaves an Echo that firebreak cannot unlock again"
+            ),
         ),
         (
             "--force",
@@ -472,6 +484,7 @@ def parsed() -> argparse.Namespace:
         ("force", False),
         ("no_update_check", False),
         ("no_wait", False),
+        ("no_way_back", False),
         ("target", None),
         ("verbose", False),
     ):
@@ -494,7 +507,7 @@ def parsed() -> argparse.Namespace:
         FASTBOOT: set(),
         REPORT: set(),
         SHORT: {"device"},
-        STOCK: {"end_in_fireos", "no_wait"},
+        STOCK: {"end_in_fireos", "no_wait", "no_way_back"},
         SURVEY: set(),
         TWRP: {"force"},
         WRITE_TEST: set(),
@@ -506,6 +519,7 @@ def parsed() -> argparse.Namespace:
             "factory_reset",
             "force",
             "no_wait",
+            "no_way_back",
         }
         - takes
     ):
@@ -515,12 +529,20 @@ def parsed() -> argparse.Namespace:
     return options
 
 
-def stock_build(*, device: Device, wanted: str) -> None:
+def stock_build(*, allowed: bool, device: Device, wanted: str) -> None:
     ARGUMENTS.build = wanted or DEFAULT_BUILDS[device]
     if ARGUMENTS.build not in BUILDS[device]:
         raise FatalError(
             message=f"the {device.title} has no stock build {ARGUMENTS.build}:"
             f" use one of {', '.join(ordered(builds=BUILDS[device]))}"
+        )
+    if BUILDS[device][ARGUMENTS.build].no_way_back and not allowed:
+        raise FatalError(
+            message=f"stock {ARGUMENTS.build} ships a bootloader no payload here"
+            f" unlocks, so a restore to it leaves an {device.title} that firebreak"
+            " cannot unlock again: its bootrom would still take the chain, but"
+            " nothing here gets a locked one there. Pass --no-way-back to install"
+            " it anyway."
         )
     if ARGUMENTS.build in biscuit.BOOTROM_BUILDS and SESSION.fastboot:
         warn(
@@ -529,6 +551,29 @@ def stock_build(*, device: Device, wanted: str) -> None:
             " it in its bootrom instead, where the next run picks it up with no"
             " button held."
         )
+
+
+def stock_builds_help() -> str:
+    lines = ["the builds BUILD takes:"]
+    for device, each in BUILDS.items():
+        free = {name for name, ota in each.items() if not ota.no_way_back}
+        gated = {name for name, ota in each.items() if ota.no_way_back}
+        lines.append("")
+        lines.extend(
+            listed(
+                label=f"{device.title}, {DEFAULT_BUILDS[device]} when left out:",
+                summary=", ".join(ordered(builds=free)),
+            )
+        )
+        if gated:
+            lines.extend(
+                "  " + line
+                for line in listed(
+                    label="and, only with --no-way-back, which cannot be undone:",
+                    summary=", ".join(ordered(builds=gated)),
+                )
+            )
+    return "\n".join(lines)
 
 
 def target_help() -> str:
