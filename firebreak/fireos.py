@@ -277,12 +277,20 @@ def installed_build(*, slot: str) -> str:
     if not name.startswith("Fire OS 6"):
         return ""
     build = name.rpartition("/")[2].rstrip(")")
-    if build not in BUILDS[ARGUMENTS.target.device]:
+    builds = BUILDS[ARGUMENTS.target.device]
+    if build not in builds:
         raise FatalError(
             message=f"slot {slot} holds {name}, a Fire OS 6 build firebreak does not"
             f" know, so it does not patch it; the {title()} was not modified. Run"
             f" again with --factory-reset to erase it and install Fire OS 6"
             f" {ARGUMENTS.target.installs.build}."
+        )
+    if builds[build].no_way_back:
+        raise FatalError(
+            message=f"slot {slot} holds {name}, a build firebreak installs only"
+            " with --no-way-back, so it does not patch that one in place either;"
+            f" the {title()} was not modified. Run again with --factory-reset to"
+            f" erase it and install Fire OS 6 {ARGUMENTS.target.installs.build}."
         )
     return build
 

@@ -213,8 +213,13 @@ def test_a_long_wait_for_a_device_name_says_so_once(
     monkeypatch.setattr(name="sleep", target=identify.time, value=sleep)
     assert identify.choose_target(device=None, name="stock") == radar["stock"]
     said = capsys.readouterr().out
+    joined = " ".join(said.split())
     assert said.count("Waiting for the Echo to say which device it is") == 1
-    assert "hold its bootrom with `firebreak short` first" in " ".join(said.split())
+    assert joined.count("Waiting for an Echo to appear and say which device it is") == 1
+    assert joined.index("Waiting for an Echo to appear") < joined.index(
+        "Waiting for the Echo to say"
+    )
+    assert "hold its bootrom with `firebreak short` first" in joined
     assert "stop" not in said
 
 

@@ -24,7 +24,7 @@ from firebreak.mediatek.usbdl import MEDIATEK_VENDOR_ID, ProductId
 from firebreak.report import labelled, whole
 from firebreak.states import State
 from firebreak.targets import REMOVED_IN
-from firebreak.ui import SESSION, FatalError, asked_for, warn
+from firebreak.ui import SESSION, FatalError, asked_for, status, warn
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -255,10 +255,17 @@ def linux_devices() -> list[UsbDevice]:
 def named_device() -> Identity:
     identity = identify()
     polls = 0
+    waiting = False
     while identity.device is None and not (
         SESSION.short or downloading() == State.BOOTROM
     ):
+        if polls == 0:
+            waiting = True
+            status(text="Waiting for an Echo to appear and say which device it is.")
         if polls == NAME_POLLS:
+            if waiting:
+                print()
+                waiting = False
             warn(
                 text="Waiting for the Echo to say which device it is, which it"
                 " does in fastboot and in a recovery. This continues by itself once"
@@ -269,6 +276,8 @@ def named_device() -> Identity:
         polls += 1
         time.sleep(POLL)
         identity = identify()
+    if waiting:
+        print()
     return identity
 
 
