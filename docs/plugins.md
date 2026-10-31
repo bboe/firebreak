@@ -118,7 +118,11 @@ does not repartition.
 `firebreak/devices/` holds one module per device, named for it, and everything
 about that device is in it: the device, its LK build descriptions, its layouts,
 the words that ask for fastboot mode, its stock builds and the OTA each one
-downloads, its unlocks and its targets. `firebreak/updates.py` keeps only what
+downloads, its unlocks and its targets. An OTA whose bootloader no payload
+here unlocks says `no_way_back` on its own download, so `stock` refuses that
+build without `--no-way-back`. The fact sits on the build rather than in a
+list beside it, because a list would be a second thing to keep right.
+`firebreak/updates.py` keeps only what
 every device shares: Amazon's CDN, the pin an OTA is built from, and the
 caching a build's download goes through, which takes the builds to look in
 rather than reading one device's. Every caller passes the device's own, which
