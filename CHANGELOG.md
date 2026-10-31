@@ -2,6 +2,16 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Fixed
+
+- `survey` reads an OTA whose payload names two TEE partitions, where it
+  refused such an OTA with `the OTA has no tee image`. Every Echo Dot
+  (3rd Generation) OTA names `tee1` and `tee2` and writes the same image to
+  both. A build's CSV gains a row for each partition, and the TEE the survey
+  reports is the first of them, with a warning where they differ.
+
 ## 0.10.0 - 2026-10-30
 
 ### Added

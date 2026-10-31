@@ -212,7 +212,7 @@ def test_an_a_b_ota(
     survey.survey(update=update)
     out = capsys.readouterr().out
     assert "PL 0x0005, TEE 0x0103, LK 0x0002" in out
-    for partition in survey.PARTITIONS:
+    for partition in survey.csv_partitions(tees=("tee",)):
         body = images[partition]
         assert f",{partition},{len(body)},{sha(body)}\n" in out
 
@@ -224,6 +224,62 @@ def test_an_a_b_ota_needs_every_image(*, tmp_path: pathlib.Path) -> None:
     )
     with pytest.raises(expected_exception=FatalError, match="has no preloader image"):
         survey.survey(update=update)
+
+
+def test_an_a_b_ota_that_names_two_tees(
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    data = tee()
+    images = {
+        "boot": b"b",
+        "lk": lk(),
+        "preloader": preloader(),
+        "system": b"y" * BLOCK,
+        "tee1": data,
+        "tee2": data,
+    }
+    update = write_ota(
+        members={
+            "payload.bin": payload(images=images, kinds={}),
+            survey.PROPERTIES: PROPERTIES,
+        },
+        path=tmp_path / "ota.zip",
+    )
+    survey.survey(update=update)
+    out = capsys.readouterr().out
+    md5 = hashlib.md5(data, usedforsecurity=False).hexdigest()
+    assert f"TEE                      {len(data)} bytes, md5 {md5}" in out
+    assert "PL 0x0005, TEE 0x0102, LK 0x0001" in out
+    for partition in ("tee1", "tee2"):
+        assert f",{partition},{len(data)},{sha(data)}\n" in out
+    assert f",tee,{len(data)}," not in out
+
+
+def test_an_a_b_ota_whose_two_tees_differ(
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    first = tee()
+    second = tee(version=0x0103)
+    images = {
+        "boot": b"b",
+        "lk": lk(),
+        "preloader": preloader(),
+        "system": b"y" * BLOCK,
+        "tee1": first,
+        "tee2": second,
+    }
+    update = write_ota(
+        members={
+            "payload.bin": payload(images=images, kinds={}),
+            survey.PROPERTIES: PROPERTIES,
+        },
+        path=tmp_path / "ota.zip",
+    )
+    survey.survey(update=update)
+    out = capsys.readouterr().out
+    assert "tee1, tee2 do not hold the same image" in out
+    assert f",tee1,{len(first)},{sha(first)}\n" in out
+    assert f",tee2,{len(second)},{sha(second)}\n" in out
 
 
 def test_an_ota_that_names_and_marks_nothing(

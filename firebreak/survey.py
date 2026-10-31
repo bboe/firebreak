@@ -33,7 +33,6 @@ LK_TRAILER = 0x2000
 MOVS_R0 = 0x2000
 MOVS_R0_MASK = 0xFF00
 NEARBY_STRINGS = 3
-PARTITIONS = ("boot", "system", "lk", "tee", "preloader")
 PC_ADD = 0x4478
 PC_ADD_MASK = 0xFFF8
 PL_CALL = 1
@@ -41,6 +40,7 @@ PL_UPDATE = b"[ANTI-ROLLBACK] Updating PL version"
 PROPERTIES = "META-INF/com/amazon/android/target.build.prop"
 STRING = re.compile(rb"[\x20-\x7e]{6,}")
 TEE_HEADER = b"EET KTM"
+TEE_NAMES = ("tee", "tee1", "tee2")
 TEE_VERSION = slice(0xF, 0x11)
 WIDE_PREFIXES = frozenset({0b11101, 0b11110, 0b11111})
 
@@ -112,6 +112,10 @@ def csv_label(*, name: str) -> str:
     return f"Fire OS {version}" if version.startswith("5.") else f"Fire OS 6 {build}"
 
 
+def csv_partitions(*, tees: tuple[str, ...]) -> tuple[str, ...]:
+    return ("boot", "system", "lk", *tees, "preloader")
+
+
 def csv_row(*fields: object) -> str:
     text = io.StringIO()
     csv.writer(text, lineterminator="").writerow(fields)
@@ -167,7 +171,9 @@ def payload_images(*, archive: zipfile.ZipFile) -> dict[str, Image]:
     found = {}
     with archive.open(name="payload.bin") as payload:
         manifest = ota.read_manifest(payload=payload)
-        for name in ota.IMAGES:
+        wanted = tuple(name for name in ota.IMAGES if name != "tee")
+        tees = tee_names(names=frozenset(manifest.partitions))
+        for name in (*wanted, *tees):
             partition = manifest.partitions.get(name)
             if partition is None:
                 raise FatalError(message=f"the OTA has no {name} image")
@@ -236,7 +242,8 @@ def survey(*, update: pathlib.Path) -> None:
             zlib.error,
         ) as error:
             raise FatalError(message=f"could not be read: {error!r}") from error
-    tee = found["tee"]
+    tees = tee_names(names=frozenset(found))
+    tee = found[tees[0]]
     tee_md5 = hashlib.md5(tee.data, usedforsecurity=False).hexdigest()
     show(text=labelled(label="OTA", value=update.name))
     name = properties.get("ro.build.version.name", "<unnamed>")
@@ -274,9 +281,11 @@ def survey(*, update: pathlib.Path) -> None:
             value=f"{tee.size} bytes, md5 {tee_md5}, sha256 {tee.sha256}",
         )
     )
+    if any(found[name].sha256 != tee.sha256 for name in tees[1:]):
+        warn(text=f"{', '.join(tees)} do not hold the same image")
     show(text="\ndevice,model,build,partition,bytes,sha256")
     label = csv_label(name=name)
-    for partition in PARTITIONS:
+    for partition in csv_partitions(tees=tees):
         image = found[partition]
         show(text=csv_row(device, model, label, partition, image.size, image.sha256))
 
@@ -293,6 +302,10 @@ def survey_all(*, paths: list[pathlib.Path]) -> None:
             failed.append(path.name)
     if failed:
         raise FatalError(message="could not survey " + ", ".join(failed))
+
+
+def tee_names(*, names: frozenset[str]) -> tuple[str, ...]:
+    return tuple(name for name in TEE_NAMES if name in names) or ("tee",)
 
 
 def tee_version(*, data: bytes) -> int | None:
