@@ -236,8 +236,8 @@ def checked_device(*, live: Client) -> None:
             live.port.close()
         raise FatalError(
             message=f"this Echo's bootloader names it an {found.title}, not the"
-            f" {known()} this run expected. The payload holds its bootrom,"
-            " and a run that cleared or erased boot0 to get here has"
+            f" {known()} this run expected. Its bootrom is held, and a run"
+            " that cleared or erased boot0 to get here has"
             " already done that: `firebreak unlock` reads the name from that"
             " flash and writes a chain for the Echo this actually is."
         )
@@ -288,15 +288,11 @@ def parked(*, live: Client) -> None:
     SESSION.held = True
     passed(message=f"The {known()} waits in its bootrom.")
     say(
-        text="amonet's payload holds it, so the next run joins that payload"
-        " rather than handshaking at it. "
-        + (
-            "boot0 is erased, so a power cycle brings its bootrom back, and the"
-            " run after that writes a chain through it."
-            if SESSION.boot0_erased
-            else f"Leave the {known()} plugged in: a power cycle loses the"
-            " hold, and starts the firmware boot0 still holds."
-        )
+        text="boot0 is erased, so a power cycle brings its bootrom back, and the"
+        " run after that writes a chain through it."
+        if SESSION.boot0_erased
+        else f"Leave the {known()} plugged in: a power cycle loses the hold, and"
+        " starts the firmware boot0 still holds."
     )
 
 

@@ -483,9 +483,9 @@ def test_a_short_bootrom_entry_holds_the_payload(
     done = bootrom(monkeypatch=monkeypatch, states=[])
     entry.short_entry()
     assert done[:2] == ["looked for the bootrom", "ran the payload"]
-    assert "the next run joins that payload" in done[2]
     assert entry.SESSION.boot0_erased is False
     assert entry.SESSION.held is True
+    assert len(done) == 3
     assert "a power cycle loses the hold" in done[-1]
 
 

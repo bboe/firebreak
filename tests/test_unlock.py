@@ -68,13 +68,20 @@ def guard(
     return read
 
 
+def test_a_bootloader_older_than_the_newest_known_is_let_through() -> None:
+    assert unlock.newer_than_known(little_kernel="abcdef0-20170101_000000") is None
+
+
 def test_a_device_that_lists_no_bootloader_refuses_the_one_it_is_given(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     crowned = dataclasses.replace(radar.TARGETS[0], device=CROWN)
     monkeypatch.setattr(name="target", target=unlock.ARGUMENTS, value=crowned)
     assert not unlock.LK_VALUES[CROWN]
-    with pytest.raises(FatalError, match="no older than any firebreak"):
+    with pytest.raises(
+        FatalError,
+        match=r"firebreak cannot unlock any Echo Show 8 \(1st Generation\) yet",
+    ):
         unlock.newer_than_known(little_kernel="f379dba-20170906_000423")
 
 
@@ -233,13 +240,13 @@ def test_a_fastboot_that_never_says_whether_it_is_unlocked_stops_cleanly(
             "product: BISCUIT",
             "abcdef0-20991231_235959",
             "",
-            "no older than any firebreak has a payload for",
+            "is newer than any firebreak knows how to unlock",
         ),
         (
             "product: BISCUIT",
             "abcdef0-20260617_045829",
             "",
-            "no older than any firebreak has a payload for",
+            "is newer than any firebreak knows how to unlock",
         ),
         (
             "product: BISCUIT",
@@ -290,7 +297,7 @@ def test_a_fastbrick_refuses_an_echo_that_is_not_the_target_s_device(
     ("said", "message"),
     [
         ("FAILED (remote: 'eMMC-RO')", "eMMC is read-only"),
-        ("FAILED (remote: 'Device mismatch')", "rejected this device"),
+        ("FAILED (remote: 'Device mismatch')", "refused this device"),
         ("FAILED (remote: 'unknown')", "did not start after 10 attempts"),
     ],
 )
@@ -354,19 +361,22 @@ def test_a_locked_fastboot_is_left_for_its_own_stage(
     assert "locked fastboot" in capsys.readouterr().out
 
 
-def test_a_too_new_bootloader_names_the_bootrom_only_for_the_dot(
+def test_a_too_new_bootloader_names_the_device_and_the_lk(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    with pytest.raises(FatalError, match=r"`firebreak short` says") as caught:
+    with pytest.raises(FatalError) as caught:
         unlock.newer_than_known(little_kernel="abcdef0-20991231_235959")
-    assert "Echo Dot (2nd Generation)" in caught.value.message
+    assert caught.value.message == (
+        "firebreak cannot unlock this Echo Dot (2nd Generation). LK"
+        " abcdef0-20991231_235959 is newer than any firebreak knows how to unlock."
+    )
     monkeypatch.setattr(
         name="target", target=unlock.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
     )
     with pytest.raises(FatalError) as refused:
         unlock.newer_than_known(little_kernel="abcdef0-20991231_235959")
-    assert "firebreak short" not in refused.value.message
-    assert refused.value.message.endswith("the Echo (2nd Generation) was not modified.")
+    assert "Echo (2nd Generation)" in refused.value.message
+    assert "bootrom" not in refused.value.message
 
 
 def test_a_v2_fastboot_that_refuses_the_restart_names_the_button(

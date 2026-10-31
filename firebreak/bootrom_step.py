@@ -313,7 +313,7 @@ def exploit(*, client: Bootrom, payload: pathlib.Path) -> Client:
         live = start_payload(bootrom=client, client=Client, payload=data)
     except NotReadyError as error:
         raise FatalError(
-            message=f"the payload did not start{short_hint()}: {error}."
+            message=f"the unlock did not start{short_hint()}: {error}."
             f" {unwritten()} Unplug the {title()}. " + again()
         ) from error
     except (OSError, UsbdlError) as error:

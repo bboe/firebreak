@@ -27,6 +27,21 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
+- No error message calls an unlock a payload any more, which is this project's
+  word and not an owner's. Only an OTA's own `payload.bin` keeps the name,
+  because that is what Amazon calls the file. The refusal for a bootloader
+  firebreak cannot unlock says
+  what happened first and why second: `firebreak cannot unlock this Echo (2nd
+  Generation). LK <lk_build_desc> is newer than any firebreak knows how to
+  unlock.`, in place of a sentence that led with the bootloader it had never
+  heard of and ended in what it did not do. It no longer points at `firebreak
+  short` on a device whose test point is known. A bootrom stage that does not
+  start, and a device the unlock refuses, both say "the unlock" where they said
+  "the payload". A device
+  firebreak cannot unlock at all says that, rather than calling a 2017
+  bootloader too new. The note after an Echo is parked in its bootrom says only
+  what to do with it, where it first explained that amonet's payload was
+  holding the bootrom and that the next run would join it.
 - A run that cannot yet tell which Echo is in front of it says so at once,
   where it waited a minute before saying anything. The longer note, which says
   that a fastboot and a recovery both answer and that an Echo showing no light

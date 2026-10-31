@@ -154,7 +154,8 @@ def fastbrick_payload(
 
 
 def newer_than_known(*, little_kernel: str) -> None:
-    known = LK_VALUES[current_device()]
+    device = current_device()
+    known = LK_VALUES[device]
     if not little_kernel or little_kernel in known:
         return
     if not LITTLE_KERNEL_DESCRIPTION.fullmatch(string=little_kernel):
@@ -162,19 +163,14 @@ def newer_than_known(*, little_kernel: str) -> None:
             message=f"the {title()} did not report a bootloader version firebreak"
             f" can read; the {title()} was not modified. " + again()
         )
-    newest = max((each.split(sep="-")[1] for each in known), default="")
+    if not known:
+        raise FatalError(message=f"firebreak cannot unlock any {device.title} yet.")
+    newest = max(each.split(sep="-")[1] for each in known)
     if little_kernel.split(sep="-")[1] < newest:
         return
-    bootrom = (
-        " Its bootrom still unlocks it: `firebreak short` says where its test point is."
-        if current_device().short_gesture
-        else ""
-    )
     raise FatalError(
-        message=f"the bootloader {little_kernel} is no older than any firebreak"
-        f" has a payload for on the {current_device().title}, and a"
-        " fastbrick payload only unlocks the bootloaders it was built for, so"
-        f" the {title()} was not modified.{bootrom}"
+        message=f"firebreak cannot unlock this {device.title}. LK {little_kernel}"
+        " is newer than any firebreak knows how to unlock."
     )
 
 
@@ -292,7 +288,7 @@ def stage_fastbrick() -> None:
             )
         if "Device mismatch" in output:
             raise FatalError(
-                message="the payload rejected this device; it was not modified"
+                message="the unlock refused this device; it was not modified"
             )
         if started:
             PROGRESS.begin(estimate="40 s", label="waiting for TWRP")
