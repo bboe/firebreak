@@ -18,11 +18,12 @@ This project adheres to [Semantic Versioning](https://semver.org).
   writes to `expdb`, the default `fastbrick.img`, and `fastbrick-20220524.img`.
   Everything else it writes is byte for byte v1.0.0's, the bootrom payload
   included, so the plan is unchanged.
-- Measured on a radar on 2026-11-01: `unlock` took a locked 8338 to rooted Fire
-  OS 6 8338 in 2 min 42 s, the first unlock of `2c3569d-20260617_051433` on
-  hardware. v1.0.1's other three mappings are not proven on its bytes, because
-  it moved `63cb91b-20221007_073612` off the default onto an image of its own
-  and rebuilt both the default and 5.5.5.4's.
+- Measured on a radar on 2026-11-01, over thirteen runs: `unlock` took a locked
+  8338 to rooted Fire OS 6 8338 in 2 min 42 s, the first unlock of
+  `2c3569d-20260617_051433` on hardware. `stock` then restored 8344, 8149,
+  8349, 4305 and 5.5.5.4, and an `unlock` followed each one. So every image
+  v1.0.1 rebuilt or added ran on an Echo, and `boot-root.zip` rooted all three
+  new builds in place.
 
 ## 0.10.0 - 2026-10-30
 
