@@ -34,8 +34,10 @@ This project adheres to [Semantic Versioning](https://semver.org).
   what happened first and why second: `firebreak cannot unlock this Echo (2nd
   Generation). LK <lk_build_desc> is newer than any firebreak knows how to
   unlock.`, in place of a sentence that led with the bootloader it had never
-  heard of and ended in what it did not do. It no longer points at `firebreak
-  short` on a device whose test point is known. A bootrom stage that does not
+  heard of and ended in what it did not do. On a device whose test point is
+  known it says the fastboot route is what cannot unlock it, and that
+  `firebreak short` holds its bootrom instead, because the bootrom route takes
+  any bootloader. A bootrom stage that does not
   start, and a device the unlock refuses, both say "the unlock" where they said
   "the payload". A device
   firebreak cannot unlock at all says that, rather than calling a 2017

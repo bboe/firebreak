@@ -367,8 +367,10 @@ def test_a_too_new_bootloader_names_the_device_and_the_lk(
     with pytest.raises(FatalError) as caught:
         unlock.newer_than_known(little_kernel="abcdef0-20991231_235959")
     assert caught.value.message == (
-        "firebreak cannot unlock this Echo Dot (2nd Generation). LK"
+        "firebreak cannot unlock this Echo Dot (2nd Generation) from fastboot. LK"
         " abcdef0-20991231_235959 is newer than any firebreak knows how to unlock."
+        " `firebreak short` holds its bootrom instead, and the run after that"
+        " unlocks it from there."
     )
     monkeypatch.setattr(
         name="target", target=unlock.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]

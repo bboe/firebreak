@@ -168,9 +168,16 @@ def newer_than_known(*, little_kernel: str) -> None:
     newest = max(each.split(sep="-")[1] for each in known)
     if little_kernel.split(sep="-")[1] < newest:
         return
+    if not device.short_gesture:
+        raise FatalError(
+            message=f"firebreak cannot unlock this {device.title}. LK"
+            f" {little_kernel} is newer than any firebreak knows how to unlock."
+        )
     raise FatalError(
-        message=f"firebreak cannot unlock this {device.title}. LK {little_kernel}"
-        " is newer than any firebreak knows how to unlock."
+        message=f"firebreak cannot unlock this {device.title} from fastboot. LK"
+        f" {little_kernel} is newer than any firebreak knows how to unlock."
+        " `firebreak short` holds its bootrom instead, and the run after that"
+        " unlocks it from there."
     )
 
 
