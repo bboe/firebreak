@@ -5,8 +5,10 @@ codename biscuit) over USB. README.md has the targets and how to run it.
 `docs/unlocking.md` says why each step is there; read the section for a step
 **before** you touch it. Most of it was measured on hardware rather than
 reasoned out. Its sections are the general process, and its `Each device`
-section holds what one device alone does. `docs/plugins.md` covers the plugin
-API: devices, unlocks and their plans.
+section holds what one device alone does. `docs/measurements.md` holds the
+whole-run readings that belong to no one step: the ring, the timings, and what
+an Echo's bootrom does. `docs/plugins.md` covers the plugin API: devices,
+unlocks and their plans.
 
 ## Commands
 
