@@ -129,6 +129,12 @@ From stock, only the LK decides whether firebreak can unlock a device.
 | `f379dba-20170906_000423` | Fire OS [5.5.3.1][fireos-5531] to [5.5.4.6][fireos-5546] |
 | `0e1d0d9-20161018_220224` | Fire OS [5.5.0.3][fireos-5503] |
 
+- The table is the Echo Dot (2nd Generation)'s. An Echo (2nd Generation)
+  reports four LKs of its own, and they differ from a Dot's even where the
+  build numbers match: Fire OS 6 8338, 8344 and 8349 ship
+  `2c3569d-20260617_051433` on an Echo against `2c3569d-20260617_045829` on a
+  Dot, from one commit but not the same bytes. amonet-radar v1.0.1 has an image
+  for each of the four, so no Echo build Amazon has shipped is out of reach.
 - [docs/devices.md][devices] has each build's preloader, TEE and
   anti-rollback versions.
 - An LK older than 5.5.0.3 reports none of these, and so no `lk_build_desc`
