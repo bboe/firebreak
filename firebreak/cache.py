@@ -48,7 +48,6 @@ class Download:
     browser: bool = False
     directory: str = ""
     mirror: bool = False
-    no_way_back: bool = False
     size: int = 0
 
 

@@ -141,13 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
     parents = option_parents()
     quiet = option_parents(hidden=True)
     navigating = ["--force", "--no-update-check", "--verbose"]
-    restoring = [
-        "--end-in-fireos",
-        "--no-update-check",
-        "--no-wait",
-        "--no-way-back",
-        "--verbose",
-    ]
+    restoring = ["--end-in-fireos", "--no-update-check", "--no-wait", "--verbose"]
     rooting = ["--factory-reset", "--no-update-check", "--verbose"]
     every = sorted({"--credits", "--device", *navigating, *restoring, *rooting})
     uses = {
@@ -217,7 +211,6 @@ other commands:
                     "--factory-reset",
                     "--force",
                     "--no-wait",
-                    "--no-way-back",
                 }
                 else parents
             )[name]
@@ -347,7 +340,7 @@ def cli() -> None:
         )
     device = ARGUMENTS.target.device
     if ARGUMENTS.target.name == STOCK:
-        stock_build(allowed=options.no_way_back, device=device, wanted=options.build)
+        stock_build(device=device, wanted=options.build)
     root()
 
 
@@ -405,13 +398,6 @@ def option_parents(*, hidden: bool = False) -> dict[str, argparse.ArgumentParser
         (
             "--no-wait",
             ("start the writes at once, without the 10 seconds that Ctrl-C cancels in"),
-        ),
-        (
-            "--no-way-back",
-            (
-                "install a stock build whose bootloader no payload here unlocks,"
-                " which leaves an Echo that firebreak cannot unlock again"
-            ),
         ),
         (
             "--force",
@@ -484,7 +470,6 @@ def parsed() -> argparse.Namespace:
         ("force", False),
         ("no_update_check", False),
         ("no_wait", False),
-        ("no_way_back", False),
         ("target", None),
         ("verbose", False),
     ):
@@ -507,7 +492,7 @@ def parsed() -> argparse.Namespace:
         FASTBOOT: set(),
         REPORT: set(),
         SHORT: {"device"},
-        STOCK: {"end_in_fireos", "no_wait", "no_way_back"},
+        STOCK: {"end_in_fireos", "no_wait"},
         SURVEY: set(),
         TWRP: {"force"},
         WRITE_TEST: set(),
@@ -519,7 +504,6 @@ def parsed() -> argparse.Namespace:
             "factory_reset",
             "force",
             "no_wait",
-            "no_way_back",
         }
         - takes
     ):
@@ -529,22 +513,12 @@ def parsed() -> argparse.Namespace:
     return options
 
 
-def stock_build(*, allowed: bool, device: Device, wanted: str) -> None:
+def stock_build(*, device: Device, wanted: str) -> None:
     ARGUMENTS.build = wanted or DEFAULT_BUILDS[device]
     if ARGUMENTS.build not in BUILDS[device]:
-        free, gated = stock_groups(device=device)
         raise FatalError(
             message=f"the {device.title} has no stock build {ARGUMENTS.build}:"
-            f" use one of {', '.join(free)}"
-            + (f", or {', '.join(gated)} with --no-way-back" if gated else "")
-        )
-    if BUILDS[device][ARGUMENTS.build].no_way_back and not allowed:
-        raise FatalError(
-            message=f"firebreak cannot unlock an {device.title} that is on stock"
-            f" {ARGUMENTS.build}. That build's bootloader is newer than any payload"
-            " here was built for, and nothing here gets a locked one into its"
-            " bootrom, so the restore cannot be undone. Pass --no-way-back to"
-            " install it anyway."
+            f" use one of {', '.join(ordered(builds=BUILDS[device]))}"
         )
     if ARGUMENTS.build in biscuit.BOOTROM_BUILDS and SESSION.fastboot:
         warn(
@@ -557,32 +531,15 @@ def stock_build(*, allowed: bool, device: Device, wanted: str) -> None:
 
 def stock_builds_help() -> str:
     lines = ["the builds BUILD takes:"]
-    for device in BUILDS:
-        free, gated = stock_groups(device=device)
+    for device, each in BUILDS.items():
         lines.append("")
         lines.extend(
             listed(
                 label=f"{device.title}, {DEFAULT_BUILDS[device]} when left out:",
-                summary=", ".join(free),
+                summary=", ".join(ordered(builds=each)),
             )
         )
-        if gated:
-            lines.extend(
-                "  " + line
-                for line in listed(
-                    label="and, only with --no-way-back, which cannot be undone:",
-                    summary=", ".join(gated),
-                )
-            )
     return "\n".join(lines)
-
-
-def stock_groups(*, device: Device) -> tuple[list[str], list[str]]:
-    each = BUILDS[device]
-    return (
-        ordered(builds={name for name, ota in each.items() if not ota.no_way_back}),
-        ordered(builds={name for name, ota in each.items() if ota.no_way_back}),
-    )
 
 
 def target_help() -> str:

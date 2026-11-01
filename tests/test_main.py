@@ -117,52 +117,9 @@ def test_a_build_the_device_has_no_ota_for_is_refused(
     with pytest.raises(
         main.FatalError,
         match=r"the Echo \(2nd Generation\) has no stock build 5\.5\.0\.3: use"
-        r" one of 8149, 6813, .*, or 8349, 8344, 8338 with --no-way-back",
+        r" one of 8149",
     ):
         main.cli()
-
-
-def test_a_build_with_a_way_back_takes_no_flag_to_install(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ran(device=RADAR, monkeypatch=monkeypatch)
-    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", "stock", "8149"])
-    with pytest.raises(expected_exception=SystemExit):
-        main.cli()
-    assert main.ARGUMENTS.build == "8149"
-
-
-def test_a_build_with_no_way_back_is_marked_in_the_help() -> None:
-    said = main.stock_builds_help()
-    free, marked, gated = said.partition(
-        "and, only with --no-way-back, which cannot be undone:"
-    )
-    assert marked
-    assert "8349" in gated
-    assert "8349" not in free
-    assert "\n\n  Echo (2nd Generation), 8149 when left out:" in said
-
-
-def test_a_build_with_no_way_back_needs_the_flag(
-    *, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    ran(device=RADAR, monkeypatch=monkeypatch)
-    monkeypatch.setattr(name="argv", target=sys, value=["firebreak", "stock", "8338"])
-    with pytest.raises(
-        main.FatalError,
-        match=r"firebreak cannot unlock an Echo \(2nd Generation\) that is on"
-        r" stock 8338\. That build's bootloader is newer than any payload here"
-        r" was built for",
-    ):
-        main.cli()
-    monkeypatch.setattr(
-        name="argv",
-        target=sys,
-        value=["firebreak", "stock", "8338", "--no-way-back"],
-    )
-    with pytest.raises(expected_exception=SystemExit):
-        main.cli()
-    assert main.ARGUMENTS.build == "8338"
 
 
 def test_a_child_does_not_check_for_an_update(
@@ -244,10 +201,6 @@ def test_a_failing_update_check_is_silent(
         ),
         (["--end-in-fireos", "report"], "report takes no --end-in-fireos"),
         (["--no-wait", "unlock", "fireos6"], "unlock takes no --no-wait"),
-        (
-            ["--no-way-back", "unlock", "fireos6"],
-            "unlock takes no --no-way-back",
-        ),
         (["bootrom", "--device", "biscuit"], "bootrom takes no --device"),
         (["--device", "biscuit", "bootrom"], "bootrom takes no --device"),
         (["stock", "--device", "biscuit"], "stock takes no --device"),
@@ -552,6 +505,19 @@ def test_the_build_each_target_gets(
     with pytest.raises(SystemExit):
         main.cli()
     assert main.ARGUMENTS.build == build
+
+
+def test_the_help_gives_each_device_s_builds_a_block_of_its_own() -> None:
+    said = main.stock_builds_help()
+    assert "\n\n  Echo Dot (2nd Generation), 8149 when left out:" in said
+    assert "\n\n  Echo (2nd Generation), 8149 when left out:" in said
+    assert "8349" in said.partition("  Echo (2nd Generation), ")[2]
+    assert (
+        "8349"
+        not in said.partition("  Echo Dot (2nd Generation), ")[2].partition(
+            "  Echo (2nd Generation), "
+        )[0]
+    )
 
 
 def test_the_help_lists_each_device_s_targets_its_default_first() -> None:

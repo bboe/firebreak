@@ -4,21 +4,6 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
-### Added
-
-- `stock` on an Echo (2nd Generation) takes 8338, 8344 and 8349 behind
-  `--no-way-back`, where it offered none of the three. No amonet-radar payload
-  unlocks their bootloader and no route here reaches that device's bootrom, so
-  an Echo restored to one of them cannot be unlocked again. A run that names
-  such a build without the flag is refused before anything is written, and the
-  OTA itself carries `no_way_back`, so the fact sits with the build rather than
-  in a list beside it. The in-place root refuses those three as well, because
-  nothing here has rooted one of them: `--factory-reset` installs 8149 instead.
-  `stock --help` now lists each device's builds in a block of its own, and says
-  which of them the flag is for, where it ran them together in one paragraph.
-  One cost: `--no-wa` is now an ambiguous abbreviation, where it used to mean
-  `--no-wait`.
-
 ### Changed
 
 - A run that cannot yet tell which Echo is in front of it says so at once,

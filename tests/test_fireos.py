@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from firebreak import fireos
-from firebreak.devices import BISCUIT, RADAR, TARGETS, biscuit
+from firebreak.devices import BISCUIT, TARGETS, biscuit
 from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
@@ -368,25 +368,6 @@ def test_fire_os_6_installs_where_no_fire_os_6_is_installed(
         "/sdcard/boot-root.zip",
     ]
     assert fireos.PROGRESS.steps == 6
-
-
-@pytest.mark.usefixtures("fireos6")
-def test_fire_os_6_leaves_a_no_way_back_build_alone(
-    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(name="factory_reset", target=fireos.ARGUMENTS, value=False)
-    monkeypatch.setattr(
-        name="target", target=fireos.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
-    )
-    adb.answers["build-ok"] = [
-        "mount-ok\nro.build.version.name=Fire OS 6.5.7.5 (NS6575/8338)\nbuild-ok"
-    ]
-    with pytest.raises(
-        FatalError,
-        match=r"a build firebreak installs only with --no-way-back.*"
-        " --factory-reset",
-    ):
-        fireos.installed_build(slot="a")
 
 
 @pytest.mark.parametrize(

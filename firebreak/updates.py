@@ -13,12 +13,9 @@ if TYPE_CHECKING:
 CDN = "https://d1s31zyz7dcc2d.cloudfront.net/"
 
 
-def cdn_ota(*, no_way_back: bool = False, path: str, sha256: str) -> Download:
+def cdn_ota(*, path: str, sha256: str) -> Download:
     return Download(
-        name=path.rsplit(maxsplit=1, sep="/")[-1],
-        no_way_back=no_way_back,
-        sha256=sha256,
-        url=CDN + path,
+        name=path.rsplit(maxsplit=1, sep="/")[-1], sha256=sha256, url=CDN + path
     )
 
 
