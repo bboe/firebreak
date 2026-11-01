@@ -1204,8 +1204,9 @@ testing a single stage mean reaching its state by hand first.
 - So rebuilding for a new LK is: slice the new LK, apply the same patch.
   biscuit's `63cb91b-20221007` and `2c3569d-20260617` LKs take the same offset
   over the same original bytes with the same replacement and the same branch
-  target, four years and two LK sizes apart, so the hook is tied to Amazon's
-  LK source rather than to a build.
+  target, four years and two LK sizes apart. radar's two do the same at its own
+  offset. So within a device the hook is tied to Amazon's LK source rather than
+  to a build.
 - **A hook does not carry between devices.** radar's `2c3569d` payload patches
   **4** bytes at LK `0x21866`, `04 f0 d1 fa` becoming `8e f7 8e ec`, a
   retargeted `bl` rather than biscuit's load and branch. Different offset,
