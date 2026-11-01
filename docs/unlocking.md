@@ -1188,9 +1188,56 @@ testing a single stage mean reaching its state by hand first.
   whose payloads nobody has mapped should do.
 - Each payload's tail is byte-derived from the LK it targets, which is how a
   mapping can be checked without a Dot. Of the 33,951 distinct 16-byte windows
-  in `fastbrick-20260617.img`'s last 137,684 bytes, 33,950 appear in 8338's
-  `lk.img`, against 30,851 in 8149's. `fastbrick-20221007.img`'s tail is the
-  mirror of that.
+  in `fastbrick-20260617.img`'s last 137,684 bytes, read at a **4-byte
+  stride**, 33,950 appear in 8338's `lk.img`, against 30,851 in 8149's.
+  `fastbrick-20221007.img`'s tail is the mirror of that. The stride is what
+  makes these numbers reproducible: at every offset the same comparison gives
+  135,411 and 135,403, which say the same thing in different units.
+- The layout behind that, read on 2026-10-31 from the images alone, because
+  both kits ship prebuilt images with no builder and no source. A specialised
+  Fire OS 6 payload is a constant 114,294,904-byte sled, then the target LK
+  from its offset 632, cut so the image ends at the hook. The hook is the only
+  place the copy differs from the LK: 8 bytes at LK `0x21bec` on biscuit, where
+  `01 46 02 48 78 44 ff f7` becomes `00 4c 20 47 84 ff ca 4b`, an
+  `ldr r4,[pc,#0]; bx r4` and the literal `0x4bcaff84`. Nothing else in the
+  137,596-byte tail changes. The Thumb-2 reading is by eye from the bytes.
+- So rebuilding for a new LK is: slice the new LK, apply the same patch.
+  biscuit's `63cb91b-20221007` and `2c3569d-20260617` LKs take the same offset
+  over the same original bytes with the same replacement and the same branch
+  target, four years and two LK sizes apart, so the hook is tied to Amazon's
+  LK source rather than to a build.
+- **A hook does not carry between devices.** radar's `2c3569d` payload patches
+  **4** bytes at LK `0x21866`, `04 f0 d1 fa` becoming `8e f7 8e ec`, a
+  retargeted `bl` rather than biscuit's load and branch. Different offset,
+  length and shape. The byte pattern biscuit hooks occurs twice in every LK
+  here and radar's second occurrence shares 30 of the 32 bytes that follow
+  biscuit's, which is enough to look conclusive and is not. The sleds do not
+  carry either: biscuit's and radar's specialised images agree for 16 bytes.
+  Only the sled's length is shared.
+- `fastbrick-20220524.img`, radar's for 5.5.5.4, is laid out the other way
+  round: 5.5.5.4's LK sits at image offset 712, verbatim for 356,224 bytes to
+  the end of the LK's own content, and the sled follows it. So the layout above
+  is the Fire OS 6 one rather than the only one.
+- The payload checks the device itself, and it is an IDME check rather than a
+  USB one. It switches the eMMC to BOOT1, reads IDME and compares
+  `device_type_id` against a literal of its own: `A3S5BH2HU6VAYF` in every
+  biscuit image, `A7WXQPH584YP` in every radar one, the default included. Its
+  strings are `Device type check:`, `Actual device type ID: %s`,
+  `Expected device type ID: %s` and `Device mismatch, aborting!`, the last of
+  which `stage_fastbrick` reads for. So the check guards
+  against the wrong device and not at all against the wrong LK.
+- Every image carries both `Mode: VBAR overwrite (%s handler)` and
+  `Mode: PTR overwrite (func @ 0x%08lX)`. A specialised image has the LK copy
+  and the function patch, so it takes the second; the default carries no
+  bootloader at all, so it takes the first, overwriting the exception vector
+  table instead, which is tied to no one build. That is a mechanism for the
+  default crossing LKs, and it fits the default unlocking radar's `63cb91b`
+  while failing biscuit's `41fb3ce`.
+- Two things are still missing to build one here. The branch target
+  `0x4bcaff84` is an absolute DRAM address that depends on where the overrun
+  lands, so another device's needs its LK load address read or measured. And a
+  wrong payload runs wrong code at the `brick` target, so trying one needs a
+  device that can be recovered, which means the short.
 - `fastbrick-20260617.img` unlocked a Dot on `2c3569d-20260617_045829`,
   2026-10-25, on the first flash of the run: a `stock 8344` left that
   bootloader, and the run that followed rooted the Dot. So the mapping that
