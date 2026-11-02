@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 BAUD_RATE = 115200
 CACHE_DISABLE_SUBCOMMAND = 0xB1
+DA_STATUS = b"\0\0"
 HANDSHAKE = ((0xA0, 0x5F), (0x0A, 0xF5), (0x50, 0xAF), (0x05, 0xFA))
 HANDSHAKE_TIMEOUT = 10
 JUMP_REGISTER = 0x1028A8
@@ -33,6 +34,7 @@ class BootromCommand(enum.IntEnum):
     EXTENDED = 0xC8
     READ_WORDS = 0xD1
     WRITE_WORDS = 0xD4
+    COMMAND_DA = 0xDA
 
 
 class Connection:
@@ -79,6 +81,30 @@ class Bootrom(Connection):
             label=label,
             received=self.read_exactly(label=label, length=len(expected)),
         )
+
+    def command_da(
+        self,
+        *,
+        data: bytes = b"",
+        length: int,
+        offset: int,
+        read_status: bool = True,
+        write: bool = False,
+    ) -> bytes:
+        label = f"DA command on {length} bytes at {offset:#x}"
+        self._echo(data=bytes([BootromCommand.COMMAND_DA]), label=label)
+        self._echo(data=struct.pack(">I", int(write)), label=f"{label}: direction")
+        self._echo(data=struct.pack(">I", offset), label=f"{label}: offset")
+        self._echo(data=struct.pack(">I", length), label=f"{label}: length")
+        self._status(expected=DA_STATUS, label=f"{label}: argument status")
+        held = b""
+        if write:
+            self.port.write(data=data)
+        else:
+            held = self.read_exactly(label=label, length=length)
+        if read_status:
+            self._status(expected=DA_STATUS, label=f"{label}: end status")
+        return held
 
     def disable_caches(self) -> None:
         self.send_extended(subcommand=CACHE_DISABLE_SUBCOMMAND)

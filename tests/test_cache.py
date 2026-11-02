@@ -1031,7 +1031,8 @@ def test_pyserial_pin_matches_the_download() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     pinned = re.search(
         flags=re.MULTILINE,
-        pattern=r'^dependencies = \["pyserial==([^"]+)", "update_checker==1\.0\.1"\]$',
+        pattern=r'^dependencies = \["pyserial==([^"]+)", "pyusb==[^"]+",'
+        r' "update_checker==1\.0\.1"\]$',
         string=pyproject,
     )
     assert pinned, "pyproject.toml does not pin pyserial"

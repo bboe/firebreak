@@ -6,7 +6,16 @@ import sys
 import types
 
 import pytest
-from conftest import FakePort, reply_read, reply_write, sent_read, sent_write, shook
+from conftest import (
+    FakePort,
+    reply_da,
+    reply_read,
+    reply_write,
+    sent_da,
+    sent_read,
+    sent_write,
+    shook,
+)
 
 from firebreak.mediatek import usbdl
 from firebreak.sizes import padded
@@ -15,6 +24,7 @@ IMPORTED = frozenset({"TYPE_CHECKING"})
 MEASURED = {
     "BAUD_RATE": 115200,
     "CACHE_DISABLE_SUBCOMMAND": 0xB1,
+    "DA_STATUS": b"\x00\x00",
     "HANDSHAKE": ((0xA0, 0x5F), (0x0A, 0xF5), (0x50, 0xAF), (0x05, 0xFA)),
     "HANDSHAKE_TIMEOUT": 10,
     "JUMP_REGISTER": 0x1028A8,
@@ -35,6 +45,7 @@ MEASURED_ENUMS = {
         ("EXTENDED", 0xC8),
         ("READ_WORDS", 0xD1),
         ("WRITE_WORDS", 0xD4),
+        ("COMMAND_DA", 0xDA),
     ],
     "ProductId": [("BOOTROM", 0x0003), ("PRELOADER", 0x2000)],
 }
@@ -78,6 +89,41 @@ def fake_serial(
 
 def port_entry(*, device: str, product: int | None, vendor: int | None) -> object:
     return types.SimpleNamespace(device=device, pid=product, vid=vendor)
+
+
+def test_command_da_reads_what_it_asked_for() -> None:
+    bootrom, port = shook(replies=reply_da(data=b"abcd", length=4, offset=0x1234))
+    assert bootrom.command_da(length=4, offset=0x1234) == b"abcd"
+    assert bytes(port.written) == sent_da(length=4, offset=0x1234)
+    assert port.replies == bytearray()
+
+
+def test_command_da_refuses_a_bad_argument_status() -> None:
+    bootrom, _ = shook(
+        replies=bytes([usbdl.BootromCommand.COMMAND_DA])
+        + struct.pack(">III", 0, 0x40, 4)
+        + b"\x00\x01"
+    )
+    with pytest.raises(
+        expected_exception=usbdl.ProtocolMismatchError, match="argument status"
+    ):
+        bootrom.command_da(length=4, offset=0x40)
+
+
+def test_command_da_writes_without_an_echo() -> None:
+    bootrom, port = shook(replies=reply_da(length=2, offset=0x20, write=True))
+    assert bootrom.command_da(data=b"hi", length=2, offset=0x20, write=True) == b""
+    assert bytes(port.written) == sent_da(data=b"hi", length=2, offset=0x20, write=True)
+    assert port.replies == bytearray()
+
+
+def test_command_da_writes_without_waiting_for_an_end_status() -> None:
+    bootrom, port = shook(
+        replies=reply_da(end=False, length=2, offset=0x20, write=True)
+    )
+    bootrom.command_da(data=b"hi", length=2, offset=0x20, read_status=False, write=True)
+    assert bytes(port.written) == sent_da(data=b"hi", length=2, offset=0x20, write=True)
+    assert port.replies == bytearray()
 
 
 def test_constants_match_the_measured_values() -> None:
