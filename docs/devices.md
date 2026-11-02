@@ -1,7 +1,8 @@
 # Devices
 
 The firmware each supported device's OTAs ship. radar has a `stock` target and
-an unlock, both on 8149, and crown and donut have neither yet.
+an unlock, both on 8149. crown and donut each declare an unlock and no target,
+so no route reaches either, and neither unlock has run on its device.
 
 `firebreak survey OTA` prints, from one OTA zip and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build

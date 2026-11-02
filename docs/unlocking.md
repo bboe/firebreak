@@ -2190,3 +2190,50 @@ amonet states for it, as for radar, because it declares no Fire OS 5 chain.
 amonet-crown's own `main.py` is where the boot0 header clear in front of every
 chain comes from. And `tests/test_preloader.py` compares its cached preloader
 against biscuit's and the radar one amonet-radar v1.0.0 writes.
+
+### Echo Dot (3rd Generation)
+
+donut declares an unlock, kamakiri-donut v1.0.0, and no target, so no route
+here reaches it, exactly as crown's does. **Nothing in it has run on a donut.**
+Its parts are written from the kit's own Python, and the kit's own order, so
+they are a scaffold for the first donut to meet, not a proven route.
+
+It is the first unlock that is not amonet's, and the first that pyserial cannot
+carry: its payload goes in through USB control transfers, which a serial port
+does not send. So the bootrom step would reach it over libusb rather than a
+port, and `firebreak/mediatek/libusb.py` is a transport of the same shape the
+rest of the process already speaks. The readings behind that, and why macOS
+needs root for it, are in
+[measurements.md](measurements.md#what-libusb-can-do-on-macos).
+
+Its payload is two stages, and the second is the surprise: stage1 is only a
+loader, taking `0x4000` to place stage2 and `0x4001` to jump to it, and stage2
+then speaks the protocol this project already sends, down to the commands
+`firebreak/amonet/biscuit_v2_0_0.py` added. So
+`firebreak/kamakiri/donut_v1_0_0.py` is close to a copy of that client, with
+two differences. It pins two hashes rather than one, stage1's and stage2's. And
+it does not flush a read, where biscuit's client reads four bytes of the
+payload's own memory after every read to push the pipe along, because the kit
+reads straight back and never flushes.
+
+Two things in the plan are this project's choice rather than the kit's:
+
+- The kit sets the fastboot flag with a command of its payload's, `0x6000`.
+  The plan here uses `ForceFastboot`, which writes `FASTBOOT_PLEASE\0` over the
+  first 16 bytes of `misc` and reads it back, as biscuit's and crown's chains
+  do. The two are assumed to do the same thing. **That is unproven**, and it is
+  the first thing to check on a donut, because a wrong guess here ends a run in
+  a normal boot rather than fastboot.
+- The kit resets the bootloader control block before its writes, where
+  biscuit's and crown's chains reset late. The plan keeps the kit's order. Its
+  bytes are already firebreak's own `ResetBcb`, at `0x360` into `misc`, which
+  is `0x160` into that partition's second sector.
+
+What is missing, and would stop a real run: the pyz cannot carry pyusb. A run
+from PyPI has it from the pin, but `firebreak.pyz` downloads pyserial's wheel
+and threads its path into every subprocess it starts, and nothing does that for
+pyusb. Wiring it means touching each of those call sites, which is not worth
+doing blind for a route no device has run. libusb itself is never bundled: it
+is a native library, so a run without it fails on pyusb's own
+`NoBackendError`, which `firebreak/mediatek/libusb.py` turns into a message
+naming `brew install libusb`.

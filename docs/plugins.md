@@ -77,6 +77,12 @@ rather than from biscuit, and the state names say `fireos5` where they said
 `v1.1.0`. A version is only unique to one device, so it says nothing without
 one: biscuit's chain is amonet v1.1.0, and radar has no v1.1.0 at all.
 
+An unlock names its family beside its version, and the name a message prints
+puts the two together: `amonet-biscuit-v2.0.1`, `kamakiri-donut-v1.0.0`. The
+family says nothing about where the archive unpacks: a `Download` gives that
+separately as `root`, which is `amonet` unless it says otherwise, because every
+amonet release holds an `amonet/` and kamakiri's holds a `kamakiri/`.
+
 `probe` asks the chain of the target's device, or of every device that declares
 one before a target names it. Two things stay outside a device: `boot_a_x`,
 which is the boot moved layout's name and which `fireos.py` reads too, and the
@@ -333,7 +339,16 @@ offers `firebreak/emmc.py`'s operations.
 - The payloads speak different command sets, read from each binary's dispatch.
   All take `0x1000`-`0x1002`, `0x2000`, `0x2001` and `0x3000`. Biscuit's
   v2.0.0 adds `0x1003`, `0x1004`, `0x5000`, `0x5002` and `0x5003`. Crown's
-  v2.0.1 adds `0x5000` and `0x7000`. So each client pins its binary's SHA-256.
+  v2.0.1 adds `0x5000` and `0x7000`. donut's stage2 adds `0x1003`, `0x1004`,
+  `0x5000`, `0x3001` to kick the watchdog and `0x6000` to set the fastboot
+  flag. So each client pins its binary's SHA-256, and donut's pins two,
+  because its payload is a loader and a second stage.
+- A client speaks over anything shaped like `firebreak/mediatek/usbdl.py`'s
+  `SerialPort`: a `read`, a `write`, a buffer reset and a timeout.
+  `firebreak/mediatek/libusb.py` is that shape over libusb, for the one unlock
+  whose entry needs control transfers on endpoint 0, which no serial port
+  sends. Its transfer failures are already `OSError`, which is what the
+  executor catches, so only pyusb's missing-backend error is translated.
 - Offline, against a simulator, the bytes match the amonet code this replaced.
   The one exception is the defeat: the same 535 register writes, in 21 commands
   instead of 47.

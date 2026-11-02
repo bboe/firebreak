@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from firebreak.devices.biscuit import BISCUIT
 from firebreak.devices.crown import CROWN
+from firebreak.devices.donut import DONUT
 from firebreak.devices.radar import RADAR
 from firebreak.devices.registry import (
     BOOTROM_UNLOCKS,
@@ -29,6 +30,7 @@ __all__ = [
     "DEFAULT_BUILDS",
     "DEPRECATED",
     "DEVICES",
+    "DONUT",
     "FASTBRICKS",
     "FIREOS5_BUILDS",
     "FIREOS5_CHAINS",

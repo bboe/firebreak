@@ -3,9 +3,10 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from firebreak.devices import biscuit, crown, radar
+from firebreak.devices import biscuit, crown, donut, radar
 from firebreak.devices.biscuit import BISCUIT
 from firebreak.devices.crown import CROWN
+from firebreak.devices.donut import DONUT
 from firebreak.devices.radar import RADAR
 
 if TYPE_CHECKING:
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
 
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
 LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
-SUPPORTED = ((BISCUIT, biscuit), (CROWN, crown), (RADAR, radar))
+SUPPORTED = ((BISCUIT, biscuit), (CROWN, crown), (DONUT, donut), (RADAR, radar))
 BOOTROM_UNLOCKS: dict[Device, Unlock] = {
     device: module.BOOTROM_UNLOCK
     for device, module in SUPPORTED
