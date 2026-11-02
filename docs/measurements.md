@@ -209,3 +209,43 @@ Measured again on 2026-10-30, on a rooted radar on Fire OS 6.5.5.5
   its own flash, not biscuit alone.
 - A second `bootrom` joined the hold in 2 s, and `fastboot` from that bootrom
   refused and named `unlock`, as on a Dot.
+
+## An Echo Dot (3rd Generation) in its bootrom
+
+Measured on 2026-11-02, on the first donut to reach this project, over libusb
+and over a serial port. Every reading below is from that one unit, and nothing
+was written to its flash.
+
+- It reports hardware code `0x8167`, sub code `0x8a00`, hardware version
+  `0xcb00` and software version `0x0001`. mtkclient names that code
+  `MT8167/MT8516/MT8362`, so one bootrom covers the family, and calling donut
+  an MT8516 elsewhere is not contradicted by it.
+- Its target config is `0x000000e5`: secure boot set, serial-link
+  authorization clear, and **DA authorization set**. So the `0xDA` command is
+  refused without an authorized download agent, which is what this family's
+  exploit is for rather than a fault.
+- **A word write lands over libusb and not through macOS's CDC driver.** The
+  watchdog disable at `0x10007000` returned its status over the bulk endpoints,
+  both through the kit and through this project's own code, and returned
+  nothing at all through a serial port, twice, on a port that carried the
+  handshake and every echo of that same command. So a donut needs libusb
+  whatever starts its payload. No other device here shows that difference, and
+  the mechanism is unread.
+- **amonet's GCPU route does not carry to this chip.** Driven with mtkclient's
+  published values for `0x8167`, a GCPU base of `0x1020D000`, a range check at
+  `0x102968` and a jump register at `0x1029AC`, the first GCPU write, 9 words
+  at the engine's `LENGTH`, answered `0x1d02` in place of its status, moments
+  after the watchdog write at `0x10007000` had succeeded on the same
+  connection. The bootrom's own write check covers the engine's registers on an
+  MT8167 where it does not on an MT8163, so the engine cannot be the way in.
+  That is why this family's kit exploits USB instead, and it closes the
+  question of whether a second payload client alone would have been enough.
+- The kit's pointers are mtkclient's published ones for this code: `0x100A00`
+  for the payload, `0xd2e4` for the send pointer and `0xd7ac` for the register
+  access. So its literals are right for this bootrom.
+- The kit's own run reached `cmd_da` and was refused with `0x1d1a`, after macOS
+  carried its 12-byte `SET_LINE_CODING`, 7 of line coding, a zero and a 4-byte
+  pointer, and reported all 12 delivered. So the host did not stop it, and
+  where the overflow lands is the remaining suspect. The kit is developed on
+  Linux, which its own ModemManager check shows, so the same run there is what
+  would settle it.

@@ -348,7 +348,9 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   pointer one byte at a time. That gives it the bootrom's `cmd_da` as an
   arbitrary read and write, which places its stage1 at `0x100A00`. A serial
   port sends no control transfer, so pyserial cannot carry this step whatever
-  else is reshaped. Whether the GCPU route works on an MT8516 is unread.
+  else is reshaped. The GCPU route is no way around it: a donut refuses the
+  engine's own registers, measured in
+  [measurements.md](measurements.md#an-echo-dot-3rd-generation-in-its-bootrom).
 - Its payload is two stages, where amonet ships one. stage1 answers
   `\xa1\xa2\xa3\xa4` and takes two framed commands: `0x4000` loads stage2 at
   `0x201000`, and `0x4001` jumps to it. stage2 then answers
