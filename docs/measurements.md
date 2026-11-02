@@ -160,6 +160,15 @@ pyserial; see [unlocking.md](unlocking.md#an-echo-that-shows-no-light).
   the `/dev/cu.usbmodem` node, and pyserial cannot see the bootrom again until
   something attaches it back or the Echo is power cycled. Anything that uses
   both must give the interface back.
+- **A privileged detach does not hand endpoint 0 to an unprivileged process.
+  It takes away what that process had.** With the driver on interface 0, an
+  unprivileged libusb lists the Echo and drives the free interface. With the
+  driver detached by root, the same process lists **no devices at all**, while
+  `ioreg` still shows the device registered and active. So one privileged
+  command per plug is not a way to keep a run unprivileged: either the step
+  holds the device open as root throughout, as the run above did, or it cannot
+  reach endpoint 0. What is left for a tool that may not ask for root is an
+  unlock that needs no control transfer.
 
 ## An Echo (2nd Generation) in its bootrom
 
