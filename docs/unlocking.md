@@ -2194,17 +2194,26 @@ against biscuit's and the radar one amonet-radar v1.0.0 writes.
 ### Echo Dot (3rd Generation)
 
 donut declares an unlock, kamakiri-donut v1.0.0, and no target, so no route
-here reaches it, exactly as crown's does. **Nothing in it has run on a donut.**
-Its parts are written from the kit's own Python, and the kit's own order, so
-they are a scaffold for the first donut to meet, not a proven route.
+here reaches it, exactly as crown's does. **No part of this unlock has run on a
+donut**, though a donut has now been read; its plan and its client are written
+from the kit's own Python, and the kit's own order, so they are a scaffold for
+the first donut to meet, not a proven route.
 
 It is the first unlock that is not amonet's, and the first that pyserial cannot
-carry: its payload goes in through USB control transfers, which a serial port
-does not send. So the bootrom step would reach it over libusb rather than a
-port, and `firebreak/mediatek/libusb.py` is a transport of the same shape the
-rest of the process already speaks. The readings behind that, and why macOS
-needs root for it, are in
-[measurements.md](measurements.md#what-libusb-can-do-on-macos).
+carry. Two separate reasons say so, and either alone would be enough. Its
+payload goes in through USB control transfers, which a serial port does not
+send. And a donut's bootrom does not answer a plain word write through macOS's
+CDC driver at all, where it answers the same write over the bulk endpoints. So
+`firebreak/mediatek/libusb.py` is not a convenience: nothing else reaches that
+device. The readings behind both, and why macOS needs root for the control
+transfers alone, are in
+[measurements.md](measurements.md#what-libusb-can-do-on-macos) and
+[measurements.md](measurements.md#an-echo-dot-3rd-generation-in-its-bootrom).
+
+Nor is the engine a way around the exploit. A donut refuses writes to the
+GCPU's own registers, where a Dot allows them, so the range-check defeat in
+`Unlock: amonet v2` cannot bootstrap this device and a second payload client
+alone would never have been enough.
 
 Its payload is two stages, and the second is the surprise: stage1 is only a
 loader, taking `0x4000` to place stage2 and `0x4001` to jump to it, and stage2
