@@ -4,6 +4,21 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- A run names an Echo Dot (3rd Generation) rather than calling it an unknown
+  device, and `report` prints it. donut declares the unlock kamakiri-donut
+  v1.0.0 and no target, so no route reaches it and nothing writes to one, as
+  with the Echo Show 8. **No part of that unlock has run on a donut.** It is
+  the first unlock that is not amonet's, and the first whose entry a serial
+  port cannot carry: its payload goes in through USB control transfers. So
+  `pyusb` is pinned as a third dependency, and `firebreak.pyz` cannot carry it
+  yet, because the pyz downloads pyserial's wheel and threads its path into
+  every subprocess it starts, and nothing does that for pyusb.
+- libusb is never bundled, because it is a native library rather than a wheel.
+  A run that needs it and has not got it says so and names `brew install
+  libusb`, in place of pyusb's own `No backend available`.
+
 ### Changed
 
 - No error message calls an unlock a payload any more, which is this project's
