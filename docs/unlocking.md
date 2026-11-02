@@ -341,6 +341,33 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   that can be undone. Nothing here has read a donut's fuse, so what the bit
   says on that device is still unknown, and the claim is kept above rather
   than deleted.
+- kamakiri-donut v1.0.0 starts its payload through USB control transfers, not
+  through the bootrom's write-words command. It sends a CDC `SET_LINE_CODING`
+  of 11 bytes where the descriptor declares 7, reads nine bytes of the
+  configuration descriptor to trigger it, and repeats the pair to walk a saved
+  pointer one byte at a time. That gives it the bootrom's `cmd_da` as an
+  arbitrary read and write, which places its stage1 at `0x100A00`. A serial
+  port sends no control transfer, so pyserial cannot carry this step whatever
+  else is reshaped. The GCPU route is no way around it: a donut refuses the
+  engine's own registers, measured in
+  [measurements.md](measurements.md#an-echo-dot-3rd-generation-in-its-bootrom).
+- Its payload is two stages, where amonet ships one. stage1 answers
+  `\xa1\xa2\xa3\xa4` and takes two framed commands: `0x4000` loads stage2 at
+  `0x201000`, and `0x4001` jumps to it. stage2 then answers
+  `\xb1\xb2\xb3\xb4` and speaks amonet's payload protocol, including
+  biscuit's `0x1003`, `0x1004` and `0x5000`. It adds `0x3001` to kick the
+  watchdog and `0x6000` to set the fastboot flag. So the two stages cost a
+  loader, not a protocol.
+- One write of `0x22000000` to `0x10007000` does not hold donut's watchdog as
+  it holds biscuit's. The kit writes `0x1971` to `0x10007008` every second
+  before the exploit, and kicks through `0x3001` after every batch of blocks.
+- `bin/lk-donut.bin` holds `DONUT\0` at `0x2c0c4`, after an RSA exponent, and
+  holds no `\0product\0DONUT\0` anywhere. So the product check above would
+  refuse a donut rather than name it, where amonet's own `bin/lk.bin` holds
+  `\0product\0BISCUIT\0` for biscuit and `\0product\0RADAR\0` for radar. The
+  kit writes this LK byte for byte for 6009 and later, so it is a stock donut
+  LK. All four readings are from v1.0.0's files on 2026-11-02; no donut ran
+  them.
 - It reads ports from pyserial's USB list and opens only the bootrom's, where
   amonet opened every port to see it. On Linux the preloader's
   `/dev/ttyACM*` is `dialout`'s, and the udev rule covers only `0e8d:0003`,
