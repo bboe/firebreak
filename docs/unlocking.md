@@ -1430,6 +1430,72 @@ reaching its state by hand first.
   registered. Measured 2026-10-18 on stock 8149 set up in the Alexa app: 78 s
   to rooted 8149, its saved Wi-Fi online 30 s after boot, still taking
   changes from the app. Its voice was not tested.
+- Fire OS 6 has no Android framework: `/system` has no `framework` directory
+  and no `app_process`, so `pm` cannot run and the updater cannot be hidden
+  as on Fire OS 5. The update client is the native `otad` service. It reads
+  `ro.build.version.number`, which `boot-root.zip` raises, and it starts
+  `update_engine` with `ctl.start`. Nothing else starts `update_engine`, which
+  init declares `disabled`. While an install applies, init clears
+  `mmcblk0boot0`'s `force_ro`, so an update writes the preloader too. Read
+  from the stock `/system` of biscuit 8149, radar 8349 and donut 8349.
+- The version number alone was never tested against an offered update. So
+  after `boot-root.zip` the run mounts each slot's `system` in TWRP, adds
+  `disabled` to the `otad` stanza, and points the 5 update hosts at
+  `127.0.0.1` in `/system/etc/hosts`. The stanza is in `/init.mt8516.rc` on
+  donut and `/init.mt8163_amazon.rc` on biscuit, so the run finds it with
+  `grep`. A slot with no `otad` stanza or no hosts file is not Fire OS 6 and
+  is left alone. The run continues only when the active slot and every
+  other Fire OS 6 slot read back both edits: after `--factory-reset` both
+  slots hold Fire OS 6, and a fallback to an unedited one would start
+  `otad`. A second run adds nothing. The stanza is in the root
+  `/init.mt8163_amazon.rc` of biscuit 8149's and radar 8349's stock
+  `/system` too, but the edits have run only on a donut.
+- The 5 hosts, as found on 2026-11-06 in the stock `/system` of Fire OS
+  5.5.4.9 and donut's 8349, dex inside APKs included, and resolved in DNS:
+  - `softwareupdates.amazon.com` is the system OTA check-in: Fire OS 5's
+    `DeviceSoftwareOTA` asks its `/software/inventory`, and it is the one
+    update host in Fire OS 6's TLS configuration. Its own hosts entry blocks
+    it: a hosts file maps the name asked for before any DNS lookup, so the
+    CNAME below is never followed.
+  - `updates.amazon.com` serves `/software/inventory/companion`, which Fire OS
+    5's `SmartHomeOtaService` and `bluetoothdfu` ask for by that name, for
+    the firmware of paired devices. Fire OS 6 does not name it. In DNS,
+    `softwareupdates.amazon.com` is a CNAME of it, and both end at
+    `origin-updates.amazon.com`.
+  - `d1s31zyz7dcc2d.cloudfront.net` serves the OTAs firebreak downloads.
+    `prod.ota-cloudfront.net`, which Fire TV moved its downloads to, serves
+    the same files at the same paths: biscuit 4315 and 8344, donut 8349 and
+    radar 8349 each answered 200 with the same length from both on
+    2026-11-06. Neither Fire OS names either host. The device takes its
+    download URL from the check-in's reply, so they block a download whose
+    check-in got through.
+  - `amzdigitaldownloads.edgesuite.net`, a CNAME of `a1910.d.akamai.net`, is
+    where a Fire OS 5 biscuit fetched 272.5.6.4 over plain HTTP in a 2016
+    capture published on Medium, as
+    `/obfuscated-otav3-9/HASH/update-kindle-full_biscuit-272.5.6.4_user_N.bin`
+    with the hash and number withheld. With firebreak's own hash and number
+    for that file it answers 404 today, with or without the prefix, and its
+    HTTPS certificate does not name it.
+  - Until 2026-11-06 the list held `amzndigitaldownloads.edgesuite.net`,
+    which is NXDOMAIN, and `amzdigital-a.akamaihd.com`, which resolves only
+    through Akamai's wildcard, so neither blocked anything. The list was
+    copied from Fire TV guides. They name `amzdigital-a.akamaihd.net`, a Fire
+    TV download host since 2016. It is not listed: no Echo source names it,
+    and it answers 404 for the OTA above.
+- Measured on a donut on 8349, 2026-11-06: before the edits, `otad` ran from
+  boot and `update_engine` had not started in 21 hours offline. After them,
+  `init.svc.otad` stayed empty through a reboot, `ace_otad` still ran,
+  `update_engine` did not start, and `softwareupdates.amazon.com` resolved to
+  `127.0.0.1`. `sed -i` in TWRP kept the rc file's owner, mode and SELinux
+  label. A run that starts on a rooted Fire OS 6 Echo ends at once and does
+  not add the edits.
+- Measured on the same donut online, 2026-11-06, with its registered
+  userdata restored: "Alexa, check for software updates" sent the
+  `SoftwareUpdate` `CheckSoftwareUpdate` directive. `PuffinApp` could not
+  connect to `com.doppler.OTAUpdate`, the AIPC service that only `otad`
+  names, and nothing followed. Alexa said "one moment while I check" and
+  then nothing. The voice check asks `otad`, so it never reached the hosts
+  file.
 - Fire OS 6 without root for a minute after the install means
   `boot-root.zip` did not take, and the run stops. A single such read during
   the first boot does not stop it.
@@ -2177,7 +2243,9 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
 - `/system/etc/init.fosflags.sh` strips adb from the USB configuration on
   every boot after the first. The script forces its `FOS_FLAGS_ADB_ON` branch
   true, neutralizes its `unset_adb_persistent_property` calls, and checks both
-  edits. The 4 Amazon update hosts go into `/system/etc/hosts` as `127.0.0.1`.
+  edits. The 5 Amazon update hosts go into `/system/etc/hosts` as `127.0.0.1`.
+  [Install: Fire OS 6 with boot-root.zip](#install-fire-os-6-with-boot-rootzip)
+  says why each host is there.
 
 #### Magisk
 

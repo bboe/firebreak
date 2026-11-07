@@ -396,9 +396,12 @@ def create(*, cache: pathlib.Path, device: str, runner: int, start: str) -> None
             local.write_bytes(data)
             write_image(local=local, node=node, state=state)
     inside(
-        command="mkdir -p /sim/stock/system"
+        command="mkdir -p /sim/stock/system/etc"
         f" && printf 'ro.build.version.name={DEVICES[device]['stock']}\\n'"
         " > /sim/stock/system/build.prop"
+        " && printf '127.0.0.1 localhost\\n' > /sim/stock/system/etc/hosts"
+        " && printf 'service otad /system/bin/otad\\n    class main\\n'"
+        " > /sim/stock/init.sim.rc"
         " && i=0 && for p in system_a userdata cache; do i=$((i + 1));"
         " E2FSPROGS_FAKE_TIME=1700000000 mke2fs -q -F -t ext4"
         " -U 5eed0000-0000-4000-8000-$(printf %012x $i)"
