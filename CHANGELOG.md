@@ -4,10 +4,30 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- `unlock fireos6` turns off Amazon's updates. After `boot-root.zip`, it
+  disables the `otad` service in each Fire OS 6 slot and points the update
+  hosts at `127.0.0.1` in that slot's `/system/etc/hosts`. Fire OS 6 has no
+  `pm`, so the updater cannot be hidden as on Fire OS 5. Measured only on a
+  donut on 8349, on 2026-11-06: `otad` did not start after a reboot, and
+  `softwareupdates.amazon.com` resolved to `127.0.0.1`. Biscuit's and
+  radar's stock images hold the same `otad` stanza, but no run has shown
+  the edits there.
+
 ### Changed
 
+- A Fire OS 5 root blocks `d1s31zyz7dcc2d.cloudfront.net` and
+  `prod.ota-cloudfront.net` too, which both serve every Echo's OTAs, and no
+  longer lists Fire TV's `amzdigital-a.akamaihd.com`.
 - `--help` names all three Echoes, and its description is shorter.
 - `--credits` ends its help in "and exit", as `--help` and `--version` do.
+
+### Fixed
+
+- A Fire OS 5 root blocks `amzdigitaldownloads.edgesuite.net`, where a 2016
+  Dot downloaded its OTA. The hosts file named
+  `amzndigitaldownloads.edgesuite.net`, which does not exist.
 
 ## 1.0.0 - 2026-11-05
 

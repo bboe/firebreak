@@ -94,6 +94,7 @@ def fireos6(
     adb.answers["boot-root.zip"] = ["Installing\nDone"]
     adb.answers["Installing zip file"] = [ended(rc=0)]
     adb.answers["neutering ota updates"] = ["1\nzip-ok"]
+    adb.answers["updates-ok"] = ["fos6-a\noff-a\nfos6-b\noff-b\nupdates-ok"]
     return waited
 
 
@@ -326,6 +327,16 @@ def test_fire_os_6_counts_the_install_by_the_name_ps_prints(
     assert "ps -A | grep -c update_engine;" in adb.commands(holding="get_active")[0]
 
 
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_disables_otad_and_blocks_the_update_hosts(*, adb: FakeAdb) -> None:
+    fireos.stage_install_fireos6()
+    [command] = adb.commands(holding="updates-ok")
+    assert "/system_$s $m" in command
+    assert "&\\n    disabled|" in command
+    assert all(host in command for host in fireos.UPDATE_HOSTS)
+    assert adb.asked[-1] == ["adb", "reboot"]
+
+
 def test_fire_os_6_goes_into_both_slots_then_boot_root(
     *, adb: FakeAdb, fireos6: list[str], pushed: list[tuple[pathlib.Path, str]]
 ) -> None:
@@ -533,6 +544,26 @@ def test_fire_os_6_stops_when_the_slot_never_reads(
     adb.answers["bcbtool get_active"] = ["1\na\nslot-ok"]
     with pytest.raises(FatalError, match="did not report its active slot"):
         fireos.stage_install_fireos6()
+
+
+@pytest.mark.parametrize(
+    ("said", "slots"),
+    [
+        ("fos6-b\noff-b\nupdates-ok", "slot a"),
+        ("fos6-a\noff-a\nfos6-b\nupdates-ok", "slot b"),
+        ("fos6-b\nupdates-ok", "slot a and b"),
+        ("off-a\noff-b", "slot a"),
+        ("adb: device 'G090' not found", "slot a"),
+    ],
+)
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_stops_when_the_updates_stay_on_in_a_slot(
+    *, adb: FakeAdb, said: str, slots: str
+) -> None:
+    adb.answers["updates-ok"] = [said]
+    with pytest.raises(FatalError, match=f"not blocked in Fire OS 6's {slots}\\."):
+        fireos.stage_install_fireos6()
+    assert ["adb", "reboot"] not in adb.asked
 
 
 @pytest.mark.usefixtures("fireos6")

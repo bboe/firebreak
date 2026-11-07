@@ -62,11 +62,13 @@ MOUNT_OK = "mount-ok"
 SLOT_OK = "slot-ok"
 TWRP = biscuit.BBOE_RECOVERY
 UPDATER = "com.amazon.device.software.ota"
+UPDATES_OK = "updates-ok"
 UPDATE_HOSTS = (
-    "updates.amazon.com",
+    "amzdigitaldownloads.edgesuite.net",
+    "d1s31zyz7dcc2d.cloudfront.net",
+    "prod.ota-cloudfront.net",
     "softwareupdates.amazon.com",
-    "amzndigitaldownloads.edgesuite.net",
-    "amzdigital-a.akamaihd.com",
+    "updates.amazon.com",
 )
 ZIP_OK = "zip-ok"
 
@@ -101,6 +103,31 @@ done
 grep -q 'if true; then' "$f"
 grep -q '^ *unset_adb_persistent_property$' "$f" && exit 1
 sync; umount $m
+"""
+    UPDATES = """\
+m=/tmp/fireos6-system
+mkdir -p $m
+for s in a b; do
+  umount $m 2>/dev/null
+  mount -t ext4 {by_name}/system_$s $m || continue
+  r=$(grep -l '^service otad ' $m/*.rc 2>/dev/null)
+  h=$m/system/etc/hosts
+  if [ -n "$r" ] && [ -f $h ]; then
+    echo fos6-$s
+    grep -h -A 1 '^service otad ' $r | grep -q '^ *disabled$' || \
+sed -i 's|^service otad .*|&\\n    disabled|' $r
+    for n in {hosts}; do
+      grep -q " $n\\$" $h || echo "127.0.0.1 $n" >> $h
+    done
+    sync
+    k=1
+    for n in {hosts}; do grep -q " $n\\$" $h || k=; done
+    grep -h -A 1 '^service otad ' $r | grep -q '^ *disabled$' && [ -n "$k" ] && \
+echo off-$s
+  fi
+  umount $m
+done
+echo {ok}
 """
     WRITE = (
         "dd if={source} of={target} bs=1048576 2>/dev/null;"
@@ -237,6 +264,19 @@ def install_and_root() -> None:
         raise FatalError(
             message=f"boot-root.zip ended without patching slot {slot}, which holds"
             f" Fire OS 6 {build}. " + again()
+        )
+    off = adb_shell(
+        command=Shell.UPDATES.value.format(
+            by_name=BY_NAME, hosts=" ".join(UPDATE_HOSTS), ok=UPDATES_OK
+        ),
+        timeout=60,
+    ).split(sep="\n")
+    found = {line[len("fos6-") :] for line in off if line.startswith("fos6-")}
+    missed = sorted(name for name in found | {slot} if f"off-{name}" not in off)
+    if off[-1:] != [UPDATES_OK] or missed:
+        raise FatalError(
+            message="otad and the update hosts were not blocked in Fire OS 6's"
+            f" slot {' and '.join(missed or [slot])}. " + again()
         )
     PROGRESS.begin(estimate="60 s", label=f"waiting for rooted Fire OS 6 {build}")
     reboot_rooted()

@@ -40,6 +40,13 @@ def install(*, path: str) -> int:
                 f"ro.build.fingerprint={build}\n",
                 encoding="utf-8",
             )
+            (prop.parent / "etc").mkdir()
+            (prop.parent / "etc" / "hosts").write_text(
+                "127.0.0.1 localhost\n", encoding="utf-8"
+            )
+            (pathlib.Path(folder) / "init.sim.rc").write_text(
+                "service otad /system/bin/otad\n    class main\n", encoding="utf-8"
+            )
             subprocess.run(
                 [
                     "mke2fs",
