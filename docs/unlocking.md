@@ -1940,11 +1940,14 @@ moved the setup in 37 s.
   wait ran out with the Dot sitting in TWRP. TWRP read the same eMMC clean.
   With the laptop on its charger the Dot booted again, and a run started
   from that TWRP went on and passed. The TWRP the run restarted
-  from can still answer for a moment, so recovery counts only after adb has
-  seen the Echo out of it, a line of `adb get-state` that reads `device`. An
-  Echo that drops off USB, an offline state, an error or a timeout does not
-  count. The setup wait inherits that from the move wait, which only returns
-  once 4315 has started.
+  from can still answer for a moment, so recovery counts only when
+  `/proc/uptime` is shorter than the time since the run began rooting 4315
+  in that TWRP: a recovery that started after it. Counting it only after
+  `adb get-state` had read `device` missed the crash itself. Measured on
+  the same Dot later that day: 4315 fell into recovery at 30 s, adb never
+  saw it booted, and the wait ran its full 10 minutes. The time is taken
+  before the read, so a slow reply cannot make the old TWRP look new. An
+  uptime that does not read as a number does not count.
 - Only a slot whose data shows the move takes these steps:
   `rollback_required.txt` or `migration_success.txt` under `/data/csm2puffin`.
   A 4315 that never ran Amazon's move, from `stock 4315` or on radar, is

@@ -123,6 +123,7 @@ UPDATE_HOSTS = (
     "softwareupdates.amazon.com",
     "updates.amazon.com",
 )
+UPTIME_OK = "uptime-ok"
 VERIFIED = "persist.puffin.verify_migration"
 VERIFIED_OK = "verified-ok"
 ZIP_OK = "zip-ok"
@@ -430,14 +431,14 @@ def erased(*, path: str, wiped: bool) -> None:
         )
 
 
-def finish_setup(*, left: bool) -> None:
+def finish_setup(*, since: float) -> None:
     PROGRESS.begin(
         estimate=60, label=f"waiting for Fire OS 6 {MIGRATE_BUILD} to finish its setup"
     )
     deadline = time.monotonic() + SETUP_WAIT
     try:
         while True:
-            left = left_recovery(doing="finish its setup", left=left)
+            left_recovery(doing="finish its setup", since=since)
             said = polled(command=f"start otad; getprop {VERIFIED}; echo {VERIFIED_OK}")
             if said[-2:] == ["true", VERIFIED_OK]:
                 return
@@ -662,23 +663,27 @@ def leave_fireos5(*, reboot: Callable[[], object]) -> None:
     reboot()
 
 
-def left_recovery(*, doing: str, left: bool) -> bool:
-    state = adb_state()
-    if left and state == "recovery":
+def left_recovery(*, doing: str, since: float) -> None:
+    if adb_state() != "recovery":
+        return
+    elapsed = time.monotonic() - since
+    said = polled(command=f"cat /proc/uptime; echo {UPTIME_OK}")
+    up = said[-2].partition(" ")[0] if said[-2:-1] and said[-1] == UPTIME_OK else ""
+    if up.replace(".", "", 1).isdigit() and float(up) < elapsed:
         raise FatalError(
             message=f"the {title()} restarted into TWRP while Fire OS 6"
             f" {MIGRATE_BUILD} was meant to {doing}, so the run stopped there. Its"
             f" data is as Fire OS 6 {MIGRATE_BUILD} left it. " + again()
         )
-    return left or state == "device"
 
 
 def move_setup(*, moved: bool, zip_path: pathlib.Path) -> None:
     PROGRESS.steps = PROGRESS.step + MIGRATE_STEPS - 2 - moved + install_steps() - 1
+    since = time.monotonic()
     root_slot(build=MIGRATE_BUILD, wiped=False, zip_path=zip_path)
     if not moved:
-        wait_migrated()
-    finish_setup(left=not moved)
+        wait_migrated(since=since)
+    finish_setup(since=since)
     restart_into_twrp(device=ARGUMENTS.target.device)
     wait_for_twrp()
 
@@ -1017,15 +1022,14 @@ def twrp_by_fastboot(*, command: bytes) -> None:
     wait_for_twrp()
 
 
-def wait_migrated() -> None:
+def wait_migrated(*, since: float) -> None:
     PROGRESS.begin(
         estimate=90,
         label=f"waiting for Fire OS 6 {MIGRATE_BUILD} to move the setup",
     )
     deadline = time.monotonic() + MIGRATE_WAIT
-    left = False
     while True:
-        left = left_recovery(doing="move the setup", left=left)
+        left_recovery(doing="move the setup", since=since)
         said = polled(command=Shell.MIGRATED.value.format(ok=MIGRATED_OK))
         state = next(
             (

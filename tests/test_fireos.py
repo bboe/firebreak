@@ -267,7 +267,15 @@ def test_a_4315_that_restarts_into_twrp_stops_the_wait_at_once(
     del migration
     slept = clock(monkeypatch=monkeypatch)
     adb.answers[waiting] = [waiting]
-    adb.answers["get-state"] = ["recovery", "device", "recovery"]
+    adb.answers["get-state"] = [
+        "recovery",
+        "error: no devices/emulators found",
+        "recovery",
+    ]
+    adb.answers[fireos.UPTIME_OK] = [
+        f"500.00 900.00\n{fireos.UPTIME_OK}",
+        f"3.00 4.00\n{fireos.UPTIME_OK}",
+    ]
     with pytest.raises(FatalError, match="restarted into TWRP while"):
         fireos.stage_install_fireos6()
     assert sum(slept) < fireos.SETUP_WAIT
@@ -293,6 +301,7 @@ def test_a_4315_wait_passes_over_the_twrp_it_restarted_from(
         "recovery",
         "device",
     ]
+    adb.answers[fireos.UPTIME_OK] = [fireos.UPTIME_OK, "3.00 4.00"]
     adb.answers[fireos.VERIFIED_OK] = [
         *[fireos.VERIFIED_OK] * 4,
         f"true\n{fireos.VERIFIED_OK}",
