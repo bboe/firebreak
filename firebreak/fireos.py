@@ -110,6 +110,8 @@ SIGNATURE = "signature_algorithm"
 SIGNED_OK = "signed-ok"
 SLOT_OK = "slot-ok"
 STAGED_OK = "staged-ok"
+STAGE_WAIT = 300
+STAGING_OK = "staging-ok"
 TWRP = biscuit.BBOE_RECOVERY
 UPDATER = "com.amazon.device.software.ota"
 UPDATES_OK = "updates-ok"
@@ -216,6 +218,10 @@ echo {ok}
         " && [ -s $c/migrated/map/map.db ] && echo staged;"
         ' for f in $c/status-reports/*; do [ -f "$f" ]'
         ' && echo "${{f##*/}}=$(cat "$f")"; done; echo {ok}'
+    )
+    STAGING = (
+        'echo "init=$(getprop com.amazon.csm2puffin.INIT)'
+        ' service=$(getprop init.svc.csm2puffin)"; echo {ok}'
     )
     MIGRATED = (
         'echo "boot=$(getprop sys.boot_completed)'
@@ -408,7 +414,7 @@ def confirm_migration() -> None:
         f" firebreak installs Amazon's bridge build, Fire OS 6 {MIGRATE_BUILD},"
         " starts it once so it moves the setup over and reaches Alexa on its"
         " Wi-Fi, then installs Fire OS 6"
-        f" {ARGUMENTS.target.installs.build}. That takes about 15 minutes more"
+        f" {ARGUMENTS.target.installs.build}. That takes about 3 minutes more"
         f" than --factory-reset, which erases the {title()}",
     )
     SESSION.migration_confirmed = True
@@ -651,6 +657,7 @@ def leave_fireos5(*, reboot: Callable[[], object]) -> None:
         )
         confirm_migration()
         hide_updater()
+        wait_staged()
         check_staged(booted=True)
     reboot()
 
@@ -1046,6 +1053,29 @@ def wait_migrated() -> None:
                 f" {title()}'s setup within {MIGRATE_WAIT // 60} minutes of its"
                 f" restart. Leave the {title()} powered. " + again()
             )
+        time.sleep(5)
+
+
+def wait_staged() -> None:
+    deadline = time.monotonic() + STAGE_WAIT
+    noted = False
+    while True:
+        said = polled(command=Shell.STAGING.value.format(ok=STAGING_OK))
+        if said[-2:] == ["init=MIGRATION_CSM_FINISH service=stopped", STAGING_OK]:
+            return
+        if time.monotonic() > deadline:
+            raise FatalError(
+                message=f"Fire OS {LAST_FIREOS5} did not finish copying this"
+                f" {title()}'s setup for Fire OS 6 within {STAGE_WAIT // 60}"
+                " minutes, so Fire OS 6 was not written. Restart it, wait for its"
+                " ring to settle, then run again."
+            )
+        if not noted:
+            PROGRESS.note(
+                message=f"waiting for Fire OS {LAST_FIREOS5} to finish copying this"
+                f" {title()}'s setup for Fire OS 6."
+            )
+            noted = True
         time.sleep(5)
 
 

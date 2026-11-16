@@ -1419,6 +1419,9 @@ def test_leaving_fire_os_5_confirms_before_it_hides_or_clears_unless_reset(
     adb.answers["queue-clear"] = [
         "queue-clear\nstaged\nMapMigrationSuccess=1\nstaged-ok"
     ]
+    adb.answers[fireos.STAGING_OK] = [
+        f"init=MIGRATION_CSM_FINISH service=stopped\n{fireos.STAGING_OK}"
+    ]
     fireos.leave_fireos5(reboot=lambda: done.append("reboot"))
     assert done == (["reboot"] if reset else ["confirm", "hide", "reboot"])
     staged = adb.commands(holding="queue-clear")
@@ -1471,6 +1474,38 @@ def test_magisk_that_does_not_land_stops_the_run(
     adb.answers["md5sum"] = ["0" * 32 + "  -"]
     with pytest.raises(FatalError, match=said or "files did not verify"):
         fireos.install_magisk(magisk=tmp_path / "magisk.zip", work=tmp_path)
+
+
+def test_staging_that_never_ends_stops_before_the_reboot(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="target", target=fireos.ARGUMENTS, value=TARGETS[BISCUIT]["fireos6"]
+    )
+    slept: list[float] = []
+    monkeypatch.setattr(name="monotonic", target=fireos.time, value=lambda: sum(slept))
+    monkeypatch.setattr(name="sleep", target=fireos.time, value=slept.append)
+    adb.answers[fireos.STAGING_OK] = [
+        f"init=MIGRATION_START service=running\n{fireos.STAGING_OK}"
+    ]
+    with pytest.raises(FatalError, match="did not finish copying"):
+        fireos.wait_staged()
+
+
+def test_staging_waits_for_this_boot_s_copy_to_end(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slept: list[float] = []
+    monkeypatch.setattr(name="monotonic", target=fireos.time, value=lambda: sum(slept))
+    monkeypatch.setattr(name="sleep", target=fireos.time, value=slept.append)
+    adb.answers[fireos.STAGING_OK] = [
+        f"init= service=\n{fireos.STAGING_OK}",
+        f"init=MIGRATION_CSM_FINISH service=running\n{fireos.STAGING_OK}",
+        "init=MIGRATION_CSM_FINISH service=stopped",
+        f"init=MIGRATION_CSM_FINISH service=stopped\n{fireos.STAGING_OK}",
+    ]
+    fireos.wait_staged()
+    assert slept == [5, 5, 5]
 
 
 def test_the_adb_key_is_the_one_in_the_home_folder() -> None:

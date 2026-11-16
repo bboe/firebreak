@@ -230,6 +230,7 @@ def enter(*, spec: dict) -> None:
     version = values.get("ro.build.version.name", "")
     if spec["flavour"] == "fire-os-5" and version.startswith("Fire OS 5.5.5.4 "):
         values["com.amazon.csm2puffin.INIT"] = stage_setup()
+        values["init.svc.csm2puffin"] = "stopped"
     if spec["flavour"] == "fire-os-6" and version.rpartition("/")[2].rstrip(
         ")"
     ).startswith(MIGRATING_BUILDS):

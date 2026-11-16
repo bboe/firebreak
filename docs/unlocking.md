@@ -1895,6 +1895,15 @@ moved the setup in 37 s.
   reboot is amonet v2.0.1's, and Fire OS 5 does not start on it, so a check
   that failed in TWRP would leave the Dot only an erase. It runs again in
   TWRP, for an Echo that reached TWRP another way.
+- That check first waits up to 5 minutes for this boot's copy to end. Read
+  from 5.5.5.4's `csm2puffin.sh` on 2026-11-16: the script starts only on
+  `amazon.headless.BOOT_COMPLETED`, empties `status-reports`, starts the
+  `csm2puffin` service and sets `MIGRATION_CSM_FINISH` at once, before that
+  service has written anything. The reports from the boot before stay until
+  the script starts, and one minute after a boot only 6 of 12 were back. A
+  reboot then would leave `migrated` half written under old reports. So
+  the run waits for `com.amazon.csm2puffin.INIT` to read
+  `MIGRATION_CSM_FINISH` and `init.svc.csm2puffin` to read `stopped`.
 - So a run that finds the Dot already in its Fire OS 5 chain's TWRP, as
   `backup` and `twrp` leave it, writes nothing there unless it passed the
   check from Fire OS 5 itself or has `--factory-reset`. It stops and says to
