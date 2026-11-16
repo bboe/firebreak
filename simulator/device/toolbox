@@ -8,7 +8,10 @@ import sys
 import time
 
 CHUNK = 4096
+MIGRATED = pathlib.Path("/data/csm2puffin/migration_success.txt")
+PROPS = pathlib.Path("/sim/run/props")
 ROW = 16
+VERIFIED = "persist.puffin.verify_migration"
 
 
 def getevent(*, arguments: list[str]) -> int:
@@ -96,12 +99,22 @@ def quiet(*, arguments: list[str]) -> int:
     return 0
 
 
+def start(*, arguments: list[str]) -> int:
+    if arguments == ["otad"] and MIGRATED.is_file():
+        stored = pathlib.Path("/data/property") / VERIFIED
+        stored.parent.mkdir(exist_ok=True, parents=True)
+        stored.write_text("true", encoding="utf-8")
+        with PROPS.open("a", encoding="utf-8") as props:
+            props.write(f"{VERIFIED}=true\n")
+    return 0
+
+
 COMMANDS = {
     "getevent": getevent,
     "hd": hd,
     "log": quiet,
     "md5": md5,
-    "start": quiet,
+    "start": start,
     "stop": quiet,
 }
 sys.exit(COMMANDS[pathlib.Path(sys.argv[0]).name](arguments=sys.argv[1:]))

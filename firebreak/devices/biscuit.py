@@ -512,7 +512,8 @@ CONFIG = DeviceConfig(
             installs=FireOs6(build=DEFAULT_BUILD),
             name=FIREOS6,
             summary=f"boot-root.zip's root adb on Fire OS 6 {DEFAULT_BUILD}, installed"
-            " over an older Fire OS 6 if need be, which keeps the Dot's setup;"
+            " over an older Fire OS 6, or over Fire OS 5.5.5.4 through Amazon's"
+            " bridge build 4315, if need be, which keeps the Dot's setup;"
             " with --factory-reset, Fire OS 6"
             f" {DEFAULT_BUILD} with TWRP {V2_0_1_TWRP_VERSION}, with the Dot"
             " erased.",

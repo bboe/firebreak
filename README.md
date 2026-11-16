@@ -154,9 +154,9 @@ commands for the Echo Dot (2nd Generation):
   unlock [TARGET], where TARGET is one of:
     fireos6, the default
         boot-root.zip's root adb on Fire OS 6 8349, installed over an older
-        Fire OS 6 if need be, which keeps the Dot's setup; with
-        --factory-reset, Fire OS 6 8349 with TWRP 3.7.0, with the Dot
-        erased.
+        Fire OS 6, or over Fire OS 5.5.5.4 through Amazon's bridge build
+        4315, if need be, which keeps the Dot's setup; with --factory-reset,
+        Fire OS 6 8349 with TWRP 3.7.0, with the Dot erased.
     fireos5
         rooted Fire OS 5.5.5.4 on amonet v1.1.0, with TWRP 3.7.0_9-bboe2.
 
@@ -258,8 +258,9 @@ Keep `~/.android/adbkey`. Without it, adb cannot reach rooted Fire OS from
 any computer. TWRP is not locked, so to move to another computer, or after
 losing the key, run `firebreak unlock` from that computer. It asks for the
 button gesture, and the install it does from TWRP lets in that computer's key
-in place of the old one. On Fire OS 5 that install also erases the Echo's
-setup.
+in place of the old one. On Fire OS 5 that install needs `--factory-reset`,
+which erases the Echo's setup: the move that keeps it starts only from a Fire
+OS 5 that lets in the computer's key.
 
 ## Documentation
 

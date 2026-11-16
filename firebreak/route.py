@@ -35,8 +35,10 @@ from firebreak.fireos import (
     UPDATER,
     adb_key,
     build_number,
+    from_fireos5_twrp,
     hide_updater,
     install_steps,
+    leave_fireos5,
     outdated,
     stage_install_fireos,
     stage_install_fireos6,
@@ -250,7 +252,7 @@ def fireos6_stages() -> dict[State, Stage]:
     return {
         State.AMONET_FIREOS5_TWRP: Stage(
             needs=(*installed, *amonet_sources()),
-            run=install,
+            run=functools.partial(from_fireos5_twrp, install=install),
             steps=4,
             then=State.UNLOCKED_TWRP,
         ),
@@ -265,12 +267,16 @@ def fireos6_stages() -> dict[State, Stage]:
         ),
         State.AMONET_FIREOS5_BBOE_TWRP: Stage(
             needs=(*installed, *amonet_sources()),
-            run=install,
+            run=functools.partial(from_fireos5_twrp, install=install),
             steps=4,
             then=State.UNLOCKED_TWRP,
         ),
     } | {
-        state: stage
+        state: dataclasses.replace(
+            stage, run=functools.partial(leave_fireos5, reboot=stage.run)
+        )
+        if state in FIREOS5_ROOTED
+        else stage
         for state, stage in reboot_stages().items()
         if state in FIREOS5_ROOTED or state == State.UNLOCKED_BOOTED
     }

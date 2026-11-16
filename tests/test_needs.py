@@ -8,8 +8,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import cache, plan, route, unlock, updates
-from firebreak.devices import BISCUIT, KAMAKIRI_UNLOCKS, RADAR, TARGETS, biscuit, radar
+from firebreak import cache, fireos, plan, route, unlock, updates
+from firebreak.devices import (
+    BISCUIT,
+    BUILDS,
+    KAMAKIRI_UNLOCKS,
+    RADAR,
+    TARGETS,
+    biscuit,
+    radar,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -109,6 +117,10 @@ class Scan:
             self.maybe |= set(unlocking.payloads.values())
         elif function is unlock.kamakiri_chain:
             self.found.add(KAMAKIRI_UNLOCKS[route.ARGUMENTS.target.device].source)
+        elif function is fireos.write_bridge:
+            self.maybe.add(
+                BUILDS[route.ARGUMENTS.target.device].get(fireos.MIGRATE_BUILD)
+            )
         elif function is unlock.amonet_lk:
             first, *rest = AMONET_LKS[route.ARGUMENTS.target.device]
             self.found.add(first)

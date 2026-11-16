@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 from __future__ import annotations
 
+import base64
 import contextlib
 import fcntl
 import gzip
@@ -10,6 +11,7 @@ import os
 import pathlib
 import shutil
 import signal
+import sqlite3
 import stat
 import struct
 import subprocess
@@ -20,6 +22,8 @@ BOOTONCE = b"bootonce-bootloader"
 BOOT_LAYOUT = b"BRLYT"
 BOOT_RECOVERY = b"boot-recovery"
 BY_NAME = pathlib.Path("/dev/block/platform/mtk-msdc.0/by-name")
+DATA = pathlib.Path("/data")
+DATA_FLAVOURS = ("fire-os-5", "fire-os-6", "twrp-3.7.0")
 DECOYS = {
     "lk_a": 1048576,
     "lk_b": 1048576,
@@ -43,10 +47,34 @@ LOOP_CONTROL = "/dev/loop-control"
 LOOP_CTL_GET_FREE = 0x4C82  # _IO('L', 0x82)
 LOOP_MAJOR = 7
 LOOP_TRIES = 50
+MIGRATING_BUILDS = ("4310", "4313", "4315")
 MOUNT = pathlib.Path("/sim/mnt")
+MOVED_REGISTRATION = (
+    ("registration_state", b"REGISTERED"),
+    (
+        "device_private_key",
+        base64.b64encode(
+            bytes.fromhex("308204bd020100300d06092a864886f70d010101") + b"SIM KEY"
+        ),
+    ),
+)
 NULLED = ("lk_a", "lk_b", "tee1", "tee2")
 PATH = pathlib.Path("/sim/path")
 PROTECTED = ("boot0", "boot1")
+REPORTS = (
+    "AlertsMigrationSuccess",
+    "AmaMigrationSuccess",
+    "BTMigrationSuccess",
+    "DeviceSettingsMigrationSuccess",
+    "EqualizerMigrationSuccess",
+    "MapMigrationSuccess",
+    "OTAMigrationSuccess",
+    "PrivacyRingMigrationSuccess",
+    "SmartHomeMigrationSuccess",
+    "SpeakerSettingsMigrationSuccess",
+    "WifiConfigSuccess",
+    "assetsSuccess",
+)
 RUN = pathlib.Path("/sim/run")
 HOLDER = RUN / "holder"
 HOLDER_LOG = RUN / "holder.log"
@@ -54,6 +82,10 @@ HOLDER_READY = RUN / "holder.ready"
 LOOPS = RUN / "loops"
 REQUEST = RUN / "request"
 SECTOR = 512
+SETUP = {
+    "data/com.amazon.imp/databases/map_data_storage_v2.db": b"SIM MAP REGISTRATION\n",
+    "misc/wifi/wpa_supplicant.conf": b'network={\n\tssid="sim"\n}\n',
+}
 SIDE_DEVICES = ("boot0", "boot1", "rpmb")
 SIM_BOOT = ["/usr/bin/python3", "/sim/bin/sim-boot"]
 SLOTS = ("a", "b")
@@ -75,6 +107,9 @@ def act() -> None:
     elif action == "facts":
         holding()
         print(json.dumps(facts(spec=json.loads(sys.argv[2]))))
+    elif action == "register":
+        holding()
+        register()
     elif action == "snapshot":
         holding()
         snapshot()
@@ -189,9 +224,19 @@ def detach() -> None:
 
 
 def enter(*, spec: dict) -> None:
+    values = dict(spec["props"])
+    if spec["flavour"] in DATA_FLAVOURS:
+        mount_data()
+    version = values.get("ro.build.version.name", "")
+    if spec["flavour"] == "fire-os-5" and version.startswith("Fire OS 5.5.5.4 "):
+        values["com.amazon.csm2puffin.INIT"] = stage_setup()
+    if spec["flavour"] == "fire-os-6" and version.rpartition("/")[2].rstrip(
+        ")"
+    ).startswith(MIGRATING_BUILDS):
+        values["com.amazon.csm2puffin.INIT"] = migrate_setup()
     props = RUN / "props"
     props.write_text(
-        "".join(f"{key}={value}\n" for key, value in spec["props"].items()),
+        "".join(f"{key}={value}\n" for key, value in values.items()),
         encoding="utf-8",
     )
     props.chmod(0o666)
@@ -424,6 +469,27 @@ def md5(*, data: bytes) -> str:
     return hashlib.md5(data, usedforsecurity=False).hexdigest()
 
 
+def migrate_setup() -> str:
+    staged = DATA / "csm2puffin"
+    if not (staged / "original" / "rollback_required.txt").is_file():
+        return "NO_MIGRATION_PUFFIN_FINISH"
+    registration = staged / "migrated" / "map" / "map.db"
+    if not registration.is_file() or not registration.stat().st_size:
+        return "MIGRATION_PUFFIN_FAIL"
+    kvstorage = DATA / "ace" / "kvstorage"
+    kvstorage.mkdir(exist_ok=True, parents=True)
+    shutil.copyfile(registration, kvstorage / "map.db")
+    for name in ("original", "migrated", "copy-status"):
+        shutil.rmtree(staged / name, ignore_errors=True)
+    (staged / "migration_success.txt").touch()
+    return "MIGRATION_PUFFIN_FINISH"
+
+
+def mount_data() -> None:
+    DATA.mkdir(exist_ok=True)
+    quiet(arguments=["mount", "-t", "ext4", str(BY_NAME / "userdata"), str(DATA)])
+
+
 def mount_sysfs() -> None:
     call(arguments=["mount", "-t", "tmpfs", "-o", "size=1m", "tmpfs", SYSFS])
     with SYSFS_LOG.open("a", encoding="utf-8") as log:
@@ -450,6 +516,15 @@ def mount_sysfs() -> None:
             message = f"{SYSFS} did not mount: {log_tail(path=SYSFS_LOG)}"
             raise OSError(message)
         time.sleep(0.05)
+
+
+def mounted_at(*, path: pathlib.Path) -> pathlib.Path | None:
+    device = path.resolve()
+    for line in pathlib.Path("/proc/mounts").read_text(encoding="utf-8").splitlines():
+        source, target = line.split()[:2]
+        if source.startswith("/dev/") and pathlib.Path(source).resolve() == device:
+            return pathlib.Path(target)
+    return None
 
 
 def mounted_read(
@@ -510,6 +585,13 @@ def prefix(*, path: pathlib.Path, size: int) -> str:
         return md5(data=file.read(size))
 
 
+def print_tree(*, name: str, root: pathlib.Path) -> None:
+    digest, lines = tree(path=root)
+    print(f"part {name} ext4 {digest} files={len(lines)}")
+    for line in lines:
+        print(f"file {name} {line}")
+
+
 def processes() -> dict[int, list[str]]:
     found = {}
     for entry in pathlib.Path("/proc").iterdir():
@@ -551,6 +633,18 @@ def ramdisk_default(*, slot: str) -> str:
                 return archive[body : body + size].decode(errors="replace")
             offset = (body + size + 3) & ~3
     return ""
+
+
+def register() -> None:
+    MOUNT.mkdir(exist_ok=True)
+    call(arguments=["mount", "-t", "ext4", str(BY_NAME / "userdata"), str(MOUNT)])
+    try:
+        for relative, data in SETUP.items():
+            path = MOUNT / relative
+            path.parent.mkdir(exist_ok=True, parents=True)
+            path.write_bytes(data)
+    finally:
+        quiet(arguments=["umount", str(MOUNT)])
 
 
 def release(*, device: str) -> None:
@@ -599,7 +693,10 @@ def snapshot() -> None:
         with path.open("rb") as file:
             file.seek(1080)
             magic = file.read(2)
-        if (
+        held = mounted_at(path=path)
+        if magic == b"\x53\xef" and held:
+            print_tree(name=path.name, root=held)
+        elif (
             magic == b"\x53\xef"
             and not subprocess.run(
                 ["mount", "-o", "ro", "-t", "ext4", str(path), str(MOUNT)],
@@ -608,15 +705,37 @@ def snapshot() -> None:
             ).returncode
         ):
             try:
-                digest, lines = tree(path=MOUNT)
+                print_tree(name=path.name, root=MOUNT)
             finally:
                 quiet(arguments=["umount", str(MOUNT)])
-            print(f"part {path.name} ext4 {digest} files={len(lines)}")
-            for line in lines:
-                print(f"file {path.name} {line}")
         else:
             with path.open("rb") as file:
                 print(f"part {path.name} raw {md5(data=file.read())}")
+
+
+def stage_setup() -> str:
+    staged = DATA / "csm2puffin"
+    for name in ("original/map", "migrated/map", "status-reports"):
+        (staged / name).mkdir(exist_ok=True, parents=True)
+    source = DATA / "data/com.amazon.imp/databases/map_data_storage_v2.db"
+    registration = source.read_bytes() if source.is_file() else b""
+    (staged / "original/map/map_data_storage_v2.db").write_bytes(registration)
+    moved = staged / "migrated/map/map.db"
+    moved.unlink(missing_ok=True)
+    if registration:
+        with contextlib.closing(sqlite3.connect(str(moved))) as database, database:
+            database.execute(
+                "CREATE TABLE deviceData (key TEXT PRIMARY KEY, value BLOB NOT NULL)"
+            )
+            database.executemany(
+                "INSERT INTO deviceData VALUES (?, ?)", MOVED_REGISTRATION
+            )
+    else:
+        moved.write_bytes(b"")
+    for report in REPORTS:
+        (staged / "status-reports" / report).write_text("1\n", encoding="utf-8")
+    (staged / "original/rollback_required.txt").touch()
+    return "MIGRATION_CSM_FINISH"
 
 
 def table() -> list[tuple[int, str, int, int]]:

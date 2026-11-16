@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import base64
+import contextlib
 import gzip
 import hashlib
 import io
 import itertools
+import re
+import shutil
+import sqlite3
 import subprocess
 import zipfile
 from typing import TYPE_CHECKING
@@ -12,7 +17,7 @@ import pytest
 from conftest import ADB_KEY
 
 from firebreak import fireos
-from firebreak.devices import BISCUIT, DONUT, TARGETS, biscuit
+from firebreak.devices import BISCUIT, DONUT, RADAR, TARGETS, biscuit
 from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
@@ -21,11 +26,13 @@ if TYPE_CHECKING:
     from conftest import FakeAdb
 
 BLOCK = 4096
+EC_OID = bytes.fromhex("06072a8648ce3d0201")
 MAGISK_FILES = {
     b"data/adb": (0o40700, b""),
     b"data/adb/magisk.db": (0o100600, b"database"),
     b"data/adb/magisk/magisk": (0o100755, b"binary"),
 }
+RSA_OID = bytes.fromhex("06092a864886f70d010101")
 
 
 @pytest.fixture
@@ -113,6 +120,69 @@ def magisk(*, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
+def migration(
+    *,
+    adb: FakeAdb,
+    fireos6: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    pushed: list[tuple[pathlib.Path, str]],
+    tmp_path: pathlib.Path,
+) -> dict[str, list[object]]:
+    bridge = tmp_path / "bridge.zip"
+    with zipfile.ZipFile(file=bridge, mode="w") as archive:
+        archive.writestr(data=b"K" * 5000, zinfo_or_arcname="boot.img")
+    package = fireos.BUILDS[BISCUIT][fireos.MIGRATE_BUILD]
+    monkeypatch.setattr(name="factory_reset", target=fireos.ARGUMENTS, value=False)
+    monkeypatch.setattr(
+        name="fetch",
+        target=fireos,
+        value=lambda **o: bridge if o["download"] is package else tmp_path / "br",
+    )
+    calls: dict[str, list[object]] = {"confirm": [], "system": []}
+    monkeypatch.setattr(
+        name="confirm", target=fireos, value=lambda **o: calls["confirm"].append(o)
+    )
+    monkeypatch.setattr(
+        name="system_image",
+        target=fireos,
+        value=lambda **o: (
+            calls["system"].append(o["package"])
+            or ([tmp_path / "system.00.gz"], "f" * 32, 8)
+        ),
+    )
+    monkeypatch.setattr(
+        name="write_system",
+        target=fireos,
+        value=lambda **o: calls["system"].append(o["system"]),
+    )
+    adb.answers["bcbtool get_active"] = [
+        f"0\n{slot}\nslot-ok" for slot in ("a", "a", "a", "a", "b", "b", "a", "a")
+    ]
+    adb.answers["build-ok"] = [
+        "mount-ok\nro.build.version.name=Fire OS 5.5.5.4 (680767620)\nbuild-ok"
+    ]
+    adb.answers["queue-clear"] = [
+        "queue-clear\nstaged\nMapMigrationSuccess=1\nWifiConfigSuccess=1\nstaged-ok"
+    ]
+    adb.answers["echo pending"] = ["mounted\npending\nmoving\nstaged-ok"]
+    adb.answers["migrated-ok"] = [
+        "boot=1 init=MIGRATION_PUFFIN_FINISH\nmap-ok\nmigrated-ok"
+    ]
+    adb.answers[fireos.VERIFIED_OK] = [f"true\n{fireos.VERIFIED_OK}"]
+    adb.answers["bs=4096 count=2"] = [lambda: md5(data=pushed[-1][0].read_bytes())]
+    moved = map_db(oid=RSA_OID, path=tmp_path / "moved.db")
+    adb.answers[fireos.SIGNED_OK] = [
+        f"{md5(data=moved.read_bytes())}  {fireos.MAP_DB}\n{fireos.SIGNED_OK}"
+    ]
+    adb.answers[f"> {fireos.MAP_DB}"] = [
+        lambda: f"{md5(data=pushed[-1][0].read_bytes())}  {fireos.MAP_DB}"
+    ]
+    adb.answers["map.db"] = [lambda: copied(source=moved, target=adb.asked[-1][-1])]
+    calls["waited"] = fireos6  # type: ignore[assignment]
+    return calls
+
+
+@pytest.fixture
 def pushed(*, monkeypatch: pytest.MonkeyPatch) -> list[tuple[pathlib.Path, str]]:
     sent: list[tuple[pathlib.Path, str]] = []
     monkeypatch.setattr(
@@ -143,8 +213,28 @@ def clock(*, monkeypatch: pytest.MonkeyPatch) -> list[float]:
     return slept
 
 
+def copied(*, source: pathlib.Path, target: str) -> str:
+    shutil.copyfile(source, target)
+    return ""
+
+
 def ended(*, rc: int) -> str:
     return f"{fireos.BOOT_ROOT_INSTALL}\nI:Updater process ended with RC={rc}\nzip-ok"
+
+
+def map_db(
+    *, oid: bytes, path: pathlib.Path, signature: bytes | None = None
+) -> pathlib.Path:
+    key = base64.b64encode(b"\x30\x82\x04\xbd\x02\x01\x00\x30\x0d\x06" + oid + b"KEY")
+    with contextlib.closing(sqlite3.connect(str(path))) as database, database:
+        database.execute(
+            "CREATE TABLE deviceData (key TEXT PRIMARY KEY, value BLOB NOT NULL)"
+        )
+        rows = [("registration_state", b"REGISTERED"), (fireos.PRIVATE_KEY, key)]
+        if signature is not None:
+            rows.append((fireos.SIGNATURE, signature))
+        database.executemany("INSERT INTO deviceData VALUES (?, ?)", rows)
+    return path
 
 
 def md5(*, data: bytes) -> str:
@@ -156,6 +246,59 @@ def package(*, data: bytes, path: pathlib.Path, transfer: str) -> pathlib.Path:
         archive.writestr(data=transfer, zinfo_or_arcname="system.transfer.list")
         archive.writestr(data=data, zinfo_or_arcname="system.new.dat")
     return path
+
+
+def signature(*, path: pathlib.Path) -> object:
+    with contextlib.closing(sqlite3.connect(str(path))) as database:
+        row = database.execute(
+            "SELECT value FROM deviceData WHERE key = ?", (fireos.SIGNATURE,)
+        ).fetchone()
+    return row and row[0]
+
+
+@pytest.mark.parametrize("waiting", ["migrated-ok", fireos.VERIFIED_OK])
+def test_a_4315_that_restarts_into_twrp_stops_the_wait_at_once(
+    *,
+    adb: FakeAdb,
+    migration: dict[str, list[object]],
+    monkeypatch: pytest.MonkeyPatch,
+    waiting: str,
+) -> None:
+    del migration
+    slept = clock(monkeypatch=monkeypatch)
+    adb.answers[waiting] = [waiting]
+    adb.answers["get-state"] = ["recovery", "device", "recovery"]
+    with pytest.raises(FatalError, match="restarted into TWRP while"):
+        fireos.stage_install_fireos6()
+    assert sum(slept) < fireos.SETUP_WAIT
+    assert adb.commands(holding="twrp install /sdcard/update.zip") == []
+
+
+def test_a_4315_wait_passes_over_the_twrp_it_restarted_from(
+    *, adb: FakeAdb, migration: dict[str, list[object]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del migration
+    clock(monkeypatch=monkeypatch)
+    adb.answers["build-ok"] = [
+        "mount-ok\nro.build.version.name=Fire OS 6.5.5.5 (NS6555/4315)\nbuild-ok"
+    ]
+    adb.answers["echo pending"] = ["mounted\nmoving\nstaged-ok"]
+    adb.answers["bcbtool get_active"] = [
+        f"0\n{slot}\nslot-ok" for slot in ("a", "a", "a", "b", "b", "a", "a")
+    ]
+    adb.answers["get-state"] = [
+        "recovery",
+        "error: no devices/emulators found",
+        subprocess.TimeoutExpired(cmd="adb", timeout=30),
+        "recovery",
+        "device",
+    ]
+    adb.answers[fireos.VERIFIED_OK] = [
+        *[fireos.VERIFIED_OK] * 4,
+        f"true\n{fireos.VERIFIED_OK}",
+    ]
+    fireos.stage_install_fireos6()
+    assert len(adb.commands(holding="twrp install /sdcard/update.zip")) == 2
 
 
 def test_a_boot_image_that_does_not_verify_stops_fire_os_5(
@@ -175,6 +318,46 @@ def test_a_boot_root_error_stops_the_run(*, adb: FakeAdb) -> None:
     adb.answers["boot-root.zip"] = ["Installing\n(!) Error: no space"]
     with pytest.raises(FatalError, match=r"boot-root\.zip failed: \(!\) Error"):
         fireos.stage_install_fireos6()
+
+
+@pytest.mark.parametrize(
+    ("said", "stops"),
+    [
+        ("boot=1 init=ROLLBACK\nmigrated-ok", "ended ROLLBACK."),
+        (
+            "boot=1 init=MIGRATION_PUFFIN_FINISH\nmigrated-ok",
+            "ended MIGRATION_PUFFIN_FINISH with no registration",
+        ),
+    ],
+)
+def test_a_migration_that_fails_stops_before_the_upgrade(
+    *,
+    adb: FakeAdb,
+    migration: dict[str, list[object]],
+    said: str,
+    stops: str,
+) -> None:
+    del migration
+    adb.answers["migrated-ok"] = [said]
+    with pytest.raises(FatalError, match=re.escape(stops)) as stopped:
+        fireos.stage_install_fireos6()
+    assert "--factory-reset" in stopped.value.message
+    assert adb.commands(holding="twrp install /sdcard/update.zip") == []
+
+
+def test_a_migration_that_never_ends_stops_after_ten_minutes(
+    *, adb: FakeAdb, migration: dict[str, list[object]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del migration
+    slept = clock(monkeypatch=monkeypatch)
+    adb.answers["migrated-ok"] = [
+        "boot= init=\nmigrated-ok",
+        subprocess.TimeoutExpired(cmd="adb", timeout=30),
+        "boot=1 init=MIGRATION_START\nmigrated-ok",
+    ]
+    with pytest.raises(FatalError, match="within 10 minutes"):
+        fireos.stage_install_fireos6()
+    assert sum(slept) > fireos.MIGRATE_WAIT
 
 
 @pytest.mark.parametrize(
@@ -225,6 +408,20 @@ def test_a_short_new_data_file_stops_the_build() -> None:
         )
 
 
+def test_a_staged_report_that_failed_asks_a_booted_dot_to_restart(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="target", target=fireos.ARGUMENTS, value=TARGETS[BISCUIT]["fireos6"]
+    )
+    adb.answers["queue-clear"] = [
+        "queue-clear\nstaged\nMapMigrationSuccess=0\nstaged-ok"
+    ]
+    with pytest.raises(FatalError, match="Restart it") as stopped:
+        fireos.check_staged(booted=True)
+    assert "MapMigrationSuccess did not succeed" in stopped.value.message
+
+
 def test_a_system_image_is_built_once_from_the_package(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
@@ -249,7 +446,12 @@ def test_a_system_image_is_built_once_from_the_package(
 
 
 @pytest.mark.parametrize(
-    "transfer", ["4\n4\n0\n0\nerase 2,0,4\nnew 2,0,2\n", "3\n4\n0\n0\nnew 2,0,2\n"]
+    "transfer",
+    [
+        "4\n4\n0\n0\nerase 2,0,4\nmove 2,0,2\n",
+        "3\n4\n0\n0\nerase 2,0,4\nnew 4,2,4,0,2\n",
+        "3\n4\n0\n0\nerase 2,0,4\n",
+    ],
 )
 def test_a_transfer_list_this_does_not_read_stops_the_build(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path, transfer: str
@@ -262,6 +464,24 @@ def test_a_transfer_list_this_does_not_read_stops_the_build(
             target=tmp_path / "system",
         )
     assert not (tmp_path / "system").exists()
+
+
+def test_a_version_4_list_with_zero_ranges_builds_the_system(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    data = b"S" * 2 * BLOCK
+    path = package(
+        data=data,
+        path=tmp_path / "bridge.bin",
+        transfer="4\n4\n0\n0\nnew 2,0,2\nzero 2,2,3\nerase 2,3,4\n",
+    )
+    monkeypatch.setattr(name="fetch", target=fireos, value=lambda **_: path)
+    slices, want, blocks = fireos.system_image(
+        package=fireos.Download(name="bridge.bin", sha256="cd" * 32, url="")
+    )
+    whole = b"".join(gzip.decompress(data=piece.read_bytes()) for piece in slices)
+    assert whole == data + bytes(2 * BLOCK)
+    assert (want, blocks) == (md5(data=whole), 4)
 
 
 def test_an_updater_hidden_on_a_later_try_waits_twice_as_long_each_time(
@@ -310,6 +530,39 @@ def test_erased_warns_when_the_delete_does_not_report_back(
     fireos.erased(path="/sdcard/x.zip", wiped=wiped)
     assert len(warnings) == warned
     assert ("if=/dev/zero" in adb.commands(holding="x.zip")[0]) == wiped
+
+
+def test_fire_os_5_5_5_4_moves_its_setup_through_4315_then_installs_the_target(
+    *,
+    adb: FakeAdb,
+    migration: dict[str, list[object]],
+    pushed: list[tuple[pathlib.Path, str]],
+) -> None:
+    fireos.stage_install_fireos6()
+    assert len(migration["confirm"]) == 1
+    assert migration["system"] == [
+        fireos.BUILDS[BISCUIT][fireos.MIGRATE_BUILD],
+        f"{fireos.BY_NAME}/system_a",
+    ]
+    assert [remote for _, remote in pushed] == [
+        "/tmp/boot.img",
+        "/sdcard/boot-root.zip",
+        "/tmp/adbkey.pub",
+        "/tmp/map.db",
+        "/sdcard/update.zip",
+        "/sdcard/update.zip",
+        "/sdcard/boot-root.zip",
+        "/tmp/adbkey.pub",
+    ]
+    assert f"of={fireos.BY_NAME}/boot_a" in adb.commands(holding="of=")[0]
+    assert len(adb.commands(holding=f"> {fireos.MAP_DB}")) == 1
+    assert adb.commands(holding="twrp wipe") == []
+    assert len(adb.commands(holding="twrp install /sdcard/update.zip")) == 2
+    assert len(adb.commands(holding="twrp install /sdcard/boot-root.zip")) == 2
+    assert ["adb", "reboot", "recovery"] in adb.asked
+    assert migration["waited"] == ["twrp", "twrp"]
+    assert fireos.PROGRESS.steps == fireos.PROGRESS.step
+    assert adb.asked[-1] == ["adb", "reboot"]
 
 
 def test_fire_os_5_before_the_preloader_takes_its_slot_and_does_not_reboot(
@@ -361,6 +614,309 @@ def test_fire_os_5_stops_where_a_script_fails(
     scripts["fail"] = fail
     with pytest.raises(FatalError, match=said):
         fireos.stage_install_fireos()
+
+
+@pytest.mark.parametrize(
+    ("key", "said", "stops"),
+    [
+        (
+            "build-ok",
+            "mount-ok\nro.build.version.name=Fire OS 5.5.4.9 (672720020)\nbuild-ok",
+            "holds Fire OS 5.5.4.9. Only Fire OS 5.5.5.4",
+        ),
+        ("queue-clear", "adb: device offline", "did not say whether"),
+        ("queue-clear", "staged\nMapMigrationSuccess=1\nstaged-ok", "queued"),
+        (
+            "queue-clear",
+            (
+                "queue-clear\nstaged\nMapMigrationSuccess=1\nWifiConfigSuccess=0\n"
+                "staged-ok"
+            ),
+            "WifiConfigSuccess did not succeed",
+        ),
+        (
+            "queue-clear",
+            "queue-clear\nMapMigrationSuccess=1\nstaged-ok",
+            "missing or incomplete",
+        ),
+        ("echo pending", "adb: device offline", "still has a setup to move"),
+    ],
+)
+@pytest.mark.usefixtures("migration")
+def test_fire_os_5_that_cannot_move_its_setup_stops_before_any_write(
+    *,
+    adb: FakeAdb,
+    key: str,
+    pushed: list[tuple[pathlib.Path, str]],
+    said: str,
+    stops: str,
+) -> None:
+    adb.answers[key] = [said]
+    if key == "echo pending":
+        adb.answers["build-ok"] = [
+            "mount-ok\nro.build.version.name=Fire OS 6.5.5.5 (NS6555/4315)\nbuild-ok"
+        ]
+    with pytest.raises(FatalError, match=re.escape(stops)):
+        fireos.stage_install_fireos6()
+    assert pushed == []
+    assert adb.commands(holding="of=") == []
+    assert adb.commands(holding="twrp wipe") == []
+
+
+def test_fire_os_6_4315_folds_a_moved_setup_s_wal_into_what_it_writes(
+    *,
+    adb: FakeAdb,
+    migration: dict[str, list[object]],
+    pushed: list[tuple[pathlib.Path, str]],
+    tmp_path: pathlib.Path,
+) -> None:
+    del migration
+    source = tmp_path / "source"
+    source.mkdir()
+    database = sqlite3.connect(str(source / "map.db"))
+    database.execute("PRAGMA journal_mode=WAL")
+    database.execute("PRAGMA wal_autocheckpoint=0")
+    database.execute(
+        "CREATE TABLE deviceData (key TEXT PRIMARY KEY, value BLOB NOT NULL)"
+    )
+    database.commit()
+    database.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    key = base64.b64encode(b"\x30\x82\x04\xbd\x02\x01\x00\x30\x0d\x06" + RSA_OID)
+    database.execute("INSERT INTO deviceData VALUES (?, ?)", (fireos.PRIVATE_KEY, key))
+    database.commit()
+    snapshot = tmp_path / "snapshot"
+    shutil.copytree(source, snapshot)
+    database.close()
+    files = {
+        f"{fireos.MAP_DB}{suffix}": snapshot / f"map.db{suffix}"
+        for suffix in ("", "-wal")
+    }
+    adb.answers[fireos.SIGNED_OK] = [
+        "\n".join(
+            f"{md5(data=file.read_bytes())}  {name}" for name, file in files.items()
+        )
+        + f"\n{fireos.SIGNED_OK}"
+    ]
+    adb.answers["map.db"] = [
+        lambda: copied(source=files[adb.asked[-1][-2]], target=adb.asked[-1][-1])
+    ]
+    kept = tmp_path / "written.db"
+    adb.answers[f"> {fireos.MAP_DB}"] = [
+        lambda: (
+            f"{copied(source=pushed[-1][0], target=str(kept))}"
+            f"{md5(data=kept.read_bytes())}  {fireos.MAP_DB}"
+        )
+    ]
+    fireos.sign_setup()
+    assert signature(path=kept) == b"SHA256WithRSA:1.0"
+    assert f"{fireos.MAP_DB}-wal" in adb.commands(holding=f"> {fireos.MAP_DB}")[0]
+
+
+def test_fire_os_6_4315_leaves_a_setup_that_already_signs(
+    *, tmp_path: pathlib.Path
+) -> None:
+    path = map_db(oid=RSA_OID, path=tmp_path / "map.db", signature=b"kept")
+    before = path.read_bytes()
+    assert not fireos.signature_added(path=path)
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("device", "said"),
+    [(BISCUIT, "mounted\nstaged-ok"), (RADAR, "mounted\nmoving\nstaged-ok")],
+)
+def test_fire_os_6_4315_never_moved_into_upgrades_as_any_older_build(
+    *,
+    adb: FakeAdb,
+    device: object,
+    migration: dict[str, list[object]],
+    monkeypatch: pytest.MonkeyPatch,
+    said: str,
+) -> None:
+    del migration
+    monkeypatch.setattr(
+        name="target", target=fireos.ARGUMENTS, value=TARGETS[device]["fireos6"]
+    )
+    adb.answers["build-ok"] = [
+        "mount-ok\nro.build.version.name=Fire OS 6.5.5.5 (NS6555/4315)\nbuild-ok"
+    ]
+    adb.answers["echo pending"] = [said]
+    adb.answers["bcbtool get_active"] = [
+        f"0\n{slot}\nslot-ok" for slot in ("a", "a", "b", "b", "a")
+    ]
+    fireos.stage_install_fireos6()
+    assert adb.commands(holding="start otad") == []
+    assert adb.commands(holding=fireos.SIGNED_OK) == []
+    assert len(adb.commands(holding="twrp install /sdcard/update.zip")) == 2
+
+
+def test_fire_os_6_4315_reads_a_device_key_stored_as_pem() -> None:
+    body = base64.b64encode(b"\x30\x82" + RSA_OID + b"KEY" * 40)
+    pem = b"\n".join([
+        b"-----BEGIN PRIVATE KEY-----",
+        body[:64],
+        body[64:],
+        b"-----END PRIVATE KEY-----",
+    ])
+    assert fireos.key_type(value=pem) == "RSA"
+
+
+@pytest.mark.parametrize(
+    ("oid", "value"),
+    [(RSA_OID, b"SHA256WithRSA:1.0"), (EC_OID, b"SHA256WithECDSA:1.0")],
+)
+def test_fire_os_6_4315_signs_its_moved_setup_with_its_key_s_algorithm(
+    *, oid: bytes, tmp_path: pathlib.Path, value: bytes
+) -> None:
+    path = map_db(oid=oid, path=tmp_path / "map.db")
+    assert fireos.signature_added(path=path)
+    assert signature(path=path) == value
+
+
+@pytest.mark.parametrize(
+    ("said", "pulled"),
+    [
+        (fireos.SIGNED_OK, True),
+        (f"{'0' * 32}  {fireos.MAP_DB}\n{fireos.SIGNED_OK}", True),
+        (None, False),
+    ],
+)
+def test_fire_os_6_4315_stops_on_a_moved_setup_it_cannot_read(
+    *,
+    adb: FakeAdb,
+    migration: dict[str, list[object]],
+    pulled: bool,
+    said: str | None,
+) -> None:
+    del migration
+    adb.answers["echo pending"] = ["staged-ok"]
+    if said is not None:
+        adb.answers[fireos.SIGNED_OK] = [said]
+    if not pulled:
+        adb.answers["map.db"] = [(1, "adb: error: remote object does not exist")]
+    with pytest.raises(FatalError, match="could not be read in TWRP"):
+        fireos.sign_setup()
+    assert adb.commands(holding=f"> {fireos.MAP_DB}") == []
+
+
+def test_fire_os_6_4315_stops_on_a_moved_setup_that_does_not_verify(
+    *, adb: FakeAdb, migration: dict[str, list[object]]
+) -> None:
+    del migration
+    adb.answers[f"> {fireos.MAP_DB}"] = [f"{'0' * 32}  {fireos.MAP_DB}"]
+    with pytest.raises(FatalError, match="did not verify"):
+        fireos.sign_setup()
+
+
+@pytest.mark.parametrize("oid", [b"", None])
+def test_fire_os_6_4315_stops_on_a_moved_setup_with_no_usable_key(
+    *,
+    adb: FakeAdb,
+    migration: dict[str, list[object]],
+    oid: bytes | None,
+    tmp_path: pathlib.Path,
+) -> None:
+    del migration
+    moved = tmp_path / "other.db"
+    if oid is None:
+        moved.write_bytes(b"not a database" * 100)
+    else:
+        map_db(oid=oid, path=moved)
+    adb.answers["build-ok"] = [
+        "mount-ok\nro.build.version.name=Fire OS 6.5.5.5 (NS6555/4315)\nbuild-ok"
+    ]
+    adb.answers["echo pending"] = ["mounted\nmoving\nverified\nstaged-ok"]
+    adb.answers[fireos.SIGNED_OK] = [
+        f"{md5(data=moved.read_bytes())}  {fireos.MAP_DB}\n{fireos.SIGNED_OK}"
+    ]
+    adb.answers["map.db"] = [lambda: copied(source=moved, target=adb.asked[-1][-1])]
+    with pytest.raises(FatalError, match="no device key") as stopped:
+        fireos.stage_install_fireos6()
+    assert "--factory-reset" in stopped.value.message
+    assert adb.commands(holding="twrp install /sdcard/update.zip") == []
+
+
+def test_fire_os_6_4315_stops_when_twrp_does_not_mount_data(
+    *, adb: FakeAdb, migration: dict[str, list[object]]
+) -> None:
+    del migration
+    adb.answers["build-ok"] = [
+        "mount-ok\nro.build.version.name=Fire OS 6.5.5.5 (NS6555/4315)\nbuild-ok"
+    ]
+    adb.answers["echo pending"] = ["staged-ok"]
+    with pytest.raises(FatalError, match="could not mount") as stopped:
+        fireos.stage_install_fireos6()
+    assert "--factory-reset" in stopped.value.message
+    assert adb.commands(holding="start otad") == []
+
+
+def test_fire_os_6_4315_that_never_finishes_its_setup_stops_after_five_minutes(
+    *, adb: FakeAdb, migration: dict[str, list[object]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del migration
+    slept = clock(monkeypatch=monkeypatch)
+    adb.answers[fireos.VERIFIED_OK] = [
+        fireos.VERIFIED_OK,
+        subprocess.TimeoutExpired(cmd="adb", timeout=30),
+        f"false\n{fireos.VERIFIED_OK}",
+    ]
+    with pytest.raises(FatalError, match="within 5 minutes") as stopped:
+        fireos.stage_install_fireos6()
+    assert "Wi-Fi" in stopped.value.message
+    assert sum(slept) > fireos.SETUP_WAIT
+    assert adb.commands(holding="stop otad") != []
+    assert adb.commands(holding="twrp install /sdcard/update.zip") == []
+
+
+def test_fire_os_6_4315_with_a_moved_setup_still_to_finish_finishes_it_first(
+    *, adb: FakeAdb, migration: dict[str, list[object]]
+) -> None:
+    del migration
+    adb.answers["build-ok"] = [
+        "mount-ok\nro.build.version.name=Fire OS 6.5.5.5 (NS6555/4315)\nbuild-ok"
+    ]
+    adb.answers["echo pending"] = ["mounted\nmoving\nstaged-ok"]
+    adb.answers["bcbtool get_active"] = [
+        f"0\n{slot}\nslot-ok" for slot in ("a", "a", "a", "b", "b", "a", "a")
+    ]
+    fireos.stage_install_fireos6()
+    assert adb.commands(holding="migrated-ok") == []
+    assert len(adb.commands(holding="start otad")) == 1
+    assert len(adb.commands(holding="stop otad")) == 1
+    assert len(adb.commands(holding="twrp install /sdcard/update.zip")) == 2
+
+
+def test_fire_os_6_4315_with_a_setup_still_to_move_starts_before_the_upgrade(
+    *, adb: FakeAdb, migration: dict[str, list[object]]
+) -> None:
+    adb.answers["build-ok"] = [
+        "mount-ok\nro.build.version.name=Fire OS 6.5.5.5 (NS6555/4315)\nbuild-ok"
+    ]
+    adb.answers["bcbtool get_active"] = [
+        f"0\n{slot}\nslot-ok" for slot in ("a", "a", "a", "b", "b", "a", "a")
+    ]
+    fireos.stage_install_fireos6()
+    assert migration["confirm"] == []
+    assert migration["system"] == []
+    assert len(adb.commands(holding="migrated-ok")) == 1
+    assert len(adb.commands(holding="twrp install /sdcard/update.zip")) == 2
+
+
+def test_fire_os_6_4315_with_no_setup_to_move_upgrades_at_once(
+    *, adb: FakeAdb, migration: dict[str, list[object]]
+) -> None:
+    del migration
+    adb.answers["build-ok"] = [
+        "mount-ok\nro.build.version.name=Fire OS 6.5.5.5 (NS6555/4315)\nbuild-ok"
+    ]
+    adb.answers["echo pending"] = ["mounted\nmoving\nverified\nstaged-ok"]
+    adb.answers["bcbtool get_active"] = [
+        f"0\n{slot}\nslot-ok" for slot in ("a", "a", "b", "b", "a")
+    ]
+    fireos.stage_install_fireos6()
+    assert adb.commands(holding="migrated-ok") == []
+    assert adb.commands(holding="start otad") == []
+    assert len(adb.commands(holding="twrp install /sdcard/update.zip")) == 2
 
 
 @pytest.mark.usefixtures("fireos6")
@@ -453,27 +1009,19 @@ def test_fire_os_6_installs_the_default_over_an_older_build_and_keeps_data(
     assert adb.asked[-1] == ["adb", "reboot"]
 
 
-@pytest.mark.parametrize(
-    "said",
-    [
-        "mount-ok\nbuild-ok",
-        "mount-ok\nro.build.version.name=Fire OS 5.5.5.4\nbuild-ok",
-    ],
-)
 @pytest.mark.usefixtures("fireos6")
 def test_fire_os_6_installs_where_no_fire_os_6_is_installed(
     *,
     adb: FakeAdb,
     monkeypatch: pytest.MonkeyPatch,
     pushed: list[tuple[pathlib.Path, str]],
-    said: str,
 ) -> None:
     monkeypatch.setattr(name="factory_reset", target=fireos.ARGUMENTS, value=False)
     monkeypatch.setattr(name="steps", target=fireos.PROGRESS, value=3)
     adb.answers["bcbtool get_active"] = [
         f"0\n{slot}\nslot-ok" for slot in ("a", "a", "b", "b", "a")
     ]
-    adb.answers["build-ok"] = [said]
+    adb.answers["build-ok"] = ["mount-ok\nbuild-ok"]
     fireos.stage_install_fireos6()
     assert [remote for _, remote in pushed] == [
         "/sdcard/update.zip",
@@ -841,6 +1389,56 @@ def test_fire_os_6_waits_out_an_adb_shell_that_hangs(
     assert adb.asked[-1] == ["adb", "reboot"]
 
 
+def test_leaving_an_older_fire_os_5_stops_before_the_reboot(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        name="target", target=fireos.ARGUMENTS, value=TARGETS[BISCUIT]["fireos6"]
+    )
+    adb.answers["ro.build.version.name"] = ["Fire OS 5.5.0.3 (564196920)"]
+    with pytest.raises(FatalError, match=re.escape("holds Fire OS 5.5.0.3")):
+        fireos.leave_fireos5(reboot=lambda: pytest.fail("rebooted"))
+
+
+@pytest.mark.parametrize("reset", [False, True])
+def test_leaving_fire_os_5_confirms_before_it_hides_or_clears_unless_reset(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch, reset: bool
+) -> None:
+    monkeypatch.setattr(
+        name="target", target=fireos.ARGUMENTS, value=TARGETS[BISCUIT]["fireos6"]
+    )
+    monkeypatch.setattr(name="factory_reset", target=fireos.ARGUMENTS, value=reset)
+    done: list[str] = []
+    monkeypatch.setattr(
+        name="hide_updater", target=fireos, value=lambda: done.append("hide")
+    )
+    monkeypatch.setattr(
+        name="confirm", target=fireos, value=lambda **_: done.append("confirm")
+    )
+    adb.answers["ro.build.version.name"] = ["Fire OS 5.5.5.4 (680767620)"]
+    adb.answers["queue-clear"] = [
+        "queue-clear\nstaged\nMapMigrationSuccess=1\nstaged-ok"
+    ]
+    fireos.leave_fireos5(reboot=lambda: done.append("reboot"))
+    assert done == (["reboot"] if reset else ["confirm", "hide", "reboot"])
+    staged = adb.commands(holding="queue-clear")
+    assert staged == ([] if reset else [staged[0]])
+    assert all(command.startswith("su -c '") for command in staged)
+
+
+def test_leaving_fire_os_5_on_a_radar_stops_before_the_reboot(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="factory_reset", target=fireos.ARGUMENTS, value=False)
+    monkeypatch.setattr(
+        name="target", target=fireos.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
+    )
+    adb.answers["ro.build.version.name"] = ["Fire OS 5.5.5.4 (680767620)"]
+    with pytest.raises(FatalError, match="only on the Echo Dot") as stopped:
+        fireos.leave_fireos5(reboot=lambda: pytest.fail("rebooted"))
+    assert "--factory-reset" in stopped.value.message
+
+
 @pytest.mark.usefixtures("magisk")
 def test_magisk_goes_in_as_a_cpio_and_is_read_back(
     *,
@@ -901,6 +1499,44 @@ def test_the_bboe_twrp_replaces_v1_1_0_s(
     with pytest.raises(FatalError, match="did not verify in recovery"):
         fireos.stage_replace_twrp()
     assert ["adb", "reboot", "recovery"] not in adb.asked
+
+
+@pytest.mark.parametrize(
+    ("reset", "confirmed", "installs"),
+    [(False, False, False), (False, True, True), (True, False, True)],
+)
+def test_the_fire_os_5_twrp_installs_only_after_the_booted_check_or_a_reset(
+    *, confirmed: bool, installs: bool, monkeypatch: pytest.MonkeyPatch, reset: bool
+) -> None:
+    monkeypatch.setattr(
+        name="target", target=fireos.ARGUMENTS, value=TARGETS[BISCUIT]["fireos6"]
+    )
+    monkeypatch.setattr(name="factory_reset", target=fireos.ARGUMENTS, value=reset)
+    fireos.SESSION.migration_confirmed = confirmed
+    ran: list[str] = []
+    if installs:
+        fireos.from_fireos5_twrp(install=lambda: ran.append("install"))
+        assert ran == ["install"]
+        return
+    with pytest.raises(FatalError, match="reboot") as stopped:
+        fireos.from_fireos5_twrp(install=lambda: ran.append("install"))
+    assert "nothing was written" in stopped.value.message
+    assert ran == []
+
+
+def test_the_migration_is_confirmed_once_per_run(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asked: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        name="confirm", target=fireos, value=lambda **o: asked.append(o)
+    )
+    fireos.SESSION.no_wait = True
+    fireos.confirm_migration()
+    fireos.confirm_migration()
+    assert len(asked) == 1
+    assert asked[0]["force"] is True
+    assert "Fire OS 6 4315" in str(asked[0]["what"])
 
 
 def test_the_system_image_fills_the_gaps_between_ranges_with_zeros() -> None:

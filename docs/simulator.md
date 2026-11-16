@@ -13,6 +13,7 @@ DEVICE=radar simulator/run.sh OUT unlock fireos6
 DEVICE=radar START=twrp simulator/run.sh OUT stock 6436
 DEVICE=radar START=no-light simulator/run.sh OUT short --device radar
 DEVICE=donut START=stock-booted simulator/run.sh OUT unlock fireos6
+START=fireos5 simulator/run.sh OUT unlock fireos6 --force
 FIREBREAK_SIM_ELEVATES=0 DEVICE=donut START=stock-booted simulator/run.sh OUT unlock fireos6
 DEVICE=donut START=twrp simulator/run.sh OUT stock 8349
 DEVICE=radar START=twrp simulator/run.sh OUT backup BACKUP
@@ -59,6 +60,12 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   gesture and waits: the simulator performs no gesture, which is the one entry
   the grid below can only check as far as the question. `bootrom` refuses that
   state outright, which it does check.
+- `START=fireos5` makes the Dot in stock fastboot and runs `unlock fireos5`
+  on it, into `OUT.fireos5.log`. Then `dot.py register` writes a MAP
+  database and a `wpa_supplicant.conf` into `userdata`, as setup does, and
+  restarts the Dot, so its Fire OS 5.5.5.4 copies that setup for Fire OS 6
+  before the target run starts. `--force` answers the question the move
+  asks, because firebreak's stdin is `/dev/null`.
 - `START=twrp` writes amonet v2's chain and starts its TWRP. `create` writes
   it with the same code the fastbrick does, from the same zip, so the Dot
   arrives where the fastbrick leaves it: v2's LK in both slots, v2's TEE in
@@ -284,6 +291,25 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   boots. A cache from before the folder named its device holds `stock-<build>`
   instead, which that glob does not match, so a Dot carrying an LK from one of
   those does not boot: clear the simulator's cache, or restore once more.
+- Fire OS 5, Fire OS 6 and TWRP 3.7.0 mount `userdata` at `/data` as they
+  start, as an Echo does. TWRP 3.2.3 does not: the rooting scripts mount it
+  there themselves. `twrp wipe data` unmounts it first and mounts it again
+  after.
+- Fire OS 5.5.5.4 copies the setup for Fire OS 6 as it starts, where an Echo
+  does it once the boot completes. It writes `/data/csm2puffin` as the real
+  `csm2puffin` leaves it: the MAP database in `original/map`, a `map.db` in
+  `migrated/map`, 12 `status-reports` that read 1 and
+  `original/rollback_required.txt`, and it sets
+  `com.amazon.csm2puffin.INIT` to `MIGRATION_CSM_FINISH`. The `map.db` is a
+  SQLite `deviceData` table with a registration state and an RSA device key
+  and, as the real conversion leaves it, no `signature_algorithm`. It is not
+  converted from the MAP database. Without a MAP database it is empty.
+- Fire OS 6 4310, 4313 and 4315 with root adb finish the move as they start:
+  with `rollback_required.txt` and a non-empty `map.db`, they copy it to
+  `/data/ace/kvstorage/map.db`, delete `original` and `migrated`, and set
+  `MIGRATION_PUFFIN_FINISH`. With an empty one they set
+  `MIGRATION_PUFFIN_FAIL`, and the rollback that follows on an Echo is not
+  modelled. A 4315 without root adb is not entered, so it moves nothing.
 - The build comes from `build.prop` at the root of `system_X`, where Fire
   OS 5 keeps it, or from `system/build.prop`, where Fire OS 6's
   system-as-root image keeps it.

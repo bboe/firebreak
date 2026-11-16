@@ -1280,13 +1280,13 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
         "fireos6": shared
         | {
             state.AMONET_FIREOS5_BBOE_TWRP: (
-                install,
+                (route.from_fireos5_twrp, {"install": install}),
                 4,
                 state.UNLOCKED_TWRP,
                 frozenset(),
             ),
             state.AMONET_FIREOS5_TWRP: (
-                install,
+                (route.from_fireos5_twrp, {"install": install}),
                 4,
                 state.UNLOCKED_TWRP,
                 frozenset(),
@@ -1305,9 +1305,13 @@ def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) 
             ),
         }
         | {
-            rooted: reboots[rooted]
-            for rooted in {*route.FIREOS5_ROOTED, state.UNLOCKED_BOOTED}
-        },
+            rooted: (
+                (route.leave_fireos5, {"reboot": reboots[rooted][0]}),
+                *reboots[rooted][1:],
+            )
+            for rooted in route.FIREOS5_ROOTED
+        }
+        | {state.UNLOCKED_BOOTED: reboots[state.UNLOCKED_BOOTED]},
         "stock": shared
         | dict.fromkeys(
             route.TWRPS, (route.stage_restore, 16, state.STOCK_BOOTED, route.TWRPS)

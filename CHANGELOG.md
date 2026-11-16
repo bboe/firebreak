@@ -4,6 +4,20 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
+### Changed
+
+- `unlock fireos6` moves an Echo Dot (2nd Generation) on Fire OS 5.5.5.4 to
+  Fire OS 6 and keeps its setup, Wi-Fi and Alexa registration included,
+  where it erased it. It takes Amazon's own route: it installs the bridge
+  build 4315, starts it once so Amazon's migration moves the setup and 4315
+  finishes its own setup online, then installs 8349 over it. Amazon's
+  migration leaves out the signing algorithm 8349 needs to reach Alexa, so
+  firebreak adds it before 8349 goes on. It asks first, and keeps Amazon's
+  updates off at each step.
+  Any other Fire OS 5, and an Echo (2nd Generation) on Fire OS 5, stops with
+  nothing written; `--factory-reset` erases it as before.
+- `unlock` takes `--force`, which answers that question.
+
 ### Fixed
 
 - `unlock fireos5` asked for the fastboot gesture when the rooted Fire OS 5 it

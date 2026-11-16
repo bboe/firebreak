@@ -147,6 +147,7 @@ class Session:
     fastboot: bool = False
     hardware_code: int | None = None
     held: bool = False
+    migration_confirmed: bool = False
     named: str = ""
     no_wait: bool = False
     probing: bool = False

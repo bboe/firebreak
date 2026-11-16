@@ -95,11 +95,23 @@ def main() -> int:
 
 def wipe(*, part: str) -> int:
     name = {"data": "userdata"}.get(part, part)
+    mounted = (
+        part == "data"
+        and not subprocess.run(
+            ["umount", "/data"], capture_output=True, check=False
+        ).returncode
+    )
     subprocess.run(
         ["mke2fs", "-q", "-F", "-t", "ext4", str(BY_NAME / name)],
         capture_output=True,
         check=True,
     )
+    if mounted:
+        subprocess.run(
+            ["mount", "-t", "ext4", str(BY_NAME / name), "/data"],
+            capture_output=True,
+            check=True,
+        )
     print(f"Wiping {part}... Done.")
     return 0
 

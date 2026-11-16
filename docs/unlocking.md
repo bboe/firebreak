@@ -1650,11 +1650,11 @@ unlock's, not the stock bytes.
   given 8349 over it in 6 steps: 3 min 16 s and 4 min 16 s. On each, a
   marker file and `wpa_supplicant.conf`'s md5 survived, it was online after
   the boot, and `/sdcard` held no zip.
-- A slot with no Fire OS 6, as after the route from amonet v1.1.0, leaves
-  nothing to keep, so the run installs the target's build as
-  `--factory-reset` does. The OTA downloads in the background either way. A
-  read without its `build-ok` marker stops the run: a USB drop must not lead
-  to a wipe.
+- A slot with neither Fire OS 5 nor Fire OS 6 leaves nothing to keep, so the
+  run installs the target's build as `--factory-reset` does. A slot with Fire
+  OS 5 takes the move below, or stops. The OTA downloads in the background
+  either way. A read without its `build-ok` marker stops the run: a USB drop
+  must not lead to a wipe.
 - Patching in place keeps userdata, and `boot-root.zip`'s own
   `init.fosflags.sh` keeps adb on where stock's turns it off once the Echo is
   registered. Measured 2026-10-18 on stock 8149 set up in the Alexa app: 78 s
@@ -1797,6 +1797,150 @@ unlock's, not the stock bytes.
 - No target shorts anything. `firebreak short` parks the Echo in
   its bootrom, and the target run after that writes the chain its resume
   writes and continues from that TWRP like any other.
+
+### Install: Fire OS 5 to Fire OS 6, keeping the setup
+
+Read on 2026-11-15 from the OTAs, from the stock `/system` of biscuits
+5.5.5.4, 4315 and 8349, and measured the same day on one rooted 5.5.5.4 Dot,
+restored from its backup between runs. A whole run took 6 min 35 s, and 4315
+moved the setup in 37 s.
+
+- Amazon moves a Dot through one bridge. Its update server offers every Fire
+  OS 5 build 5.5.5.4, and 5.5.5.4 the build named `migrate-pill
+  (NS6555/4315)`, on biscuit and on radar. 4310 and 4313 are named that way
+  too, but the server offers only 4315. Its updater-script asserts
+  `ro.product.device` is `biscuit`, Fire OS 5's value, writes the other
+  slot's system, boot, LK and TEE and boot0, and does not touch userdata.
+- 5.5.5.4 prepares the setup. On every boot, `init.csm.project.rc` starts
+  `csm2puffin.sh`, which copies MAP's `map_data_storage_v2.db`, the Wi-Fi
+  configuration, the settings, the alarms and the smart home databases into
+  `/data/csm2puffin/original`. Then `csm2puffin` converts them into
+  `/data/csm2puffin/migrated`, `map.db` among them, and writes one
+  `status-reports/*Success` file per part. It also leaves
+  `original/rollback_required.txt`. On the rooted Dot, all 12 reports read
+  1 and `com.amazon.csm2puffin.INIT` read `MIGRATION_CSM_FINISH`.
+- 4315 finishes it. On its first boot, `csm2puffin.sh` sees
+  `rollback_required.txt`, runs `csm2puffin` and waits up to 50 seconds for
+  `migration_success.txt`. Then it copies `map.db` to
+  `/data/ace/kvstorage/map.db`, the registration, deletes `original` and
+  `migrated`, and sets `MIGRATION_PUFFIN_FINISH`. On failure it sets
+  `MIGRATION_PUFFIN_FAIL`, and its rollback service switches to the other
+  slot.
+- So without `--factory-reset`, a slot that holds Fire OS 5.5.5.4 takes that
+  path. firebreak writes 4315's boot and then its system to the active slot,
+  installs `boot-root.zip` over them and blocks updates there, starts it, and
+  waits up to 10 minutes for `MIGRATION_PUFFIN_FINISH` and a non-empty
+  `map.db`. Then it restarts into TWRP and installs the target over userdata
+  as for an older Fire OS 6.
+- 4315's LK, TEE and preloader are not written. They would replace amonet's
+  chain, and 4315 runs rooted under amonet's LK: the 2026-11-06 restores
+  rooted 4310 to 4315 in place.
+- `boot-root.zip` goes on before 4315 first starts, for three reasons. Its
+  `init.fosflags.sh` keeps adb on, where stock turns it off once the Echo is
+  registered, and the migration registers it. Its root adb lets the run read
+  the migration's progress. And the update block stops `otad` taking 4315
+  to 8349 by itself mid-move. 4315's `otad` is in `/init.mt8163_amazon.rc`,
+  where that block looks, and its `update_engine` is `disabled` already.
+- With `otad` off, 4315 does not reach Alexa's cloud. Its `PuffinApp` waits
+  for setup to complete, and setup asks `otad` for updates every 20 s.
+  When `otad` was started by hand, 4315 connected and answered a request.
+  Its `RollbackHandler` then set `persist.puffin.verify_migration` to
+  `true`, and nothing was downloaded: `update_engine` is `disabled` and the
+  update hosts point at `127.0.0.1`.
+- 8349 needs that setup finished. Measured on 2026-11-16, twice from the
+  Fire OS 5 backup: when 4315 had not connected, 8349's first boot had no
+  wake word or earcon assets. Its setup went from `INITIALIZING` to
+  `DOWNLOADING_ASSETS`, downloaded them in 4 s, and then asked `otad` for
+  updates every 20 s. 8349's `otad` is off too, so setup never finished, the
+  cloud stayed `ACL_DISABLED` and the ring spun yellow. A reboot fixed it,
+  because the assets were then on disk: setup went straight to
+  `SETUP_COMPLETE` and the cloud connected 8 s later. A 4315 that had
+  connected first gave an 8349 that connected on its first boot.
+- So after the move, firebreak starts `otad` on 4315 and waits up to 5
+  minutes for `persist.puffin.verify_migration` to read `true`, then stops
+  `otad`. 4315 needs Wi-Fi and Alexa's cloud for that, so a Dot with neither
+  stops there, before 8349 is written. In TWRP the flag is
+  `/data/property/persist.puffin.verify_migration`, and a slot that already
+  holds 4315 without it gets the same step. Its `rollback_required.txt` is
+  gone, so the run starts 4315 for that and does not wait for a move.
+  Measured on the Dot from the Fire OS 5 backup, 2026-11-16: the step took
+  73 s and nothing was downloaded. 8349's first boot still passed through
+  `DOWNLOADING_ASSETS`, but found the assets on disk in 70 ms, and the cloud
+  connected 2 s later. The whole run took 7 min 06 s.
+- The move leaves `map.db` without `signature_algorithm`, and 8349 does not
+  reach Alexa's cloud without it. Its ring spins yellow. MAP writes that key
+  only when it stores a private key: on a registration, or on a reply to
+  `getDeviceCredentials`, which `tokend` asks for only when `map.db` has no
+  device name, and the move keeps the name. Amazon can also send a
+  credential transfer through the Dot's TODO queue, but 4315's queue held
+  nothing. MAP reads the key from 7577 on; 4315 to 6813 send
+  `SHA256WithRSA:1.0` as a constant. Amazon's server sends 4315 straight to
+  8349.
+- So in TWRP after the move, firebreak adds the key. It pulls `map.db`,
+  adds `SHA256WithRSA:1.0` or `SHA256WithECDSA:1.0` as the device key's type
+  says, the value 8349's `SHA256With%s:1.0` gives it, and writes it back
+  in place, so the owner and SELinux label stay. Neither Fire OS 6 nor TWRP
+  has `sqlite3`, so the edit runs on the computer. A slot that already holds
+  4315 gets the same step. On the Dot, 8349 connected 20 s after it started.
+- A `map.db-wal` or `map.db-journal` that is not empty beside it is pulled
+  too, each checked by md5. SQLite on the computer then does what the Echo
+  would on its next open: it applies the WAL's committed pages, and it rolls
+  a hot journal's unfinished change back. After the write the run deletes
+  them and `map.db-shm`, which SQLite rebuilds, on the Echo, where 8349 would
+  otherwise replay a stale one over the edit. A run
+  reaches TWRP with no checkpoint, so stopping on them could repeat on every
+  run. None was there after 4315 restarted on the Dot.
+- The check that the setup is ready runs while the Dot still runs rooted
+  Fire OS 5, before the reboot into TWRP. The chain written after that
+  reboot is amonet v2.0.1's, and Fire OS 5 does not start on it, so a check
+  that failed in TWRP would leave the Dot only an erase. It runs again in
+  TWRP, for an Echo that reached TWRP another way.
+- So a run that finds the Dot already in its Fire OS 5 chain's TWRP, as
+  `backup` and `twrp` leave it, writes nothing there unless it passed the
+  check from Fire OS 5 itself or has `--factory-reset`. It stops and says to
+  run `reboot` first.
+- The check also hides `com.amazon.device.software.ota` and deletes
+  `/cache/recovery/command` and `/data/ota_package/*.bin`. A queued update
+  is 4315 itself, and TWRP could install it on its way in, LK, TEE and
+  preloader included. Both come after the question below, so an answer of no
+  leaves Fire OS 5 as it was.
+- Fire OS 5 other than 5.5.5.4 stops the run before its system and data are
+  written. Amazon's
+  route from it goes through 5.5.5.4 first, which firebreak does not do yet.
+  A 5.5.5.4 whose reports are missing, or not all 1, stops the run too.
+- radar stops the run on any Fire OS 5, before its system and data are
+  written. A run that reached TWRP through the bootrom has written the unlock
+  chain by then, so the next run needs `--factory-reset`. Amazon offers
+  radar its own 4315, but the route was measured only on biscuit. radar
+  runs amonet-radar's chain, and its 4315 and 5.5.5.4 were not read.
+- Each move is asked for first: `Type yes to continue`, or `--force`. It
+  takes two more boots and the 4315 write, where `--factory-reset` takes
+  neither.
+- A run stopped after the 4315 write finds 4315 in the slot. While
+  `rollback_required.txt` is still there, it starts 4315 again for the move
+  before the upgrade. Boot goes first because the run reads a slot's build
+  from its system: a run stopped between the two writes finds Fire OS 5 and
+  writes both again, where the other order would start 4315's system on
+  Fire OS 5's kernel.
+- Both waits on 4315 stop at once when the Echo comes back in TWRP after it
+  has left it. Measured on a Dot on 2026-11-16, powered from a laptop's USB
+  port while the laptop ran on battery: Fire OS 6 stopped reading its eMMC
+  16 to 33 s into a boot, as Wi-Fi and audio started, with `mmc0` timeouts,
+  a 3.3 V regulator error and `I/O error` on every `execve`. init restarted
+  into recovery once `servicemanager` had died 4 times, and the 10-minute
+  wait ran out with the Dot sitting in TWRP. TWRP read the same eMMC clean.
+  With the laptop on its charger the Dot booted again, and a run started
+  from that TWRP went on and passed. The TWRP the run restarted
+  from can still answer for a moment, so recovery counts only after adb has
+  seen the Echo out of it, a line of `adb get-state` that reads `device`. An
+  Echo that drops off USB, an offline state, an error or a timeout does not
+  count. The setup wait inherits that from the move wait, which only returns
+  once 4315 has started.
+- Only a slot whose data shows the move takes these steps:
+  `rollback_required.txt` or `migration_success.txt` under `/data/csm2puffin`.
+  A 4315 that never ran Amazon's move, from `stock 4315` or on radar, is
+  upgraded like any older Fire OS 6. TWRP mounts `/data` for the read, and a
+  `/data` that does not mount stops the run.
 
 ## Back to stock: the stock target
 

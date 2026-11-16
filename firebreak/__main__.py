@@ -179,7 +179,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-wait",
         "--verbose",
     ]
-    rooting = ["--factory-reset", "--no-update-check", "--verbose"]
+    rooting = ["--factory-reset", "--force", "--no-update-check", "--verbose"]
     every = sorted({"--credits", "--device", *navigating, *restoring, *rooting})
     uses = {
         BACKUP: navigating,
@@ -578,7 +578,7 @@ def parsed() -> argparse.Namespace:
         SURVEY: set(),
         TWRP: {"force"},
         WRITE_TEST: set(),
-    }.get(options.command, {"factory_reset"})
+    }.get(options.command, {"factory_reset", "force"})
     for option in sorted(
         {
             "device",

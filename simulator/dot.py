@@ -1084,6 +1084,7 @@ def main() -> int:
     commands.add_parser("destroy")
     commands.add_parser("halt")
     commands.add_parser("plug")
+    commands.add_parser("register")
     commands.add_parser("unplug")
     commands.add_parser("snapshot")
     commands.add_parser("status")
@@ -1364,6 +1365,16 @@ def refuse_real_caches() -> None:
         raise SystemExit(message)
 
 
+def register() -> None:
+    with locked():
+        state = load()
+        settle(state=state)
+        sim_boot(action="register", state=state)
+        record(entry={"event": "registered"})
+        reboot(into="system", state=state)
+        save(state=state)
+
+
 def request_reboot(*, delay: float = BOOT_SECONDS, into: str) -> None:
     with locked():
         state = load()
@@ -1634,6 +1645,7 @@ POWER = {
     "destroy": destroy,
     "halt": halt,
     "plug": plug,
+    "register": register,
     "unplug": unplug,
 }
 

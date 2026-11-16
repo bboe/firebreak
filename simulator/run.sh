@@ -1,5 +1,5 @@
 #!/bin/sh
-# Usage: [DEVICE=radar|donut] [START=no-light|twrp|stock-booted] simulator/run.sh OUT TARGET [FLAG...]
+# Usage: [DEVICE=radar|donut] [START=no-light|twrp|stock-booted|fireos5] simulator/run.sh OUT TARGET [FLAG...]
 # Create a fresh simulated Dot, or with DEVICE=radar an Echo (2nd
 # Generation) and with DEVICE=donut an Echo Dot (3rd Generation), whose
 # button is held into its bootrom when firebreak asks, in stock fastboot or,
@@ -7,6 +7,8 @@
 # unplugged with boot0 erased and plugged in when firebreak asks for the
 # short. START=twrp starts it unlocked with amonet v2, in that TWRP, and
 # START=stock-booted starts the stock Fire OS, which answers no adb.
+# START=fireos5 runs `unlock fireos5` first, into OUT.fireos5.log, then gives
+# that rooted Fire OS 5.5.5.4 a setup to keep and restarts it.
 # Run firebreak to TARGET with FLAGs, under the simulator's
 # virtualenv and with the simulator first on PATH, and leave
 # OUT.log, OUT.jsonl, OUT.txt, OUT.snapshot and OUT.table. Destroy the Dot
@@ -32,9 +34,10 @@ trap finish EXIT
 trap 'exit 130' HUP INT QUIT TERM
 FIREBREAK_SIM_SPEED=${FIREBREAK_SIM_SPEED:-20}
 export FIREBREAK_SIM_SPEED
-python3 "$here/dot.py" create --device "$device" --runner $$ --start "$start" >/dev/null || exit 1
+created=$start
+[ "$start" = fireos5 ] && created=fastboot
+python3 "$here/dot.py" create --device "$device" --runner $$ --start "$created" >/dev/null || exit 1
 python=$work/venv/bin/python
-set -- env PYTHONPATH="$here/.." "$python" -m firebreak "$target" --no-update-check "$@"
 PATH="$here/bin:$PATH"
 export PATH
 [ "$(command -v adb)" = "$here/bin/adb" ] || { echo "adb is not the simulator's" >&2; exit 2; }
@@ -42,6 +45,13 @@ export PATH
 command -v timeout >/dev/null || { echo "run.sh needs timeout (coreutils)" >&2; exit 2; }
 "$python" -c 'import sys; sys.exit(not any(type(f).__module__ == "firebreak_sim_ports" for f in sys.meta_path))' \
     || { echo "the virtualenv's port hook is not active" >&2; exit 2; }
+if [ "$start" = fireos5 ]; then
+    PYTHONUNBUFFERED=1 XDG_CACHE_HOME=$cache timeout 1500 env PYTHONPATH="$here/.." \
+        "$python" -m firebreak unlock fireos5 --no-update-check < /dev/null > "$out.fireos5.log" 2>&1 \
+        || { echo "unlock fireos5 failed: see $out.fireos5.log" >&2; exit 1; }
+    "$python" "$here/dot.py" register >/dev/null || exit 1
+fi
+set -- env PYTHONPATH="$here/.." "$python" -m firebreak "$target" --no-update-check "$@"
 : > "$out.log"
 if [ "$start" = no-light ] || [ "$device" = donut ]; then
     (
