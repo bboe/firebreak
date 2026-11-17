@@ -363,11 +363,47 @@ def test_a_fastbrick_refuses_an_echo_that_is_not_the_target_s_device(
 
 
 @pytest.mark.parametrize(
+    ("fields", "hint"),
+    [
+        ({"short_gesture": "", "thread": "https://xda"}, False),
+        ({"short_gesture": "Short it.", "thread": ""}, True),
+    ],
+)
+def test_a_fastbrick_that_does_not_start_suggests_only_what_the_device_has(
+    *,
+    adb: FakeAdb,
+    fields: dict[str, str],
+    hint: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    device = dataclasses.replace(BISCUIT, **fields)
+    monkeypatch.setattr(name="current_device", target=unlock, value=lambda: device)
+    monkeypatch.setattr(
+        name="FASTBRICKS", target=unlock, value={device: unlock.FASTBRICKS[BISCUIT]}
+    )
+    monkeypatch.setattr(
+        name="LK_VALUES", target=unlock, value={device: unlock.LK_VALUES[BISCUIT]}
+    )
+    brick(
+        adb=adb,
+        little_kernel="f379dba-20170906_000423",
+        monkeypatch=monkeypatch,
+        tmp_path=tmp_path,
+    )
+    adb.answers["fastbrick.img"] = ["FAILED (remote: 'unknown')"]
+    with pytest.raises(FatalError) as stopped:
+        unlock.stage_fastbrick()
+    assert ("`firebreak short" in stopped.value.message) is hint
+    assert "https://xda" not in stopped.value.message
+
+
+@pytest.mark.parametrize(
     ("said", "message"),
     [
         ("FAILED (remote: 'eMMC-RO')", "eMMC is read-only"),
         ("FAILED (remote: 'Device mismatch')", "refused this device"),
-        ("FAILED (remote: 'unknown')", "did not start after 10 attempts"),
+        ("FAILED (remote: 'unknown')", "did not start on the bootloader"),
     ],
 )
 def test_a_fastbrick_that_fails_leaves_the_dot_unmodified(
@@ -388,6 +424,9 @@ def test_a_fastbrick_that_fails_leaves_the_dot_unmodified(
     with pytest.raises(FatalError, match=message) as stopped:
         unlock.stage_fastbrick()
     assert "not modified" in stopped.value.message
+    if "did not start" in message:
+        assert "`firebreak short --device biscuit`" in stopped.value.message
+        assert "xdaforums.com" in stopped.value.message
 
 
 def test_a_fastbrick_whose_timeout_says_nothing_still_started(
@@ -438,8 +477,8 @@ def test_a_too_new_bootloader_names_the_device_and_the_lk(
     assert caught.value.message == (
         "firebreak cannot unlock this Echo Dot (2nd Generation) from fastboot. LK"
         " abcdef0-20991231_235959 is newer than any firebreak knows how to unlock."
-        " `firebreak short` holds its bootrom instead, and the run after that"
-        " unlocks it from there."
+        " `firebreak short --device biscuit` holds its bootrom instead, and the"
+        " run after that unlocks it from there."
     )
     monkeypatch.setattr(
         name="target", target=unlock.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
@@ -447,7 +486,7 @@ def test_a_too_new_bootloader_names_the_device_and_the_lk(
     with pytest.raises(FatalError) as refused:
         unlock.newer_than_known(little_kernel="abcdef0-20991231_235959")
     assert "Echo (2nd Generation)" in refused.value.message
-    assert "bootrom" not in refused.value.message
+    assert "`firebreak short --device radar`" in refused.value.message
 
 
 def test_a_v2_fastboot_that_refuses_the_restart_names_the_button(

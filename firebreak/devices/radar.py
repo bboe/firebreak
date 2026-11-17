@@ -124,7 +124,15 @@ RADAR = dataclasses.replace(
     models=frozenset({"AEORD", "Echo (2nd Gen)"}),
     name="radar",
     product="RADAR",
-    short_gesture="",
+    short_gesture=(
+        "Open the Echo through step 8 of iFixit's main board guide, leaving the"
+        " board in, and lift the shield's lid off the eMMC. Short the passive"
+        " between R60 and C52, beside the eMMC, to the shield frame, then plug"
+        " the cable in with the short held. Do not use C52, which is a"
+        " capacitor."
+        " https://www.ifixit.com/Guide/Amazon+Echo+2nd+Generation+MLB+Board+Replacement/114704"
+    ),
+    thread="https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-2nd-gen-2017-radar.4801290/",
     title="Echo (2nd Generation)",
 )
 

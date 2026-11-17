@@ -31,28 +31,39 @@
   `VS2022\MS64\dll\libusb-1.0.dll` from `%TEMP%\libusb.7z` into
   `%LOCALAPPDATA%\Programs\libusb` with 7-Zip, and keep its folders.
 
-## An Echo Dot (2nd Generation) with no light
+## An Echo Dot (2nd Generation) or Echo (2nd Generation) with no light
 
-Use `firebreak short` when the Dot shows no light and gives no fastboot. It
-reaches the Dot's bootrom by shorting its eMMC bus as it powers up, and holds
-it there. The run after it joins that payload with no second short, so this is
-how a target run starts on a Dot that cannot reach fastboot.
+Use `firebreak short` when the Echo shows no light and gives no fastboot, or
+when its bootloader is one no fastbrick unlocks. It reaches the Echo's bootrom
+by shorting its eMMC bus as it powers up, and holds it there. The run after it
+joins that payload with no second short, so this is how a target run starts
+on an Echo that cannot reach fastboot.
 
-1. Open the Dot with a Torx T8 screwdriver. Lift the shield's lid off the eMMC
+The short does not apply to an Echo Dot (3rd Generation), and `short` refuses
+one. Run the target you want, such as `uvx firebreak@latest unlock`, and when
+it asks, hold the action button from before you plug it in until the run says
+the bootrom answered. That reaches its bootrom with the case closed.
+
+1. Open the Echo with a Torx T8 screwdriver. On an Echo (2nd Generation),
+   follow [iFixit's main board
+   guide](https://www.ifixit.com/Guide/Amazon+Echo+2nd+Generation+MLB+Board+Replacement/114704)
+   through step 8, and leave the board in. Lift the shield's lid off the eMMC
    by its corners; its metal frame stays on the board.
 2. Find the passive marked in [this
    photo](https://xdaforums.com/attachments/short2-jpg.6273804/), in the row
    between R60 and C52 beside the eMMC ([where that is on the
    board](https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/)). Do not
-   use C52, which is a capacitor.
-3. With the Dot unplugged, run
-   `uvx firebreak@latest short --device biscuit`.
+   use C52, which is a capacitor. An Echo (2nd Generation) has the same parts
+   in the same place, on a board marked `30-002527`.
+3. With the Echo unplugged, run
+   `uvx firebreak@latest short --device biscuit` on a Dot, or
+   `uvx firebreak@latest short --device radar` on an Echo (2nd Generation).
 4. When firebreak prints "Short … test point and plug it in", hold a wire from
-   that passive to the shield frame beside it, which is ground, and plug the Dot
-   in. A Dot plugged in before that message can go unseen. On "Short … missed",
-   unplug it and try again.
+   that passive to the shield frame beside it, which is ground, and plug the
+   Echo in. An Echo plugged in before that message can go unseen. On "Short …
+   missed", unplug it and try again.
 5. Take the wire off when firebreak prints "The short may come off now".
-6. Leave the Dot plugged in, and run the target you want, such as
+6. Leave the Echo plugged in, and run the target you want, such as
    `uvx firebreak@latest unlock`. A power cycle loses the hold.
 
 ## An Echo rooted by an older firebreak

@@ -310,9 +310,11 @@ FLASH_BBOE_TWRP = FastbootFlash(
 )
 PAYLOAD_SEEK = 223207
 SHORT_GESTURE = (
-    "Open the base and short the eMMC data line at the passives beside R60,"
-    " as Andy Goetz's teardown shows, then plug the cable in with the short"
-    " held. https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/"
+    "Open the base, as Andy Goetz's teardown shows, and lift the shield's lid"
+    " off the eMMC. Short the passive between R60 and C52, beside the eMMC, to"
+    " the shield frame, then plug the cable in with the short held. Do not use"
+    " C52, which is a capacitor."
+    " https://andygoetz.org/blog/2022/05/echo-dot-v2-dumping-emmc/"
 )
 STOCK_LAYOUT = StockLayout(partitions=16)
 
@@ -325,6 +327,7 @@ BISCUIT = Device(
     name="biscuit",
     product="BISCUIT",
     short_gesture=SHORT_GESTURE,
+    thread="https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/",
     title="Echo Dot (2nd Generation)",
 )
 V1_1_0_SOURCE = Download(

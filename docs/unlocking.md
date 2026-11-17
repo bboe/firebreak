@@ -465,14 +465,30 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - `short` reads better with `--device`. Nothing on USB says which Echo is
   dark, and the run has to name the test point before the owner shorts it, so
   that name can only come from the command line.
-- Where the test point is differs by device, and nothing else about the short
-  does: both are MT8163, both answer the same bootrom, and amonet ships one
-  payload for the two. So `short` refuses nothing. A device whose test point
-  no one has found, which today is radar, and a run that names no device at
-  all, are both told that firebreak cannot say where to short it, and the run
-  waits for a bootrom anyway. Nothing is written while it waits, and the
-  bootloader read names the Echo afterwards, so `--device` only picks whose
-  test point to describe.
+- Where the test point is can differ by device, and nothing else about the
+  short does: both are MT8163, both answer the same bootrom, and amonet ships
+  one payload for the two. So `short` refuses nothing. A device whose test
+  point no one has found, and a run that names no device at all, are both told
+  that firebreak cannot say where to short it, and the run waits for a bootrom
+  anyway. Nothing is written while it waits, and the bootloader read names the
+  Echo afterwards, so `--device` only picks whose test point to describe.
+- radar's test point is where biscuit's is, the passive between R60 and C52
+  beside the eMMC. Rortiz2's amonet-radar instructions short it, and a photo
+  of a radar board, `30-002527 REV 01`, read on 2026-11-17, shows the same
+  parts. firebreak has not run `short` on a radar itself.
+- The row between R60 and C52 is the eMMC's CMD, CLK and DAT0, in that order
+  from R60, and C52 sits on its VCC. Grounding any of the three breaks the
+  preloader's read, which is all the short needs; grounding C52 shorts the
+  eMMC's supply instead, which is why both devices' gestures exclude it.
+  Labelled on biscuit's board, `30-002148 REV 01`, in Moran and Hyde's
+  [OSDFCon 2017 slides](https://www.osdfcon.org/presentations/2017/Moran_Hyde-Alexa-are-you-skynet.pdf),
+  slide 25. No source labels radar's row.
+- The short does not apply to a donut, and `short` refuses one. Its action
+  button, held from before the cable goes in, stops its bootrom in download
+  mode, `0e8d:0003`, before any preloader runs, so a broken preloader does
+  not keep it out. Nothing here has shorted one. Giese and Noubir's WiSec
+  2021 paper maps a donut's eMMC lines for reading the flash with the SoC
+  held off, not for a bootrom short.
 - amonet takes any port that appears after it lists the ports at start. So
   `short` asks for the short only once amonet logs that it is waiting, and
   sends no reset first: an Echo plugged in earlier would be in that list and
@@ -1516,6 +1532,10 @@ unlock's, not the stock bytes.
 - A flash that returns means the exploit did not start, so it is retried, up to
   10 times. A flash still running after 8 seconds means the exploit is running:
   the script stops fastboot and leaves the Echo to reach TWRP.
+- After 10 returns no other image is tried, because a wrong payload runs wrong
+  code. The bootrom does not care which LK is there, so a device with a test
+  point is pointed at `short`, with `--device` so that `short` can say where
+  the point is, and at its XDA thread when it has one.
 - `eMMC-RO` or `Device mismatch` means the payload refused, and the Echo is
   unchanged.
 - `fastbrick.img` unlocked a stock radar on its Fire OS 6 LK,

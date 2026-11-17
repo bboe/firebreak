@@ -376,8 +376,9 @@ def test_a_recovery_that_does_not_answer_names_no_device(
 
 def test_a_short_gesture_names_where_to_short_the_device_it_is_given() -> None:
     assert "R60" in identify.short_gesture(device=BISCUIT)
-    assert "No one has found the Echo (2nd Generation)'s test point" in (
-        identify.short_gesture(device=RADAR)
+    assert "R60" in identify.short_gesture(device=RADAR)
+    assert "No one has found the Echo Show 8 (1st Generation)'s test point" in (
+        identify.short_gesture(device=CROWN)
     )
     assert "without --device: biscuit, donut, radar" in identify.short_gesture(
         device=None

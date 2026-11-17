@@ -223,7 +223,9 @@ does.
   on 2026-11-17: a 2017 LK in no OTA here, with an 8-digit commit and no
   anti-rollback versions at all. Git lengthens an abbreviated commit past 7
   digits when 7 are not unique, so firebreak reads 7 or 8, the longest seen.
-  No fastbrick image is mapped to that LK, and none has been tried on it.
+  No fastbrick image is mapped to that LK. The default `fastbrick.img` was
+  tried on it the same day, from Windows: all 10 flashes returned, so the
+  exploit did not start and the Echo was not modified.
 - `fastbrick-20221007.img` unlocked a radar on `63cb91b-20221007_073612`,
   2026-11-01, on the first flash: a locked 8149 reached TWRP 32 s after a 13 s
   fastbrick and rooted in place in 1 min 16 s. v1.0.0 gave that LK the default

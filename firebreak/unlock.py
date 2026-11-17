@@ -185,8 +185,8 @@ def newer_than_known(*, little_kernel: str) -> None:
     raise FatalError(
         message=f"firebreak cannot unlock this {device.title} from fastboot. LK"
         f" {little_kernel} is newer than any firebreak knows how to unlock."
-        " `firebreak short` holds its bootrom instead, and the run after that"
-        " unlocks it from there."
+        f" `firebreak short --device {device.name}` holds its bootrom instead,"
+        " and the run after that unlocks it from there."
     )
 
 
@@ -273,7 +273,8 @@ def stage_downgrade() -> bool:
 
 
 def stage_fastbrick() -> None:
-    fastbrick = FASTBRICKS[current_device()]
+    device = current_device()
+    fastbrick = FASTBRICKS[device]
     check_product()
     little_kernel = getvar(name="lk_build_desc", strict=True)
     if not little_kernel and getvar(name="pl_build_desc", strict=True):
@@ -307,10 +308,18 @@ def stage_fastbrick() -> None:
         if started:
             PROGRESS.begin(estimate=40, label="waiting for TWRP")
             return
-    raise FatalError(
-        message=f"the unlock did not start after 10 attempts, with {image} for"
-        f" the bootloader {little_kernel}; the {title()} was not modified"
+    message = (
+        f"{image} did not start on the bootloader {little_kernel}; the"
+        f" {title()} was not modified."
     )
+    if device.short_gesture:
+        message += (
+            " You may try the short approach instead: unplug it, then run"
+            f" `firebreak short --device {device.name}`."
+        )
+        if device.thread:
+            message += f" The XDA thread explains it: {device.thread}"
+    raise FatalError(message=message)
 
 
 def stage_fireos5_recovery() -> bool:

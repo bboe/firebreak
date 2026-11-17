@@ -55,7 +55,8 @@ where the test point is and what to open to reach it. A device whose test
 point no one has found leaves `short_gesture` empty, and `short` says so and
 waits for its bootrom anyway, because it writes nothing while it waits. Only
 the location differs: the bootrom behind it is the same part on every device
-here.
+here. `thread` is the device's XDA thread. A fastbrick that does not start
+points to it, and to `short`, when the device has both.
 
 A device firebreak can unlock lists the LK build descriptions it knows: the
 rows of its Builds table in [devices.md](devices.md), and any an Echo has

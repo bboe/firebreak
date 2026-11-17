@@ -2,6 +2,16 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+- `short --device radar` says where an Echo (2nd Generation)'s test point is:
+  the same passive as an Echo Dot (2nd Generation)'s. Both name it the same
+  way, and warn off C52 beside it.
+- A fastbrick that does not start points to `short` and the device's XDA
+  thread.
+
 ## 1.4.2 - 2026-11-17
 
 ### Changed

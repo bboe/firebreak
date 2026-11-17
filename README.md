@@ -265,8 +265,8 @@ OS 5 that lets in the computer's key.
 ## Documentation
 
 - [docs/troubleshooting.md][troubleshooting]: USB and cable problems, Windows
-  limits, an Echo Dot (2nd Generation) with no light, and an Echo rooted by an
-  older firebreak.
+  limits, an Echo Dot (2nd Generation) or Echo (2nd Generation) with no light,
+  and an Echo rooted by an older firebreak.
 - [docs/unlocking.md][unlocking]: why each step is there.
 - [docs/measurements.md][measurements]: the ring at each step, so you can tell
   where a run has got to.

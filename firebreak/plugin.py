@@ -36,6 +36,7 @@ class Device:
     named_by_bootloader: bool = True
     recovery_command: bytes = b""
     short_gesture: str = ""
+    thread: str = ""
     twrp_models: frozenset[str] = frozenset()
     unlock_keeps_misc: bool = False
 

@@ -177,6 +177,7 @@ DONUT = Device(
     product="DONUT",
     recovery_command=BOOT_RECOVERY,
     short_gesture=BUTTON_GESTURE,
+    thread="https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-3rd-gen-2018-donut.4801400/",
     title="Echo Dot (3rd Generation)",
     unlock_keeps_misc=True,
 )
