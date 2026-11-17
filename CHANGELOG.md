@@ -4,6 +4,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
+### Changed
+
+- Support moved to `#firebreak-support` in the 0x7E Labs Discord, and asks
+  for the failed run's own output as well as `report`'s.
+
 ### Fixed
 
 - `unlock` stopped on an Echo (2nd Generation) whose bootloader reports an
