@@ -219,6 +219,11 @@ does.
   was not read before the unlock replaced it. firebreak has no OTA for 6071,
   so `unlock` refuses to root it in place, and `--factory-reset` took it to
   rooted 8149 in 4 min 12 s.
+- Another radar's stock fastboot gave `ae269a7b-20170719_072038`, reported
+  on 2026-11-17: a 2017 LK in no OTA here, with an 8-digit commit and no
+  anti-rollback versions at all. Git lengthens an abbreviated commit past 7
+  digits when 7 are not unique, so firebreak reads 7 or 8, the longest seen.
+  No fastbrick image is mapped to that LK, and none has been tried on it.
 - `fastbrick-20221007.img` unlocked a radar on `63cb91b-20221007_073612`,
   2026-11-01, on the first flash: a locked 8149 reached TWRP 32 s after a 13 s
   fastbrick and rooted in place in 1 min 16 s. v1.0.0 gave that LK the default

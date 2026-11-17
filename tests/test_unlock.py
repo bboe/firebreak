@@ -68,8 +68,13 @@ def guard(
     return read
 
 
-def test_a_bootloader_older_than_the_newest_known_is_let_through() -> None:
-    assert unlock.newer_than_known(little_kernel="abcdef0-20170101_000000") is None
+@pytest.mark.parametrize(
+    "little_kernel", ["abcdef0-20170101_000000", "ae269a7b-20170719_072038"]
+)
+def test_a_bootloader_older_than_the_newest_known_is_let_through(
+    *, little_kernel: str
+) -> None:
+    assert unlock.newer_than_known(little_kernel=little_kernel) is None
 
 
 def test_a_device_that_lists_no_bootloader_refuses_the_one_it_is_given(

@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from firebreak.plugin import Device, FireOs5Chain, Target, Unlock
 
 BY_NAME = "/dev/block/platform/mtk-msdc.0/by-name"
-LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7}-\d{8}_\d{6}")
+LITTLE_KERNEL_DESCRIPTION = re.compile(pattern=r"[0-9a-f]{7,8}-\d{8}_\d{6}")
 SUPPORTED = (biscuit.CONFIG, crown.CONFIG, donut.CONFIG, radar.CONFIG)
 ADB_OFF_BUILDS: dict[Device, frozenset[str]] = {
     config.device: config.adb_off_builds for config in SUPPORTED

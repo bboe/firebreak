@@ -2,6 +2,14 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Fixed
+
+- `unlock` stopped on an Echo (2nd Generation) whose bootloader reports an
+  8-digit commit, `ae269a7b-20170719_072038`, saying it could not read the
+  version. It now reads a commit of 7 or 8 digits.
+
 ## 1.4.1 - 2026-11-16
 
 ### Fixed
