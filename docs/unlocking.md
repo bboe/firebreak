@@ -808,6 +808,13 @@ unlock's, not the stock bytes.
 - Measured on every device and host: a donut on macOS, 2026-11-08; biscuits on
   Windows, Linux and macOS and a radar on Linux, 2026-11-09. A biscuit's
   backup took 669 MiB and a radar's 403 MiB.
+- Each partition is read twice, once by the Echo's `md5sum` and once by the
+  pull, then hashed and compressed on the computer. So a step runs well
+  under the 20 MiB/s of a pull alone, and the estimate uses 5.5 MiB/s.
+  Measured on a biscuit with rooted Fire OS 5.5.5.4 on macOS, 2026-11-16:
+  3,600 MiB over its eight largest partitions took 648 s, 5.6 MiB/s, and each
+  ran at 4.6 to 6.9 MiB/s. None matched an OTA, so all were compressed. The
+  whole backup took 11 min 05 s.
 
 ### Restoring a backup
 

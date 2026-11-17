@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- `backup` estimated each partition from the speed of a pull alone, so a
+  step took 3 to 4 times its estimate. It now uses the rate a whole backup
+  measured.
 - Two steps of `unlock fireos6`'s move from Fire OS 5 pushed their estimate
   and check mark out of line. They are renamed `waiting for 4315's migration`
   and `waiting for 4315 to reach Alexa`, which also says what each waits for.

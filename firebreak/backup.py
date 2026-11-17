@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from firebreak.cache import Download
     from firebreak.plugin import Device
 
+BACKUP_RATE = 11 << 19
 BOOT_AREAS = ("boot0", "boot1")
 CATALOGS = pathlib.Path(__file__).parent / "devices"
 CHUNK = 1 << 20
@@ -36,7 +37,6 @@ FORMAT = 1
 IDENTITY_OK = "identity-ok"
 LABEL = re.compile(r"Fire OS (?:6 )?(\S+)")
 MANIFEST = "backup.json"
-PULL_RATE = 20 << 20
 READ_OK = "read-ok"
 
 
@@ -327,7 +327,7 @@ def scanned(*, images: list[Image], path: pathlib.Path) -> tuple[list[Image], st
 def stored(
     *, area: Area, folder: pathlib.Path, images: list[Image]
 ) -> tuple[dict, list[Image]]:
-    estimate = max(1, area.size // PULL_RATE) if area.size else 0
+    estimate = max(1, area.size // BACKUP_RATE) if area.size else 0
     PROGRESS.begin(estimate=estimate, label=f"record {area.name}")
     local = folder / f"{area.name}.img.part"
     size, md5, sha256, matches = checked_read(area=area, images=images, local=local)
