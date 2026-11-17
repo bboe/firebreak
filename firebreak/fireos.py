@@ -432,9 +432,7 @@ def erased(*, path: str, wiped: bool) -> None:
 
 
 def finish_setup(*, since: float) -> None:
-    PROGRESS.begin(
-        estimate=60, label=f"waiting for Fire OS 6 {MIGRATE_BUILD} to finish its setup"
-    )
+    PROGRESS.begin(estimate=60, label=f"waiting for {MIGRATE_BUILD} to reach Alexa")
     deadline = time.monotonic() + SETUP_WAIT
     try:
         while True:
@@ -1025,7 +1023,7 @@ def twrp_by_fastboot(*, command: bytes) -> None:
 def wait_migrated(*, since: float) -> None:
     PROGRESS.begin(
         estimate=90,
-        label=f"waiting for Fire OS 6 {MIGRATE_BUILD} to move the setup",
+        label=f"waiting for {MIGRATE_BUILD}'s migration",
     )
     deadline = time.monotonic() + MIGRATE_WAIT
     while True:

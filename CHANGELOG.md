@@ -2,6 +2,14 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Fixed
+
+- Two steps of `unlock fireos6`'s move from Fire OS 5 pushed their estimate
+  and check mark out of line. They are renamed `waiting for 4315's migration`
+  and `waiting for 4315 to reach Alexa`, which also says what each waits for.
+
 ## 1.4.0 - 2026-11-16
 
 ### Changed
