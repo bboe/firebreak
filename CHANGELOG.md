@@ -11,6 +11,8 @@ This project adheres to [Semantic Versioning](https://semver.org).
   way, and warn off C52 beside it.
 - A fastbrick that does not start points to `short` and the device's XDA
   thread.
+- An unlock that roots an Echo ends by crediting the unlock's author, Roger
+  Ortiz, with links to support that work and to the unlock's XDA thread.
 
 ## 1.4.2 - 2026-11-17
 

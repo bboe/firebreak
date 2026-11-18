@@ -58,6 +58,12 @@ the location differs: the bootrom behind it is the same part on every device
 here. `thread` is the device's XDA thread. A fastbrick that does not start
 points to it, and to `short`, when the device has both.
 
+An unlock's `author` is an `Author`: a name, a home page, and the links that
+take support for the work. An unlock run that reaches its goal after it
+changed the Echo credits the author and gives the device's `thread`. That
+includes a rooted Echo the run installs Fire OS 6 on again. A run that finds
+the Echo already at its goal, and changes nothing, does not.
+
 A device firebreak can unlock lists the LK build descriptions it knows: the
 rows of its Builds table in [devices.md](devices.md), and any an Echo has
 reported that no OTA there ships. The fastbrick stage refuses a bootloader it

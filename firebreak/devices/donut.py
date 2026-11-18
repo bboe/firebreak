@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from firebreak.cache import Download
+from firebreak.devices.authors import RORTIZ2
 from firebreak.plugin import (
     BOOT0,
     Device,
@@ -193,6 +194,7 @@ SOURCE = Download(
     url="https://xdaforums.com/attachments/kamakiri-donut-v1-0-0-zip.6384586/",
 )
 KAMAKIRI_V1_0_0 = Unlock(
+    author=RORTIZ2,
     device=DONUT,
     family="kamakiri",
     plan=(

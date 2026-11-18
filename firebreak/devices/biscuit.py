@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 
 from firebreak.cache import Download
+from firebreak.devices.authors import RORTIZ2
 from firebreak.layouts import BootMovedLayout, StockLayout
 from firebreak.plugin import (
     BOOT0,
@@ -340,6 +341,7 @@ V1_1_0_SOURCE = Download(
     url="https://xdaforums.com/attachments/amonet-biscuit-v1-1-0-zip.6331296/",
 )
 UNLOCK_TO_FIREOS5 = Unlock(
+    author=RORTIZ2,
     device=BISCUIT,
     family="amonet",
     files={"twrp": BBOE_RECOVERY},
@@ -416,6 +418,7 @@ WRITE_KAERU = Write(image="bin/biscuit-kaeru.bin", label="write kaeru", target="
 
 
 UNLOCK_TO_FIREOS6 = Unlock(
+    author=RORTIZ2,
     device=BISCUIT,
     family="amonet",
     fastbricks={

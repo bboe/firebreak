@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import functools
 import types
 
@@ -8,7 +9,7 @@ import pytest
 from firebreak import route, stock, twrp, unlock
 from firebreak.devices import BISCUIT, DONUT, RADAR, TARGETS, biscuit, radar
 from firebreak.devices.biscuit import BUILDS
-from firebreak.plugin import ClearBoot0Header
+from firebreak.plugin import Author, ClearBoot0Header
 
 
 class RanOutError(Exception):
@@ -338,6 +339,22 @@ def test_a_dot_rooted_before_the_lock_says_only_that_it_has_root_adb(
     out = said(capsys=capsys)
     assert "rooted: Fire OS 6.5.7.4, with root adb." in out
     assert "locked" not in out
+    assert BISCUIT.thread not in out
+
+
+def test_a_dot_that_reaches_fire_os_5_names_its_unlock_s_thread(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, run: Run
+) -> None:
+    twrp = route.State.AMONET_FIREOS5_BBOE_TWRP
+    table = {
+        twrp: route.Stage(
+            run=lambda: None, steps=1, then=route.State.AMONET_FIREOS5_BBOE_BOOTED
+        )
+    }
+    monkeypatch.setattr(name="stages", target=route, value=lambda: table)
+    run.states = [twrp, route.State.AMONET_FIREOS5_BBOE_BOOTED]
+    route.root()
+    assert BISCUIT.thread in said(capsys=capsys)
 
 
 def test_a_dot_that_stays_dark_after_boot_root_asks_for_a_power_cycle(
@@ -656,6 +673,15 @@ def test_a_rooted_dot_given_factory_reset_reinstalls_from_twrp(
     assert ran == ["reboot", "install"]
     assert "runs rooted Fire OS 6 on an unlocked bootloader. Rebooting it" in out
     assert "rooted: Fire OS 6.5.7.4, with root adb" in out
+    assert (
+        "amonet, the unlock this run used, is the work of Roger Ortiz (Rortiz2):"
+        " https://github.com/R0rt1z2 If this tool helped bring new life to an old"
+        " device, consider supporting Roger's continued unlocking work:"
+        " - https://www.paypal.com/paypalme/R0rt1z2/ - https://ko-fi.com/r0rt1z2"
+        " - https://github.com/sponsors/R0rt1z2 Unlock thread for the Echo Dot (2nd"
+        " Generation):"
+        f" {BISCUIT.thread}"
+    ) in out
 
 
 def test_a_rooted_dot_on_an_older_build_installs_the_default_from_twrp(
@@ -1226,6 +1252,42 @@ def test_a_v2_0_0_dot_that_refuses_the_restart_is_told_about_its_button(
     with pytest.raises(RanOutError):
         route.root()
     assert "hold the + button while you plug it back in" in said(capsys=capsys)
+
+
+@pytest.mark.parametrize(
+    ("author", "thread", "expected"),
+    [
+        (None, "", ""),
+        (
+            None,
+            "https://xda",
+            "Unlock thread for the Echo Dot (2nd Generation):\nhttps://xda\n",
+        ),
+        (
+            Author(home="https://home", name="A", short_name="A"),
+            "",
+            "amonet, the unlock this run used, is the work of A: https://home\n",
+        ),
+    ],
+)
+def test_an_unlock_credits_only_what_it_has(
+    *,
+    author: Author | None,
+    capsys: pytest.CaptureFixture[str],
+    expected: str,
+    thread: str,
+) -> None:
+    target = TARGETS[BISCUIT]["fireos6"]
+    assert target.unlock is not None
+    route.credit_note(
+        target=dataclasses.replace(
+            target,
+            device=dataclasses.replace(BISCUIT, thread=thread),
+            unlock=dataclasses.replace(target.unlock, author=author),
+        )
+    )
+    route.credit_note(target=dataclasses.replace(target, unlock=None))
+    assert capsys.readouterr().out == expected
 
 
 def test_each_target_has_its_route_s_stages(*, monkeypatch: pytest.MonkeyPatch) -> None:

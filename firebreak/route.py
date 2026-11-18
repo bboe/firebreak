@@ -89,7 +89,7 @@ from firebreak.unlock import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
-    from firebreak.plugin import Device, Unlock
+    from firebreak.plugin import Device, Target, Unlock
 
     Need = Download | Callable[[], object]
 
@@ -167,6 +167,30 @@ def bootrom_chain() -> Chain:
 
 def bootrom_needs(*, unlock: Unlock) -> tuple[Need, ...]:
     return (unlock.source, FASTBRICKS[ARGUMENTS.target.device].source)
+
+
+def credit_note(*, target: Target) -> None:
+    unlock = target.unlock
+    if unlock is None:
+        return
+    blocks = []
+    if unlock.author:
+        blocks.append(
+            f"{unlock.family}, the unlock this run used, is the work of"
+            f" {unlock.author.name}: {unlock.author.home}"
+        )
+        if unlock.author.support:
+            blocks.append(
+                "If this tool helped bring new life to an old device, consider"
+                f" supporting {unlock.author.short_name}'s continued unlocking"
+                " work:\n" + "\n".join(f"  - {link}" for link in unlock.author.support)
+            )
+    if target.device.thread:
+        blocks.append(
+            f"Unlock thread for the {target.device.title}:\n{target.device.thread}"
+        )
+    if blocks:
+        show(text="\n\n".join(blocks))
 
 
 def fireos5_stages() -> dict[State, Stage]:
@@ -652,6 +676,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 seen = None
                 continue
             warn(text=f"The {title()} is rooted: {version}, with root adb{locked()}.")
+            if done:
+                credit_note(target=target)
             cache_note()
             return
         if target.unlock is None and (
@@ -722,6 +748,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                 text=f"The {title()} is rooted: {version}, SELinux {selinux},"
                 f" {UPDATER} hidden{locked()}."
             )
+            if done:
+                credit_note(target=target)
             cache_note()
             return
         if (

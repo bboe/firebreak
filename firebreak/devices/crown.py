@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from firebreak.cache import Download
+from firebreak.devices.authors import RORTIZ2
 from firebreak.plugin import (
     BOOT0,
     ClearBoot0Header,
@@ -20,6 +21,7 @@ CROWN = Device(
     models=frozenset({"AEOCW"}),
     name="crown",
     product="CROWN",
+    thread="https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-show-8-1st-gen-2019-crown.4766687/",
     title="Echo Show 8 (1st Generation)",
     twrp_models=frozenset({"Echo Show 8"}),
 )
@@ -34,6 +36,7 @@ SOURCE = Download(
     url="https://xdaforums.com/attachments/amonet-crown-v2-0-1-zip.6373841/",
 )
 AMONET_V2_0_1 = Unlock(
+    author=RORTIZ2,
     device=CROWN,
     family="amonet",
     plan=(

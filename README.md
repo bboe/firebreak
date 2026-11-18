@@ -12,6 +12,12 @@ where it left off.
 > - [Echo Dot (2nd Generation), biscuit](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-2nd-gen-2016-biscuit.4761416/)
 > - [Echo (2nd Generation), radar](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-2nd-gen-2017-radar.4801290/)
 > - [Echo Dot (3rd Generation), donut](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-3rd-gen-2018-donut.4801400/)
+>
+> To support that work:
+>
+> - [PayPal](https://www.paypal.com/paypalme/R0rt1z2/)
+> - [Ko-fi](https://ko-fi.com/r0rt1z2)
+> - [GitHub Sponsors](https://github.com/sponsors/R0rt1z2)
 
 ## Quick start
 
@@ -296,6 +302,10 @@ firebreak automates work that other people did first.
   [Echo Dot (3rd Generation)](https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-3rd-gen-2018-donut.4801400/).
   The `bboe` TWRP is a fork of
   [their TWRP tree](https://github.com/R0rt1z2/twrp_device_amazon_echo-mt8163).
+  Rortiz2 takes support for that work through
+  [PayPal](https://www.paypal.com/paypalme/R0rt1z2/),
+  [Ko-fi](https://ko-fi.com/r0rt1z2) and
+  [GitHub Sponsors](https://github.com/sponsors/R0rt1z2).
 - AntiEngineer helped find the pins and bring up UART on a Dot.
 - [topjohnwu](https://github.com/topjohnwu/Magisk) wrote Magisk, which roots
   Fire OS 5.

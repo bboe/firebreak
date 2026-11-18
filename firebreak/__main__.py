@@ -91,6 +91,10 @@ Rortiz2 also wrote amonet-radar and kamakiri-donut, the unlocks for the Echo
 (2nd Generation) and the Echo Dot (3rd Generation).
   https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-2nd-gen-2017-radar.4801290/
   https://xdaforums.com/t/unlock-root-twrp-unbrick-amazon-echo-dot-3rd-gen-2018-donut.4801400/
+Rortiz2 takes support for that work.
+  https://www.paypal.com/paypalme/R0rt1z2/
+  https://ko-fi.com/r0rt1z2
+  https://github.com/sponsors/R0rt1z2
 AntiEngineer helped find the pins and bring up UART on a Dot.
 topjohnwu wrote Magisk, which roots Fire OS 5.
   https://github.com/topjohnwu/Magisk

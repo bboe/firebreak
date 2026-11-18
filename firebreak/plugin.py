@@ -17,6 +17,14 @@ BOOT0 = "boot0"
 
 
 @dataclasses.dataclass(frozen=True)
+class Author:
+    home: str
+    name: str
+    short_name: str
+    support: tuple[str, ...] = ()
+
+
+@dataclasses.dataclass(frozen=True)
 class ClearBoot0Header:
     label: str = "clear the preloader header (boot0)"
 
@@ -164,6 +172,7 @@ class Unlock:
     requires: frozenset[Feature]
     source: Download
     version: str
+    author: Author | None = None
     fastbricks: dict[str, str] = dataclasses.field(default_factory=dict)
     files: dict[str, Download] = dataclasses.field(default_factory=dict)
     layout: Layout | None = None
