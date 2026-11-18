@@ -176,21 +176,27 @@ def credit_note(*, target: Target) -> None:
     blocks = []
     if unlock.author:
         blocks.append(
-            f"{unlock.family}, the unlock this run used, is the work of"
-            f" {unlock.author.name}: {unlock.author.home}"
+            filled(
+                text=f"{unlock.family}, the unlock this run used, is the work of"
+                f" {unlock.author.name}: {unlock.author.home}"
+            )
         )
         if unlock.author.support:
             blocks.append(
-                "If this tool helped bring new life to an old device, consider"
-                f" supporting {unlock.author.short_name}'s continued unlocking"
-                " work:\n" + "\n".join(f"  - {link}" for link in unlock.author.support)
+                filled(
+                    text="If this tool helped bring new life to an old device,"
+                    f" consider supporting {unlock.author.short_name}'s continued"
+                    " unlocking work:"
+                )
+                + "".join(f"\n  - {link}" for link in unlock.author.support)
             )
     if target.device.thread:
         blocks.append(
-            f"Unlock thread for the {target.device.title}:\n{target.device.thread}"
+            filled(text=f"Unlock thread for the {target.device.title}:")
+            + f"\n{target.device.thread}"
         )
     if blocks:
-        show(text="\n\n".join(blocks))
+        show(text="\n\n".join(blocks) + "\n")
 
 
 def fireos5_stages() -> dict[State, Stage]:

@@ -109,7 +109,22 @@ def test_cache_note(
     cache.cache_note()
     said = capsys.readouterr().out
     assert said.startswith("~/cache holds 3 MB of downloads")
-    assert "It is safe to delete." in said
+    assert "It is safe to delete." in " ".join(said.split())
+    assert all(len(line) <= 79 for line in said.splitlines())
+
+
+def test_cache_note_keeps_a_path_with_spaces_on_one_line(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    spaced = tmp_path / ("a folder with spaces " * 3).strip()
+    spaced.mkdir()
+    monkeypatch.setattr(name="CACHE", target=cache, value=spaced)
+    monkeypatch.setenv(name="HOME", value="/nowhere")
+    cache.cache_note()
+    assert str(spaced) in capsys.readouterr().out.splitlines()[0]
 
 
 @pytest.mark.parametrize(

@@ -1254,6 +1254,19 @@ def test_a_v2_0_0_dot_that_refuses_the_restart_is_told_about_its_button(
     assert "hold the + button while you plug it back in" in said(capsys=capsys)
 
 
+def test_an_unlock_credit_wraps_its_prose_and_ends_with_a_blank_line(
+    *, capsys: pytest.CaptureFixture[str]
+) -> None:
+    route.credit_note(target=TARGETS[BISCUIT]["fireos6"])
+    out = capsys.readouterr().out
+    assert out.endswith(f"\n{BISCUIT.thread}\n\n")
+    lines = out.splitlines()
+    assert "  - https://www.paypal.com/paypalme/R0rt1z2/" in lines
+    assert all(
+        len(line) <= 79 or line.lstrip(" -").startswith("https://") for line in lines
+    )
+
+
 @pytest.mark.parametrize(
     ("author", "thread", "expected"),
     [
@@ -1261,12 +1274,12 @@ def test_a_v2_0_0_dot_that_refuses_the_restart_is_told_about_its_button(
         (
             None,
             "https://xda",
-            "Unlock thread for the Echo Dot (2nd Generation):\nhttps://xda\n",
+            "Unlock thread for the Echo Dot (2nd Generation):\nhttps://xda\n\n",
         ),
         (
             Author(home="https://home", name="A", short_name="A"),
             "",
-            "amonet, the unlock this run used, is the work of A: https://home\n",
+            "amonet, the unlock this run used, is the work of A: https://home\n\n",
         ),
     ],
 )

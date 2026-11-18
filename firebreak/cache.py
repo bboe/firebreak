@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator, Iterator
 
 from firebreak import __version__
-from firebreak.ui import SESSION, FatalError, again, passed, show, warn
+from firebreak.ui import SESSION, FatalError, again, filled, passed, show, warn
 
 AGENT = f"firebreak/{__version__}"
 BROWSER_POLL_SECONDS = 2
@@ -124,10 +124,12 @@ def cache_note() -> None:
         path, home = str(CACHE), str(pathlib.Path.home())
         if os.name != "nt" and path.startswith(home + os.sep):
             path = "~" + path[len(home) :]
-        show(
-            text=f"{path} holds {size // 1000000} MB of downloads and images for"
+        whole = path.replace(" ", "\0")
+        text = filled(
+            text=f"{whole} holds {size // 1000000} MB of downloads and images for"
             " the next run. It is safe to delete."
         )
+        show(text=text.replace("\0", " "))
 
 
 def copies(
