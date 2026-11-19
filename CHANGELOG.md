@@ -2,6 +2,13 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+- A run that cannot read the bootloader in an Echo's flash from its bootrom
+  says which read failed and why.
+
 ## 1.4.3 - 2026-11-17
 
 ### Changed

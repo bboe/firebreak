@@ -472,6 +472,51 @@ def test_a_fastboot_check_that_times_out_is_tried_again(
     bootrom_step.await_amonet_fastboot(little_kernel=AMONET_V1_1_0_LK)
 
 
+@pytest.mark.parametrize(
+    ("setup", "why"),
+    [
+        (
+            "table",
+            "its partition table could not be read: read timed out",
+        ),
+        ("empty", "its partition table could not be read: OSError"),
+        ("lk_b", "its lk_b could not be read: read timed out"),
+        ("missing", "its partition table has no lk_a"),
+        ("area", "its user area did not read as itself"),
+    ],
+)
+def test_a_flash_read_that_fails_says_why_it_names_no_echo(
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    rig: Rig,
+    setup: str,
+    why: str,
+) -> None:
+    live = Live(port=Connection(name="/dev/one"), rig=rig)
+    read = bootrom_step.bootrom.read
+
+    def fails(*, first: int, **rest: object) -> bytes:
+        if setup == "empty":
+            raise OSError
+        if setup == "table" or first == LK_FIRST.get(setup):
+            message = "read timed out"
+            raise OSError(message)
+        return read(first=first, **rest)
+
+    monkeypatch.setattr(name="read", target=bootrom_step.bootrom, value=fails)
+    if setup == "missing":
+        monkeypatch.setattr(
+            name="partition_map", target=bootrom_step, value=lambda **_: {}
+        )
+    if setup == "area":
+        monkeypatch.setattr(
+            name="switched", target=bootrom_step.bootrom, value=lambda **_: False
+        )
+    assert bootrom_step.payload_device(live=live) is None
+    assert f"was not read: {why}." in " ".join(capsys.readouterr().out.split())
+
+
 def test_a_foreign_bootloader_in_lk_b_alone_stops_the_run(*, rig: Rig) -> None:
     rig.lks[LK_FIRST["lk_b"]] = b"\0product\0RADAR\0"
     with pytest.raises(FatalError, match="names its product RADAR"):
@@ -872,11 +917,17 @@ def test_a_torn_table_is_left_to_the_plan_without_reading_an_lk(
 
 
 def test_a_torn_table_names_no_echo(
-    *, monkeypatch: pytest.MonkeyPatch, rig: Rig
+    *,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    rig: Rig,
 ) -> None:
     live = Live(port=Connection(name="/dev/one"), rig=rig)
     monkeypatch.setattr(name="gpt_intact", target=bootrom_step, value=lambda **_: False)
     assert bootrom_step.payload_device(live=live) is None
+    assert "was not read: its partition table failed its checksums." in " ".join(
+        capsys.readouterr().out.split()
+    )
 
 
 def test_keep_trying_with_the_short_on_warns_and_waits_on(

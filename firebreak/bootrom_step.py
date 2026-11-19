@@ -69,6 +69,13 @@ SHORT_WAIT = 5
 STEPS_AFTER_THE_CHAIN = 2
 
 
+class UnreadError(Exception):
+    def __init__(self, *, error: BaseException | None = None, slot: str) -> None:
+        super().__init__(slot)
+        self.error = error
+        self.slot = slot
+
+
 def answering_payload() -> Client | None:
     failures: dict[str, float] = {}
     for name, product in sorted(mediatek_ports().items()):
@@ -358,15 +365,27 @@ def keep_trying(*, message: str) -> None:
 
 
 def lk_products(*, entries: bytes, live: Emmc) -> set[str]:
+    try:
+        return lk_reads(entries=entries, live=live)
+    except UnreadError as unread:
+        if unread.error is None:
+            raise FatalError(
+                message=f"the {title()}'s partition table has no {unread.slot}."
+                f" {unwritten()} Unplug the {title()}. " + asked_for()
+            ) from None
+        raise FatalError(
+            message=f"the {title()}'s {unread.slot} could not be read:"
+            f" {unread.error}. {unwritten()} Unplug the {title()}. " + again()
+        ) from unread.error
+
+
+def lk_reads(*, entries: bytes, live: Emmc) -> set[str]:
     parts = partition_map(entries=entries)
     named: set[str] = set()
     for slot in LK_SLOTS:
         part = parts.get(slot)
         if part is None:
-            raise FatalError(
-                message=f"the {title()}'s partition table has no {slot}."
-                f" {unwritten()} Unplug the {title()}. " + asked_for()
-            )
+            raise UnreadError(slot=slot)
         try:
             held = bootrom.read(
                 count=min(part.sectors, LK_PRODUCT_SECTORS),
@@ -374,10 +393,7 @@ def lk_products(*, entries: bytes, live: Emmc) -> set[str]:
                 payload=live,
             )
         except (OSError, UsbdlError) as error:
-            raise FatalError(
-                message=f"the {title()}'s {slot} could not be read: {error}."
-                f" {unwritten()} Unplug the {title()}. " + again()
-            ) from error
+            raise UnreadError(error=error, slot=slot) from error
         named.update(found.decode() for found in LK_PRODUCT.findall(held))
     return named
 
@@ -406,15 +422,20 @@ def open_serial_port(*, name: str, write_timeout: float) -> serial.Serial:
 
 def payload_device(*, live: Emmc) -> Device | None:
     PROGRESS.begin(estimate=5, label="reading which Echo this is")
-    try:
-        named = table_products(live=live)
-    except (FatalError, OSError, UsbdlError):
-        named = None
+    named, why = table_products(live=live)
     if named is None:
         PROGRESS.end(skipped=True)
+        warn(
+            text=f"The bootloader in the {title()}'s flash was not read:"
+            f" {why.rstrip('.')}."
+        )
         return None
     PROGRESS.end()
     return next((each for each in DEVICES if each.product in named), None)
+
+
+def said(*, error: BaseException) -> str:
+    return str(error) or type(error).__name__
 
 
 def say_missed_short(*, count: int) -> None:
@@ -505,13 +526,24 @@ def switched_payload(*, live: Client) -> bool:
     return True
 
 
-def table_products(*, live: Emmc) -> set[str] | None:
-    bootrom.switch(partition=EmmcArea.USER, payload=live)
-    raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
+def table_products(*, live: Emmc) -> tuple[set[str] | None, str]:
+    try:
+        live.switch_partition(partition=EmmcArea.USER)
+        block = live.read_block(index=0)
+        if not bootrom.switched(block=block, partition=EmmcArea.USER):
+            return None, "its user area did not read as itself"
+        raw = bootrom.read(count=TABLE_SECTORS, first=0, payload=live)
+    except (OSError, UsbdlError) as error:
+        return None, f"its partition table could not be read: {said(error=error)}"
     entries = raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE]
     if not gpt_intact(entries=entries, header=raw[SECTOR_SIZE : 2 * SECTOR_SIZE]):
-        return None
-    return lk_products(entries=entries, live=live)
+        return None, "its partition table failed its checksums"
+    try:
+        return lk_reads(entries=entries, live=live), ""
+    except UnreadError as unread:
+        if unread.error is None:
+            return None, f"its partition table has no {unread.slot}"
+        return None, f"its {unread.slot} could not be read: {said(error=unread.error)}"
 
 
 def unwritten() -> str:

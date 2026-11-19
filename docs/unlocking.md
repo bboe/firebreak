@@ -245,10 +245,16 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - Nothing in the cache names the Echo any more, and nothing on the command
   line does either: `--device` is `short`'s alone. A bootloader that names no
   product, or a partition table that does not read, leaves a run with no name,
-  and it stops rather than take one from the person running it. Two Echo
-  devices swapped between runs are each named by their own flash. `short` is
-  the exception because where the test point is differs by device, and the run
-  has to say that before any bootrom answers.
+  and it stops rather than take one from the person running it. A read that
+  failed says why, as a warning that names the read: the user area, the
+  table, its checksums, or `lk_a` or `lk_b`, with the read's own error. A run
+  that already knows the device from a USB product or a marker prints the
+  same warning and carries on. On 2026-11-19 a user's Dot, dark after an
+  unlock that did not finish, stopped this way from its bootrom with only
+  "skip" against the step, and nothing said whether the table or the USB link
+  failed. Two Echo devices swapped between runs are each named by their own
+  flash. `short` is the exception because where the test point is differs by
+  device, and the run has to say that before any bootrom answers.
 - In fastboot, the report also prints `antirback_pl_version`,
   `antirback_tee_version` and `antirback_lk_version`.
 - The report shows only the first 4 characters of a serial number. Amazon's
