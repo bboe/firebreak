@@ -514,7 +514,11 @@ def test_a_flash_read_that_fails_says_why_it_names_no_echo(
             name="switched", target=bootrom_step.bootrom, value=lambda **_: False
         )
     assert bootrom_step.payload_device(live=live) is None
-    assert f"was not read: {why}." in " ".join(capsys.readouterr().out.split())
+    out = capsys.readouterr().out
+    ended = out.splitlines()[1]
+    assert "reading which Echo this is" in ended
+    assert "❌" in ended
+    assert f"was not read: {why}." in " ".join(out.split())
 
 
 def test_a_foreign_bootloader_in_lk_b_alone_stops_the_run(*, rig: Rig) -> None:

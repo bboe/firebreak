@@ -2,6 +2,13 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+- A failed read of which Echo this is, from its bootrom, ends its step with a
+  cross and its time rather than a check mark and `skip`.
+
 ## 1.4.4 - 2026-11-19
 
 ### Changed

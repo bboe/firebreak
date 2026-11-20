@@ -424,7 +424,7 @@ def payload_device(*, live: Emmc) -> Device | None:
     PROGRESS.begin(estimate=5, label="reading which Echo this is")
     named, why = table_products(live=live)
     if named is None:
-        PROGRESS.end(skipped=True)
+        PROGRESS.end(failed=True)
         warn(
             text=f"The bootloader in the {title()}'s flash was not read:"
             f" {why.rstrip('.')}."

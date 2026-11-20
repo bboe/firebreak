@@ -203,12 +203,14 @@ def test_invocation_names_uvx_for_a_uvx_run(*, monkeypatch: pytest.MonkeyPatch) 
 
 def test_mark_falls_back_to_ascii(*, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ui.mark() == "✅"
+    assert ui.mark(failed=True) == "❌"
     monkeypatch.setattr(
         name="stdout",
         target=sys,
         value=io.TextIOWrapper(buffer=io.BytesIO(), encoding="ascii"),
     )
     assert ui.mark() == "done"
+    assert ui.mark(failed=True) == "fail"
 
 
 def test_paint(*, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -266,6 +268,15 @@ def test_progress_leaves_out_a_count_it_cannot_know(
     assert lines[0].startswith("writing and reading cache")
     assert "/" not in lines[0]
     assert "?" not in lines[1]
+
+
+def test_progress_marks_a_failed_step(*, capsys: pytest.CaptureFixture[str]) -> None:
+    ui.PROGRESS.steps = None
+    ui.PROGRESS.begin(label="reading")
+    ui.PROGRESS.end(failed=True)
+    lines = capsys.readouterr().out.splitlines()
+    assert "❌   0s" in lines[1]
+    assert "✅" not in lines[1]
 
 
 def test_progress_not_a_tty(*, capsys: pytest.CaptureFixture[str]) -> None:

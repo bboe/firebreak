@@ -90,7 +90,7 @@ class Progress:
         digits = max(2, len(total))
         return f"[{self.step:>{digits}}/{total:>{digits}}] "
 
-    def end(self, *, skipped: bool = False) -> None:
+    def end(self, *, failed: bool = False, skipped: bool = False) -> None:
         if not self.open:
             return
         self.open = False
@@ -98,7 +98,7 @@ class Progress:
         took = "skip" if skipped else self.seconds()
         total = f"{since(start=self.t0)} total"
         stamp = f"{clock()} " if ARGUMENTS.verbose else ""
-        show(text=f"{back}{stamp}{self.line}{mark()} {took} {total:>13}")
+        show(text=f"{back}{stamp}{self.line}{mark(failed=failed)} {took} {total:>13}")
 
     def halt(self) -> bool:
         if not self.ticker:
@@ -258,12 +258,13 @@ def invocation(*, options: list[str]) -> str:
     return shlex.join(split_command=[*command, *options])
 
 
-def mark() -> str:
+def mark(*, failed: bool = False) -> str:
+    sign = "\u274c" if failed else "\u2705"
     try:
-        "\u2705".encode(encoding=sys.stdout.encoding or "ascii")
+        sign.encode(encoding=sys.stdout.encoding or "ascii")
     except (LookupError, UnicodeEncodeError):
-        return "done"
-    return "\u2705"
+        return "fail" if failed else "done"
+    return sign
 
 
 def overwriting(*, text: str, width: int) -> str:
