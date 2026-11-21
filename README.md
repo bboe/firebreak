@@ -46,7 +46,8 @@ These commands use [Homebrew](https://brew.sh). Without it, download Google's
 [platform-tools](https://developer.android.com/tools/releases/platform-tools).
 
 ```sh
-brew install --cask android-platform-tools uv
+brew install --cask android-platform-tools
+brew install uv
 brew install libusb               # for an Echo Dot (3rd Generation)
 ```
 
