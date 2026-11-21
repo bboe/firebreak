@@ -46,8 +46,8 @@ These commands use [Homebrew](https://brew.sh). Without it, download Google's
 [platform-tools](https://developer.android.com/tools/releases/platform-tools).
 
 ```sh
-brew install --cask android-platform-tools uv
-brew install libusb               # for an Echo Dot (3rd Generation)
+brew install --cask android-platform-tools
+brew install libusb uv
 ```
 
 ### Linux
@@ -55,7 +55,7 @@ brew install libusb               # for an Echo Dot (3rd Generation)
 These commands are for Debian and Ubuntu. Run firebreak without `sudo`.
 
 ```sh
-sudo apt install adb fastboot curl libusb-1.0-0
+sudo apt install adb curl fastboot libusb-1.0-0
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
