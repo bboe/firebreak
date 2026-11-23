@@ -20,6 +20,8 @@ from firebreak.ui import FatalError, show, warn
 BL_FIRST = 0xF000
 BL_FIRST_MASK = 0xF800
 BL_SECOND = 0xD000
+BOOT0 = "brhgptpl_"
+BOOT0_PRELOADER = 0x8000
 BUILD_TIME = re.compile(rb"\d{8}_\d{6}")
 BX_LR = 0x4770
 COMMIT = re.compile(rb"[0-9a-fA-F]{7}")
@@ -51,6 +53,10 @@ class Image:
     data: bytes = b""
 
 
+def boot0_names(*, names: frozenset[str]) -> tuple[str, ...]:
+    return tuple(sorted(name for name in names if name.startswith(BOOT0)))
+
+
 def branch_target(*, at: int, first: int, second: int) -> int:
     sign = (first >> 10) & 1
     high = (~((second >> 13) ^ sign) & 1) << 23
@@ -72,7 +78,10 @@ def build_description(*, data: bytes) -> str:
         commits = [each for each in near if COMMIT.fullmatch(each)]
         if commits:
             found.add(f"{commits[0].decode().lower()}-{word.decode()}")
-    return ", ".join(sorted(found)) or "<none>"
+    if found:
+        return ", ".join(sorted(found))
+    bare = {word.decode() for word in words if BUILD_TIME.fullmatch(word)}
+    return ", ".join(sorted(bare)) or "<none>"
 
 
 def build_properties(*, archive: zipfile.ZipFile) -> dict[str, str]:
@@ -111,8 +120,10 @@ def csv_label(*, name: str) -> str:
     return f"Fire OS {version}" if version.startswith("5.") else f"Fire OS 6 {build}"
 
 
-def csv_partitions(*, tees: tuple[str, ...]) -> tuple[str, ...]:
-    return ("boot", "system", "lk", *tees, "preloader")
+def csv_partitions(
+    *, boot0: tuple[str, ...] = (), tees: tuple[str, ...]
+) -> tuple[str, ...]:
+    return ("boot", "system", "lk", *tees, *(boot0 or ("preloader",)))
 
 
 def csv_row(*fields: object) -> str:
@@ -172,6 +183,9 @@ def payload_images(*, archive: zipfile.ZipFile) -> dict[str, Image]:
         manifest = ota.read_manifest(payload=payload)
         wanted = tuple(name for name in ota.IMAGES if name != "tee")
         tees = tee_names(names=frozenset(manifest.partitions))
+        boot0 = boot0_names(names=frozenset(manifest.partitions))
+        if boot0:
+            wanted = (*(name for name in wanted if name != "preloader"), *boot0)
         for name in (*wanted, *tees):
             partition = manifest.partitions.get(name)
             if partition is None:
@@ -193,6 +207,17 @@ def payload_images(*, archive: zipfile.ZipFile) -> dict[str, Image]:
                 data=data,
                 sha256=want,
                 size=ota.number(value=partition.info[ota.InfoField.SIZE]),
+            )
+        if boot0:
+            inner = found[boot0[0]].data[BOOT0_PRELOADER:]
+            if not inner:
+                raise FatalError(
+                    message=f"{boot0[0]} holds no preloader at {BOOT0_PRELOADER:#x}"
+                )
+            found["preloader"] = Image(
+                data=inner,
+                sha256=hashlib.sha256(inner).hexdigest(),
+                size=len(inner),
             )
     return found
 
@@ -284,7 +309,9 @@ def survey(*, update: pathlib.Path) -> None:
         warn(text=f"{', '.join(tees)} do not hold the same image")
     show(text="\ndevice,model,build,partition,bytes,sha256")
     label = csv_label(name=name)
-    for partition in csv_partitions(tees=tees):
+    for partition in csv_partitions(
+        boot0=boot0_names(names=frozenset(found)), tees=tees
+    ):
         image = found[partition]
         show(text=csv_row(device, model, label, partition, image.size, image.sha256))
 

@@ -56,6 +56,10 @@ def block_update(
     return write_ota(members=members, path=path)
 
 
+def boot0(*, copy: int) -> bytes:
+    return bytes(survey.BOOT0_PRELOADER - 1) + bytes([copy]) + preloader()
+
+
 def lk(*, version: int = 1) -> bytes:
     return LK_DESCRIPTION + bytes(64) + b"LK" + struct.pack(">H", version) + bytes(8)
 
@@ -255,6 +259,22 @@ def test_an_a_b_ota_that_names_two_tees(
     assert f",tee,{len(data)}," not in out
 
 
+def test_an_a_b_ota_whose_boot0_holds_no_preloader(*, tmp_path: pathlib.Path) -> None:
+    images = {
+        "boot": b"b",
+        "lk": lk(),
+        "system": b"y" * BLOCK,
+        "tee": tee(),
+        f"{survey.BOOT0}0": b"short",
+    }
+    update = write_ota(
+        members={"payload.bin": payload(images=images, kinds={})},
+        path=tmp_path / "ota.zip",
+    )
+    with pytest.raises(expected_exception=FatalError, match="holds no preloader"):
+        survey.survey(update=update)
+
+
 def test_an_a_b_ota_whose_two_tees_differ(
     *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
 ) -> None:
@@ -282,6 +302,35 @@ def test_an_a_b_ota_whose_two_tees_differ(
     assert f",tee2,{len(second)},{sha(second)}\n" in out
 
 
+def test_an_a_b_ota_with_boot0_images(
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    data = tee()
+    copies = {f"{survey.BOOT0}{copy}": boot0(copy=copy) for copy in range(4)}
+    images = {
+        "boot": b"b",
+        "lk": lk(),
+        "system": b"y" * BLOCK,
+        "tee1": data,
+        "tee2": data,
+        **copies,
+    }
+    update = write_ota(
+        members={
+            "payload.bin": payload(images=images, kinds={}),
+            survey.PROPERTIES: PROPERTIES,
+        },
+        path=tmp_path / "ota.zip",
+    )
+    survey.survey(update=update)
+    out = capsys.readouterr().out
+    assert "pl_build_desc            bd7ae89-20221003_215949" in out
+    assert "PL 0x0005, TEE 0x0102, LK 0x0001" in out
+    for name, body in copies.items():
+        assert f",{name},{len(body)},{sha(body)}\n" in out
+    assert ",preloader," not in out
+
+
 def test_an_ota_that_names_and_marks_nothing(
     *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
 ) -> None:
@@ -305,10 +354,11 @@ def test_an_ota_without_build_properties(*, tmp_path: pathlib.Path) -> None:
         assert survey.build_properties(archive=archive) == {}
 
 
-def test_build_description_reads_both_forms() -> None:
+def test_build_description_reads_every_form() -> None:
     assert survey.build_description(data=LK_DESCRIPTION) == "63cb91b-20221007_072309"
     assert survey.build_description(data=PL_DESCRIPTION) == "bd7ae89-20221003_215949"
-    assert survey.build_description(data=b"\x0020221007_072309\0") == "<none>"
+    assert survey.build_description(data=b"\x0020221007_072309\0") == "20221007_072309"
+    assert survey.build_description(data=b"\0no stamp here\0") == "<none>"
 
 
 def test_build_properties_strip_each_side(*, tmp_path: pathlib.Path) -> None:

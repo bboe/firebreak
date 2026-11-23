@@ -2,6 +2,24 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Added
+
+- `survey` reads an OTA whose payload names four `brhgptpl` partitions and no
+  `preloader`, as the Echo Dot (3rd Generation) Refresh of 2019, crumpet, does.
+  It takes the preloader from inside the first of them, and gives all four
+  their own CSV rows.
+- `docs/devices.md` covers crumpet, read from all 18 OTAs ftvdb lists, with
+  `crumpet-partitions.csv`.
+
+### Changed
+
+- A build description with no commit before it, which is every crumpet and
+  every donut preloader, reports the build timestamp rather than `<none>`. The
+  donut table's `pl_build_desc` column holds those timestamps now, and its rows
+  split where one covered several preloaders.
+
 ## 1.4.5 - 2026-11-20
 
 ### Changed

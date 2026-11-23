@@ -307,8 +307,11 @@ Read on 2026-11-03 from the donut above, restored to stock, by `getvar`.
 - `unlock_status: false`, `secure: yes`, `prod: 1`, `rpmb_state: 1`, and the
   three antirollback versions are each `0x0001`.
 - `lk_build_desc` is `6f7225e-20230407_013816`, which donut already declares.
-  `pl_build_desc` is `9eb982d-20231103_081354`, where `survey` reads `<none>`
-  from every donut OTA: the OTAs ship no preloader, so only the device has it.
+  `pl_build_desc` is `9eb982d-20231103_081354`, where `survey` reads
+  `20231103_081354` from the same build's OTA. The timestamp is in the
+  preloader as text, after a `Build Time: %s` string, and the commit is not:
+  it sits in a literal pool as the word `0x09eb982d`, which no search for a
+  string can find. 8349's preloader holds that word, and 1895's does not.
 - `max-download-size` is `0x8000000`, `kernel` is `lk`, `version-preloader` is
   `0.1.00` and `version` is `0.5`.
 - **It answers no A/B slot variables at all.** `current-slot`, `slot-count`,

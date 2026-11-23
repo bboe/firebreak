@@ -6,11 +6,14 @@ is named by the hardware code its bootrom reports rather than by a bootloader;
 the whole route has run on a donut, three times, including with
 `--factory-reset`. crown declares
 an unlock and no target, so no route reaches it, and that unlock has never run.
+crumpet declares nothing at all, and is here because its OTAs are read the same
+way and because it is easily taken for a donut.
 
 `firebreak survey OTA` prints, from one OTA zip and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build
 descriptions, the anti-rollback versions, the TEE's hashes and the partition
-hashes, 5 of them, or 6 where an OTA names two TEE partitions as donut's do.
+hashes: 5 of them, 6 where an OTA names two TEE partitions as donut's do, and 9
+on crumpet, which names two TEE partitions and four boot0 partitions.
 The TEE it reports is the first of those, and it says so where the two differ.
 Only the fastbrick image comes from elsewhere, amonet's
 `profile.sh`. It needs no Dot. Its CSV rows name the build as the CSVs do,
@@ -401,27 +404,34 @@ are, and they do not follow release order: 6813 is Fire OS 6.5.6.6, where 6425
 is 6.5.7.2.
 
 The Echo Dot (3rd Generation) Refresh of 2019 is a different device, model
-`AEOCP` and codename crumpet, and nothing here covers it.
+`AEOCP` and codename crumpet. [crumpet](#crumpet) covers it.
 
 ### Builds
 
 | ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
 | --- | --- | --- | --- | --- |
-| Fire OS 6 6176 to 8349, except 6813 | `6f7225e-20230407_013816` | `<none>` | [3](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
-| Fire OS 6 6009 to 6086, and 6813 | `6f7225e-20230407_013816` | `<none>` | [2](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
-| Fire OS 6 4769, 4774, 4936, 5531 | `6f7225e-20230407_013816` | `<none>` | [4](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
-| Fire OS 6 4655 | `0db8914-20221005_072344` | `<none>` | [4](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
-| Fire OS 6 1895 | `0d18cf4-20181206_233555` | `<none>` | [1](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
+| Fire OS 6 6176 to 8349, except 6813 | `6f7225e-20230407_013816` | `20231103_081354` | [3](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
+| Fire OS 6 6009 to 6086, and 6813 | `6f7225e-20230407_013816` | `20231103_081354` | [2](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
+| Fire OS 6 5531 | `6f7225e-20230407_013816` | `20231103_081354` | [4](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
+| Fire OS 6 4936 | `6f7225e-20230407_013816` | `20230726_074325` | [4](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
+| Fire OS 6 4769 and 4774 | `6f7225e-20230407_013816` | `20230607_222935` | [4](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
+| Fire OS 6 4655 | `0db8914-20221005_072344` | `20220323_070214` | [4](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
+| Fire OS 6 1895 | `0d18cf4-20181206_233555` | `20181206_233555` | [1](#tee-images-3) | 0x0001, 0x0001, 0x0001 |
 
 - The table has no fastbrick column. kamakiri-donut v1.0.0 ships no fastbrick
   image and no `profile.sh`, where every amonet release here ships both, so no
   LK of donut's chooses one.
-- No donut preloader carries a build description, so `pl_build_desc` is
-  `<none>` in every build. Five preloaders ship across the 26: 1895's, of
-  147456 bytes, and four of 151552 bytes. 4655 has one, 4769 and 4774 share
+- No donut preloader carries its commit as text, so `pl_build_desc` is the
+  `Build Time` string alone, as crumpet's is. A donut in fastboot reports the
+  commit as well, and
+  [measurements.md](measurements.md#a-stock-echo-dot-3rd-generation-in-fastboot)
+  says where the two readings meet. Five preloaders ship across the 26: 1895's,
+  of 147456 bytes, and four of 151552 bytes. 4655 has one, 4769 and 4774 share
   one, 4936 has one, and 5531 and the twenty builds after it ship the same one
-  byte for byte. Where biscuit's and radar's preloaders of one row differ only
-  in boot0's GPT, what separates donut's four is not read.
+  byte for byte. 1895's preloader and its LK carry one timestamp between them.
+  Where biscuit's and radar's preloaders of one row differ only in boot0's GPT,
+  donut's five are five builds, so the rows above split where one row held
+  several of them.
 - Three LKs ship: 1895's, 4655's, and one in every build from 4769. Each is
   read as biscuit's are, in [Anti-rollback](#anti-rollback).
 - Every version is 1. The PL version is 1 as crown's is, where biscuit's and
@@ -474,3 +484,92 @@ wear. Running `report` once on one would fill this in, as it did for radar.
   sector of radar's `FJ25AB` Echo, on an eMMC of 7634944 sectors. It is the
   kit's table rather than one read off a donut, so it says
   what the kit would write and not what a donut carries.
+
+## crumpet
+
+The Echo Dot (3rd Generation) Refresh of 2019, model `AEOCP`. Read on
+2026-11-23 from all 18 OTAs ftvdb lists: Fire OS 6 3252, 4307, 4660, 4955,
+6009, 6071, 6077, 6086, 6176, 6193, 6199, 6208, 6562, 6813, 8149, 8338, 8344
+and 8349. ftvdb has no other crumpet OTA, and none is Fire OS 5. Its build
+numbers are its own, and they do not follow release order: 6813 is Fire OS
+6.5.6.6, where 6562 is 6.5.7.3. No kit here unlocks it, and no route reaches
+it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 6176 to 8349, except 6813 | `6f7225e-20230407_002912` | `20231103_072325` | [4](#tee-images-4) | `<not found>`, 0x0001, 0x0001 |
+| Fire OS 6 6009 to 6086, and 6813 | `6f7225e-20230407_002912` | `20231103_072325` | [3](#tee-images-4) | `<not found>`, 0x0001, 0x0001 |
+| Fire OS 6 4955 | `6f7225e-20230407_002912` | `20230726_065225` | [2](#tee-images-4) | `<not found>`, 0x0001, 0x0001 |
+| Fire OS 6 4660 | `0db8914-20221005_064411` | `20220323_062523` | [2](#tee-images-4) | `<not found>`, 0x0001, 0x0001 |
+| Fire OS 6 4307 | `24eb7bc-20220827_065252` | `20220323_062523` | [2](#tee-images-4) | `<not found>`, 0x0001, 0x0001 |
+| Fire OS 6 3252 | `8f885ae-20210414_064357` | `20210326_040236` | [1](#tee-images-4) | `<not found>`, 0x0001, 0x0001 |
+
+- The table has no fastbrick column, as donut's has none: no kit here ships a
+  crumpet image.
+- crumpet names no `preloader` partition. It names four, `brhgptpl_0` to
+  `brhgptpl_3`, of 184320 bytes each, and each holds the whole boot0 area: a
+  BRLYT header, then boot0's GPT, then the preloader at 0x8000, of 151552
+  bytes. `pl_build_desc` and the PL version are read from that preloader, as
+  the other devices' are read from their `preloader` partition.
+- The four are one image written four times. They differ in 4 bytes, at
+  0x100d, 0x1011, 0x101d and 0x1021, which hold 0 and 1, 4 and 5, 8 and 9, and
+  12 and 13: the block each copy is written to. The GPT names them at LBA 0,
+  1024, 2048 and 3072. So a hash of `brhgptpl_1` never equals a hash of
+  `brhgptpl_0`, and comparing one against the other's is a false difference.
+- Four preloaders ship across the 18, each 151552 bytes: 3252's, 4307's, which
+  4660 shares, 4955's, and one in every build from 6009. None carries a
+  commit, so `pl_build_desc` is a build timestamp alone, as donut's is. Where
+  biscuit's and radar's preloaders of one row differ only in boot0's GPT,
+  crumpet's four are four builds.
+- The PL version is not read. The `[ANTI-ROLLBACK] Updating PL version`
+  string that biscuit's, radar's and crown's PL versions are found through, in
+  [Anti-rollback](#anti-rollback), is in no crumpet preloader, so the column
+  says `<not found>` rather than a number. The TEE and LK versions are read as
+  biscuit's are, and both are 0x0001 in every build, as donut's are. No OTA
+  raises one.
+- Four LKs ship: 3252's, 4307's, 4660's, and one in every build from 4955,
+  which is fifteen of the eighteen. 3252's is 233472 bytes and the other
+  three are 237568.
+- crumpet's LK of 4955 and later and donut's of 4769 and later are built from
+  one commit, `6f7225e`, 69 minutes apart. The images differ. Their preloaders
+  pair up the same way: crumpet's `20230726_065225` against donut's
+  `20230726_074325`, and crumpet's `20231103_072325` against donut's
+  `20231103_081354`.
+- No crumpet image is shared with biscuit, radar, crown or donut.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 4 | 2363392 | `5c15c876381d399683555f04451be064` | `fa0ec8b8310f806ac99507848fa0ea3b0eb1574f96bb638f2464e6ff187a2ed6` |
+| 3 | 2367488 | `dca5344caf741699adfe6da3a434a4ad` | `8b0dfbc020ec108d1e3eab043c95198994cd01c1f25b04d4ec8716bd4dcde85d` |
+| 2 | 2367488 | `ace011b7e719b152e802429967231ccc` | `a1500f362bec395a8a95eadfcf6e22e85d92e589ecf11cb06abd231ef77476ac` |
+| 1 | 2367488 | `485f3ba638fcb337c19f437aef5f01e8` | `68f9cbefa012b7aa955098c024cbb2ef8f0dee83a5e635d7e1d66a4c0439bff6` |
+
+- Each crumpet TEE is numbered here, so a number in the table above is always
+  crumpet's own. TEE 4 is the smallest and the newest, as donut's TEE 3 is.
+  Every OTA writes its TEE to both `tee1` and `tee2`, and the two are equal in
+  all 18 builds.
+
+### Partition hashes
+
+[crumpet-partitions.csv](../firebreak/devices/crumpet-partitions.csv)
+has the sha256 of the 9 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every crumpet OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat the block
+  OTAs do, as donut's do not.
+- `/system` is 136626176 bytes in every build, the smallest of the five
+  devices here. Every build has its own boot and `/system` hash.
+- Every build has its own `brhgptpl` hashes, all four of them, because boot0's
+  GPT carries a fresh disk GUID and 18 fresh partition GUIDs each time. The
+  preloader inside is one of four images, so a changed `brhgptpl` hash is not
+  a changed preloader.
+- The GPT's own table is the same in all 18 builds: 18 partitions, with the
+  same names, start and end LBAs and attributes, and the same type GUIDs. No
+  crumpet OTA moves a partition. The table holds `lk_a`, `lk_b`, `boot_a` and
+  `boot_b`, and no `system`, though the payload writes one.
+- Nothing here has looked inside a crumpet, and no crumpet has been seen here.
