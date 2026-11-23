@@ -6,14 +6,15 @@ is named by the hardware code its bootrom reports rather than by a bootloader;
 the whole route has run on a donut, three times, including with
 `--factory-reset`. crown declares
 an unlock and no target, so no route reaches it, and that unlock has never run.
-crumpet declares nothing at all, and is here because its OTAs are read the same
-way and because it is easily taken for a donut.
+crumpet and doebrite declare nothing at all, and are here because their OTAs
+are read the same way and because either is easily taken for a donut.
 
 `firebreak survey OTA` prints, from one OTA zip and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build
 descriptions, the anti-rollback versions, the TEE's hashes and the partition
 hashes: 5 of them, 6 where an OTA names two TEE partitions as donut's do, and 9
-on crumpet, which names two TEE partitions and four boot0 partitions.
+on crumpet and doebrite, which name two TEE partitions and four boot0
+partitions.
 The TEE it reports is the first of those, and it says so where the two differ.
 Only the fastbrick image comes from elsewhere, amonet's
 `profile.sh`. It needs no Dot. Its CSV rows name the build as the CSVs do,
@@ -435,8 +436,9 @@ The Echo Dot (3rd Generation) Refresh of 2019 is a different device, model
 - Three LKs ship: 1895's, 4655's, and one in every build from 4769. Each is
   read as biscuit's are, in [Anti-rollback](#anti-rollback).
 - Every version is 1. The PL version is 1 as crown's is, where biscuit's and
-  radar's are 5, and the TEE version 0x0001 is below every other device here.
-  No OTA raises one.
+  radar's are 5, and the TEE version 0x0001 is the lowest here, which crumpet
+  and doebrite carry too and biscuit, radar and crown do not. No OTA raises
+  one.
 - kamakiri-donut v1.0.0 writes the LK of 4769 and later byte for byte, and
   the TEE of 6176 and later byte for byte. Its preloader is in no OTA.
 
@@ -460,9 +462,10 @@ has the sha256 of the 6 partitions each OTA writes, for every build above,
 read as biscuit's are.
 
 - donut's payload names `tee1` and `tee2` as two partitions and writes the
-  same TEE image to both, in all 17 builds. Every other device here names one
-  `tee`, so donut is the only one with 6 rows a build rather than 5. The
-  Builds table above keeps one TEE column because the two images are equal.
+  same TEE image to both, in all 17 builds. biscuit, radar and crown each name
+  one `tee` and have 5 rows a build, so donut has 6. crumpet and doebrite name
+  two as well, and have 9. The Builds table above keeps one TEE column because
+  the two images are equal.
 - Every donut OTA is an A/B payload OTA, 1895 included. So every hash is the
   one in its `payload.bin` manifest, and none carries the erased-block caveat
   the block OTAs of the other three devices do: a donut that Amazon's updater
@@ -537,7 +540,9 @@ it.
   pair up the same way: crumpet's `20230726_065225` against donut's
   `20230726_074325`, and crumpet's `20231103_072325` against donut's
   `20231103_081354`.
-- No crumpet image is shared with biscuit, radar, crown or donut.
+- No crumpet image is shared with biscuit, radar, crown, donut or doebrite.
+  [doebrite](#doebrite) is built as crumpet is, down to one BRLYT header and
+  one GPT table between them, and shares no signed image with it.
 
 ### TEE images
 
@@ -562,8 +567,8 @@ read as biscuit's are.
 - Every crumpet OTA is an A/B payload OTA, so every hash is the one in its
   `payload.bin` manifest, and none carries the erased-block caveat the block
   OTAs do, as donut's do not.
-- `/system` is 136626176 bytes in every build, the smallest of the five
-  devices here. Every build has its own boot and `/system` hash.
+- `/system` is 136626176 bytes in every build, the smallest here, and doebrite
+  ships the same size. Every build has its own boot and `/system` hash.
 - Every build has its own `brhgptpl` hashes, all four of them, because boot0's
   GPT carries a fresh disk GUID and 18 fresh partition GUIDs each time. The
   preloader inside is one of four images, so a changed `brhgptpl` hash is not
@@ -573,3 +578,64 @@ read as biscuit's are.
   crumpet OTA moves a partition. The table holds `lk_a`, `lk_b`, `boot_a` and
   `boot_b`, and no `system`, though the payload writes one.
 - Nothing here has looked inside a crumpet, and no crumpet has been seen here.
+
+## doebrite
+
+The Echo Dot with Clock (3rd Generation) of 2019, model `AEODB`. Read on
+2026-11-23 from all 5 OTAs ftvdb lists: Fire OS 6 6562, 8149, 8338, 8344 and
+8349. ftvdb has no other doebrite OTA, and none is Fire OS 5. No kit here
+unlocks it, and no route reaches it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 6562 to 8349 | `6f7225e-20230406_233331` | `20231103_063546` | [1](#tee-images-5) | `<not found>`, 0x0001, 0x0001 |
+
+- One row covers all 5 builds. One LK, one preloader and one TEE ship across
+  them, so only `boot`, `/system` and boot0's GPT change from build to build.
+  Whether that is the device's whole history or only what ftvdb lists is not
+  known. ftvdb recorded all 5 in 2026, where its crumpet records reach back to
+  2021, and doebrite's five build numbers are exactly crumpet's five newest. So
+  the catalog holds no doebrite OTA older than 6562, and what shipped on one
+  before that is unread. Those are record dates, not build dates.
+- doebrite is built as crumpet is, and read the same way: no `preloader`
+  partition, four `brhgptpl` copies of 184320 bytes, the preloader at 0x8000,
+  the same 4 bytes separating the copies, and the PL version not read.
+  [crumpet](#crumpet) says what each part of that image is.
+- **doebrite's BRLYT header and boot0's GPT table are crumpet's, exactly.**
+  The header is one sha256 across both devices' 23 OTAs, and the GPT holds the
+  same 18 partitions, with the same names, start and end LBAs, attributes and
+  type GUIDs. Only the disk and partition GUIDs differ, which are fresh in
+  every build of either device.
+- Every signed image differs. No doebrite image is shared with crumpet,
+  biscuit, radar, crown or donut, in any build.
+- doebrite's LK, crumpet's of 4955 and later, and donut's of 4769 and later are
+  built from one commit, `6f7225e`, within 125 minutes: doebrite's at
+  `20230406_233331`, crumpet's at `20230407_002912` and donut's at
+  `20230407_013816`. Their preloaders pair up the same way, on 2023-11-03.
+- `/system` is 136626176 bytes in every build, as crumpet's is. `boot` is
+  9912320 bytes in 6562 and 8149, and 9916416 in 8338 and later.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 1 | 2363392 | `39ea6ae863482014706786ad7477451a` | `f68b5f3d1e20ef373f25544c01ed003bf36f215b5e1d2aff54987e8c26029bae` |
+
+- Every OTA writes this TEE to both `tee1` and `tee2`, and the two are equal in
+  all 5 builds. It is the size of crumpet's TEE 4 and a different image.
+
+### Partition hashes
+
+[doebrite-partitions.csv](../firebreak/devices/doebrite-partitions.csv)
+has the sha256 of the 9 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every doebrite OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat the block
+  OTAs do.
+- The 5 builds hold 32 distinct images between them: one LK and one TEE, and a
+  boot, a `/system` and four `brhgptpl` of their own each. The preloader is not
+  a row of its own: it is inside each `brhgptpl` already counted.
+- Nothing here has looked inside a doebrite, and none has been seen here.

@@ -12,6 +12,9 @@ This project adheres to [Semantic Versioning](https://semver.org).
   their own CSV rows.
 - `docs/devices.md` covers crumpet, read from all 18 OTAs ftvdb lists, with
   `crumpet-partitions.csv`.
+- `docs/devices.md` covers doebrite, the Echo Dot with Clock (3rd Generation),
+  read from all 5 OTAs ftvdb lists, with `doebrite-partitions.csv`. It is built
+  as crumpet is, so `survey` already read it.
 
 ### Changed
 
