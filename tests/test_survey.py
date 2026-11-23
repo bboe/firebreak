@@ -60,6 +60,28 @@ def boot0(*, copy: int) -> bytes:
     return bytes(survey.BOOT0_PRELOADER - 1) + bytes([copy]) + preloader()
 
 
+def fit(*, stamps: tuple[int, ...]) -> bytes:
+    strings = b"timestamp\0description\0"
+    body = struct.pack(">I", 1) + bytes(4) + struct.pack(">IIII", 3, 4, 10, 0)
+    for stamp in stamps:
+        body += struct.pack(">IIII", 3, 4, 0, stamp)
+    body += struct.pack(">II", 2, 9)
+    head = struct.pack(
+        ">10I",
+        survey.FIT_MAGIC,
+        40 + len(body) + len(strings),
+        40,
+        40 + len(body),
+        0,
+        17,
+        16,
+        0,
+        len(strings),
+        len(body),
+    )
+    return head + body + strings
+
+
 def lk(*, version: int = 1) -> bytes:
     return LK_DESCRIPTION + bytes(64) + b"LK" + struct.pack(">H", version) + bytes(8)
 
@@ -168,6 +190,49 @@ def test_a_file_that_is_not_a_zip(*, tmp_path: pathlib.Path) -> None:
         survey.survey(update=path)
 
 
+def test_a_fit_image_reports_its_root_timestamp() -> None:
+    assert (
+        survey.fit_build_time(data=fit(stamps=(1721890907, 1800000000)))
+        == "20240725_070147"
+    )
+    assert survey.fit_build_time(data=fit(stamps=())) == "<none>"
+    assert survey.fit_build_time(data=bytes(survey.FIT_HEADER.size)) == "<none>"
+    assert survey.fit_build_time(data=b"short") == "<none>"
+
+
+def test_a_fit_image_skips_a_timestamp_outside_its_root_node() -> None:
+    strings = b"timestamp\0"
+    body = (
+        struct.pack(">I", survey.FIT_START)
+        + bytes(4)
+        + struct.pack(">I", survey.FIT_START)
+        + b"sig\0"
+        + struct.pack(">IIII", survey.FIT_PROPERTY, 4, 0, 1721890907)
+        + struct.pack(">II", survey.FIT_END_NODE, survey.FIT_END_NODE)
+        + struct.pack(">I", survey.FIT_STOP)
+    )
+    head = struct.pack(
+        ">10I",
+        survey.FIT_MAGIC,
+        40 + len(body) + len(strings),
+        40,
+        40 + len(body),
+        0,
+        17,
+        16,
+        0,
+        len(strings),
+        len(body),
+    )
+    assert survey.fit_build_time(data=head + body + strings) == "<none>"
+
+
+def test_a_fit_node_name_that_never_ends() -> None:
+    head = struct.pack(">10I", survey.FIT_MAGIC, 52, 40, 52, 0, 17, 16, 0, 0, 12)
+    body = struct.pack(">I", survey.FIT_START) + b"\xff" * 8
+    assert survey.fit_build_time(data=head + body) == "<none>"
+
+
 def test_a_literal_search_stops_at_the_start() -> None:
     assert survey.literal(at=0, data=b"\x78\x44", register=0) is None
 
@@ -216,7 +281,7 @@ def test_an_a_b_ota(
     survey.survey(update=update)
     out = capsys.readouterr().out
     assert "PL 0x0005, TEE 0x0103, LK 0x0002" in out
-    for partition in survey.csv_partitions(tees=("tee",)):
+    for partition in survey.csv_partitions(names=frozenset(images)):
         body = images[partition]
         assert f",{partition},{len(body)},{sha(body)}\n" in out
 
@@ -302,6 +367,51 @@ def test_an_a_b_ota_whose_two_tees_differ(
     assert f",tee2,{len(second)},{sha(second)}\n" in out
 
 
+def test_an_a_b_ota_with_a_uboot(
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    trusted = fit(stamps=(1755154729,))
+    images = {
+        "boot": b"b",
+        "brhgptlk_0": bytes(0x100),
+        "brhgptlk_1": bytes(0x100),
+        "reserve_0": bytes(BLOCK),
+        "system": b"y" * BLOCK,
+        "tee1": trusted,
+        "tee2": trusted,
+        "uboot": fit(stamps=(1721890907,)),
+    }
+    update = write_ota(
+        members={
+            "payload.bin": payload(images=images, kinds={}),
+            survey.PROPERTIES: PROPERTIES,
+        },
+        path=tmp_path / "ota.zip",
+    )
+    survey.survey(update=update)
+    out = capsys.readouterr().out
+    assert "uboot_build_time         20240725_070147" in out
+    assert "tee_build_time           20250814_065849" in out
+    assert "lk_build_desc" not in out
+    assert "anti-rollback" not in out
+    assert "biscuit,AEOBC,Fire OS 6 6426,boot," in out
+    for partition, body in images.items():
+        assert f",{partition},{len(body)},{sha(body)}\n" in out
+
+
+def test_an_a_b_ota_with_a_uboot_needs_every_image(*, tmp_path: pathlib.Path) -> None:
+    update = write_ota(
+        members={
+            "payload.bin": payload(
+                images={"boot": b"b", "uboot": fit(stamps=(1721890907,))}, kinds={}
+            )
+        },
+        path=tmp_path / "ota.zip",
+    )
+    with pytest.raises(expected_exception=FatalError, match="has no system"):
+        survey.survey(update=update)
+
+
 def test_an_a_b_ota_with_boot0_images(
     *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
 ) -> None:
@@ -329,6 +439,20 @@ def test_an_a_b_ota_with_boot0_images(
     for name, body in copies.items():
         assert f",{name},{len(body)},{sha(body)}\n" in out
     assert ",preloader," not in out
+
+
+def test_an_a_b_ota_with_boot0_images_needs_an_lk(*, tmp_path: pathlib.Path) -> None:
+    images = {
+        "boot": b"b",
+        "system": b"y" * BLOCK,
+        f"{survey.BOOT0}0": boot0(copy=0),
+    }
+    update = write_ota(
+        members={"payload.bin": payload(images=images, kinds={})},
+        path=tmp_path / "ota.zip",
+    )
+    with pytest.raises(expected_exception=FatalError, match="has no lk"):
+        survey.survey(update=update)
 
 
 def test_an_ota_that_names_and_marks_nothing(

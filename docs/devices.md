@@ -6,15 +6,17 @@ is named by the hardware code its bootrom reports rather than by a bootloader;
 the whole route has run on a donut, three times, including with
 `--factory-reset`. crown declares
 an unlock and no target, so no route reaches it, and that unlock has never run.
-crumpet, doebrite, pascal, sonar and lidar declare nothing at all, and are here
-because their OTAs are read the same way.
+crumpet, doebrite, pascal, sonar, lidar, laser, brownie, ganache, cannoli,
+cheesecake and churro declare nothing at all, and are here because their OTAs
+are read the same way.
 
 `firebreak survey OTA` prints, from one OTA zip and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build
 descriptions, the anti-rollback versions, the TEE's hashes and the partition
-hashes: 5 of them, 6 where an OTA names two TEE partitions as donut's and
-lidar's do, and 9 on crumpet, doebrite and pascal, which name two TEE
-partitions and four boot0 partitions.
+hashes: 5 of them on biscuit, radar, crown and sonar, 6 where an OTA names two
+TEE partitions as donut's, lidar's and laser's do, 9 on crumpet, doebrite and
+pascal, which add four boot0 partitions, 12 on brownie and ganache, and 14 on
+cannoli, cheesecake and churro, which add `scp` and `mcupm`.
 The TEE it reports is the first of those, and it says so where the two differ.
 Only the fastbrick image comes from elsewhere, amonet's
 `profile.sh`. It needs no Dot. Its CSV rows name the build as the CSVs do,
@@ -463,9 +465,9 @@ read as biscuit's are.
 
 - donut's payload names `tee1` and `tee2` as two partitions and writes the
   same TEE image to both, in all 26 builds. biscuit, radar, crown and sonar
-  each name one `tee` and have 5 rows a build, so donut has 6, as lidar does.
-  crumpet, doebrite and pascal name two as well, and have 9. The Builds table
-  above keeps one TEE column because the two images are equal.
+  each name one `tee` and have 5 rows a build, so donut has 6. The other ten
+  devices here name two, and their row counts are in the list above. The
+  Builds table above keeps one TEE column because the two images are equal.
 - Every donut OTA is an A/B payload OTA, 1895 included. So every hash is the
   one in its `payload.bin` manifest, and none carries the erased-block caveat
   the block OTAs of the other three devices do: a donut that Amazon's updater
@@ -799,3 +801,306 @@ read as biscuit's are.
 - Both lidar OTAs are A/B payload OTAs, so every hash is the one in its
   `payload.bin` manifest, and neither carries the erased-block caveat.
 - Nothing here has looked inside a lidar, and none has been seen here.
+
+## The u-boot devices
+
+laser, brownie, ganache, cannoli, cheesecake and churro ship no `preloader`
+partition and no build description of the kind the sections above read. They
+wrap `uboot`, the TEE and, on cannoli, cheesecake and churro, `scp` and
+`mcupm` in FIT images, each of which carries a `timestamp` property rather
+than a `commit-timestamp` string. `survey` reports the timestamp on each FIT image's
+root node, as a `uboot_build_time` line and the rest, and those are the columns
+their Builds tables carry.
+
+- cannoli's, cheesecake's and churro's FIT images are signed, and a signature
+  node carries a `timestamp` of its own: the signing time, 3 seconds to 18
+  hours after the build in the images read here. Only the root node's is read,
+  so a column here is always a build time.
+- **They have no anti-rollback line.** The `[ANTI-ROLLBACK] Updating PL
+  version` string the PL version is read through is in none of these images,
+  and neither is an LK version trailer. `survey` does find `EET KTM` inside the
+  TEE's FIT and would read a version from it, but the values that come back are
+  not the 0x0001 to 0x0103 every other device here reports, so the header is
+  being matched inside wrapped data and no TEE version is published for these
+  six.
+- The LK is not a partition of its own except on laser, where `lk` holds an
+  `EMMC_BOOT` image. On the other five, boot0 wraps it: four `brhgptlk` copies,
+  byte-identical to each other in every build, holding their GPT at 0x800.
+  brownie's and ganache's open `BOOTLOADER!`, as crumpet's `brhgptpl` does, and
+  cannoli's, cheesecake's and churro's open `NANDCFG!`.
+- `reserve_0` to `reserve_2`, on the five with `brhgptlk`, are 4096 bytes of
+  zeros. One hash covers every one of them, on every build of every device, so
+  it is the only image two devices here share besides biscuit's and radar's
+  TEE.
+- **Six u-boots were built on one day**, 2024-07-25, between 07:01 and 09:27:
+  brownie's, cannoli's, churro's, laser's, cheesecake's and ganache's, in that
+  order. laser's, brownie's and ganache's TEEs are one batch too, on
+  2025-08-14 between 06:58 and 08:11, and the TEE cannoli ships in 6562 and
+  7577, churro's and cheesecake's are another, on 2024-03-08 between 08:01 and
+  08:40. cannoli is the only one of the six whose `uboot` changes across its
+  builds.
+
+## laser
+
+The Echo (4th Generation) of 2020, model `AEOLS`. Read on 2026-11-23 from all
+5 OTAs ftvdb lists: Fire OS 6 6562, 8149, 8338, 8344 and 8349. ftvdb has no
+other laser OTA, and none is Fire OS 5. No kit here unlocks it, and no route
+reaches it. Its OTAs name themselves `laser_mt8512`, so the SoC is an MT8512.
+
+### Builds
+
+| ships in | `uboot_build_time` | `tee_build_time` |
+| --- | --- | --- |
+| Fire OS 6 6562 to 8349 | `20240725_084626` | `20250814_073131` |
+
+- laser is the first device here with a `uboot` partition, and it is read as
+  the [u-boot devices](#the-u-boot-devices) are.
+- It names no `preloader` and no boot0 copies. Its `lk` partition holds an
+  `EMMC_BOOT` image of 192512 bytes, which carries no build description and no
+  LK version trailer, so nothing above describes it. Its hash in the CSV is all
+  that identifies it.
+- One LK, one `uboot` and one TEE ship across all 5 builds, so only `boot` and
+  `/system` change. `/system` is 1048576000 bytes in every build, and `boot`
+  takes two sizes.
+- 13 distinct images cover the 5 builds.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 1 | 512000 | `782fc3d36d1a5bd8dbf0698b3a4591b6` | `0b065a5defc2e14c71711cdfd7d9dfcf461c2de5d2c11e1710f64c0141907cd9` |
+
+### Partition hashes
+
+[laser-partitions.csv](../firebreak/devices/laser-partitions.csv)
+has the sha256 of the 6 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every laser OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat the block
+  OTAs do.
+- Nothing here has looked inside a laser, and none has been seen here.
+
+## brownie
+
+The Echo Dot (4th Generation) of 2020, model `AEOBN`. Read on 2026-11-23 from
+all 5 OTAs ftvdb lists: Fire OS 6 6562, 8149, 8338, 8344 and 8349. ftvdb has no
+other brownie OTA, and none is Fire OS 5. No kit here unlocks it, and no route
+reaches it. Its OTAs name themselves `brownie_mt8512_nand`, so the SoC is an
+MT8512 and the flash is NAND.
+
+### Builds
+
+| ships in | `uboot_build_time` | `tee_build_time` |
+| --- | --- | --- |
+| Fire OS 6 6562 to 8349 | `20240725_070147` | `20250814_065849` |
+
+- brownie is read as the [u-boot devices](#the-u-boot-devices) are. It names
+  four `brhgptlk` copies of 237568 bytes, a `uboot`, and no `preloader` and no
+  `lk`: boot0 wraps the LK here, where crumpet's `brhgptpl` wraps the
+  preloader. The image opens `BOOTLOADER!` as crumpet's does, and holds its GPT
+  at 0x800 rather than 0x3000.
+- **The four copies are byte-identical in every build**, where crumpet's differ
+  in the 4 bytes that hold the destination block. So one hash covers all four.
+- One `uboot` and one TEE ship across all 5 builds, and one set of `brhgptlk`
+  copies, so only `boot` and `/system` change. `/system` is 124944384 bytes in
+  every build.
+- `reserve_0`, `reserve_1` and `reserve_2` are 4096 bytes of zeros, one hash
+  across every build of every device here that names them. They are padding,
+  not data.
+- 14 distinct images cover the 5 builds.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 1 | 512000 | `6ac7acd850c75572309cb141ad68e0c5` | `4c02dc7230510933b346df2dda972fc9eb36739aa76cc315aeefdea743cf31f1` |
+
+### Partition hashes
+
+[brownie-partitions.csv](../firebreak/devices/brownie-partitions.csv)
+has the sha256 of the 12 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every brownie OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat.
+- Nothing here has looked inside a brownie, and none has been seen here.
+
+## ganache
+
+The Echo Dot with Clock (4th Generation) of 2020, model `AEOGN`. Read on
+2026-11-23 from all 5 OTAs ftvdb lists: Fire OS 6 6562, 8149, 8338, 8344 and
+8349. ftvdb has no other ganache OTA, and none is Fire OS 5. No kit here
+unlocks it, and no route reaches it. Its OTAs name themselves
+`ganache_mt8512_nand`, as brownie's do.
+
+### Builds
+
+| ships in | `uboot_build_time` | `tee_build_time` |
+| --- | --- | --- |
+| Fire OS 6 6562 to 8349 | `20240725_092739` | `20250814_081115` |
+
+- ganache is brownie's clock variant and is built the same way: four
+  `brhgptlk` copies of 237568 bytes, byte-identical to each other, a `uboot`,
+  three zeroed `reserve` partitions, and no `preloader` and no `lk`. It is read
+  as the [u-boot devices](#the-u-boot-devices) are.
+- **Its images are not brownie's.** Every signed image differs, though every
+  partition but `boot` is the size brownie's is, `/system` included at
+  124944384 bytes. ganache's `boot` is the smaller of the two. The pairing is
+  doebrite's and crumpet's again, one generation on.
+- One `uboot` and one TEE ship across all 5 builds, so only `boot` and
+  `/system` change. 14 distinct images cover the 5 builds.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 1 | 512000 | `4dd0d1c2934f5c58d90afcec1428f845` | `b35ebce3e721c2e2ef37d3429291f1b8098a6f36186b483de4c958947da9cb5b` |
+
+### Partition hashes
+
+[ganache-partitions.csv](../firebreak/devices/ganache-partitions.csv)
+has the sha256 of the 12 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every ganache OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat.
+- Nothing here has looked inside a ganache, and none has been seen here.
+
+## cannoli
+
+The Echo Dot (5th Generation) of 2022, model `AEOCA`. Read on 2026-11-23 from
+all 7 OTAs ftvdb lists: Fire OS 6 4936, 6562, 7577, 8149, 8338, 8344 and 8349.
+ftvdb has no other cannoli OTA, and none is Fire OS 5. No kit here unlocks it,
+and no route reaches it.
+
+### Builds
+
+| ships in | `uboot_build_time` | `tee_build_time` | `scp_build_time` | `mcupm_build_time` |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 8149 to 8349 | `20260407_032735` | `20260407_032753` | `20250924_152946` | `20220314_214943` |
+| Fire OS 6 7577 | `20260529_044925` | `20240308_080103` | `20250924_152946` | `20220314_214943` |
+| Fire OS 6 6562 | `20240725_072359` | `20240308_080103` | `20250924_152946` | `20220314_214943` |
+| Fire OS 6 4936 | `20230921_191115` | `20230810_072707` | `20230818_152703` | `20220314_214943` |
+
+- cannoli is the first device here with `scp` and `mcupm` partitions, both FIT
+  images like `uboot` and the TEE. It is read as the
+  [u-boot devices](#the-u-boot-devices) are.
+- Its boot0 copies open `NANDCFG!`, not `BOOTLOADER!` as brownie's and
+  crumpet's do, and the four are byte-identical in every build. They take two
+  sizes: 245760 in 4936 and 6562, and 249856 from 7577.
+- **7577's `uboot` is newer than 8149's and later**, `20260529_044925` against
+  `20260407_032735`, though 7577 is the lower build number and the older Fire
+  OS version. So a build number does not order the bootloaders.
+- `mcupm` is one image in all 7 builds, from 2022. `scp` is two: 4936's and one
+  in every build from 6562.
+- 4 `uboot` images, 3 TEEs and 4 sets of `brhgptlk` copies cover the 7 builds,
+  29 distinct images in all. `/system` is 131088384 bytes in every build.
+- `reserve_0` to `reserve_2` are 4096 bytes of zeros, as brownie's are.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 3 | 647168 | `ea466f7bd6d9b2c73260d5d01c659384` | `b3be918bb0e3dd74e5e7b436809bfd83b9667e9ce58c0081e29aa8d78e7199d6` |
+| 2 | 647168 | `8cec63a6dc474030ccb0d19a321d8059` | `6cc5adc7c4afee908de2cfd5bfb4c0496aad264c5d85f8435ea5eaa56f937d39` |
+| 1 | 634880 | `1c8fd123f7e823474178ae5eb9fb708a` | `fa265dce25b50661da6d2af86fbcfe33b27933ea45cba4632221b7d35cbd10e6` |
+
+- Each cannoli TEE is numbered here, so a number is always cannoli's own. TEE 1
+  ships in 4936, TEE 2 in 6562 and 7577, and TEE 3 from 8149. Every OTA writes
+  its TEE to both `tee1` and `tee2`, and the two are equal in all 7 builds.
+
+### Partition hashes
+
+[cannoli-partitions.csv](../firebreak/devices/cannoli-partitions.csv)
+has the sha256 of the 14 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every cannoli OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat.
+- Nothing here has looked inside a cannoli, and none has been seen here.
+
+## cheesecake
+
+The Echo Dot with Clock (5th Generation) of 2022, model `AEOCZ`. Read on
+2026-11-23 from all 5 OTAs ftvdb lists: Fire OS 6 6562, 8149, 8338, 8344 and
+8349. ftvdb has no other cheesecake OTA, and none is Fire OS 5. No kit here
+unlocks it, and no route reaches it.
+
+### Builds
+
+| ships in | `uboot_build_time` | `tee_build_time` | `scp_build_time` | `mcupm_build_time` |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 6562 to 8349 | `20240725_090705` | `20240308_084051` | `20250924_152946` | `20220314_215607` |
+
+- cheesecake is cannoli's clock variant and carries the same partitions,
+  `scp` and `mcupm` included, with boot0 copies that open `NANDCFG!` and are
+  byte-identical to each other. It is read as the
+  [u-boot devices](#the-u-boot-devices) are.
+- **Its images are not cannoli's**, and the build stamps sit beside cannoli's:
+  its `scp` carries cannoli's stamp to the second, 2025-09-24 15:29:46, though
+  the image is not cannoli's, and its `mcupm` is stamped 6 minutes 24 seconds
+  after cannoli's. ganache pairs with brownie the same way.
+- One of everything but `boot` and `/system` ships across all 5 builds, so 16
+  distinct images cover them. `/system` is 131088384 bytes in every build, and
+  `boot` takes three sizes.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 1 | 647168 | `eec080091894dafc600bba39b1803345` | `bbf5c171464eed2f8ed2639f4c562a3c6bf9151a70bf4cc83240baddb7e114a5` |
+
+### Partition hashes
+
+[cheesecake-partitions.csv](../firebreak/devices/cheesecake-partitions.csv)
+has the sha256 of the 14 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every cheesecake OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat.
+- Nothing here has looked inside a cheesecake, and none has been seen here.
+
+## churro
+
+The Echo Pop (1st Generation) of 2023, model `AEOCO`. Read on 2026-11-23 from
+all 5 OTAs ftvdb lists: Fire OS 6 6562, 8149, 8338, 8344 and 8349. ftvdb has no
+other churro OTA, and none is Fire OS 5. No kit here unlocks it, and no route
+reaches it.
+
+### Builds
+
+| ships in | `uboot_build_time` | `tee_build_time` | `scp_build_time` | `mcupm_build_time` |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 6562 to 8349 | `20240725_082159` | `20240308_082058` | `20250924_152946` | `20220814_214919` |
+
+- churro carries cannoli's partitions, `scp` and `mcupm` included, with four
+  `brhgptlk` copies that open `NANDCFG!`, are byte-identical to each other and
+  hold their GPT at 0x800. It is read as the
+  [u-boot devices](#the-u-boot-devices) are.
+- **Its images are its own.** No image here is cannoli's or cheesecake's,
+  though its `brhgptlk` copies are 249856 bytes, the size cannoli's take from
+  7577 on, where cheesecake's are 245760.
+- **Three devices stamp one second.** Its `scp` carries 2025-09-24 15:29:46,
+  the stamp cannoli's and cheesecake's carry, and the three images differ. Its
+  `mcupm` is its own, from 2022-08-14, five months after theirs.
+- One of everything but `boot` and `/system` ships across all 5 builds, so 16
+  distinct images cover them. `/system` is 131088384 bytes in every build, and
+  `boot` takes two sizes.
+- `reserve_0` to `reserve_2` are 4096 bytes of zeros, as brownie's are.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 1 | 647168 | `30e3eaa01407932ccb924123e1de321a` | `064d2aa419f807e3b242e97be63cdd76fb0beeca4f104aa9c19db8e6777047f4` |
+
+### Partition hashes
+
+[churro-partitions.csv](../firebreak/devices/churro-partitions.csv)
+has the sha256 of the 14 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every churro OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat.
+- Nothing here has looked inside a churro, and none has been seen here.

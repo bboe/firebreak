@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import dataclasses
+import datetime
 import hashlib
 import io
 import lzma
@@ -21,12 +22,33 @@ BL_FIRST = 0xF000
 BL_FIRST_MASK = 0xF800
 BL_SECOND = 0xD000
 BOOT0 = "brhgptpl_"
+BOOT0_LK = "brhgptlk_"
 BOOT0_PRELOADER = 0x8000
 BUILD_TIME = re.compile(rb"\d{8}_\d{6}")
 BX_LR = 0x4770
 COMMIT = re.compile(rb"[0-9a-fA-F]{7}")
 CSV_LABEL = re.compile(r"Fire OS (\S+) \((?:\w+/)?(\d+)M?\)")
+CSV_ORDER = (
+    "boot",
+    "system",
+    "lk",
+    "uboot",
+    "scp",
+    "mcupm",
+    "tee",
+    "tee1",
+    "tee2",
+    "preloader",
+)
 DESCRIPTION = re.compile(rb"[0-9a-f]{7}-\d{8}_\d{6}")
+FIT_END_NODE = 2
+FIT_HEADER = struct.Struct(">10I")
+FIT_MAGIC = 0xD00DFEED
+FIT_PROPERTY = 3
+FIT_STAMPED = ("uboot", "tee", "scp", "mcupm")
+FIT_STAMP_SIZE = 4
+FIT_START = 1
+FIT_STOP = 9
 INSTRUCTIONS_SEARCHED = 16
 LDR_LITERAL = 0x4800
 LDR_LITERAL_MASK = 0xF800
@@ -40,6 +62,7 @@ PC_ADD_MASK = 0xFFF8
 PL_CALL = 1
 PL_UPDATE = b"[ANTI-ROLLBACK] Updating PL version"
 PROPERTIES = "META-INF/com/amazon/android/target.build.prop"
+SPARE = "reserve_"
 STRING = re.compile(rb"[\x20-\x7e]{6,}")
 TEE_HEADER = b"EET KTM"
 TEE_VERSION = slice(0xF, 0x11)
@@ -54,7 +77,7 @@ class Image:
 
 
 def boot0_names(*, names: frozenset[str]) -> tuple[str, ...]:
-    return tuple(sorted(name for name in names if name.startswith(BOOT0)))
+    return tuple(sorted(name for name in names if name.startswith((BOOT0, BOOT0_LK))))
 
 
 def branch_target(*, at: int, first: int, second: int) -> int:
@@ -120,16 +143,66 @@ def csv_label(*, name: str) -> str:
     return f"Fire OS {version}" if version.startswith("5.") else f"Fire OS 6 {build}"
 
 
-def csv_partitions(
-    *, boot0: tuple[str, ...] = (), tees: tuple[str, ...]
-) -> tuple[str, ...]:
-    return ("boot", "system", "lk", *tees, *(boot0 or ("preloader",)))
+def csv_partitions(*, names: frozenset[str]) -> tuple[str, ...]:
+    copies = boot0_names(names=names)
+    spare = tuple(sorted(name for name in names if name.startswith(SPARE)))
+    inside = copies and copies[0].startswith(BOOT0)
+    return (
+        tuple(
+            name
+            for name in CSV_ORDER
+            if name in names and not (inside and name == "preloader")
+        )
+        + copies
+        + spare
+    )
 
 
 def csv_row(*fields: object) -> str:
     text = io.StringIO()
     csv.writer(text, lineterminator="").writerow(fields)
     return text.getvalue()
+
+
+def fit_build_time(*, data: bytes) -> str:
+    stamp = fit_stamp(data=data)
+    if stamp is None:
+        return "<none>"
+    when = datetime.datetime.fromtimestamp(stamp, datetime.timezone.utc)
+    return when.strftime("%Y%m%d_%H%M%S")
+
+
+def fit_stamp(*, data: bytes) -> int | None:
+    if len(data) < FIT_HEADER.size:
+        return None
+    magic, _, structs, strings, _, _, _, _, size_strings, size_structs = (
+        FIT_HEADER.unpack_from(data)
+    )
+    if magic != FIT_MAGIC:
+        return None
+    names = data[strings : strings + size_strings]
+    at, deep, end = structs, 0, structs + size_structs
+    while at < min(end, len(data) - 4):
+        tag = int.from_bytes(data[at : at + 4], "big")
+        at += 4
+        if tag == FIT_START:
+            stop = data.find(b"\0", at)
+            if stop < 0:
+                return None
+            at, deep = (stop + 4) & ~3, deep + 1
+        elif tag == FIT_END_NODE:
+            deep -= 1
+        elif tag == FIT_PROPERTY:
+            length = int.from_bytes(data[at : at + 4], "big")
+            where = int.from_bytes(data[at + 4 : at + 8], "big")
+            at += 8
+            key = names[where : names.find(b"\0", where)]
+            if deep == 1 and key == b"timestamp" and length == FIT_STAMP_SIZE:
+                return int.from_bytes(data[at : at + 4], "big")
+            at = (at + length + 3) & ~3
+        elif tag == FIT_STOP:
+            break
+    return None
 
 
 def halfword(*, at: int, data: bytes) -> int:
@@ -181,11 +254,17 @@ def payload_images(*, archive: zipfile.ZipFile) -> dict[str, Image]:
     found = {}
     with archive.open(name="payload.bin") as payload:
         manifest = ota.read_manifest(payload=payload)
-        wanted = tuple(name for name in ota.IMAGES if name != "tee")
-        tees = tee_names(names=frozenset(manifest.partitions))
-        boot0 = boot0_names(names=frozenset(manifest.partitions))
-        if boot0:
-            wanted = (*(name for name in wanted if name != "preloader"), *boot0)
+        names = frozenset(manifest.partitions)
+        tees = tee_names(names=names)
+        boot0 = boot0_names(names=names)
+        wanted = payload_wanted(copies=boot0, names=names)
+        if boot0 or "uboot" in names:
+            needed = {"boot", "system"}
+            if "preloader" in names or (boot0 and boot0[0].startswith(BOOT0)):
+                needed.add("lk")
+            missing = sorted(needed - names)
+            if missing:
+                raise FatalError(message="the OTA has no " + ", ".join(missing))
         for name in (*wanted, *tees):
             partition = manifest.partitions.get(name)
             if partition is None:
@@ -208,7 +287,7 @@ def payload_images(*, archive: zipfile.ZipFile) -> dict[str, Image]:
                 sha256=want,
                 size=ota.number(value=partition.info[ota.InfoField.SIZE]),
             )
-        if boot0:
+        if boot0 and boot0[0].startswith(BOOT0):
             inner = found[boot0[0]].data[BOOT0_PRELOADER:]
             if not inner:
                 raise FatalError(
@@ -220,6 +299,18 @@ def payload_images(*, archive: zipfile.ZipFile) -> dict[str, Image]:
                 size=len(inner),
             )
     return found
+
+
+def payload_wanted(
+    *, copies: tuple[str, ...], names: frozenset[str]
+) -> tuple[str, ...]:
+    if not copies and "uboot" not in names:
+        return tuple(name for name in ota.IMAGES if name != "tee")
+    held = tuple(
+        name for name in CSV_ORDER if name in names and name not in set(ota.TEE_NAMES)
+    )
+    spare = tuple(sorted(name for name in names if name.startswith(SPARE)))
+    return (*held, *copies, *spare)
 
 
 def pl_version(*, data: bytes) -> int | None:
@@ -276,29 +367,41 @@ def survey(*, update: pathlib.Path) -> None:
     show(text=labelled(label="build", value=name))
     show(text=labelled(label="device", value=device))
     show(text=labelled(label="model", value=model))
-    show(
-        text=labelled(
-            label="lk_build_desc", value=build_description(data=found["lk"].data)
+    if "preloader" in found:
+        show(
+            text=labelled(
+                label="lk_build_desc", value=build_description(data=found["lk"].data)
+            )
         )
-    )
-    show(
-        text=labelled(
-            label="pl_build_desc", value=build_description(data=found["preloader"].data)
+        show(
+            text=labelled(
+                label="pl_build_desc",
+                value=build_description(data=found["preloader"].data),
+            )
         )
-    )
-    show(
-        text=labelled(
-            label="anti-rollback",
-            value=", ".join(
-                f"{label} {version_text(version=version)}"
-                for label, version in (
-                    ("PL", pl_version(data=found["preloader"].data)),
-                    ("TEE", tee_version(data=tee.data)),
-                    ("LK", lk_version(data=found["lk"].data)),
+        show(
+            text=labelled(
+                label="anti-rollback",
+                value=", ".join(
+                    f"{label} {version_text(version=version)}"
+                    for label, version in (
+                        ("PL", pl_version(data=found["preloader"].data)),
+                        ("TEE", tee_version(data=tee.data)),
+                        ("LK", lk_version(data=found["lk"].data)),
+                    )
+                ),
+            )
+        )
+    else:
+        for stamped in FIT_STAMPED:
+            held = tees[0] if stamped == "tee" else stamped
+            if held in found:
+                show(
+                    text=labelled(
+                        label=stamped + "_build_time",
+                        value=fit_build_time(data=found[held].data),
+                    )
                 )
-            ),
-        )
-    )
     show(
         text=labelled(
             label="TEE",
@@ -309,9 +412,7 @@ def survey(*, update: pathlib.Path) -> None:
         warn(text=f"{', '.join(tees)} do not hold the same image")
     show(text="\ndevice,model,build,partition,bytes,sha256")
     label = csv_label(name=name)
-    for partition in csv_partitions(
-        boot0=boot0_names(names=frozenset(found)), tees=tees
-    ):
+    for partition in csv_partitions(names=frozenset(found)):
         image = found[partition]
         show(text=csv_row(device, model, label, partition, image.size, image.sha256))
 

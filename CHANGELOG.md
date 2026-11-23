@@ -6,6 +6,17 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `survey` reads an OTA whose payload names a `uboot` partition, with four
+  `brhgptlk` copies in place of a preloader or an `lk`, as the Echo and Echo
+  Dot of the 4th generation and later do. For those it reports the `timestamp`
+  each FIT image's root node carries, one line each for `uboot`, the TEE,
+  `scp` and `mcupm`, in place of the build descriptions and the anti-rollback
+  versions, which those images do not hold.
+- `docs/devices.md` covers laser, brownie, ganache, cannoli, cheesecake and
+  churro — the Echo (4th Generation), the Echo Dot (4th and 5th Generations),
+  both Echo Dot with Clock variants and the Echo Pop — each read from every OTA
+  ftvdb lists, with a partition CSV each, and a section on what the six have in
+  common.
 - `survey` reads an OTA whose payload names four `brhgptpl` partitions and no
   `preloader`, as the Echo Dot (3rd Generation) Refresh of 2019, crumpet, does.
   It takes the preloader from inside the first of them, and gives all four
