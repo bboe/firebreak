@@ -6,6 +6,13 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `docs/devices.md` covers eight more devices `survey` already read: checkers
+  and cronos, the Echo Show 5 of the 1st and 2nd generations, croissant, the
+  Echo Flex, cupcake, the Echo Input, octave, the Echo Studio, pablo, the Echo
+  Sub, and sapphire and kyanite, the Echo Link and Echo Link Amp. Each is read
+  from every OTA ftvdb lists, with a partition CSV each, and a section gathers
+  the eleven devices whose LK carries commit `6f7225e`.
+
 - `survey` reads an OTA whose payload names a `uboot` partition, with four
   `brhgptlk` copies in place of a preloader or an `lk`, as the Echo and Echo
   Dot of the 4th generation and later do. For those it reports the `timestamp`

@@ -6,17 +6,19 @@ is named by the hardware code its bootrom reports rather than by a bootloader;
 the whole route has run on a donut, three times, including with
 `--factory-reset`. crown declares
 an unlock and no target, so no route reaches it, and that unlock has never run.
-crumpet, doebrite, pascal, sonar, lidar, laser, brownie, ganache, cannoli,
-cheesecake and churro declare nothing at all, and are here because their OTAs
-are read the same way.
+The other nineteen devices here declare nothing at all, and are here because
+their OTAs are read the same way: crumpet, doebrite, pascal, sonar, lidar,
+laser, brownie, ganache, cannoli, cheesecake, churro, checkers, croissant,
+cupcake, octave, pablo, sapphire, kyanite and cronos.
 
 `firebreak survey OTA` prints, from one OTA zip and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build
 descriptions, the anti-rollback versions, the TEE's hashes and the partition
-hashes: 5 of them on biscuit, radar, crown and sonar, 6 where an OTA names two
-TEE partitions as donut's, lidar's and laser's do, 9 on crumpet, doebrite and
-pascal, which add four boot0 partitions, 12 on brownie and ganache, and 14 on
-cannoli, cheesecake and churro, which add `scp` and `mcupm`.
+hashes: 5 of them on biscuit, radar, crown, sonar, checkers and cronos, 6
+where an OTA names two TEE partitions as donut's, lidar's, laser's, cupcake's,
+octave's, pablo's, sapphire's and kyanite's do, 9 on crumpet, doebrite, pascal
+and croissant, which add four boot0 partitions, 12 on brownie and ganache, and
+14 on cannoli, cheesecake and churro, which add `scp` and `mcupm`.
 The TEE it reports is the first of those, and it says so where the two differ.
 Only the fastbrick image comes from elsewhere, amonet's
 `profile.sh`. It needs no Dot. Its CSV rows name the build as the CSVs do,
@@ -464,15 +466,16 @@ has the sha256 of the 6 partitions each OTA writes, for every build above,
 read as biscuit's are.
 
 - donut's payload names `tee1` and `tee2` as two partitions and writes the
-  same TEE image to both, in all 26 builds. biscuit, radar, crown and sonar
-  each name one `tee` and have 5 rows a build, so donut has 6. The other ten
-  devices here name two, and their row counts are in the list above. The
-  Builds table above keeps one TEE column because the two images are equal.
+  same TEE image to both, in all 26 builds. biscuit, radar, crown, sonar,
+  checkers and cronos each name one `tee` and have 5 rows a build, so donut
+  has 6. The other sixteen devices here name two, and their row counts are in
+  the list above. The Builds table above keeps one TEE column because the two
+  images are equal.
 - Every donut OTA is an A/B payload OTA, 1895 included. So every hash is the
   one in its `payload.bin` manifest, and none carries the erased-block caveat
-  the block OTAs of the other three devices do: a donut that Amazon's updater
-  installed matches these `/system` hashes whatever its eMMC returns for an
-  erased block.
+  the block OTAs of the six devices here that ship them do: a donut that
+  Amazon's updater installed matches these `/system` hashes whatever its eMMC
+  returns for an erased block.
 - `/system` is 1073741824 bytes in every build. Every build has its own boot
   and `/system` hash.
 - Nothing here has looked inside a donut `/system`. `boot-root.zip` does root
@@ -543,9 +546,9 @@ it.
   `20230726_074325`, and crumpet's `20231103_072325` against donut's
   `20231103_081354`.
 - No crumpet image is shared with any device here.
-  [doebrite](#doebrite) and [pascal](#pascal) are built as crumpet is, down to
-  one BRLYT header and one 18-partition GPT table across the three, and neither
-  shares a signed image with it.
+  [doebrite](#doebrite), [pascal](#pascal) and [croissant](#croissant) are
+  built as crumpet is, down to one BRLYT header and one 18-partition GPT table
+  across the four, and none shares a signed image with it.
 
 ### TEE images
 
@@ -570,9 +573,8 @@ read as biscuit's are.
 - Every crumpet OTA is an A/B payload OTA, so every hash is the one in its
   `payload.bin` manifest, and none carries the erased-block caveat the block
   OTAs do, as donut's do not.
-- `/system` is 136626176 bytes in every build, the smallest here, and doebrite
-  and pascal ship the same size. Every build has its own boot and `/system`
-  hash.
+- `/system` is 136626176 bytes in every build, the size doebrite, pascal and
+  croissant ship. Every build has its own boot and `/system` hash.
 - Every build has its own `brhgptpl` hashes, all four of them, because boot0's
   GPT carries a fresh disk GUID and 18 fresh partition GUIDs each time. The
   preloader inside is one of four images, so a changed `brhgptpl` hash is not
@@ -614,12 +616,8 @@ unlocks it, and no route reaches it.
   differ, which are fresh in every build of any of them.
 - Every signed image differs. No doebrite image is shared with any device
   here, in any build.
-- Five devices here ship an LK built from one commit, `6f7225e`, inside 3
-  hours 27 minutes: doebrite's at `20230406_233331`, crumpet's at
-  `20230407_002912`, donut's at `20230407_013816`, pascal's at
-  `20230407_015438` and lidar's at `20230407_030004`. Their preloaders are one
-  batch too, all five stamped on 2023-11-03 between 06:35 and 09:35. The images
-  differ in every case.
+- doebrite's LK opens the `6f7225e` batch, the eleven LKs built from one
+  commit in one sitting. [The 6f7225e batch](#the-6f7225e-batch) has them all.
 - `/system` is 136626176 bytes in every build, as crumpet's is. `boot` is
   9912320 bytes in 6562 and 8149, and 9916416 in 8338 and later.
 
@@ -747,9 +745,10 @@ shipping Fire OS 5. No kit here unlocks it, and no route reaches it.
 has the sha256 of the 5 partitions each OTA writes, for both builds above,
 read as biscuit's are.
 
-- Both sonar OTAs are block OTAs, the only ones here outside biscuit, radar and
-  crown. So a sonar that Amazon's updater installed matches its `/system` hash
-  only if its flash reads erased blocks as zeros, as on biscuit.
+- Both sonar OTAs are block OTAs, as biscuit's, radar's, crown's, checkers'
+  and cronos' are. So a sonar that Amazon's updater installed matches its
+  `/system` hash only if its flash reads erased blocks as zeros, as on
+  biscuit.
 - `/system` is 1073676288 bytes in both builds, and `boot` 7534592. Each build
   has its own boot, `/system` and preloader hash.
 - sonar names one `tee`, so it has 5 rows a build.
@@ -773,13 +772,13 @@ and neither is Fire OS 5. No kit here unlocks it, and no route reaches it.
 - Its preloader is 151552 bytes, the size crumpet's and doebrite's are and the
   size donut's four later ones are, and carries no commit, so `pl_build_desc`
   is the `Build Time` string alone, as every donut row's is.
-- **Its PL version reads 0x0001.** crumpet's, doebrite's and pascal's cannot be
-  read at all, because the string their versions would be found through is
-  absent; lidar's is there, so the row carries a number where theirs carry
-  `<not found>`.
+- **Its PL version reads 0x0001.** crumpet's, doebrite's, pascal's,
+  croissant's and cronos' cannot be read at all, because the string their
+  versions would be found through is absent; lidar's is there, so the row
+  carries a number where theirs carry `<not found>`.
 - Both builds ship one LK, one preloader and one TEE, so only `boot` and
-  `/system` change between them. `/system` is 1283457024 bytes in both, the
-  largest of the Echo and Echo Dot devices here, and `boot` 10350592.
+  `/system` change between them. `/system` is 1283457024 bytes in both, and
+  `boot` 10350592.
 - No lidar image is shared with any device here.
 
 ### TEE images
@@ -789,8 +788,8 @@ and neither is Fire OS 5. No kit here unlocks it, and no route reaches it.
 | 1 | 2248704 | `9ca9d409ea36a3a5aa31681fd522556a` | `28eec7cfb167a6fcd120b4bf76510cccbf144bcab0e80c76b2fca5f61d026d42` |
 
 - Every OTA writes this TEE to both `tee1` and `tee2`, and the two are equal in
-  both builds. At 2248704 bytes it is smaller than every other device's here
-  but biscuit's and radar's 1781760.
+  both builds. At 2248704 bytes it is the size cupcake's TEE 3, octave's and
+  pablo's take.
 
 ### Partition hashes
 
@@ -820,7 +819,7 @@ their Builds tables carry.
   version` string the PL version is read through is in none of these images,
   and neither is an LK version trailer. `survey` does find `EET KTM` inside the
   TEE's FIT and would read a version from it, but the values that come back are
-  not the 0x0001 to 0x0103 every other device here reports, so the header is
+  not the 0x0001 to 0x0104 every other device here reports, so the header is
   being matched inside wrapped data and no TEE version is published for these
   six.
 - The LK is not a partition of its own except on laser, where `lk` holds an
@@ -1104,3 +1103,386 @@ read as biscuit's are.
 - Every churro OTA is an A/B payload OTA, so every hash is the one in its
   `payload.bin` manifest, and none carries the erased-block caveat.
 - Nothing here has looked inside a churro, and none has been seen here.
+
+## checkers
+
+The Echo Show 5 (1st Generation) of 2019, model `AEOCH`. Read on 2026-11-23
+from all 23 OTAs ftvdb lists: Fire OS 6 2264, 6086, 6190, 6200, 6206, 6208,
+6225, 6436, 6451, 6558, 6567, 7575, 7577, 7595, 7630, 7632, 7636, 8146, 8149,
+8150, 8151, 8848 and 8851. ftvdb has no other checkers OTA, and none is Fire
+OS 5. No kit here unlocks it, and no route reaches it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 8848 | `fbacd25-20260415_104418` | `8d92e82-20260415_104418` | [3](#tee-images-15) | 0x0001, 0x0103, 0x0001 |
+| Fire OS 6 6086 to 8851, except 8848 | `44072a3-20240709_170103` | `79a3b50-20231019_082513` | [2](#tee-images-15) | 0x0001, 0x0103, 0x0001 |
+| Fire OS 6 2264 | `cd178e6-20190703_190118` | `d14f08f-20190512_232119` | [1](#tee-images-15) | 0x0001, 0x0102, 0x0001 |
+
+- checkers is the second screen here, after crown. Its OTAs are block
+  OTAs, read exactly as biscuit's are: `boot.img`, `images/lk.bin`,
+  `images/preloader.img`, `images/tz.img` and `system.new.dat`, so 5 rows a
+  build.
+- **8848 carries a newer bootloader than 8851.** Both are Fire OS 6575.1, and
+  8848's LK and preloader are built on 2026-04-15 where 8851 ships the LK of
+  2024-07-09. So a build number does not order the bootloaders, as it does not
+  on cannoli.
+- 8848's LK and preloader carry one timestamp, `20260415_104418`, under two
+  commits, as cronos' 8848 row and biscuit's 5.5.5.4 row do. No other row here
+  pairs its two that way.
+- The TEE version rises from 0x0102 to 0x0103 between 2264 and 6086. The PL
+  and LK versions are 0x0001 in every build.
+- The preloaders of one row differ between builds only in boot0's GPT, as on
+  biscuit, so each of the 23 builds has a preloader hash of its own.
+- 3 LKs, 3 TEEs and 23 preloaders cover the 23 builds, 75 distinct images in
+  all. `/system` is 3253731328 bytes in every build, the size crown's is.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 3 | 2516992 | `e81f25b4efb1559f0acc4b8c9d0bf533` | `53958b83cf1b924c2f60e3555ec4f4663e3545b15c16991eaa98b740b2a691c7` |
+| 2 | 2533376 | `df1a7fd1936fab4b06cf73cd06089813` | `731799f3a23aca6e8660171d0ccb5f8802f0130a7a6f18d5e65b98f1560de12b` |
+| 1 | 2937856 | `5ca23a1ad4ec2dcfa3764a1ca3d4463c` | `5cb056cb345495314e831aeb455c47d0ef027c956301b5f586886e1b8029098f` |
+
+- Each checkers TEE is numbered here, so a number in the table above is always
+  checkers' own. TEE 1, of 2264, is the largest TEE any device here ships.
+
+### Partition hashes
+
+[checkers-partitions.csv](../firebreak/devices/checkers-partitions.csv)
+has the sha256 of the 5 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every checkers OTA is a block OTA, so its `/system` hash is the image the
+  OTA builds and carries the erased-block caveat biscuit's do.
+- Nothing here has looked inside a checkers, and none has been seen here.
+
+## croissant
+
+The Echo Flex of 2019, model `AEOCR`. Read on 2026-11-23 from all 26 OTAs
+ftvdb lists: Fire OS 6 3471, 4390, 4660, 5413, 5555, 6009, 6071, 6176, 6193,
+6199, 6208, 6220, 6425, 6436, 6448, 6554, 6562, 7575, 7577, 7595, 8142, 8146,
+8149, 8338, 8344 and 8349. ftvdb has no other croissant OTA, and none is Fire
+OS 5. No kit here unlocks it, and no route reaches it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 6176 to 8349 | `6f7225e-20230407_010559` | `20231103_074138` | [4](#tee-images-16) | `<not found>`, 0x0001, 0x0001 |
+| Fire OS 6 6009, 6071 | `6f7225e-20230407_010559` | `20231103_074138` | [3](#tee-images-16) | `<not found>`, 0x0001, 0x0001 |
+| Fire OS 6 5413, 5555 | `6f7225e-20230407_010559` | `20231103_074138` | [2](#tee-images-16) | `<not found>`, 0x0001, 0x0001 |
+| Fire OS 6 4390, 4660 | `0db8914-20221005_065716` | `20220323_063735` | [2](#tee-images-16) | `<not found>`, 0x0001, 0x0001 |
+| Fire OS 6 3471 | `8f885ae-20210414_065622` | `20210326_035108` | [1](#tee-images-16) | `<not found>`, 0x0001, 0x0001 |
+
+- croissant is built as crumpet is: no `preloader` partition, four `brhgptpl`
+  copies of 184320 bytes holding the preloader at 0x8000, and 9 rows a build.
+  It is read as [crumpet](#crumpet) is, down to the four copies differing only
+  in the block each is written to, so no hash of one copy equals another's.
+- Its PL version is not read, for the reason crumpet's is not, so the column
+  says `<not found>`. The TEE and LK versions are 0x0001 in every build.
+- Three preloader descriptions cover the 26 builds: `20210326_035108` in 3471,
+  `20220323_063735` in 4390 and 4660, and `20231103_074138` from 5413 on. None
+  carries a commit, as crumpet's and donut's do not.
+- Three LKs ship: 3471's of 233472 bytes, 4390's, which 4660 shares, and one
+  in every build from 5413, both 237568 bytes. 23 of the 26 builds take the
+  last.
+- croissant's LK of 5413 and later is one of the `6f7225e` batch
+  [below](#the-6f7225e-batch).
+- 163 distinct images cover the 26 builds. `/system` is 136626176 bytes in
+  every build, the size crumpet's is, and `boot` takes six sizes.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 4 | 2363392 | `4f014407840bb4a1b22d9b8e9c765999` | `ad5bd0f1c3a31afa6c43e3b9ed47fbc51aeceab5261e94301c68e133944c7190` |
+| 3 | 2367488 | `040d03d0406b4942145e4ba31e1b12e5` | `301400a0ff9b6c46def815a2963fe7ea847957fc4486eb6fb349537888135c12` |
+| 2 | 2367488 | `d65a4a552539e78fb1b12d669291747b` | `105fc61731765112e9a4d23294d6ef641a94d20240eacb83fdb624773ea0eda9` |
+| 1 | 2367488 | `676ab4d44c076501e9998514d33492f1` | `ca268044743f60c1dfc5093d400d5096cb174aafdca62a90d90030c74633610e` |
+
+- Each croissant TEE is numbered here, so a number in the table above is
+  always croissant's own. TEE 4 is the smallest and the newest, as crumpet's
+  TEE 4 is. Every OTA writes its TEE to both `tee1` and `tee2`, and the two
+  are equal in all 26 builds.
+
+### Partition hashes
+
+[croissant-partitions.csv](../firebreak/devices/croissant-partitions.csv)
+has the sha256 of the 9 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every croissant OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat.
+- Nothing here has looked inside a croissant, and none has been seen here.
+
+## cupcake
+
+The Echo Input of 2018, model `AEOCK`. Read on 2026-11-23 from all 22 OTAs
+ftvdb lists: Fire OS 6 5411, 5999, 6066, 6077, 6086, 6173, 6193, 6199, 6208,
+6220, 6416, 6425, 6436, 6448, 6553, 7575, 7576, 7595, 7632, 8146, 8149 and
+8338. ftvdb has no other cupcake OTA, and none is Fire OS 5. No kit here
+unlocks it, and no route reaches it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 6173 to 8338 | `6f7225e-20230407_012241` | `20231103_075849` | [3](#tee-images-17) | 0x0001, 0x0001, 0x0001 |
+| Fire OS 6 5999 to 6086 | `6f7225e-20230407_012241` | `20231103_075849` | [2](#tee-images-17) | 0x0001, 0x0001, 0x0001 |
+| Fire OS 6 5411 | `6f7225e-20230407_012241` | `20231103_075849` | [1](#tee-images-17) | 0x0001, 0x0001, 0x0001 |
+
+- cupcake is read as [donut](#donut) is: a `preloader` partition, an `lk`, and
+  one TEE written to both `tee1` and `tee2`, so 6 rows a build.
+- **One LK and one preloader ship in all 22 builds**, so only `boot`,
+  `/system` and the TEE ever change. Its preloader is 151552 bytes and carries
+  a build timestamp with no commit, as donut's later ones do.
+- Three TEEs cover the 22 builds. Only the TEE separates the three rows above:
+  the bootloader row is one row for every build cupcake has.
+- 49 distinct images cover the 22 builds. `/system` is 1073741824 bytes in
+  every build, and `boot` takes two sizes.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 3 | 2248704 | `eae8fc9250b5371e045a2bf5eb6251c3` | `123352761da6491d167332e06718d3d6c9e68739f4c7acbc1969026bc877818b` |
+| 2 | 2252800 | `4857494faa4af07b538c07fe4d7f082f` | `7b80698578684be311660626bda94f39ce7fec9d2fa1635d0555c30529b54745` |
+| 1 | 2252800 | `789a4a1777be3b5c3fae634e1658a77d` | `2bc1ebfb7d9081391268992b8ba7bb14159ad81785dc389951066ff45487f86a` |
+
+- Each cupcake TEE is numbered here, so a number in the table above is always
+  cupcake's own. Every OTA writes its TEE to both `tee1` and `tee2`, and the
+  two are equal in all 22 builds.
+
+### Partition hashes
+
+[cupcake-partitions.csv](../firebreak/devices/cupcake-partitions.csv)
+has the sha256 of the 6 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every cupcake OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat.
+- Nothing here has looked inside a cupcake, and none has been seen here.
+
+## octave
+
+The Echo Studio (1st Generation) of 2019, model `AEOOT`. Read on 2026-11-23
+from all 3 OTAs ftvdb lists: Fire OS 6 8149, 8338 and 8363. ftvdb has no other
+octave OTA, and none is Fire OS 5. No kit here unlocks it, and no route
+reaches it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 8149 to 8363 | `6f7225e-20230407_021107` | `20231103_084705` | [1](#tee-images-18) | 0x0001, 0x0001, 0x0001 |
+
+- octave is read as [donut](#donut) is, so 6 rows a build.
+- One LK, one preloader and one TEE ship across the 3 builds, so only `boot`
+  and `/system` change, and 9 distinct images cover them.
+- `/system` is 1711276032 bytes in every build, the largest of any speaker
+  here. `boot` is 10350592 bytes in every build and differs in content.
+- 8363 ships on octave and [pablo](#pablo), and on no other device here.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 1 | 2248704 | `2dff05032948c5f3dec38c6c49910733` | `c122d47990dbef978ae2ee9d1118667bcca4e0cb2d69d049c7836c3285c821ae` |
+
+### Partition hashes
+
+[octave-partitions.csv](../firebreak/devices/octave-partitions.csv)
+has the sha256 of the 6 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every octave OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat.
+- Nothing here has looked inside an octave, and none has been seen here.
+
+## pablo
+
+The Echo Sub of 2018, model `AEOPB`. Read on 2026-11-23 from all 3 OTAs ftvdb
+lists: Fire OS 6 8149, 8338 and 8363. ftvdb has no other pablo OTA, and none
+is Fire OS 5. No kit here unlocks it, and no route reaches it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 8149 to 8363 | `6f7225e-20230407_022624` | `20231103_090209` | [1](#tee-images-19) | 0x0001, 0x0001, 0x0001 |
+
+- pablo is read as [donut](#donut) is, so 6 rows a build.
+- One LK, one preloader and one TEE ship across the 3 builds, so only `boot`
+  and `/system` change, and 9 distinct images cover them.
+- `/system` is 1073741824 bytes in every build and `boot` is 10334208, the
+  sizes [sapphire](#sapphire) and [kyanite](#kyanite) carry. No image is
+  shared with either.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 1 | 2248704 | `8cabf9e0d117e9510ebf6e066c4b74cb` | `0a8db67ca0bb97cd0b13444a62b0050328096533d12670a251fbdce725b6d0c0` |
+
+### Partition hashes
+
+[pablo-partitions.csv](../firebreak/devices/pablo-partitions.csv)
+has the sha256 of the 6 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every pablo OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat.
+- Nothing here has looked inside a pablo, and none has been seen here.
+
+## sapphire
+
+The Echo Link of 2018, model `AEOSP`. Read on 2026-11-23 from the one OTA
+ftvdb lists: Fire OS 6 5411. ftvdb has no other sapphire OTA, and none is Fire
+OS 5. No kit here unlocks it, and no route reaches it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 5411 | `6f7225e-20230407_000633` | `20231103_070703` | [1](#tee-images-20) | 0x0001, 0x0001, 0x0001 |
+
+- sapphire is read as [donut](#donut) is, so 6 rows a build, and one build is
+  all ftvdb has. 5 distinct images cover it.
+- `/system` is 1073741824 bytes and `boot` is 10334208.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 1 | 2252800 | `c3eef144f6dd123282e12f9e8b77ec98` | `97215757241aa3839b63d21f8157ddf1d78f043b8416e45fb0bc736bdc6b9381` |
+
+### Partition hashes
+
+[sapphire-partitions.csv](../firebreak/devices/sapphire-partitions.csv)
+has the sha256 of the 6 partitions the OTA writes, read as biscuit's are.
+
+- The sapphire OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat.
+- Nothing here has looked inside a sapphire, and none has been seen here.
+
+## kyanite
+
+The Echo Link Amp of 2019, model `AEOKY`. Read on 2026-11-23 from the one OTA
+ftvdb lists: Fire OS 6 5411. ftvdb has no other kyanite OTA, and none is Fire
+OS 5. No kit here unlocks it, and no route reaches it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 5411 | `6f7225e-20230406_235021` | `20231103_065214` | [1](#tee-images-21) | 0x0001, 0x0001, 0x0001 |
+
+- kyanite is sapphire's amplified variant and is read as [donut](#donut) is,
+  so 6 rows a build, and one build is all ftvdb has. 5 distinct images cover
+  it.
+- **Every partition is the size sapphire's is**, `/system` at 1073741824 and
+  `boot` at 10334208 included, and no image is shared with sapphire. The
+  pairing is brownie's and ganache's, two generations earlier.
+- Its LK is the second of the `6f7225e` batch [below](#the-6f7225e-batch), 16
+  minutes before sapphire's.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 1 | 2252800 | `7b49b5577ee5f996b348df37b0f0400a` | `d14b3434ac5ec9817dfcdf49c59d7e2aa2b85731acebf763f10471fc9e295c23` |
+
+### Partition hashes
+
+[kyanite-partitions.csv](../firebreak/devices/kyanite-partitions.csv)
+has the sha256 of the 6 partitions the OTA writes, read as biscuit's are.
+
+- The kyanite OTA is an A/B payload OTA, so every hash is the one in its
+  `payload.bin` manifest, and none carries the erased-block caveat.
+- Nothing here has looked inside a kyanite, and none has been seen here.
+
+## cronos
+
+The Echo Show 5 (2nd Generation) of 2021, model `AEOCN`. Read on 2026-11-23
+from all 17 OTAs ftvdb lists: Fire OS 6 5411, 6208, 6225, 6426, 6436, 6451,
+6567, 7577, 7595, 7632, 7636, 8146, 8149, 8150, 8151, 8848 and 8851. ftvdb has
+no other cronos OTA, and none is Fire OS 5. No kit here unlocks it, and no
+route reaches it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 6 8848 | `fbacd25-20260415_111709` | `8d92e82-20260415_111709` | [2](#tee-images-22) | `<not found>`, 0x0104, 0x0103 |
+| Fire OS 6 6208 to 8851, except 8848 | `44072a3-20240709_162755` | `79a3b50-20231019_075356` | [1](#tee-images-22) | `<not found>`, 0x0104, 0x0103 |
+| Fire OS 6 5411 | `3c87b1c-20220128_013456` | `79a3b50-20231019_075356` | [1](#tee-images-22) | `<not found>`, 0x0104, 0x0103 |
+
+- cronos is checkers' successor and ships the same block OTAs, read as
+  biscuit's are, so 5 rows a build.
+- **Its anti-rollback versions are the highest here.** The TEE reports 0x0104
+  where no other device passes 0x0103, and the LK reports 0x0103 where every
+  other device that publishes an LK version reports 0x0001. Both hold in all
+  17 builds.
+- Its PL version is not read: the `[ANTI-ROLLBACK] Updating PL version` string
+  is in no cronos preloader, so the column says `<not found>` though the OTA
+  is a block OTA and carries `images/preloader.img` whole.
+- **8848 again carries the newer bootloader**, as on checkers: an LK and a
+  preloader of 2026-04-15 against the 2024-07-09 LK that 8851 ships, with one
+  timestamp under two commits. checkers builds its pair 32 minutes earlier
+  than cronos builds its own.
+- checkers, cronos and crown share the preloader commit `79a3b50` and the LK
+  commit `44072a3`, and no image. All three build that LK in one sitting on
+  2024-07-09: cronos at 16:27:55, crown at 16:44:49, checkers at 17:01:03.
+  checkers and cronos also share `fbacd25`.
+- 3 LKs, 2 TEEs and 17 preloaders cover the 17 builds, 56 distinct images in
+  all. `/system` is 3253731328 bytes in every build, the size crown's and
+  checkers' are, and `boot` takes two sizes.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 2 | 2533376 | `d2d8a8cfc9a6df9cb85dfe8ec0a8ca02` | `fae5e34f31f2193284e6b939a9b8ef8ba930f580a751d4122586de202b1154d6` |
+| 1 | 2533376 | `34aa34b163bf7e16b971b73ad74897dc` | `948da48fe99de97542840760e8008c024b8a1a5a2f20b7311ad97b5f80694ed4` |
+
+- Each cronos TEE is numbered here, so a number in the table above is always
+  cronos' own. The two are the same size, and that size is checkers' TEE 2.
+
+### Partition hashes
+
+[cronos-partitions.csv](../firebreak/devices/cronos-partitions.csv)
+has the sha256 of the 5 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every cronos OTA is a block OTA, so its `/system` hash is the image the OTA
+  builds and carries the erased-block caveat biscuit's do.
+- Nothing here has looked inside a cronos, and none has been seen here.
+
+## The 6f7225e batch
+
+Eleven LKs here carry commit `6f7225e`, built one after another over 3 hours
+26 minutes on 2023-04-06 and 2023-04-07:
+
+| built | device |
+| --- | --- |
+| `20230406_233331` | [doebrite](#doebrite) |
+| `20230406_235021` | [kyanite](#kyanite) |
+| `20230407_000633` | [sapphire](#sapphire) |
+| `20230407_002912` | [crumpet](#crumpet) |
+| `20230407_010559` | [croissant](#croissant) |
+| `20230407_012241` | [cupcake](#cupcake) |
+| `20230407_013816` | [donut](#donut) |
+| `20230407_015438` | [pascal](#pascal) |
+| `20230407_021107` | [octave](#octave) |
+| `20230407_022624` | [pablo](#pablo) |
+| `20230407_030004` | [lidar](#lidar) |
+
+- Every one of the eleven images differs, and no two devices share an LK.
+  The commit is one source tree built eleven times, once per device.
+- Each of the eleven ships that LK in its newest build, and in most of its
+  earlier ones: the batch is the last LK Amazon built for these devices.
+- Their preloaders follow seven months later, all eleven stamped 2023-11-03
+  between 06:35:46 and 09:34:56, and in the same device order as the LKs.

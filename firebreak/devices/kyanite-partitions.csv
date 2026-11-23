@@ -1,0 +1,7 @@
+device,model,build,partition,bytes,sha256
+kyanite,AEOKY,Fire OS 6 5411,boot,10334208,9b6fb94bd19b8cedff2c210db3c95841e9dcfd81f19dae1abdae11b3289b4774
+kyanite,AEOKY,Fire OS 6 5411,system,1073741824,4e7892dcb6b8bff3da67509aafbe1e62e330b626c1cd02d6cc0ef661a9d921c6
+kyanite,AEOKY,Fire OS 6 5411,lk,212992,84e0ce12a3b5a21aca1346ec0b61d09202a159fb59f7d6ce08676ca7475cbb94
+kyanite,AEOKY,Fire OS 6 5411,tee1,2252800,d14b3434ac5ec9817dfcdf49c59d7e2aa2b85731acebf763f10471fc9e295c23
+kyanite,AEOKY,Fire OS 6 5411,tee2,2252800,d14b3434ac5ec9817dfcdf49c59d7e2aa2b85731acebf763f10471fc9e295c23
+kyanite,AEOKY,Fire OS 6 5411,preloader,151552,58e13afd983b88fef9486bf8eb59ea40fd4ebe75c437dcd1d291d350ddd74f04
