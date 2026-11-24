@@ -6,12 +6,14 @@ is named by the hardware code its bootrom reports rather than by a bootloader;
 the whole route has run on a donut, three times, including with
 `--factory-reset`. crown declares
 an unlock and no target, so no route reaches it, and that unlock has never run.
-The other twenty-two devices here declare nothing at all, and are here because
-their OTAs are read the same way: crumpet, doebrite, pascal, sonar, lidar,
-laser, brownie, ganache, cannoli, cheesecake, churro, checkers, croissant,
-cupcake, octave, pablo, sapphire, kyanite, cronos, rook, bishop and knight.
+The other twenty-nine devices here declare nothing at all, and are here
+because their OTAs are read the same way: crumpet, doebrite, pascal, sonar,
+lidar, laser, brownie, ganache, cannoli, cheesecake, churro, checkers,
+croissant, cupcake, octave, pablo, sapphire, kyanite, cronos, rook, bishop,
+knight, and the seven [Vega](#vega) devices, galileo, hypnos, baklava,
+macaroon, electra, madeleine and persimmon.
 
-`firebreak survey OTA` prints, from one OTA zip and nothing else, what its
+`firebreak survey OTA` prints, from one OTA and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build
 descriptions, the anti-rollback versions, the TEE's hashes and the partition
 hashes: 5 of them on biscuit, radar, crown, sonar, checkers, cronos and rook, 6
@@ -20,7 +22,8 @@ octave's, pablo's, sapphire's and kyanite's do, 9 on crumpet, doebrite, pascal
 and croissant, which add four boot0 partitions, 12 on brownie and ganache, and
 14 on cannoli, cheesecake and churro, which add `scp` and `mcupm`, and 4 on
 bishop and knight, whose OTAs carry two `bootloader` images and none of the
-images the other lines are read from.
+images the other lines are read from. A Vega `.swu` is not a zip at all, and
+has a row for each image its manifest names, 7 to 12 of them.
 The TEE it reports is the first of those, and it says so where the two differ.
 Only the fastbrick image comes from elsewhere, amonet's
 `profile.sh`. It needs no Dot. Its CSV rows name the build as the CSVs do,
@@ -28,7 +31,8 @@ so each is a line of its CSV, word for word.
 
 Every CSV row starts with the device's codename and model, so the CSVs can
 be joined into one table. The model is `ro.product.model`, which every OTA of
-a device gives the same. The codename is `ro.product.device` without
+a device gives the same. A Vega `.swu` holds no model, so those seven devices
+carry `<unknown>` in that column. The codename is `ro.product.device` without
 `_puffin`. Biscuit's and radar's Fire OS 6 OTAs add that suffix: they are
 built from a second device tree, `device/amazon/biscuit_puffin`, where their
 Fire OS 5 OTAs say `biscuit`. Crown shipped on Fire OS 6 and has no suffix.
@@ -470,9 +474,10 @@ read as biscuit's are.
 - donut's payload names `tee1` and `tee2` as two partitions and writes the
   same TEE image to both, in all 26 builds. biscuit, radar, crown, sonar,
   checkers, cronos and rook each name one `tee` and have 5 rows a build, so
-  donut has 6. The other sixteen devices here name two, bishop and knight name
-  none at all, and their row counts are in the list above. The Builds table
-  above keeps one TEE column because the two images are equal.
+  donut has 6. The other sixteen devices here name two, galileo, hypnos and
+  baklava name one as well, and bishop, knight, electra, macaroon, madeleine
+  and persimmon name none at all. Their row counts are in the list above. The
+  Builds table above keeps one TEE column because the two images are equal.
 - Every donut OTA is an A/B payload OTA, 1895 included. So every hash is the
   one in its `payload.bin` manifest, and none carries the erased-block caveat
   the block OTAs of the seven devices here that ship them do: a donut that
@@ -1642,3 +1647,206 @@ read as biscuit's are.
 - All 16 rows are distinct images. `/system` is 1730043904 bytes in every
   build, and `boot` takes two sizes.
 - Nothing here has looked inside a knight, and none has been seen here.
+
+## Vega
+
+Seven devices here do not run Fire OS at all. They run Vega, and their updates
+are not Android OTA zips: each is a `.swu`, the container SWUpdate installs.
+`survey` reads one the same way it reads a zip, and prints a row per image.
+
+- A `.swu` is a CPIO archive, `070701` or `070702`. Its first member is
+  `sw-description`, 8 to 14 KiB of libconfig text, and the rest are the
+  scripts and images that text names, each once.
+- `sw-description` names the device by its codename, carries an
+  `embedded-script` whose `do_version_check` holds the build number and its
+  build time, and lists the images twice, under `copyA` and `copyB`. The two
+  lists name the same files against the `_a` and the `_b` target, so `survey`
+  reads `copyA` and nothing else.
+- **Every hash in a Vega CSV comes from that manifest**, as an A/B payload
+  OTA's hashes come from its own. They were checked once against the bytes:
+  all 12 images of macaroon's 7202000019720, 269 MiB of `.swu`, hash to what
+  the manifest says.
+- A row's size comes from the CPIO header, so it is the size of the file as
+  the `.swu` stores it. For `system` and `vendor` that is a gzipped verity
+  image, not the size of the partition it is written to.
+- The `.swu` names no model, so these rows carry `<unknown>` where every other
+  device names one. It names no partition table either: a row's partition is
+  the target the manifest gives, `/dev/block/platform/boot_a` and `system_a`
+  alike, without its `_a` or `_b`.
+- The four newest devices ship a `prod_` and a `dev_` image for each
+  bootloader target, and `do_secure_soc_check` chooses between them at install
+  time. The CSV names them as bishop's pair is named: `bootloader_prod` and
+  `bootloader`.
+- A build number is 13 digits and holds the two numbers ftvdb's name gives:
+  `6401030007120` is Vega OS 1.3, ship 71, and `7202000019720` is Vega OS 2.0
+  hf/197.
+
+### Builds
+
+Every one of the 38 builds here was built between 2026-09-13 and 2026-11-12,
+and a build number is shared: one build runs across the devices that take it,
+inside a few minutes.
+
+| build | built | devices |
+| --- | --- | --- |
+| 7202000019720 | 2026-11-12 02:11 to 02:17 | electra, macaroon, persimmon, madeleine, baklava |
+| 6401030008120 | 2026-11-12 01:58 to 02:04 | galileo, hypnos |
+| 7202000019220 | 2026-11-10 20:31 | baklava |
+| 7202000018420 | 2026-11-07 01:14 | persimmon |
+| 7202000017420 | 2026-11-05 01:16 to 01:20 | hypnos, madeleine, electra |
+| 7202000016620 | 2026-11-03 01:15 | baklava |
+| 7202000014820 | 2026-10-27 18:55 to 18:57 | persimmon, baklava, madeleine, macaroon, electra |
+| 7202000014520 | 2026-10-26 23:57 to 23:58 | persimmon, macaroon |
+| 6401030007920 | 2026-10-25 00:10 to 00:13 | hypnos, galileo, madeleine, electra |
+| 6401030007720 | 2026-10-19 19:16 to 19:19 | all seven |
+| 6401030007420 | 2026-09-30 08:32 to 08:33 | persimmon, macaroon |
+| 6401030007120 | 2026-09-13 03:51 to 03:57 | baklava, galileo, madeleine, electra, hypnos |
+
+- **A higher build number is not a later build.** hypnos took 2.0 on
+  2026-11-05 and a 1.3 build a week after it, and galileo has no 2.0 build at
+  all. ftvdb lists what each device was offered, not one line of releases.
+- No image is shared between any two of the seven, and none with a Fire OS
+  device here.
+
+## galileo
+
+The Echo Hub (1st Generation) of 2024, `AEOGL` in ftvdb's catalog. Read on
+2026-11-23 from all 4 OTAs ftvdb lists, Vega OS 1.3 only. See [Vega](#vega)
+for how a `.swu` is read. No kit here unlocks it, and no route reaches it.
+
+- Its manifest names 8 images: `uboot`, `boot`, `system`, `spmfw`, `sspm`,
+  `tee`, `vendor` and `boot0`, so 8 rows a build.
+- **Five of the eight never change.** One `uboot`, `spmfw`, `sspm`, `tee` and
+  `boot0` cover all 4 builds, and `vendor` takes two images, so 15 distinct
+  images cover the 32 rows.
+- `system` is 1175144302 to 1175302335 bytes as the `.swu` stores it, third
+  of the seven after electra's and madeleine's, and its own in every build.
+
+### Partition hashes
+
+[galileo-partitions.csv](../firebreak/devices/galileo-partitions.csv)
+has the sha256 of the 8 images each `.swu` carries, for all 4 builds.
+
+## hypnos
+
+The Echo Show 5 (3rd Generation) of 2023, `AEOHP` in ftvdb's catalog. Read on
+2026-11-23 from all 5 OTAs ftvdb lists, four of Vega OS 1.3 and one of 2.0.
+See [Vega](#vega) for how a `.swu` is read. No kit here unlocks it, and no
+route reaches it.
+
+- hypnos is built as galileo is, down to the same 8 image names, and ships
+  one `uboot`, `spmfw`, `sspm`, `tee` and `boot0` across all 5 builds. Its
+  `vendor` takes three images and its `system` five, so 18 distinct images
+  cover the 40 rows.
+- Its `uboot` is 848440 bytes against galileo's 847100, and its `tee` 1240756
+  against galileo's 1240760, so the two devices build their own.
+
+### Partition hashes
+
+[hypnos-partitions.csv](../firebreak/devices/hypnos-partitions.csv)
+has the sha256 of the 8 images each `.swu` carries, for all 5 builds.
+
+## baklava
+
+The Echo Spot (2nd Generation) of 2024, `AEOBL` in ftvdb's catalog. Read on
+2026-11-23 from all 6 OTAs ftvdb lists, two of Vega OS 1.3 and four of 2.0.
+See [Vega](#vega) for how a `.swu` is read. No kit here unlocks it, and no
+route reaches it.
+
+- Its manifest names 7 images, not galileo's 8: it has an `mcupm` where
+  galileo and hypnos have `spmfw` and `sspm`.
+- One `uboot`, `mcupm`, `tee` and `boot0` cover all 6 builds, so only `boot`,
+  `system` and `vendor` change, and 21 distinct images cover the 42 rows.
+- Its `boot0` is 327168 bytes, the smallest of the seven, against galileo's
+  and hypnos' 383488.
+
+### Partition hashes
+
+[baklava-partitions.csv](../firebreak/devices/baklava-partitions.csv)
+has the sha256 of the 7 images each `.swu` carries, for all 6 builds.
+
+## macaroon
+
+The Echo Dot Max (1st Generation) of 2025, `AEOMC` in ftvdb's catalog. Read on
+2026-11-23 from all 5 OTAs ftvdb lists, two of Vega OS 1.3 and three of 2.0.
+See [Vega](#vega) for how a `.swu` is read. No kit here unlocks it, and no
+route reaches it.
+
+- **macaroon is the only device here written through UBI and raw flash.**
+  Eight of its images name a `volume` rather than a device node -- `kernel`,
+  `system`, and `mcu`, `bootloader` and `ddr` in both copies -- and four name
+  `/dev/mtd0` and `/dev/mtd1`. It is also the only one whose kernel partition
+  is `kernel` rather than `boot`.
+- It names 12 images, the most of the seven, because `mcu`, `bootloader`,
+  `ddr`, `mtd0` and `mtd1` each take a `prod` and a `dev` image.
+- Only `kernel` and `system` change in every build. The ten bootloader images
+  take two states each at most, and `mtd0` and `mtd0_prod` never change, so 28
+  distinct images cover the 60 rows.
+- Its `system` is 236089012 to 246436721 bytes, the smallest of the seven, and
+  it is squashfs-zstd where every other device here is squashfs-lz4.
+
+### Partition hashes
+
+[macaroon-partitions.csv](../firebreak/devices/macaroon-partitions.csv)
+has the sha256 of the 12 images each `.swu` carries, for all 5 builds.
+
+## electra
+
+The Echo Show 11 (1st Generation) of 2025, `AEOEL` in ftvdb's catalog. Read on
+2026-11-23 from all 6 OTAs ftvdb lists, three of Vega OS 1.3 and three of 2.0.
+See [Vega](#vega) for how a `.swu` is read. No kit here unlocks it, and no
+route reaches it.
+
+- Its manifest names 9 images: `mcu` and `mcu_prod`, `bootloader` and
+  `bootloader_prod`, `boot`, `system`, `vendor`, and `boot0` and `boot0_prod`.
+  There is no `tee`, `spmfw` or `sspm` row: those images are not in the
+  manifest at all.
+- Each of its three `prod`/`dev` pairs takes exactly two states across the 6
+  builds, so the bootloaders change once. 29 distinct images cover the 54
+  rows.
+- Its `system` is 1377888967 to 1415204597 bytes, the largest of the seven.
+
+### Partition hashes
+
+[electra-partitions.csv](../firebreak/devices/electra-partitions.csv)
+has the sha256 of the 9 images each `.swu` carries, for all 6 builds.
+
+## madeleine
+
+The Echo Show 8 (4th Generation) of 2025, `AEOMD` in ftvdb's catalog. Read on
+2026-11-23 from all 6 OTAs ftvdb lists, three of Vega OS 1.3 and three of 2.0.
+See [Vega](#vega) for how a `.swu` is read. No kit here unlocks it, and no
+route reaches it.
+
+- madeleine is built as electra is, down to the same 9 image names and the
+  same three `prod`/`dev` pairs, each taking two states across the 6 builds.
+- Its `boot0` images are the sizes electra's and persimmon's are, 1312092
+  bytes for `boot0_prod` and 1311989 for `boot0`, and no two of the three
+  devices share one: each signs its own.
+- 29 distinct images cover the 54 rows.
+
+### Partition hashes
+
+[madeleine-partitions.csv](../firebreak/devices/madeleine-partitions.csv)
+has the sha256 of the 9 images each `.swu` carries, for all 6 builds.
+
+## persimmon
+
+The Echo Studio (2nd Generation) of 2025, `AEOPS` in ftvdb's catalog. Read on
+2026-11-23 from all 6 OTAs ftvdb lists, two of Vega OS 1.3 and four of 2.0.
+See [Vega](#vega) for how a `.swu` is read. No kit here unlocks it, and no
+route reaches it.
+
+- persimmon names electra's and madeleine's 9 images, and is read the same
+  way.
+- **Its `vendor` is 60010 to 60298 bytes**, where every other device here
+  that has one ships 15 to 44 MiB, and it changes in all 6 builds. macaroon
+  has no `vendor` image at all. 30 distinct images
+  cover the 54 rows, more than any other device here of the seven.
+- Its `system` is 328638272 to 337885474 bytes, the second smallest here,
+  after macaroon's.
+
+### Partition hashes
+
+[persimmon-partitions.csv](../firebreak/devices/persimmon-partitions.csv)
+has the sha256 of the 9 images each `.swu` carries, for all 6 builds.

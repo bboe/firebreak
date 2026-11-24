@@ -13,6 +13,7 @@ import tempfile
 import zipfile
 import zlib
 
+from firebreak import vega
 from firebreak.android import ota
 from firebreak.cache import CACHE, digest
 from firebreak.report import labelled
@@ -68,6 +69,7 @@ SPARE = "reserve_"
 STRING = re.compile(rb"[\x20-\x7e]{6,}")
 TEE_HEADER = b"EET KTM"
 TEE_VERSION = slice(0xF, 0x11)
+VEGA_MODEL = "<unknown>"
 WIDE_PREFIXES = frozenset({0b11101, 0b11110, 0b11111})
 
 
@@ -167,11 +169,7 @@ def csv_row(*fields: object) -> str:
 
 
 def fit_build_time(*, data: bytes) -> str:
-    stamp = fit_stamp(data=data)
-    if stamp is None:
-        return "<none>"
-    when = datetime.datetime.fromtimestamp(stamp, datetime.timezone.utc)
-    return when.strftime("%Y%m%d_%H%M%S")
+    return stamp_time(stamp=fit_stamp(data=data))
 
 
 def fit_stamp(*, data: bytes) -> int | None:
@@ -348,7 +346,20 @@ def pl_version(*, data: bytes) -> int | None:
     return None
 
 
+def stamp_time(*, stamp: int | None) -> str:
+    if stamp is None:
+        return "<none>"
+    try:
+        when = datetime.datetime.fromtimestamp(stamp, datetime.timezone.utc)
+    except (OSError, OverflowError, ValueError) as error:
+        raise FatalError(message=f"has an unreadable build time: {error}") from error
+    return when.strftime("%Y%m%d_%H%M%S")
+
+
 def survey(*, update: pathlib.Path) -> None:
+    if vega.is_swu(update=update):
+        vega_survey(update=update)
+        return
     try:
         archive = zipfile.ZipFile(file=update)
     except (OSError, zipfile.BadZipFile) as error:
@@ -452,6 +463,39 @@ def tee_version(*, data: bytes) -> int | None:
     if at < 0:
         return None
     return int.from_bytes(data[at + TEE_VERSION.start : at + TEE_VERSION.stop], "big")
+
+
+def vega_survey(*, update: pathlib.Path) -> None:
+    manifest, sizes = vega.read(update=update)
+    missing = sorted(
+        image.filename for image in manifest.images if image.filename not in sizes
+    )
+    if missing:
+        raise FatalError(message="the .swu has no " + ", ".join(missing))
+    carried = (vega.DESCRIPTION, vega.SIGNATURE)
+    undescribed = sorted(
+        name for name in sizes if name not in carried and name not in manifest.files
+    )
+    if undescribed:
+        raise FatalError(message="the .swu does not describe " + ", ".join(undescribed))
+    build = manifest.version or "<unknown>"
+    when = stamp_time(stamp=manifest.stamp)
+    show(text=labelled(label="OTA", value=update.name))
+    show(text=labelled(label="build", value=build))
+    show(text=labelled(label="build_time", value=when))
+    show(text=labelled(label="device", value=manifest.device))
+    show(text="\ndevice,model,build,partition,bytes,sha256")
+    for image in manifest.images:
+        show(
+            text=csv_row(
+                manifest.device,
+                VEGA_MODEL,
+                f"Vega {build}",
+                image.partition,
+                sizes[image.filename],
+                image.sha256,
+            )
+        )
 
 
 def version_text(*, version: int | None) -> str:

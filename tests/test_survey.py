@@ -8,8 +8,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 from test_ota import payload, write_ota
+from test_vega import description as swu_description
+from test_vega import swu, written
 
-from firebreak import __main__, survey
+from firebreak import __main__, survey, vega
 from firebreak.android import ota
 from firebreak.ui import FatalError
 
@@ -291,6 +293,53 @@ def test_a_row_quotes_a_comma() -> None:
     assert (
         survey.csv_row("biscuit", "Fire OS 7, beta", 1) == 'biscuit,"Fire OS 7, beta",1'
     )
+
+
+def test_a_vega_swu(
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    survey.survey(update=written(path=tmp_path / "ota.swu"))
+    build = "Vega 6401030007120"
+    assert capsys.readouterr().out.splitlines() == [
+        "OTA                      ota.swu",
+        "build                    6401030007120",
+        "build_time               20260913_035319",
+        "device                   galileo",
+        "",
+        "device,model,build,partition,bytes,sha256",
+        f"galileo,<unknown>,{build},boot,4,b007",
+        f"galileo,<unknown>,{build},bootloader_prod,4,f1b",
+    ]
+
+
+def test_a_vega_swu_that_carries_an_image_it_does_not_describe(
+    *, tmp_path: pathlib.Path
+) -> None:
+    update = swu(
+        path=tmp_path / "ota.swu",
+        **{vega.DESCRIPTION: swu_description().encode()},
+        **{"boot.img": b"boot", "prod_fip.bin": b"fip!", "stray.img": b"what"},
+    )
+    with pytest.raises(
+        expected_exception=FatalError, match=r"does not describe stray\.img"
+    ):
+        survey.survey(update=update)
+
+
+def test_a_vega_swu_that_is_missing_an_image(*, tmp_path: pathlib.Path) -> None:
+    update = swu(
+        path=tmp_path / "ota.swu",
+        **{vega.DESCRIPTION: swu_description().encode()},
+    )
+    with pytest.raises(expected_exception=FatalError, match=r"has no boot\.img"):
+        survey.survey(update=update)
+
+
+def test_a_vega_swu_whose_build_time_is_unreadable(*, tmp_path: pathlib.Path) -> None:
+    text = swu_description().replace("1789271599", "1789271599000")
+    update = written(path=tmp_path / "ota.swu", text=text)
+    with pytest.raises(expected_exception=FatalError, match="unreadable build time"):
+        survey.survey(update=update)
 
 
 def test_an_a_b_image_that_does_not_match_its_manifest(

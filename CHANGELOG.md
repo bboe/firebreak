@@ -6,6 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `survey` reads a Vega `.swu`, the container the Echo Hub, the Echo Spot of
+  the 2nd generation, the Echo Show 5 of the 3rd, the Echo Dot Max, the Echo
+  Show 11, the Echo Show 8 of the 4th and the Echo Studio of the 2nd ship
+  instead of an Android OTA zip. It reads the CPIO archive's headers and the
+  `sw-description` manifest inside it, and prints the build number, its build
+  time, the device and a CSV row for every image the manifest names.
+  `docs/devices.md` covers all seven, read from every OTA ftvdb lists, with a
+  partition CSV each.
 - `survey` reads a block OTA that carries `images/bootloader` and
   `images/bootloader_prod` in place of an LK, a preloader and a TEE, as the
   Echo Show of the 1st and 2nd generations, knight and bishop, do. It gives
