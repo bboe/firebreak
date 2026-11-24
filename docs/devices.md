@@ -6,10 +6,10 @@ is named by the hardware code its bootrom reports rather than by a bootloader;
 the whole route has run on a donut, three times, including with
 `--factory-reset`. crown declares
 an unlock and no target, so no route reaches it, and that unlock has never run.
-The other twenty devices here declare nothing at all, and are here because
+The other twenty-two devices here declare nothing at all, and are here because
 their OTAs are read the same way: crumpet, doebrite, pascal, sonar, lidar,
 laser, brownie, ganache, cannoli, cheesecake, churro, checkers, croissant,
-cupcake, octave, pablo, sapphire, kyanite, cronos and rook.
+cupcake, octave, pablo, sapphire, kyanite, cronos, rook, bishop and knight.
 
 `firebreak survey OTA` prints, from one OTA zip and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build
@@ -18,7 +18,9 @@ hashes: 5 of them on biscuit, radar, crown, sonar, checkers, cronos and rook, 6
 where an OTA names two TEE partitions as donut's, lidar's, laser's, cupcake's,
 octave's, pablo's, sapphire's and kyanite's do, 9 on crumpet, doebrite, pascal
 and croissant, which add four boot0 partitions, 12 on brownie and ganache, and
-14 on cannoli, cheesecake and churro, which add `scp` and `mcupm`.
+14 on cannoli, cheesecake and churro, which add `scp` and `mcupm`, and 4 on
+bishop and knight, whose OTAs carry two `bootloader` images and none of the
+images the other lines are read from.
 The TEE it reports is the first of those, and it says so where the two differ.
 Only the fastbrick image comes from elsewhere, amonet's
 `profile.sh`. It needs no Dot. Its CSV rows name the build as the CSVs do,
@@ -468,9 +470,9 @@ read as biscuit's are.
 - donut's payload names `tee1` and `tee2` as two partitions and writes the
   same TEE image to both, in all 26 builds. biscuit, radar, crown, sonar,
   checkers, cronos and rook each name one `tee` and have 5 rows a build, so
-  donut has 6. The other sixteen devices here name two, and their row counts
-  are in the list above. The Builds table above keeps one TEE column because
-  the two images are equal.
+  donut has 6. The other sixteen devices here name two, bishop and knight name
+  none at all, and their row counts are in the list above. The Builds table
+  above keeps one TEE column because the two images are equal.
 - Every donut OTA is an A/B payload OTA, 1895 included. So every hash is the
   one in its `payload.bin` manifest, and none carries the erased-block caveat
   the block OTAs of the seven devices here that ship them do: a donut that
@@ -711,9 +713,9 @@ read as biscuit's are.
 
 The Echo Plus (1st Generation) of 2017, model `AEOSN`. Read on 2026-11-23 from
 both OTAs ftvdb lists, Fire OS 5.5.6.9 of August and October 2026. ftvdb has no
-other sonar OTA, and neither is Fire OS 6: sonar and [rook](#rook) are the two
-devices here still shipping Fire OS 5. No kit here unlocks it, and no route
-reaches it.
+other sonar OTA, and neither is Fire OS 6: sonar, [rook](#rook),
+[bishop](#bishop) and [knight](#knight) are the four devices here still
+shipping Fire OS 5. No kit here unlocks it, and no route reaches it.
 
 ### Builds
 
@@ -1523,8 +1525,9 @@ and no route reaches it.
   `c1c79aa-20220824_171625` against `bfc30ee-20220824_171617`: one sitting,
   two commits, and no image shared. Their preloaders follow five days apart,
   rook's on 2022-11-16 and sonar's on 2022-11-21.
-- rook and sonar are the two devices here still on Fire OS 5, and their two
-  newest builds are the same two, 9180 and 9181, at the same version codes.
+- rook, sonar, [bishop](#bishop) and [knight](#knight) are the four devices
+  here still on Fire OS 5, and all four ship the same two newest builds, 9180
+  and 9181, at the same version codes.
 - No rook image is shared with any device here.
 
 ### TEE images
@@ -1555,3 +1558,87 @@ read as biscuit's are.
   Each build has its own boot and `/system` hash.
 - rook names one `tee`, so it has 5 rows a build.
 - Nothing here has looked inside a rook, and none has been seen here.
+
+## bishop
+
+The Echo Show (2nd Generation) of 2018, model `AEOBP`. Read on 2026-11-23 from
+all 3 OTAs ftvdb lists: Fire OS 5.5.3.4 of October 2019, and 5.5.6.9 of August
+and October 2026. ftvdb has no other bishop OTA, and none is Fire OS 6. No kit
+here unlocks it, and no route reaches it.
+
+There is no Builds table here. Every column one holds -- the LK and preloader
+build descriptions, the anti-rollback versions and the TEE -- is read from an
+image a bishop OTA does not carry.
+
+- **bishop is an Intel device, and its block OTA shows it.** It names no `lk`,
+  no `preloader` and no `tee`. In their place are `images/bootloader` and
+  `images/bootloader_prod`, 34603008 bytes each, so none of the MediaTek
+  reading applies and `survey` prints the build, the device and the model,
+  then the hashes.
+- Each bootloader image is a FAT16 volume labelled `ANDROIDIA`, made by
+  `mkfs.fat`, holding three files: `\EFI\BOOT\BOOTX64.EFI` of about 18 MiB,
+  a `BIOSUPDATE.FV` of about 8 MiB, and a 33-byte `MANIFEST.TXT` that reads
+  `Android-IA=\EFI\BOOT\bootx64.efi` in every image here, knight's included.
+- `bootloader` and `bootloader_prod` carry different EFI binaries and
+  different `BIOSUPDATE.FV`s in every build. `MANIFEST.TXT` is the only file
+  the two share.
+- **bishop's EFI binary never changes.** One `BOOTX64.EFI` is in all 3
+  `bootloader` images and one in all 3 `bootloader_prod` images, 2019 to 2026.
+  Only the `BIOSUPDATE.FV` changes, once, between 5.5.3.4 and 5.5.6.9.
+- So 9180 and 9181 hold the same three files, and their images still differ,
+  in 95 bytes: the FAT volume ID and the timestamps in the directory entries,
+  which `mkfs.fat` writes afresh on every run. Every bootloader hash in the
+  CSV is its build's own for that reason, not because a bootloader changed.
+- No bishop image is shared with any device here, knight included.
+
+### Partition hashes
+
+[bishop-partitions.csv](../firebreak/devices/bishop-partitions.csv)
+has the sha256 of the 4 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every bishop OTA is a block OTA, so a bishop that Amazon's updater installed
+  matches its `/system` hash only if its flash reads erased blocks as zeros,
+  as on biscuit.
+- `survey` labels both 5.5.6.9 builds `Fire OS 5.5.6.9`, so 9181 is renamed by
+  hand in the CSV, as sonar's is.
+- All 12 rows are distinct images. `/system` is 2361245696 bytes in every
+  build, and `boot` takes two sizes.
+- Nothing here has looked inside a bishop, and none has been seen here.
+
+## knight
+
+The Echo Show (1st Generation) of 2017, model `AEOKN`. Read on 2026-11-23 from
+all 4 OTAs ftvdb lists: Fire OS 5.5.3.1 and 5.5.3.4 of August and October
+2019, and 5.5.6.9 of August and October 2026. ftvdb has no other knight OTA,
+and none is Fire OS 6. No kit here unlocks it, and no route reaches it.
+
+There is no Builds table here, for the reason given under [bishop](#bishop):
+knight's OTA carries no LK, preloader or TEE either.
+
+- knight is read as bishop is, and is built as bishop is: `boot`, `/system`
+  and the same two 34603008-byte `ANDROIDIA` volumes, so 4 rows a build.
+- **Both its files change, once.** The two 2019 builds hold one
+  `BOOTX64.EFI` and one `BIOSUPDATE.FV`, the two 2026 builds another of each,
+  in `bootloader` and in `bootloader_prod` alike. Where bishop kept its EFI
+  binary across seven years, knight replaced it.
+- The four images of one pair still differ build by build, as bishop's do,
+  because `mkfs.fat` stamps each run.
+- No knight image is shared with any device here, and knight and bishop share
+  no file inside a bootloader image either: their EFI binaries are 536 bytes
+  apart in size, and their `BIOSUPDATE.FV`s 8192.
+
+### Partition hashes
+
+[knight-partitions.csv](../firebreak/devices/knight-partitions.csv)
+has the sha256 of the 4 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every knight OTA is a block OTA, so a knight that Amazon's updater installed
+  matches its `/system` hash only if its flash reads erased blocks as zeros,
+  as on biscuit.
+- `survey` labels both 5.5.6.9 builds `Fire OS 5.5.6.9`, so 9181 is renamed by
+  hand in the CSV, as sonar's is.
+- All 16 rows are distinct images. `/system` is 1730043904 bytes in every
+  build, and `boot` takes two sizes.
+- Nothing here has looked inside a knight, and none has been seen here.

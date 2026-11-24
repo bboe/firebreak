@@ -6,6 +6,13 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `survey` reads a block OTA that carries `images/bootloader` and
+  `images/bootloader_prod` in place of an LK, a preloader and a TEE, as the
+  Echo Show of the 1st and 2nd generations, knight and bishop, do. It gives
+  the two images their own CSV rows, and reports neither build descriptions,
+  anti-rollback versions nor a TEE, which those OTAs do not carry.
+  `docs/devices.md` covers both, read from every OTA ftvdb lists, with a
+  partition CSV each.
 - `survey` reads a block OTA that names `images/preloader.bin`, as the Echo
   Spot (1st Generation), rook, does. `docs/devices.md` covers rook, read from
   all 5 OTAs ftvdb lists, with `rook-partitions.csv`. Its OTA ships the

@@ -31,6 +31,8 @@ CSV_LABEL = re.compile(r"Fire OS (\S+) \((?:\w+/)?(\d+)M?\)")
 CSV_ORDER = (
     "boot",
     "system",
+    "bootloader",
+    "bootloader_prod",
     "lk",
     "uboot",
     "scp",
@@ -213,15 +215,12 @@ def images(*, archive: zipfile.ZipFile) -> dict[str, Image]:
     names = frozenset(archive.namelist())
     if "payload.bin" in names:
         return payload_images(archive=archive)
+    wanted = ota.block_images(names=names)
     members = {
-        name: ota.block_member(name=name, names=names) for name in ota.BLOCK_IMAGES
+        name: ota.block_member(images=wanted, name=name, names=names) for name in wanted
     }
     missing = sorted(
-        [
-            ota.BLOCK_IMAGES[name][0]
-            for name, member in members.items()
-            if member is None
-        ]
+        [wanted[name][0] for name, member in members.items() if member is None]
         + [
             name
             for name in ("system.new.dat", "system.transfer.list")
@@ -370,8 +369,7 @@ def survey(*, update: pathlib.Path) -> None:
         ) as error:
             raise FatalError(message=f"could not be read: {error!r}") from error
     tees = tee_names(names=frozenset(found))
-    tee = found[tees[0]]
-    tee_md5 = hashlib.md5(tee.data, usedforsecurity=False).hexdigest()
+    tee = found.get(tees[0])
     show(text=labelled(label="OTA", value=update.name))
     name = properties.get("ro.build.version.name", "<unnamed>")
     device = properties.get("ro.product.device", "<unknown>").removesuffix("_puffin")
@@ -398,7 +396,7 @@ def survey(*, update: pathlib.Path) -> None:
                     f"{label} {version_text(version=version)}"
                     for label, version in (
                         ("PL", pl_version(data=found["preloader"].data)),
-                        ("TEE", tee_version(data=tee.data)),
+                        ("TEE", None if tee is None else tee_version(data=tee.data)),
                         ("LK", lk_version(data=found["lk"].data)),
                     )
                 ),
@@ -414,14 +412,16 @@ def survey(*, update: pathlib.Path) -> None:
                         value=fit_build_time(data=found[held].data),
                     )
                 )
-    show(
-        text=labelled(
-            label="TEE",
-            value=f"{tee.size} bytes, md5 {tee_md5}, sha256 {tee.sha256}",
+    if tee is not None:
+        tee_md5 = hashlib.md5(tee.data, usedforsecurity=False).hexdigest()
+        show(
+            text=labelled(
+                label="TEE",
+                value=f"{tee.size} bytes, md5 {tee_md5}, sha256 {tee.sha256}",
+            )
         )
-    )
-    if any(found[name].sha256 != tee.sha256 for name in tees[1:]):
-        warn(text=f"{', '.join(tees)} do not hold the same image")
+        if any(found[name].sha256 != tee.sha256 for name in tees[1:]):
+            warn(text=f"{', '.join(tees)} do not hold the same image")
     show(text="\ndevice,model,build,partition,bytes,sha256")
     label = csv_label(name=name)
     for partition in csv_partitions(names=frozenset(found)):

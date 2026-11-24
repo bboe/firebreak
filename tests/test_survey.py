@@ -164,6 +164,37 @@ def test_a_block_ota_that_names_its_preloader_bin(
     )
 
 
+def test_a_block_ota_with_bootloader_images(
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    update = write_ota(
+        members={
+            "boot.img": b"boot",
+            "images/bootloader": b"esp",
+            "images/bootloader_prod": b"esp_prod",
+            "system.new.dat": b"s" * BLOCK,
+            "system.transfer.list": b"4\n1\n0\n0\nnew 2,1,2\nzero 2,0,1\n",
+            survey.PROPERTIES: PROPERTIES,
+        },
+        path=tmp_path / "ota.zip",
+    )
+    survey.survey(update=update)
+    out = capsys.readouterr().out.splitlines()
+    system = bytes(BLOCK) + b"s" * BLOCK
+    assert out == [
+        "OTA                      ota.zip",
+        "build                    Fire OS 6.5.7.2 (NS6572/6426)",
+        "device                   biscuit",
+        "model                    AEOBC",
+        "",
+        "device,model,build,partition,bytes,sha256",
+        f"biscuit,AEOBC,Fire OS 6 6426,boot,4,{sha(b'boot')}",
+        f"biscuit,AEOBC,Fire OS 6 6426,system,{2 * BLOCK},{sha(system)}",
+        f"biscuit,AEOBC,Fire OS 6 6426,bootloader,3,{sha(b'esp')}",
+        f"biscuit,AEOBC,Fire OS 6 6426,bootloader_prod,8,{sha(b'esp_prod')}",
+    ]
+
+
 def test_a_block_ota_without_an_image(*, tmp_path: pathlib.Path) -> None:
     update = write_ota(members={"boot.img": b"boot"}, path=tmp_path / "ota.zip")
     with pytest.raises(

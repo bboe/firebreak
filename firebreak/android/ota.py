@@ -22,6 +22,11 @@ BLOCK_IMAGES = {
     "preloader": ("images/preloader.img", "images/preloader.bin"),
     "tee": ("images/tz.img",),
 }
+BOOTLOADER_IMAGES = {
+    "boot": ("boot.img",),
+    "bootloader": ("images/bootloader",),
+    "bootloader_prod": ("images/bootloader_prod",),
+}
 IMAGES = ("preloader", "lk", "tee", "boot", "system")
 LABEL_WIDTH = max(map(len, IMAGES))
 PAYLOAD_VERSION = 2
@@ -116,8 +121,18 @@ def blob(*, value: int | bytes) -> bytes:
     return value
 
 
-def block_member(*, name: str, names: frozenset[str]) -> str | None:
-    for member in BLOCK_IMAGES[name]:
+def block_images(*, names: frozenset[str]) -> dict[str, tuple[str, ...]]:
+    held = block_member(images=BOOTLOADER_IMAGES, name="bootloader", names=names)
+    lk = block_member(images=BLOCK_IMAGES, name="lk", names=names)
+    if held is not None and lk is None:
+        return BOOTLOADER_IMAGES
+    return BLOCK_IMAGES
+
+
+def block_member(
+    *, images: dict[str, tuple[str, ...]], name: str, names: frozenset[str]
+) -> str | None:
+    for member in images[name]:
         if member in names:
             return member
     return None
@@ -154,7 +169,7 @@ def extract_blocks(
     for name in BLOCK_IMAGES:
         if name not in wanted:
             continue
-        member = block_member(name=name, names=names)
+        member = block_member(images=BLOCK_IMAGES, name=name, names=names)
         if member is None:
             raise FatalError(message=f"the OTA has no {name} image")
         data = archive.read(name=member)

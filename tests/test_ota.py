@@ -149,6 +149,14 @@ def test_blob_and_number_check_the_wire_type() -> None:
         ota.number(value=b"x")
 
 
+def test_block_images_takes_the_bootloader_set_only_without_an_lk() -> None:
+    bootloader = frozenset({"boot.img", "images/bootloader", "images/bootloader_prod"})
+    assert ota.block_images(names=bootloader) is ota.BOOTLOADER_IMAGES
+    assert ota.block_images(names=frozenset({"boot.img"})) is ota.BLOCK_IMAGES
+    both = bootloader | {"images/lk.bin"}
+    assert ota.block_images(names=both) is ota.BLOCK_IMAGES
+
+
 def test_extract(*, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path) -> None:
     update = write_ota(
         members={"payload.bin": payload(images=IMAGES, kinds=KINDS)},
