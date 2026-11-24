@@ -210,16 +210,28 @@ def halfword(*, at: int, data: bytes) -> int:
 
 
 def images(*, archive: zipfile.ZipFile) -> dict[str, Image]:
-    names = set(archive.namelist())
+    names = frozenset(archive.namelist())
     if "payload.bin" in names:
         return payload_images(archive=archive)
+    members = {
+        name: ota.block_member(name=name, names=names) for name in ota.BLOCK_IMAGES
+    }
     missing = sorted(
-        {*ota.BLOCK_IMAGES.values(), "system.new.dat", "system.transfer.list"} - names
+        [
+            ota.BLOCK_IMAGES[name][0]
+            for name, member in members.items()
+            if member is None
+        ]
+        + [
+            name
+            for name in ("system.new.dat", "system.transfer.list")
+            if name not in names
+        ]
     )
     if missing:
         raise FatalError(message="the OTA has no " + ", ".join(missing))
     found = {}
-    for name, member in ota.BLOCK_IMAGES.items():
+    for name, member in members.items():
         data = archive.read(name=member)
         found[name] = Image(
             data=data, sha256=hashlib.sha256(data).hexdigest(), size=len(data)

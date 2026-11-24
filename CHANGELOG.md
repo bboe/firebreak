@@ -6,13 +6,17 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `survey` reads a block OTA that names `images/preloader.bin`, as the Echo
+  Spot (1st Generation), rook, does. `docs/devices.md` covers rook, read from
+  all 5 OTAs ftvdb lists, with `rook-partitions.csv`. Its OTA ships the
+  preloader alone, with boot0's headers beside it, where every other block OTA
+  here carries boot0 whole.
 - `docs/devices.md` covers eight more devices `survey` already read: checkers
   and cronos, the Echo Show 5 of the 1st and 2nd generations, croissant, the
   Echo Flex, cupcake, the Echo Input, octave, the Echo Studio, pablo, the Echo
   Sub, and sapphire and kyanite, the Echo Link and Echo Link Amp. Each is read
   from every OTA ftvdb lists, with a partition CSV each, and a section gathers
   the eleven devices whose LK carries commit `6f7225e`.
-
 - `survey` reads an OTA whose payload names a `uboot` partition, with four
   `brhgptlk` copies in place of a preloader or an `lk`, as the Echo and Echo
   Dot of the 4th generation and later do. For those it reports the `timestamp`

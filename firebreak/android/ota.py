@@ -17,10 +17,10 @@ from firebreak.cache import digest
 from firebreak.ui import FatalError, passed
 
 BLOCK_IMAGES = {
-    "boot": "boot.img",
-    "lk": "images/lk.bin",
-    "preloader": "images/preloader.img",
-    "tee": "images/tz.img",
+    "boot": ("boot.img",),
+    "lk": ("images/lk.bin",),
+    "preloader": ("images/preloader.img", "images/preloader.bin"),
+    "tee": ("images/tz.img",),
 }
 IMAGES = ("preloader", "lk", "tee", "boot", "system")
 LABEL_WIDTH = max(map(len, IMAGES))
@@ -116,6 +116,13 @@ def blob(*, value: int | bytes) -> bytes:
     return value
 
 
+def block_member(*, name: str, names: frozenset[str]) -> str | None:
+    for member in BLOCK_IMAGES[name]:
+        if member in names:
+            return member
+    return None
+
+
 def by_start(*, ranges: list[BlockRange]) -> list[BlockRange]:
     return sorted(ranges, key=lambda block_range: block_range.start)
 
@@ -143,9 +150,13 @@ def extract(
 def extract_blocks(
     *, archive: zipfile.ZipFile, wanted: tuple[str, ...], work: pathlib.Path
 ) -> None:
-    for name, member in BLOCK_IMAGES.items():
+    names = frozenset(archive.namelist())
+    for name in BLOCK_IMAGES:
         if name not in wanted:
             continue
+        member = block_member(name=name, names=names)
+        if member is None:
+            raise FatalError(message=f"the OTA has no {name} image")
         data = archive.read(name=member)
         if name != "preloader":
             data += bytes(-len(data) % 4096)

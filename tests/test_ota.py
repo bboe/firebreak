@@ -22,10 +22,20 @@ KINDS = {
 }
 
 
-def block_ota(*, new_data: bytes, path: pathlib.Path, transfer: str) -> pathlib.Path:
+def block_ota(
+    *,
+    new_data: bytes,
+    path: pathlib.Path,
+    preloader: str | None = "images/preloader.img",
+    transfer: str,
+) -> pathlib.Path:
     members = {
-        member: image(name=name, size=1000) for name, member in ota.BLOCK_IMAGES.items()
+        candidates[0]: image(name=name, size=1000)
+        for name, candidates in ota.BLOCK_IMAGES.items()
+        if name != "preloader"
     }
+    if preloader is not None:
+        members[preloader] = image(name="preloader", size=1000)
     return write_ota(
         members={
             **members,
@@ -227,6 +237,32 @@ def test_extract_blocks_keeps_the_system_image(
     assert len(builds) == 3
     assert (tmp_path / "system.img").read_bytes() == bytes(2 * BLOCK)
     assert sidecar.read_text() == hashlib.sha256(bytes(2 * BLOCK)).hexdigest()
+
+
+def test_extract_blocks_needs_every_image(*, tmp_path: pathlib.Path) -> None:
+    update = block_ota(
+        new_data=bytes(2 * BLOCK),
+        path=tmp_path / "ota.zip",
+        preloader=None,
+        transfer="4\n2\n0\n0\nnew 2,0,2\n",
+    )
+    with pytest.raises(expected_exception=FatalError, match="has no preloader image"):
+        ota.extract(update=update, work=tmp_path)
+
+
+def test_extract_blocks_reads_a_preloader_named_bin(*, tmp_path: pathlib.Path) -> None:
+    ota.extract(
+        update=block_ota(
+            new_data=bytes(2 * BLOCK),
+            path=tmp_path / "ota.zip",
+            preloader="images/preloader.bin",
+            transfer="4\n2\n0\n0\nnew 2,0,2\n",
+        ),
+        work=tmp_path,
+    )
+    assert (tmp_path / "preloader.img").read_bytes() == image(
+        name="preloader", size=1000
+    )
 
 
 def test_extract_blocks_takes_only_what_was_asked_for(

@@ -40,19 +40,24 @@ def bl(*, at: int, target: int) -> bytes:
 
 
 def block_update(
-    *, path: pathlib.Path, properties: bytes = PROPERTIES, **images: bytes
+    *,
+    path: pathlib.Path,
+    preloader_name: str = "images/preloader.img",
+    properties: bytes = PROPERTIES,
+    **images: bytes,
 ) -> pathlib.Path:
     members = {
         "boot.img": b"boot",
         "images/lk.bin": lk(),
-        "images/preloader.img": preloader(),
+        preloader_name: preloader(),
         "images/tz.img": tee(),
         "system.new.dat": b"s" * BLOCK,
         "system.transfer.list": b"4\n1\n0\n0\nnew 2,1,2\nzero 2,0,1\n",
         survey.PROPERTIES: properties,
     }
     for name, body in images.items():
-        members[ota.BLOCK_IMAGES[name]] = body
+        member = preloader_name if name == "preloader" else ota.BLOCK_IMAGES[name][0]
+        members[member] = body
     return write_ota(members=members, path=path)
 
 
@@ -143,6 +148,20 @@ def test_a_block_ota(
         f"biscuit,AEOBC,Fire OS 6 6426,tee,{len(data)},{sha(data)}",
         f"biscuit,AEOBC,Fire OS 6 6426,preloader,{len(preloader())},{sha(preloader())}",
     ]
+
+
+def test_a_block_ota_that_names_its_preloader_bin(
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    survey.survey(
+        update=block_update(
+            path=tmp_path / "ota.zip", preloader_name="images/preloader.bin"
+        )
+    )
+    out = capsys.readouterr().out.splitlines()
+    assert out[-1] == (
+        f"biscuit,AEOBC,Fire OS 6 6426,preloader,{len(preloader())},{sha(preloader())}"
+    )
 
 
 def test_a_block_ota_without_an_image(*, tmp_path: pathlib.Path) -> None:

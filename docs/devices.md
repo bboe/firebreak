@@ -6,15 +6,15 @@ is named by the hardware code its bootrom reports rather than by a bootloader;
 the whole route has run on a donut, three times, including with
 `--factory-reset`. crown declares
 an unlock and no target, so no route reaches it, and that unlock has never run.
-The other nineteen devices here declare nothing at all, and are here because
+The other twenty devices here declare nothing at all, and are here because
 their OTAs are read the same way: crumpet, doebrite, pascal, sonar, lidar,
 laser, brownie, ganache, cannoli, cheesecake, churro, checkers, croissant,
-cupcake, octave, pablo, sapphire, kyanite and cronos.
+cupcake, octave, pablo, sapphire, kyanite, cronos and rook.
 
 `firebreak survey OTA` prints, from one OTA zip and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build
 descriptions, the anti-rollback versions, the TEE's hashes and the partition
-hashes: 5 of them on biscuit, radar, crown, sonar, checkers and cronos, 6
+hashes: 5 of them on biscuit, radar, crown, sonar, checkers, cronos and rook, 6
 where an OTA names two TEE partitions as donut's, lidar's, laser's, cupcake's,
 octave's, pablo's, sapphire's and kyanite's do, 9 on crumpet, doebrite, pascal
 and croissant, which add four boot0 partitions, 12 on brownie and ganache, and
@@ -467,13 +467,13 @@ read as biscuit's are.
 
 - donut's payload names `tee1` and `tee2` as two partitions and writes the
   same TEE image to both, in all 26 builds. biscuit, radar, crown, sonar,
-  checkers and cronos each name one `tee` and have 5 rows a build, so donut
-  has 6. The other sixteen devices here name two, and their row counts are in
-  the list above. The Builds table above keeps one TEE column because the two
-  images are equal.
+  checkers, cronos and rook each name one `tee` and have 5 rows a build, so
+  donut has 6. The other sixteen devices here name two, and their row counts
+  are in the list above. The Builds table above keeps one TEE column because
+  the two images are equal.
 - Every donut OTA is an A/B payload OTA, 1895 included. So every hash is the
   one in its `payload.bin` manifest, and none carries the erased-block caveat
-  the block OTAs of the six devices here that ship them do: a donut that
+  the block OTAs of the seven devices here that ship them do: a donut that
   Amazon's updater installed matches these `/system` hashes whatever its eMMC
   returns for an erased block.
 - `/system` is 1073741824 bytes in every build. Every build has its own boot
@@ -711,8 +711,9 @@ read as biscuit's are.
 
 The Echo Plus (1st Generation) of 2017, model `AEOSN`. Read on 2026-11-23 from
 both OTAs ftvdb lists, Fire OS 5.5.6.9 of August and October 2026. ftvdb has no
-other sonar OTA, and neither is Fire OS 6: sonar is the only device here still
-shipping Fire OS 5. No kit here unlocks it, and no route reaches it.
+other sonar OTA, and neither is Fire OS 6: sonar and [rook](#rook) are the two
+devices here still shipping Fire OS 5. No kit here unlocks it, and no route
+reaches it.
 
 ### Builds
 
@@ -1147,7 +1148,7 @@ OS 5. No kit here unlocks it, and no route reaches it.
 | 1 | 2937856 | `5ca23a1ad4ec2dcfa3764a1ca3d4463c` | `5cb056cb345495314e831aeb455c47d0ef027c956301b5f586886e1b8029098f` |
 
 - Each checkers TEE is numbered here, so a number in the table above is always
-  checkers' own. TEE 1, of 2264, is the largest TEE any device here ships.
+  checkers' own. TEE 1, of 2264, is the largest TEE here but rook's two.
 
 ### Partition hashes
 
@@ -1486,3 +1487,71 @@ Eleven LKs here carry commit `6f7225e`, built one after another over 3 hours
   earlier ones: the batch is the last LK Amazon built for these devices.
 - Their preloaders follow seven months later, all eleven stamped 2023-11-03
   between 06:35:46 and 09:34:56, and in the same device order as the LKs.
+
+## rook
+
+The Echo Spot (1st Generation) of 2017, model `AEORK`. Read on 2026-11-23 from
+all 5 OTAs ftvdb lists: Fire OS 5.5.3.4 of October 2019, and four builds of
+Fire OS 5.5.6.9, of August and November 2025 and August and October 2026.
+ftvdb has no other rook OTA, and none is Fire OS 6. No kit here unlocks it,
+and no route reaches it.
+
+### Builds
+
+| ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK |
+| --- | --- | --- | --- | --- |
+| Fire OS 5.5.6.9, 5.5.6.9-9176, 5.5.6.9-9180, 5.5.6.9-9181 | `c1c79aa-20220824_171625` | `f486efe-20221116_172608` | [2](#tee-images-23) | 0x0005, 0x0102, 0x0001 |
+| Fire OS 5.5.3.4 | `d9a2246-20180702_202914` | `8ec9006-20170927_201132` | [1](#tee-images-23) | 0x0005, 0x0102, 0x0001 |
+
+- **rook's OTA ships the preloader alone, and names it
+  `images/preloader.bin`.** Every other block OTA here names
+  `images/preloader.img` and carries boot0 whole, 1 MiB of it on biscuit,
+  radar, crown, sonar, checkers and cronos. rook's image is 136568 bytes on
+  5.5.3.4 and 138540 on 5.5.6.9, the preloader and nothing around it, so its
+  `preloader` row does not move with the partition table as biscuit's does.
+  `survey` reads either name, and takes neither as boot0.
+- The headers boot0 holds come beside it, `images/preloader.hdr0` and
+  `images/preloader.hdr1`, 2048 bytes each: an `EMMC_BOOT` header and a
+  `BRLYT` one, and no GPT. The two differ in 4 bytes, the two addresses the
+  `BRLYT` carries, each 0x40000 higher in `hdr1` than in `hdr0`. All five
+  OTAs differ in exactly those bytes.
+- One LK, one preloader and one TEE ship in all four 5.5.6.9 builds, so only
+  `boot` and `/system` change across them. 5.5.3.4 has its own of each.
+- rook's anti-rollback versions are biscuit's, radar's and sonar's, 0x0005,
+  0x0102 and 0x0001, in all 5 builds.
+- **rook's 5.5.6.9 LK is built 8 seconds after sonar's**,
+  `c1c79aa-20220824_171625` against `bfc30ee-20220824_171617`: one sitting,
+  two commits, and no image shared. Their preloaders follow five days apart,
+  rook's on 2022-11-16 and sonar's on 2022-11-21.
+- rook and sonar are the two devices here still on Fire OS 5, and their two
+  newest builds are the same two, 9180 and 9181, at the same version codes.
+- No rook image is shared with any device here.
+
+### TEE images
+
+| TEE | bytes | md5 | sha256 |
+| --- | --- | --- | --- |
+| 2 | 3315712 | `27a2975f42fa5bb02c754d1c8c4e2615` | `8f41295df95fe796f4ca970e488fb49c8f8d4f79dbfda1c71ce50457d42f6a1c` |
+| 1 | 3307008 | `00aaceb2900a494b73a596e22a40da4d` | `7f2b421ba0703f4187f09a345fd0a9785388f48138a409f819e096834b46b3e2` |
+
+- Each rook TEE is numbered here, so a number in the table above is always
+  rook's own. **Both are larger than any other TEE here**, checkers' 2937856
+  included.
+
+### Partition hashes
+
+[rook-partitions.csv](../firebreak/devices/rook-partitions.csv)
+has the sha256 of the 5 partitions each OTA writes, for every build above,
+read as biscuit's are.
+
+- Every rook OTA is a block OTA, so a rook that Amazon's updater installed
+  matches its `/system` hash only if its flash reads erased blocks as zeros,
+  as on biscuit.
+- `survey` labels all four 5.5.6.9 builds `Fire OS 5.5.6.9`, so three of them
+  are renamed by hand in the CSV after `ro.build.lab126.build`, as biscuit's
+  1973 and sonar's 9181 are.
+- 16 distinct images cover the 5 builds. `/system` is 1744830464 bytes on
+  5.5.3.4 and 1744723968 on every 5.5.6.9 build, and `boot` takes three sizes.
+  Each build has its own boot and `/system` hash.
+- rook names one `tee`, so it has 5 rows a build.
+- Nothing here has looked inside a rook, and none has been seen here.
