@@ -6,6 +6,8 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `docs/devices.md` opens with an index of all 33 devices: codename, the
+  device it is, and the model its CSV rows carry.
 - `survey` reads a Vega `.swu`, the container the Echo Hub, the Echo Spot of
   the 2nd generation, the Echo Show 5 of the 3rd, the Echo Dot Max, the Echo
   Show 11, the Echo Show 8 of the 4th and the Echo Studio of the 2nd ship

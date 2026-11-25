@@ -40,6 +40,51 @@ Donut shipped on Fire OS 6 too, and its OTAs gain the suffix part way through:
 1895 says `donut` and every later build says `donut_puffin`. So the suffix does
 not mark a move from Fire OS 5, and what it does mark is unread. No OTA says.
 
+## Index
+
+| codename | device | `ro.product.model` |
+| --- | --- | --- |
+| [baklava](#baklava) | Echo Spot (2nd Generation) | `<unknown>` |
+| [biscuit](#biscuit) | Echo Dot (2nd Generation) | `AEOBC` |
+| [bishop](#bishop) | Echo Show (2nd Generation) | `AEOBP` |
+| [brownie](#brownie) | Echo Dot (4th Generation) | `AEOBN` |
+| [cannoli](#cannoli) | Echo Dot (5th Generation) | `AEOCA` |
+| [checkers](#checkers) | Echo Show 5 (1st Generation) | `AEOCH` |
+| [cheesecake](#cheesecake) | Echo Dot with Clock (5th Generation) | `AEOCZ` |
+| [churro](#churro) | Echo Pop (1st Generation) | `AEOCO` |
+| [croissant](#croissant) | Echo Flex | `AEOCR` |
+| [cronos](#cronos) | Echo Show 5 (2nd Generation) | `AEOCN` |
+| [crown](#crown) | Echo Show 8 (1st Generation) | `AEOCW` |
+| [crumpet](#crumpet) | Echo Dot (3rd Generation) Refresh | `AEOCP` |
+| [cupcake](#cupcake) | Echo Input | `AEOCK` |
+| [doebrite](#doebrite) | Echo Dot with Clock (3rd Generation) | `AEODB` |
+| [donut](#donut) | Echo Dot (3rd Generation) | `AEODN` |
+| [electra](#electra) | Echo Show 11 (1st Generation) | `<unknown>` |
+| [galileo](#galileo) | Echo Hub (1st Generation) | `<unknown>` |
+| [ganache](#ganache) | Echo Dot with Clock (4th Generation) | `AEOGN` |
+| [hypnos](#hypnos) | Echo Show 5 (3rd Generation) | `<unknown>` |
+| [knight](#knight) | Echo Show (1st Generation) | `AEOKN` |
+| [kyanite](#kyanite) | Echo Link Amp | `AEOKY` |
+| [laser](#laser) | Echo (4th Generation) | `AEOLS` |
+| [lidar](#lidar) | Echo Plus (2nd Generation) | `AEOLR` |
+| [macaroon](#macaroon) | Echo Dot Max (1st Generation) | `<unknown>` |
+| [madeleine](#madeleine) | Echo Show 8 (4th Generation) | `<unknown>` |
+| [octave](#octave) | Echo Studio (1st Generation) | `AEOOT` |
+| [pablo](#pablo) | Echo Sub | `AEOPB` |
+| [pascal](#pascal) | Echo (3rd Generation) | `AEOPC` |
+| [persimmon](#persimmon) | Echo Studio (2nd Generation) | `<unknown>` |
+| [radar](#radar) | Echo (2nd Generation) | `AEORD` |
+| [rook](#rook) | Echo Spot (1st Generation) | `AEORK` |
+| [sapphire](#sapphire) | Echo Link | `AEOSP` |
+| [sonar](#sonar) | Echo Plus (1st Generation) | `AEOSN` |
+
+Each device's own section gives the rest. Where a row reads `<unknown>`,
+ftvdb's catalog still names a model: `AEOGL` galileo, `AEOHP` hypnos, `AEOBL`
+baklava, `AEOMC` macaroon, `AEOEL` electra, `AEOMD` madeleine and `AEOPS`
+persimmon. That is catalog metadata no firmware here confirms. radar's section
+gives XC56PY as well, which is the model on the device's own label, not the
+one its OTAs declare.
+
 ## biscuit
 
 The Echo Dot (2nd Generation). Read on 2026-11-06 from all 50 OTAs ftvdb
