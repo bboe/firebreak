@@ -65,6 +65,9 @@ This project adheres to [Semantic Versioning](https://semver.org).
   older than 5.5.5.4, no longer only stops. On a terminal, `unlock` asks
   whether to erase it and continues as `--factory-reset` on `yes`. Otherwise it
   stops and prints the whole command to run with `--factory-reset`.
+- A command that firebreak prints for a uvx run includes `--managed-python`
+  when the run uses a Python that uv installed. This also applies to the
+  upgrade notice. Before, those commands left the option out.
 - A build description with no commit before it, which is every crumpet and
   every donut preloader, reports the build timestamp rather than `<none>`. The
   donut table's `pl_build_desc` column holds those timestamps now, and its rows

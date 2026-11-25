@@ -5,6 +5,7 @@ import dataclasses
 import enum
 import os
 import pathlib
+import re
 import shlex
 import sys
 import textwrap
@@ -22,6 +23,7 @@ BOOT0_EMPTY = (
     " and firebreak takes it from there by itself when it runs again on this"
     " computer"
 )
+MANAGED_PYTHON = re.compile(pattern=r"cpython-\d[^-]*-[^-]+-[^-]+-[^-]+")
 MINUTE = 60
 MOST_RELIABLE = (
     "A USB 3 port on the computer itself, with nothing else on it, is the most"
@@ -35,7 +37,6 @@ SUPPORT = (
     " https://discord.gg/huE5XhWbsz, and paste both the output of the run that"
     " failed and everything below."
 )
-UVX = ["uvx", "firebreak@latest"]
 WAIT = 600
 
 
@@ -254,7 +255,7 @@ def invocation(*, options: list[str]) -> str:
     if command == ["firebreak"] and any(
         part.startswith("archive-v") for part in pathlib.Path(sys.prefix).parts
     ):
-        command = UVX
+        command = uvx()
     return shlex.join(split_command=[*command, *options])
 
 
@@ -348,7 +349,13 @@ def title() -> str:
 
 
 def upgrade() -> tuple[str, str]:
-    return "run", shlex.join(split_command=UVX)
+    return "run", shlex.join(split_command=uvx())
+
+
+def uvx() -> list[str]:
+    if MANAGED_PYTHON.fullmatch(string=pathlib.Path(sys.base_prefix).name):
+        return ["uvx", "--managed-python", "firebreak@latest"]
+    return ["uvx", "firebreak@latest"]
 
 
 def warn(*, text: str) -> None:

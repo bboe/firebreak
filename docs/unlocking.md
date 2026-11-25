@@ -1077,6 +1077,14 @@ unlock's, not the stock bytes.
   is under `WindowsApps`. It names `uvx --managed-python` or a python.org
   install. It does not name `py`: the launcher lists the Store
   Python too, and `py -3.13` ran it on that host.
+- uvx does not pass its own options to firebreak, so a run cannot see
+  `--managed-python`. A command that firebreak prints for a uvx run adds it
+  when `sys.base_prefix` is a uv-managed Python's folder, such as
+  `cpython-3.13.7-windows-x86_64-none`. uv can pick its own Python without
+  the option, and the option then picks the same Python. Measured on
+  Windows 11, 2026-11-24: with and without the option, uvx ran firebreak on
+  uv's 3.13.7 and the check matched. With `--no-managed-python` it ran on a
+  python.org 3.9 and the check did not match.
 - Do not pipe a `fastboot` read into `head`. The closed pipe stops the host
   part way through the transfer and leaves the rest of the device's answers
   queued, so the next command reads the previous one's output: after a cut

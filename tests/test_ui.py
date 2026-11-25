@@ -196,7 +196,17 @@ def test_invocation_names_uvx_for_a_uvx_run(*, monkeypatch: pytest.MonkeyPatch) 
         name="argv", target=sys, value=["/c/archive-v0/x/bin/firebreak"]
     )
     monkeypatch.setattr(name="prefix", target=sys, value="/c/uv/archive-v0/x")
+    monkeypatch.setattr(name="base_prefix", target=sys, value="/usr")
     assert ui.invocation(options=["report"]) == "uvx firebreak@latest report"
+    monkeypatch.setattr(
+        name="base_prefix",
+        target=sys,
+        value="/c/uv/python/cpython-3.13.12-windows-x86_64-none",
+    )
+    assert (
+        ui.invocation(options=["report"])
+        == "uvx --managed-python firebreak@latest report"
+    )
     monkeypatch.setattr(name="prefix", target=sys, value="/home/me/.venv")
     assert ui.invocation(options=["report"]) == "firebreak report"
 
@@ -451,6 +461,7 @@ def test_upgrade_always_offers_uvx(
 ) -> None:
     monkeypatch.setattr(name="argv", target=sys, value=[argv])
     monkeypatch.setattr(name="prefix", target=sys, value=prefix)
+    monkeypatch.setattr(name="base_prefix", target=sys, value="/usr")
     assert ui.upgrade() == said
 
 
