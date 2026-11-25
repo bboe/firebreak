@@ -66,6 +66,20 @@ the bootrom answered. That reaches its bootrom with the case closed.
 6. Leave the Echo plugged in, and run the target you want, such as
    `uvx firebreak@latest unlock`. A power cycle loses the hold.
 
+## An eMMC that sends nothing
+
+A run that stops with "amonet's payload answered, but the eMMC sent no data",
+or with "amonet's payload sent no acknowledgement" after a write, reached the
+Echo's bootrom and started amonet's payload, but the eMMC gave that payload
+nothing back. A short still held when the payload starts does
+this, so take the wire off when firebreak says. Otherwise unplug the Echo for
+a few minutes and run firebreak again once.
+
+If it fails the same way again, the eMMC has most likely failed. On one Echo
+Dot (2nd Generation) with a Samsung eMMC, the chip answered neither reads nor
+writes. firebreak reaches the eMMC from the bootrom only through that
+payload, so it cannot repair such an Echo.
+
 ## An Echo rooted by an older firebreak
 
 An Echo rooted on Fire OS 6 by firebreak 1.1.x or earlier lets anyone on its

@@ -2,6 +2,18 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Changed
+
+- A block read through amonet's payload, on a Dot or an Echo (2nd
+  Generation), that gets back only the payload's own flush word says
+  "amonet's payload answered, but the eMMC sent no data". A write that gets
+  nothing back says "amonet's payload sent no acknowledgement". Before, each
+  gave only a count of bytes. `docs/troubleshooting.md` says what to do next.
+- `bootrom`'s prompt says that only amonet's payload can write a preloader
+  back, so an eMMC that payload cannot reach keeps the Echo in its bootrom.
+
 ## 1.5.0 - 2026-11-25
 
 ### Added

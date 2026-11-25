@@ -244,6 +244,7 @@ def test_a_bootrom_entry_asks_before_it_erases_boot0(
     done = bootrom(monkeypatch=monkeypatch, states=[State.UNLOCKED_FASTBOOT])
     entry.bootrom_entry(force=False)
     assert "asked: erasing boot0 leaves" in done[0]
+    assert "an eMMC that payload cannot reach" in done[0]
     assert done[1:3] == ["erased", "looked for the bootrom to erase for"]
     assert "boot0 is erased" in done[-1]
     assert entry.SESSION.boot0_erased is True

@@ -13,7 +13,7 @@ from firebreak.mediatek.usbdl import PAYLOAD_LOAD_ADDRESS, ProtocolMismatchError
 BLOCK = bytes(range(256)) * 2
 FLUSH = b"flsh"
 IMPORTED = frozenset({"BLOCK_SIZE", "PAYLOAD_LOAD_ADDRESS", "RPMB_SIZE"})
-MEASURED = {"FLUSH_LENGTH": 4, "MAXIMUM_BLOCKS": 64}
+MEASURED = {"FLUSH_LENGTH": 4, "FLUSH_WORD": b"\x14\x00\x9f\xe5", "MAXIMUM_BLOCKS": 64}
 MEASURED_ENUMS = {
     "BiscuitCommand": [
         ("WRITE_BLOCKS", 0x1003),
@@ -68,6 +68,14 @@ def test_ping_reads_the_payload_s_first_word() -> None:
     )
 
 
+def test_read_block_cut_short_keeps_the_read_s_own_message() -> None:
+    payload, _ = payload_port(replies=BLOCK[:100])
+    with pytest.raises(
+        expected_exception=ProtocolMismatchError, match="read 100 of 516 bytes"
+    ):
+        payload.read_block(index=0)
+
+
 def test_read_block_flushes_the_pipe() -> None:
     payload, port = payload_port(replies=BLOCK + FLUSH)
     assert payload.read_block(index=7) == BLOCK
@@ -75,6 +83,23 @@ def test_read_block_flushes_the_pipe() -> None:
         arguments=(PAYLOAD_LOAD_ADDRESS, 4), command=0x5000
     )
     assert port.replies == bytearray()
+
+
+def test_read_block_that_gets_four_other_bytes_keeps_the_read_s_own_message() -> None:
+    payload, _ = payload_port(replies=BLOCK[:4])
+    with pytest.raises(
+        expected_exception=ProtocolMismatchError, match="read 4 of 516 bytes"
+    ):
+        payload.read_block(index=0)
+
+
+def test_read_block_that_gets_only_the_flush_says_the_emmc_sent_nothing() -> None:
+    payload, _ = payload_port(replies=b"\x14\x00\x9f\xe5")
+    with pytest.raises(
+        expected_exception=ProtocolMismatchError,
+        match=r"^block 0: amonet's payload answered, but the eMMC sent no data$",
+    ):
+        payload.read_block(index=0)
 
 
 def test_read_blocks() -> None:
@@ -118,3 +143,20 @@ def test_write_blocks() -> None:
         payload.write_blocks(data=BLOCK + b"x", index=5)
     with pytest.raises(expected_exception=ValueError, match="1 to 64 blocks"):
         payload.write_blocks(data=BLOCK * 65, index=5)
+
+
+def test_write_blocks_cut_short_keeps_the_read_s_own_message() -> None:
+    payload, _ = payload_port(replies=b"\xd0\xd0")
+    with pytest.raises(
+        expected_exception=ProtocolMismatchError, match="read 2 of 4 bytes"
+    ):
+        payload.write_blocks(data=BLOCK, index=0)
+
+
+def test_write_blocks_that_gets_nothing_says_there_was_no_acknowledgement() -> None:
+    payload, _ = payload_port()
+    with pytest.raises(
+        expected_exception=ProtocolMismatchError,
+        match=r"^write of 1 blocks at 0: amonet's payload sent no acknowledgement$",
+    ):
+        payload.write_blocks(data=BLOCK, index=0)

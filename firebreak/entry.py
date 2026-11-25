@@ -76,6 +76,10 @@ HARDWARE_CODES = {
 LOCKED_FASTBOOTS = frozenset({State.STOCK_FASTBOOT, State.STOCK_FIREOS5_FASTBOOT})
 LOCKED = frozenset({State.STOCK_BOOTED, *LOCKED_FASTBOOTS})
 NAMELESS = frozenset({State.BOOTROM, State.NONE, State.PRELOADER})
+ONLY_THE_PAYLOAD = (
+    "Only amonet's payload can write one back from there, and an eMMC that payload"
+    " cannot reach keeps the Echo in its bootrom for good"
+)
 QUIET = 120
 REBOOT = "reboot"
 RECOVERY_WAIT = 90
@@ -226,7 +230,8 @@ def bootrom_entry(*, force: bool) -> None:
         confirm(
             force=force,
             what=f"clearing boot0's header leaves the {device.title} able to start"
-            " from its bootrom alone, until something writes a preloader back",
+            " from its bootrom alone, until something writes a preloader back. "
+            + ONLY_THE_PAYLOAD,
         )
         amonet_payload()
         SESSION.boot0_erased = True
@@ -238,7 +243,8 @@ def bootrom_entry(*, force: bool) -> None:
         confirm(
             force=force,
             what=f"erasing boot0 leaves the {device.title} able to start from its"
-            " bootrom alone, until something writes a preloader back",
+            " bootrom alone, until something writes a preloader back. "
+            + ONLY_THE_PAYLOAD,
         )
         parked(live=reached(erase=erase_by_fastboot))
     elif current in LOCKED_FASTBOOTS:

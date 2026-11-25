@@ -4,9 +4,14 @@ import enum
 
 from firebreak.amonet.payload import BLOCK_SIZE, Command, Payload
 from firebreak.emmc import RPMB_SIZE
-from firebreak.mediatek.usbdl import PAYLOAD_LOAD_ADDRESS
+from firebreak.mediatek.usbdl import (
+    PAYLOAD_LOAD_ADDRESS,
+    ProtocolMismatchError,
+    ShortReadError,
+)
 
 FLUSH_LENGTH = 4
+FLUSH_WORD = b"\x14\x00\x9f\xe5"
 MAXIMUM_BLOCKS = 64
 
 
@@ -25,7 +30,14 @@ class Client(Payload):
             arguments=(PAYLOAD_LOAD_ADDRESS, FLUSH_LENGTH),
             command=BiscuitCommand.READ_MEMORY,
         )
-        return self.read_exactly(label=label, length=length + FLUSH_LENGTH)[:length]
+        try:
+            data = self.read_exactly(label=label, length=length + FLUSH_LENGTH)
+        except ShortReadError as error:
+            if error.received != FLUSH_WORD:
+                raise
+            message = f"{label}: amonet's payload answered, but the eMMC sent no data"
+            raise ProtocolMismatchError(message) from error
+        return data[:length]
 
     def ping(self) -> bytes:
         self._send(
@@ -57,7 +69,14 @@ class Client(Payload):
         check_block_count(count=count)
         self._send(arguments=(index, count), command=BiscuitCommand.WRITE_BLOCKS)
         self.port.write(data=data)
-        self._acknowledge(label=f"write of {count} blocks at {index}")
+        label = f"write of {count} blocks at {index}"
+        try:
+            self._acknowledge(label=label)
+        except ShortReadError as error:
+            if error.received:
+                raise
+            message = f"{label}: amonet's payload sent no acknowledgement"
+            raise ProtocolMismatchError(message) from error
 
 
 def check_block_count(*, count: int) -> None:

@@ -58,7 +58,7 @@ class Connection:
                     f" {self.timeout} second timeout; got"
                     f" {bytes(data[:MESSAGE_LIMIT])!r}{cut}"
                 )
-                raise ProtocolMismatchError(message)
+                raise ShortReadError(message, received=bytes(data))
         return bytes(data)
 
 
@@ -257,6 +257,12 @@ class PayloadTooLargeError(UsbdlError):
 
 class ProtocolMismatchError(UsbdlError):
     pass
+
+
+class ShortReadError(ProtocolMismatchError):
+    def __init__(self, message: str, *, received: bytes) -> None:
+        super().__init__(message)
+        self.received = received
 
 
 def mediatek_ports() -> dict[str, int | None]:

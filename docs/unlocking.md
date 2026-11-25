@@ -517,6 +517,22 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   comes up and amonet times out waiting for it, or the bootrom step's first
   read, the partition table's `55 AA`, fails. Both stop the run before amonet
   writes anything, and a new short starts over.
+- A payload whose eMMC sends nothing answers a block read with only the
+  4-byte flush, `14 00 9f e5`, and the read waits out its 5 second timeout.
+  amonet's
+  [payload](https://github.com/xyzz/amonet/blob/master/brom-payload/main.c)
+  sends a block only when `mmc_read` succeeds, and a write's `d0 d0 d0 d0`
+  only when `mmc_write` does; a failure prints to the UART alone.
+  The client that biscuit and radar share names that, "amonet's payload
+  answered, but the eMMC sent no data", rather than giving the bare count of
+  bytes. A write that gets nothing back says "amonet's payload sent no
+  acknowledgement". It does not say the payload answered, because nothing
+  after the write shows that the payload still runs. Reported on a Dot on
+  2026-11-24, with no short held: amonet v2.0.1's payload and v1.1.0's both
+  started, and every read of the user area, boot0 and boot1, and an 8-block
+  write to boot0, came back with nothing, while the payload answered every
+  ping between them. That eMMC had run TWRP before, and it is a Samsung part,
+  whose firmware can lock such a chip as it ages.
 
 ## One command per entry point
 
@@ -588,7 +604,10 @@ reaching its state by hand first.
   prompt says that and no more, because whether userdata survives is read on
   one device only, in its own section. `bootrom` clears boot0's header, or
   erases boot0 from fastboot, which is what leaves an Echo startable from its
-  bootrom alone.
+  bootrom alone. Its prompt says that only amonet's payload can write a
+  preloader back, because nothing checks that payload against the eMMC before
+  the erase: the Echo Dot (2nd Generation)'s `No payload check before the
+  erase` says why.
 - `reboot` is the way back out, and writes nothing. It reboots a TWRP with
   `adb reboot` and any fastboot with `fastboot reboot`, and any state that
   runs the firmware is its goal, `stock-booted` among them. It does not leave
@@ -2838,6 +2857,31 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   tries, and stops 60 seconds after the first. Measured again on a Dot from
   Windows 11, writing 5.5.5.4 from bboe2: the first try failed and the second,
   1 second later, hid it.
+
+#### No payload check before the erase
+
+`bootrom` erases boot0, or clears its header, before amonet's payload has
+read the eMMC. Only the bootrom runs that payload, and a Dot with a preloader
+in boot0 does not stay in its bootrom. A check through the preloader instead
+was tried, and the preloader refuses it.
+
+- amonet v2 can load its payload a second way: as `pl.bin`, at `0x40001000`,
+  through the preloader's `send_da` and `jump_da`. Its own `prepare()` does
+  that only for a preloader that names itself `PWNED`.
+- Measured on a Dot on 2026-11-25, its boot0 exactly v2.0.1's
+  `bin/preloader.img`, on rooted 8349. After `adb reboot` the preloader showed
+  `0e8d:2000` at 5.2 s, as `MediaTek` `MT65xx Preloader`, and a handshake
+  landed 60 ms later. `send_da` echoed its arguments and took all 20,308 bytes
+  of `pl.bin` with a signature length of 0, then answered `20 01`, not
+  `00 00`. The preloader v2.0.1 writes wants a signed download agent.
+- After that refusal the preloader stayed on `0e8d:2000` for minutes, never
+  started LK and stopped reading USB, so a `write32` to the watchdog blocked.
+  Nothing over USB ended it. A power cycle did, and the Dot booted its 8349
+  as before. So even where such a check could run, one that failed would cost
+  a power cycle.
+- The `bootrom` prompt says what the erase depends on instead: only amonet's
+  payload can write a preloader back, and an eMMC that payload cannot reach
+  keeps the Echo in its bootrom.
 
 #### What is measured on a Dot
 

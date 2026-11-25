@@ -287,8 +287,10 @@ def test_read_exactly_reports_a_timeout() -> None:
     port = FakePort(replies=b"ab")
     with pytest.raises(
         expected_exception=usbdl.ProtocolMismatchError, match="read 2 of 4 bytes"
-    ):
+    ) as raised:
         usbdl.Connection(port=port, timeout=0).read_exactly(label="four", length=4)
+    assert isinstance(raised.value, usbdl.ShortReadError)
+    assert raised.value.received == b"ab"
 
 
 def test_read_words() -> None:
