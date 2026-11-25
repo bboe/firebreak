@@ -6,6 +6,13 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `survey` reads a block OTA whose bootloader is `images/u-boot.bin` and a
+  signed copy of it, with no LK, preloader or TEE, as cypress's, hoya's,
+  rhodes' and sycamore's are, and gives `odm`, `product`, `logo` and `vbmeta`
+  rows of their own. It takes the codename from `ro.product.device` without
+  `_ftv`, which hoya's later OTAs add, as it already did for `_puffin`.
+  `docs/devices.md` covers all four, read from every OTA ftvdb lists, with a
+  partition CSV each, so every Echo ftvdb lists is now covered.
 - `docs/devices.md` covers crown's 8150, 8151, 8848 and 8851, the four OTAs
   ftvdb has gained since crown was read. 8848 and 8851 are Fire OS 6575.1 and
   bring a second LK, TEE and preloader.
@@ -17,7 +24,7 @@ This project adheres to [Semantic Versioning](https://semver.org).
   it installs as the `firebreak[brotli]` extra and an OTA that wants it says so.
   `docs/devices.md` covers athena and theia, read from every OTA ftvdb lists,
   with a partition CSV each.
-- `docs/devices.md` opens with an index of all 35 devices: codename, the
+- `docs/devices.md` opens with an index of all 39 devices: codename, the
   device it is, and the model its CSV rows carry.
 - `survey` reads a Vega `.swu`, the container the Echo Hub, the Echo Spot of
   the 2nd generation, the Echo Show 5 of the 3rd, the Echo Dot Max, the Echo

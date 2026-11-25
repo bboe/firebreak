@@ -236,6 +236,14 @@ def test_block_images_takes_the_bootloader_set_only_without_an_lk() -> None:
     assert ota.block_images(names=both) is ota.BLOCK_IMAGES
 
 
+def test_block_images_takes_the_uboot_set_only_without_an_lk() -> None:
+    uboot = frozenset({"boot.img", "images/u-boot.bin", "images/u-boot.bin.signed"})
+    assert ota.block_images(names=uboot) is ota.UBOOT_IMAGES
+    assert ota.block_images(names=uboot | {"images/lk.bin"}) is ota.BLOCK_IMAGES
+    held = uboot | {"images/bootloader", "images/bootloader_prod"}
+    assert ota.block_images(names=held) is ota.BOOTLOADER_IMAGES
+
+
 def test_extract(*, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path) -> None:
     update = write_ota(
         members={"payload.bin": payload(images=IMAGES, kinds=KINDS)},

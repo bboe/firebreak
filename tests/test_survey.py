@@ -319,6 +319,47 @@ def test_a_block_ota_with_brotli_data_and_a_vendor(
     assert rows[2].endswith(f",{BLOCK},{sha(b'v' * BLOCK)}")
 
 
+@NEEDS_BROTLI
+def test_a_block_ota_with_uboot_images(
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    survey.survey(
+        update=write_ota(
+            members={
+                "boot.img": b"boot",
+                "images/logo.img": b"logo",
+                "images/u-boot.bin": b"uboot",
+                "images/u-boot.bin.signed": b"uboot signed",
+                "odm.new.dat.br": brotli.compress(b"o" * BLOCK),
+                "odm.transfer.list": b"4\n1\n0\n0\nnew 2,0,1\n",
+                "product.new.dat.br": brotli.compress(b"p" * BLOCK),
+                "product.transfer.list": b"4\n1\n0\n0\nnew 2,0,1\n",
+                "system.new.dat.br": brotli.compress(b"s" * BLOCK),
+                "system.transfer.list": b"4\n1\n0\n0\nnew 2,0,1\n",
+                "vbmeta.img": b"vbmeta",
+                survey.PROPERTIES: PROPERTIES,
+            },
+            path=tmp_path / "ota.zip",
+        )
+    )
+    rows = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if line.startswith("biscuit,")
+    ]
+    assert [row.split(",")[3] for row in rows] == [
+        "boot",
+        "system",
+        "odm",
+        "product",
+        "uboot",
+        "uboot_signed",
+        "logo",
+        "vbmeta",
+    ]
+    assert rows[5].endswith(f",12,{sha(b'uboot signed')}")
+
+
 def test_a_block_ota_without_an_image(*, tmp_path: pathlib.Path) -> None:
     update = write_ota(members={"boot.img": b"boot"}, path=tmp_path / "ota.zip")
     with pytest.raises(
@@ -751,6 +792,18 @@ def test_pl_version_tries_each_reference_to_the_string() -> None:
     data[0x14:0x18] = bl(at=0x14, target=PRINT)
     data[0x18:0x1C] = struct.pack("<HH", 0xF7FF, 0xFFF0)
     assert survey.pl_version(data=bytes(data)) == 5
+
+
+@pytest.mark.parametrize(
+    argnames=("name", "want"),
+    argvalues=[
+        ("biscuit_puffin", "biscuit"),
+        ("hoya_ftv", "hoya"),
+        ("hoya", "hoya"),
+    ],
+)
+def test_the_codename_a_device_name_gives(*, name: str, want: str) -> None:
+    assert survey.codename(name=name) == want
 
 
 def test_the_subcommand_goes_on_past_an_ota_it_cannot_read(

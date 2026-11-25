@@ -33,10 +33,13 @@ CSV_ORDER = (
     "boot",
     "system",
     "vendor",
+    "odm",
+    "product",
     "bootloader",
     "bootloader_prod",
     "lk",
     "uboot",
+    "uboot_signed",
     "scp",
     "mcupm",
     "spmfw",
@@ -44,13 +47,16 @@ CSV_ORDER = (
     "cam_vpu1",
     "cam_vpu2",
     "cam_vpu3",
+    "logo",
+    "vbmeta",
     "tee",
     "tee1",
     "tee2",
     "preloader",
 )
 DESCRIPTION = re.compile(rb"[0-9a-f]{7}-\d{8}_\d{6}")
-EXTRA_PARTS = ("vendor",)
+DEVICE_SUFFIXES = ("_ftv", "_puffin")
+EXTRA_PARTS = ("vendor", "odm", "product")
 FIT_END_NODE = 2
 FIT_HEADER = struct.Struct(">10I")
 FIT_MAGIC = 0xD00DFEED
@@ -146,6 +152,12 @@ def calls(*, data: bytes, start: int) -> list[int]:
             found.append(branch_target(at=at, first=first, second=second))
         at += 4
     return found
+
+
+def codename(*, name: str) -> str:
+    for suffix in DEVICE_SUFFIXES:
+        name = name.removesuffix(suffix)
+    return name
 
 
 def csv_label(*, name: str) -> str:
@@ -412,7 +424,7 @@ def survey(*, update: pathlib.Path) -> None:
     tee = found.get(tees[0])
     show(text=labelled(label="OTA", value=update.name))
     name = properties.get("ro.build.version.name", "<unnamed>")
-    device = properties.get("ro.product.device", "<unknown>").removesuffix("_puffin")
+    device = codename(name=properties.get("ro.product.device", "<unknown>"))
     model = properties.get("ro.product.model", "<unknown>")
     show(text=labelled(label="build", value=name))
     show(text=labelled(label="device", value=device))

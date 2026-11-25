@@ -6,12 +6,13 @@ is named by the hardware code its bootrom reports rather than by a bootloader;
 the whole route has run on a donut, three times, including with
 `--factory-reset`. crown declares
 an unlock and no target, so no route reaches it, and that unlock has never run.
-The other thirty-one devices here declare nothing at all, and are here
+The other thirty-five devices here declare nothing at all, and are here
 because their OTAs are read the same way: crumpet, doebrite, pascal, sonar,
 lidar, laser, brownie, ganache, cannoli, cheesecake, churro, checkers,
 croissant, cupcake, octave, pablo, sapphire, kyanite, cronos, rook, bishop,
-knight, athena, theia, and the seven [Vega](#vega) devices, galileo, hypnos,
-baklava, macaroon, electra, madeleine and persimmon.
+knight, athena, theia, cypress, hoya, rhodes, sycamore, and the seven
+[Vega](#vega) devices, galileo, hypnos, baklava, macaroon, electra, madeleine
+and persimmon. That is every Echo ftvdb lists.
 
 `firebreak survey OTA` prints, from one OTA and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build
@@ -22,9 +23,11 @@ octave's, pablo's, sapphire's and kyanite's do, 9 on crumpet, doebrite, pascal
 and croissant, which add four boot0 partitions, 12 on brownie and ganache, and
 14 on cannoli, cheesecake and churro, which add `scp` and `mcupm`, 4 on
 bishop and knight, whose OTAs carry two `bootloader` images and none of the
-images the other lines are read from, and 11 on athena and theia, which add
-`vendor`, `spmfw`, `sspm` and three `cam_vpu` images. A Vega `.swu` is not a
-zip at all, and
+images the other lines are read from, 11 on athena and theia, which add
+`vendor`, `spmfw`, `sspm` and three `cam_vpu` images, and 8 or 9 on cypress,
+hoya, rhodes and sycamore, whose OTAs carry a `u-boot.bin` and a signed copy
+of it in place of an LK, a preloader and a TEE. A Vega `.swu` is not a zip at
+all, and
 has a row for each image its manifest names, 7 to 12 of them.
 The TEE it reports is the first of those, and it says so where the two differ.
 Only the fastbrick image comes from elsewhere, amonet's
@@ -59,12 +62,14 @@ not mark a move from Fire OS 5, and what it does mark is unread. No OTA says.
 | [cronos](#cronos) | Echo Show 5 (2nd Generation) | `AEOCN` |
 | [crown](#crown) | Echo Show 8 (1st Generation) | `AEOCW` |
 | [crumpet](#crumpet) | Echo Dot (3rd Generation) Refresh | `AEOCP` |
+| [cypress](#cypress) | Echo Show 15 (2nd Generation) | `AEOCY` |
 | [cupcake](#cupcake) | Echo Input | `AEOCK` |
 | [doebrite](#doebrite) | Echo Dot with Clock (3rd Generation) | `AEODB` |
 | [donut](#donut) | Echo Dot (3rd Generation) | `AEODN` |
 | [electra](#electra) | Echo Show 11 (1st Generation) | `<unknown>` |
 | [galileo](#galileo) | Echo Hub (1st Generation) | `<unknown>` |
 | [ganache](#ganache) | Echo Dot with Clock (4th Generation) | `AEOGN` |
+| [hoya](#hoya) | Echo Show 15 (1st Generation) | `AEOHY` |
 | [hypnos](#hypnos) | Echo Show 5 (3rd Generation) | `<unknown>` |
 | [knight](#knight) | Echo Show (1st Generation) | `AEOKN` |
 | [kyanite](#kyanite) | Echo Link Amp | `AEOKY` |
@@ -77,9 +82,11 @@ not mark a move from Fire OS 5, and what it does mark is unread. No OTA says.
 | [pascal](#pascal) | Echo (3rd Generation) | `AEOPC` |
 | [persimmon](#persimmon) | Echo Studio (2nd Generation) | `<unknown>` |
 | [radar](#radar) | Echo (2nd Generation) | `AEORD` |
+| [rhodes](#rhodes) | Echo Show 8 (3rd Generation) | `AEORH` |
 | [rook](#rook) | Echo Spot (1st Generation) | `AEORK` |
 | [sapphire](#sapphire) | Echo Link | `AEOSP` |
 | [sonar](#sonar) | Echo Plus (1st Generation) | `AEOSN` |
+| [sycamore](#sycamore) | Echo Show 21 | `AEOSY` |
 | [theia](#theia) | Echo Show 10 (3rd Generation) | `AEOTA` |
 
 Each device's own section gives the rest. Where a row reads `<unknown>`,
@@ -902,8 +909,9 @@ their Builds tables carry.
   cannoli's, cheesecake's and churro's open `NANDCFG!`.
 - `reserve_0` to `reserve_2`, on the five with `brhgptlk`, are 4096 bytes of
   zeros. One hash covers every one of them, on every build of every device. It
-  is one of the three images two devices here share, with biscuit's and radar's
-  TEE and athena's and theia's `spmfw`.
+  is one of the four images more than one device here shares, with biscuit's
+  and radar's TEE, athena's and theia's `spmfw`, and the `logo` cypress ships
+  from build 6566 on and hoya and sycamore from 7080 on.
 - **Six u-boots were built on one day**, 2024-07-25, between 07:01 and 09:27:
   brownie's, cannoli's, churro's, laser's, cheesecake's and ganache's, in that
   order. laser's, brownie's and ganache's TEEs are one batch too, on
@@ -1977,3 +1985,121 @@ kit here unlocks it, and no route reaches it.
 
 [theia-partitions.csv](../firebreak/devices/theia-partitions.csv)
 has the sha256 of the 11 images each OTA writes, for all 7 builds.
+
+## cypress
+
+The Echo Show 15 (2nd Generation) of 2024, `AEOCY` in ftvdb's catalog and in
+its own OTAs. Read on 2026-11-24 from all 8 OTAs ftvdb lists, Fire OS 7.4.6.6
+to Fire OS 7575.1 of build 7809. Its OTAs carry no LK, no preloader
+and no TEE: the bootloader is `images/u-boot.bin`, with a signed copy beside
+it. No kit here unlocks it, and no route reaches it.
+
+- Its OTAs name 9 images: `boot`, `system`, `vendor`, `odm`, `product`,
+  `uboot`, `uboot_signed`, `logo` and `vbmeta`. `system`, `vendor`, `odm` and
+  `product` are all brotli compressed, so reading one needs the
+  `firebreak[brotli]` extra.
+- **`images/u-boot.bin` and `images/u-boot.bin.signed` are never the same
+  image.** Both are 3248128 bytes and open with the same 16 bytes, and in all
+  8 builds their hashes differ. The signed copy takes three states across the
+  8 builds where the bare one takes 8, so a build can ship a new `u-boot.bin`
+  against a signed copy it already shipped.
+- `/system` is 3254779904 bytes in every build, `/vendor` 314572800, `/odm`
+  8388608 and `/product` 12582912, and each build's `boot`, `system`,
+  `vendor`, `odm` and `product` are its own. 61 distinct images cover the 72
+  rows.
+- Its `uboot_build_time` reads `<none>` in every build: these u-boots carry
+  no FIT timestamp, where laser's and brownie's do.
+- **Its build numbers do not order its builds**, as hoya's do not: 4937 names
+  Fire OS 7.5.6.9 and follows 5256, which names 7.4.6.6, by version code.
+  5256 is the one build off the 7.5 line, and athena ships it too.
+
+### Partition hashes
+
+[cypress-partitions.csv](../firebreak/devices/cypress-partitions.csv)
+has the sha256 of the 9 images each OTA writes, for all 8 builds.
+
+## hoya
+
+The Echo Show 15 (1st Generation) of 2021, `AEOHY` in ftvdb's catalog and in
+its own OTAs. Read on 2026-11-24 from all 7 OTAs ftvdb lists, Fire OS 7.5.0.0
+of build 3991 to Fire OS 7575.1 of 7809. It is read as cypress is, and ships
+no `vbmeta`, so 8 images a build. No kit here unlocks it, and no route reaches
+it.
+
+- **Its OTAs name the device two ways.** 3991 gives `ro.product.device` as
+  `hoya`, and every later build gives `hoya_ftv`, which `survey` strips as it
+  strips `_puffin` from biscuit's and radar's. The model stays `AEOHY`
+  throughout, so the suffix marks a second device tree and not another device.
+- **A higher build number is not a later build here.** 3919 names Fire OS
+  7.5.0.4 and 3991 names 7.5.0.0, and 3919's version code is the higher of
+  the two, so the version names order these two builds where the numbers do
+  not.
+- Its `boot` is 10692608 to 10954752 bytes, the only one of these four that
+  changes size between builds. `/system`, `/vendor`, `/odm` and `/product`
+  are the sizes cypress's are. 48 distinct images cover the 56 rows.
+
+### Partition hashes
+
+[hoya-partitions.csv](../firebreak/devices/hoya-partitions.csv)
+has the sha256 of the 8 images each OTA writes, for all 7 builds.
+
+## rhodes
+
+The Echo Show 8 (3rd Generation) of 2023, `AEORH` in ftvdb's catalog and in
+its own OTAs. Read on 2026-11-24 from all 5 OTAs ftvdb lists, three of Fire
+OS 7574.1 and two of 7575.1. It is read as cypress is, and ships no `vbmeta`,
+so 8 images a build. No kit here unlocks it, and no route reaches it.
+
+- It is the one of these four whose `logo` is its own: 7440 bytes, where
+  cypress, hoya and sycamore all ship one 15248-byte image, cypress from
+  build 6566 on and the other two from 7080. One `logo` and one
+  `uboot_signed` cover all 5 builds.
+- `/system`, `/vendor`, `/odm` and `/product` are the sizes cypress's are,
+  and `boot` is 10827776 bytes in every build. 32 distinct images cover the
+  40 rows, the fewest of these four.
+
+### Partition hashes
+
+[rhodes-partitions.csv](../firebreak/devices/rhodes-partitions.csv)
+has the sha256 of the 8 images each OTA writes, for all 5 builds.
+
+## sycamore
+
+The Echo Show 21 of 2024, `AEOSY` in ftvdb's catalog and in its own OTAs.
+Read on 2026-11-24 from all 5 OTAs ftvdb lists, three of Fire OS 7574.1 and
+two of 7575.1. It is read as cypress is, `vbmeta` included, so 9 images a
+build. No kit here unlocks it, and no route reaches it.
+
+- Its `boot` is 33554432 bytes, as cypress's is, where hoya's and rhodes' are
+  about 10.7 MB, and its `logo` is the one cypress and hoya ship too. One
+  `logo` and one `uboot_signed` cover all 5 builds, as on rhodes.
+- `/system`, `/vendor`, `/odm` and `/product` are the sizes cypress's are. 37
+  distinct images cover the 45 rows.
+
+### Partition hashes
+
+[sycamore-partitions.csv](../firebreak/devices/sycamore-partitions.csv)
+has the sha256 of the 9 images each OTA writes, for all 5 builds.
+
+## The Fire OS 7 build train
+
+All six Fire OS 7 devices here take one train of builds, and the numbers and
+version codes are shared, not just the names:
+
+| build | ships to |
+| --- | --- |
+| 5148, 5162 | athena, theia |
+| 5256 | athena, cypress |
+| 6566 | athena, cypress |
+| 7080, 7081, 7082 | athena, cypress, hoya, rhodes, sycamore, theia |
+| 7806 | athena, cypress, hoya, rhodes, sycamore |
+| 7809 | athena, cypress, hoya, rhodes, sycamore, theia |
+
+- theia takes 7807 where the other five take 7806, and every one of its other
+  builds is shared.
+- No image is shared under any of those numbers except the `logo` cypress,
+  hoya and sycamore carry. Each device builds its own `boot`, `system`,
+  `vendor` and bootloaders for the same build.
+- 5256 names Fire OS 7.4.6.6 on both athena and cypress, the one build off
+  the 7.5 line either device ships. Every other shared number names the same
+  version on every device that takes it.

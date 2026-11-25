@@ -47,12 +47,19 @@ OPTIONAL_IMAGES = {
     "cam_vpu1": ("images/cam_vpu1.img",),
     "cam_vpu2": ("images/cam_vpu2.img",),
     "cam_vpu3": ("images/cam_vpu3.img",),
+    "logo": ("images/logo.img",),
     "spmfw": ("images/spmfw.img",),
     "sspm": ("images/sspm.img",),
+    "uboot_signed": ("images/u-boot.bin.signed",),
+    "vbmeta": ("vbmeta.img",),
 }
 PAYLOAD_VERSION = 2
 TEE_NAMES = ("tee", "tee1", "tee2")
 TRANSFER_FIELDS = 2
+UBOOT_IMAGES = {
+    "boot": ("boot.img",),
+    "uboot": ("images/u-boot.bin",),
+}
 VARINT_MORE = 0x80
 
 
@@ -178,8 +185,11 @@ def blob(*, value: int | bytes) -> bytes:
 def block_images(*, names: frozenset[str]) -> dict[str, tuple[str, ...]]:
     held = block_member(images=BOOTLOADER_IMAGES, name="bootloader", names=names)
     lk = block_member(images=BLOCK_IMAGES, name="lk", names=names)
-    if held is not None and lk is None:
+    uboot = block_member(images=UBOOT_IMAGES, name="uboot", names=names)
+    if lk is None and held is not None:
         return BOOTLOADER_IMAGES
+    if lk is None and uboot is not None:
+        return UBOOT_IMAGES
     return BLOCK_IMAGES
 
 
