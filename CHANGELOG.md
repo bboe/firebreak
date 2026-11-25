@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `docs/devices.md` covers crown's 8150, 8151, 8848 and 8851, the four OTAs
+  ftvdb has gained since crown was read. 8848 and 8851 are Fire OS 6575.1 and
+  bring a second LK, TEE and preloader.
 - `survey` reads a block OTA whose `system` and `vendor` data is brotli
   compressed and whose LK and TEE are `images/lk.img` and `images/tee.img`, as
   athena's and theia's are. It takes the build properties from

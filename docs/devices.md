@@ -392,9 +392,11 @@ Read as biscuit's are, and from `report` on 2026-10-28.
 ## crown
 
 The Echo Show 8 (1st Generation), whose OTAs give `ro.product.model` as
-`AEOCW`. Read in October 2026 from the 19 OTAs on ftvdb: Fire OS 6 6074 to
-8149. Their `ro.build.version.name` runs from Fire OS 6.5.7.0 to Fire OS
-6574.1, as biscuit's 8146 also names itself. ftvdb has no other crown OTA.
+`AEOCW`. Read in October 2026, and on 2026-11-24 for 8150, 8151, 8848 and
+8851, from all 23 OTAs ftvdb lists: Fire OS 6 6074 to 8851. Their
+`ro.build.version.name` runs from Fire OS 6.5.7.0 to Fire OS 6575.1: 8146 to
+8151 name themselves 6574.1, as biscuit's 8146 also does, and 8848 and 8851
+name 6575.1.
 Crown's build numbers are its own: its 6208, 6436, 8146 and 8149 are not
 biscuit's or radar's builds of those numbers.
 [unlocking.md](unlocking.md#echo-show-8-1st-generation) says why no route
@@ -404,10 +406,22 @@ reaches it.
 
 | ships in | `lk_build_desc` | `pl_build_desc` | TEE | anti-rollback PL, TEE, LK | fastbrick image |
 | --- | --- | --- | --- | --- | --- |
-| Fire OS 6 6074 to 8149 | `44072a3-20240709_164449` | `79a3b50-20231019_080950` | [1](#tee-images-2) | 0x0001, 0x0102, 0x0001 | `fastbrick.img` |
+| Fire OS 6 8848 and 8851 | `fbacd25-20260415_110052` | `8d92e82-20260415_110052` | [2](#tee-images-2) | 0x0001, 0x0102, 0x0001 | `fastbrick.img` |
+| Fire OS 6 6074 to 8151 | `44072a3-20240709_164449` | `79a3b50-20231019_080950` | [1](#tee-images-2) | 0x0001, 0x0102, 0x0001 | `fastbrick.img` |
 
-- Every OTA ships the same LK and TEE. The preloaders differ between builds
-  only in boot0's GPT, as on biscuit.
+- **Fire OS 6575.1 brings crown's second bootloader set.** The 21 builds from
+  6074 to 8151 ship one LK and one TEE; 8848 and 8851 ship another of each,
+  and a new preloader, all three built on 2026-04-15. The anti-rollback
+  versions do not move: the new TEE is 0x0102, as the old one is.
+- **Crown keeps that set in 8851, where checkers and cronos go back.** Both
+  of those ship 8848's 2026-04-15 LK and TEE in 8848 alone and revert to the
+  older pair in 8851, so a build number does not order their bootloaders.
+  Crown's 8851 is byte-identical to its 8848 in both images, read from the
+  OTA, so the caveat those two carry does not apply here.
+- Within one preloader commit the images differ only in boot0's GPT, as on
+  biscuit: 87 bytes, all between offsets 1031696 and 1048155. Across the
+  commits they differ in 254165 bytes from offset 4128 on, so 8848 carries new
+  preloader code and not another GPT.
 - Crown has one slot: one `boot` and one `lk`. Each OTA writes its TEE to both
   `tee1` and `tee2`. Its updater script also extracts `images/MBR` to the
   disk, but no OTA holds that file. The extract fails, the script does not
@@ -419,8 +433,9 @@ reaches it.
   of N into the same field, and the same compare.
 - amonet-crown v2.0.1's `profile.sh` gives every LK the default image,
   `fastbrick.img`. Its map of LK-specific images is empty.
-- amonet-crown v2.0.1 writes this LK and this TEE, byte for byte, and a
-  preloader from 2019, `1fce15f-20190917_183143`, at PL version 1.
+- amonet-crown v2.0.1 writes the LK and TEE of the builds through 8151, byte
+  for byte, and a preloader from 2019, `1fce15f-20190917_183143`, at PL
+  version 1.
 - amonet-crown v1.1.1 writes an LK from 2019, `4c6677c-20190328_014231`, at
   LK version 0, below the OTAs' 1. Its TEE is at 0x0103, above the OTAs'
   0x0102. Its preloader is `79a3b50-20231019_082513`, at PL version 1: the
@@ -436,6 +451,7 @@ reaches it.
 
 | TEE | bytes | md5 | sha256 |
 | --- | --- | --- | --- |
+| 2 | 2533376 | `f891b7fa9bf3b79f508d5bb11d1b6c72` | `8327c0cde2e371ab97e40eacb59a588b8d3ae45128845e77dad27c17fd2b9791` |
 | 1 | 2533376 | `a5bf748b2351a424f5016cd45fbc0c26` | `fb8f7ee4de59aab1fea4b3fc99e76aa575bf46b1aef165ea367a1e44c6713c50` |
 
 ### Partition hashes
@@ -446,7 +462,7 @@ read as biscuit's are.
 
 - Every crown OTA is a block OTA. As on biscuit, a crown that Amazon's updater
   installed matches its `/system` hash only if its eMMC reads erased blocks as
-  zeros. Amazon's updater erases and does not write 119,598 to 132,373 of the
+  zeros. Amazon's updater erases and does not write 115,258 to 132,373 of the
   794,368 blocks, depending on the build.
 - Every build has its own boot, `/system` and preloader hash. `/system` is
   3,253,731,328 bytes in every build.
