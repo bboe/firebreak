@@ -6,7 +6,7 @@ import inspect
 import pathlib
 import sys
 
-DOWNLOADED = {"common", "logger", "main", "serial"}
+DOWNLOADED = {"brotli", "common", "logger", "main", "serial"}
 FILTERED = {"extract", "extractall", "unpack_archive"}
 FLOOR = (3, 9, 6)
 FUNCTIONS = (ast.AsyncFunctionDef, ast.FunctionDef, ast.Lambda)

@@ -6,7 +6,15 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
-- `docs/devices.md` opens with an index of all 33 devices: codename, the
+- `survey` reads a block OTA whose `system` and `vendor` data is brotli
+  compressed and whose LK and TEE are `images/lk.img` and `images/tee.img`, as
+  athena's and theia's are. It takes the build properties from
+  `system/build.prop` where an OTA carries no `target.build.prop`, and gives
+  `vendor` a row of its own. Reading one needs brotli, which no route needs, so
+  it installs as the `firebreak[brotli]` extra and an OTA that wants it says so.
+  `docs/devices.md` covers athena and theia, read from every OTA ftvdb lists,
+  with a partition CSV each.
+- `docs/devices.md` opens with an index of all 35 devices: codename, the
   device it is, and the model its CSV rows carry.
 - `survey` reads a Vega `.swu`, the container the Echo Hub, the Echo Spot of
   the 2nd generation, the Echo Show 5 of the 3rd, the Echo Dot Max, the Echo

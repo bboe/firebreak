@@ -16,15 +16,23 @@ if TYPE_CHECKING:
     import pathlib
 
 BLOCK = 4096
+
 KINDS = {
     "lk": ota.OperationType.REPLACE_BZ,
     "tee": ota.OperationType.REPLACE_XZ,
 }
+try:
+    import brotli
+except ImportError:
+    brotli = None
+
+NEEDS_BROTLI = pytest.mark.skipif(brotli is None, reason="brotli is not installed")
 
 
 def block_ota(
     *,
     new_data: bytes,
+    packed: bool = False,
     path: pathlib.Path,
     preloader: str | None = "images/preloader.img",
     transfer: str,
@@ -39,7 +47,9 @@ def block_ota(
     return write_ota(
         members={
             **members,
-            "system.new.dat": new_data,
+            ("system.new.dat.br" if packed else "system.new.dat"): (
+                brotli.compress(new_data) if packed else new_data
+            ),
             "system.transfer.list": transfer.encode(),
         },
         path=path,
@@ -136,6 +146,75 @@ def payload(  # ruff: ignore[too-many-arguments]
     return head + manifest + bytes(signature) + data
 
 
+@NEEDS_BROTLI
+def test_a_brotli_member_that_ends_early(*, tmp_path: pathlib.Path) -> None:
+    update = write_ota(
+        members={"system.new.dat.br": brotli.compress(bytes(BLOCK))[:-4]},
+        path=tmp_path / "ota.zip",
+    )
+    with zipfile.ZipFile(file=update) as archive:
+        reader, _ = ota.new_data(archive=archive, name="system")
+        with pytest.raises(expected_exception=FatalError, match="ends early"), reader:
+            reader.read(BLOCK)
+
+
+@NEEDS_BROTLI
+def test_a_brotli_member_with_trailing_bytes(*, tmp_path: pathlib.Path) -> None:
+    update = write_ota(
+        members={"system.new.dat.br": brotli.compress(bytes(BLOCK)) + b"junk"},
+        path=tmp_path / "ota.zip",
+    )
+    with zipfile.ZipFile(file=update) as archive:
+        reader, _ = ota.new_data(archive=archive, name="system")
+        with pytest.raises(expected_exception=FatalError, match="is damaged"), reader:
+            reader.read(BLOCK + 1)
+
+
+@NEEDS_BROTLI
+def test_a_brotli_reader_reads_to_the_end(*, tmp_path: pathlib.Path) -> None:
+    body = bytes(range(256)) * 8
+    update = write_ota(
+        members={"system.new.dat.br": brotli.compress(body)},
+        path=tmp_path / "ota.zip",
+    )
+    with zipfile.ZipFile(file=update) as archive:
+        reader, _ = ota.new_data(archive=archive, name="system")
+        with reader:
+            assert reader.readable()
+            assert reader.read() == body
+        assert reader.closed
+
+
+def test_an_ota_that_needs_brotli_without_it(
+    *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    update = write_ota(
+        members={
+            "boot.img": image(name="boot", size=1000),
+            "images/lk.bin": image(name="lk", size=1000),
+            "images/preloader.img": image(name="preloader", size=1000),
+            "images/tz.img": image(name="tee", size=1000),
+            "system.new.dat.br": b"not brotli at all",
+            "system.transfer.list": b"4\n2\n0\n0\nnew 2,0,2\n",
+        },
+        path=tmp_path / "ota.zip",
+    )
+    monkeypatch.setattr(name="brotli", target=ota, value=None)
+    with pytest.raises(expected_exception=FatalError, match="pip install"):
+        ota.extract(update=update, work=tmp_path)
+
+
+def test_an_ota_with_no_system_data(*, tmp_path: pathlib.Path) -> None:
+    update = write_ota(
+        members={"system.transfer.list": b"4\n0\n0\n0\n"}, path=tmp_path / "ota.zip"
+    )
+    with (
+        zipfile.ZipFile(file=update) as archive,
+        pytest.raises(expected_exception=FatalError, match=r"no system\.new\.dat"),
+    ):
+        ota.new_data(archive=archive, name="system")
+
+
 def test_blob_and_number_check_the_wire_type() -> None:
     assert ota.blob(value=b"x") == b"x"
     assert ota.number(value=7) == 7
@@ -224,13 +303,13 @@ def test_extract_blocks_keeps_the_system_image(
         transfer="4\n2\n0\n0\nnew 2,0,2\n",
     )
     builds = []
-    write_system = ota.write_system
+    write_part = ota.write_part
 
     def counted(**arguments: object) -> None:
         builds.append(arguments)
-        write_system(**arguments)
+        write_part(**arguments)
 
-    monkeypatch.setattr(name="write_system", target=ota, value=counted)
+    monkeypatch.setattr(name="write_part", target=ota, value=counted)
     ota.extract(update=update, work=tmp_path)
     ota.extract(update=update, work=tmp_path)
     assert len(builds) == 1
@@ -271,6 +350,21 @@ def test_extract_blocks_reads_a_preloader_named_bin(*, tmp_path: pathlib.Path) -
     assert (tmp_path / "preloader.img").read_bytes() == image(
         name="preloader", size=1000
     )
+
+
+@NEEDS_BROTLI
+def test_extract_blocks_reads_brotli_system_data(*, tmp_path: pathlib.Path) -> None:
+    body = bytes(range(256)) * 32
+    ota.extract(
+        update=block_ota(
+            new_data=body,
+            packed=True,
+            path=tmp_path / "ota.zip",
+            transfer="4\n2\n0\n0\nnew 2,0,2\n",
+        ),
+        work=tmp_path,
+    )
+    assert (tmp_path / "system.img").read_bytes() == body
 
 
 def test_extract_blocks_takes_only_what_was_asked_for(

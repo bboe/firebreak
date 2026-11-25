@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     import pathlib
 
 BLOCK = 4096
+
 CODE = 0x100
 LK_DESCRIPTION = b"\0%s-%s\x0063CB91B\x0020221007_072309\0true\0"
 PL_DESCRIPTION = b"\0bd7ae89-20221003_215949\0"
@@ -29,6 +30,12 @@ PROPERTIES = (
 )
 TEXT = 0x400
 VERSION = 0x300
+try:
+    import brotli
+except ImportError:
+    brotli = None
+
+NEEDS_BROTLI = pytest.mark.skipif(brotli is None, reason="brotli is not installed")
 
 
 def bl(*, at: int, target: int) -> bytes:
@@ -43,9 +50,11 @@ def bl(*, at: int, target: int) -> bytes:
 
 def block_update(
     *,
+    packed: bool = False,
     path: pathlib.Path,
     preloader_name: str = "images/preloader.img",
     properties: bytes = PROPERTIES,
+    vendor: bool = False,
     **images: bytes,
 ) -> pathlib.Path:
     members = {
@@ -57,6 +66,11 @@ def block_update(
         "system.transfer.list": b"4\n1\n0\n0\nnew 2,1,2\nzero 2,0,1\n",
         survey.PROPERTIES: properties,
     }
+    if packed:
+        members["system.new.dat.br"] = brotli.compress(members.pop("system.new.dat"))
+    if vendor:
+        members["vendor.new.dat.br"] = brotli.compress(b"v" * BLOCK)
+        members["vendor.transfer.list"] = b"4\n1\n0\n0\nnew 2,0,1\n"
     for name, body in images.items():
         member = preloader_name if name == "preloader" else ota.BLOCK_IMAGES[name][0]
         members[member] = body
@@ -152,6 +166,75 @@ def test_a_block_ota(
     ]
 
 
+def test_a_block_ota_that_carries_coprocessor_images(
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    survey.survey(
+        update=write_ota(
+            members={
+                "boot.img": b"boot",
+                "images/cam_vpu1.img": b"vpu1",
+                "images/lk.bin": lk(),
+                "images/preloader.img": preloader(),
+                "images/spmfw.img": b"spm",
+                "images/sspm.img": b"sspm",
+                "images/tz.img": tee(),
+                "system.new.dat": b"s" * BLOCK,
+                "system.transfer.list": b"4\n1\n0\n0\nnew 2,1,2\nzero 2,0,1\n",
+                survey.PROPERTIES: PROPERTIES,
+            },
+            path=tmp_path / "ota.zip",
+        )
+    )
+    rows = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if line.startswith("biscuit,")
+    ]
+    assert [row.split(",")[3] for row in rows] == [
+        "boot",
+        "system",
+        "lk",
+        "spmfw",
+        "sspm",
+        "cam_vpu1",
+        "tee",
+        "preloader",
+    ]
+
+
+def test_a_block_ota_that_names_its_lk_and_tee_img(
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    survey.survey(
+        update=write_ota(
+            members={
+                "boot.img": b"boot",
+                "images/lk.img": lk(),
+                "images/preloader.img": preloader(),
+                "images/tee.img": tee(),
+                "system.new.dat": b"s" * BLOCK,
+                "system.transfer.list": b"4\n1\n0\n0\nnew 2,1,2\nzero 2,0,1\n",
+                survey.PROPERTIES: PROPERTIES,
+            },
+            path=tmp_path / "ota.zip",
+        )
+    )
+    rows = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if line.startswith("biscuit,")
+    ]
+    assert [row.split(",")[3] for row in rows] == [
+        "boot",
+        "system",
+        "lk",
+        "tee",
+        "preloader",
+    ]
+    assert rows[3].endswith(f",{len(tee())},{sha(tee())}")
+
+
 def test_a_block_ota_that_names_its_preloader_bin(
     *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
 ) -> None:
@@ -164,6 +247,21 @@ def test_a_block_ota_that_names_its_preloader_bin(
     assert out[-1] == (
         f"biscuit,AEOBC,Fire OS 6 6426,preloader,{len(preloader())},{sha(preloader())}"
     )
+
+
+@NEEDS_BROTLI
+def test_a_block_ota_with_a_vendor_list_and_no_vendor_data(
+    *, tmp_path: pathlib.Path
+) -> None:
+    update = block_update(path=tmp_path / "ota.zip", vendor=True)
+    with zipfile.ZipFile(file=update) as archive:
+        members = {
+            name: archive.read(name=name)
+            for name in archive.namelist()
+            if name != "vendor.new.dat.br"
+        }
+    with pytest.raises(expected_exception=FatalError, match=r"has no vendor\.new\.dat"):
+        survey.survey(update=write_ota(members=members, path=tmp_path / "bad.zip"))
 
 
 def test_a_block_ota_with_bootloader_images(
@@ -195,6 +293,30 @@ def test_a_block_ota_with_bootloader_images(
         f"biscuit,AEOBC,Fire OS 6 6426,bootloader,3,{sha(b'esp')}",
         f"biscuit,AEOBC,Fire OS 6 6426,bootloader_prod,8,{sha(b'esp_prod')}",
     ]
+
+
+@NEEDS_BROTLI
+def test_a_block_ota_with_brotli_data_and_a_vendor(
+    *, capsys: pytest.CaptureFixture[str], tmp_path: pathlib.Path
+) -> None:
+    survey.survey(
+        update=block_update(packed=True, path=tmp_path / "ota.zip", vendor=True)
+    )
+    rows = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if line.startswith("biscuit,")
+    ]
+    assert [row.split(",")[3] for row in rows] == [
+        "boot",
+        "system",
+        "vendor",
+        "lk",
+        "tee",
+        "preloader",
+    ]
+    assert rows[1].endswith(f",{2 * BLOCK},{sha(bytes(BLOCK) + b's' * BLOCK)}")
+    assert rows[2].endswith(f",{BLOCK},{sha(b'v' * BLOCK)}")
 
 
 def test_a_block_ota_without_an_image(*, tmp_path: pathlib.Path) -> None:

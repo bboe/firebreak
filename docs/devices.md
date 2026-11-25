@@ -6,12 +6,12 @@ is named by the hardware code its bootrom reports rather than by a bootloader;
 the whole route has run on a donut, three times, including with
 `--factory-reset`. crown declares
 an unlock and no target, so no route reaches it, and that unlock has never run.
-The other twenty-nine devices here declare nothing at all, and are here
+The other thirty-one devices here declare nothing at all, and are here
 because their OTAs are read the same way: crumpet, doebrite, pascal, sonar,
 lidar, laser, brownie, ganache, cannoli, cheesecake, churro, checkers,
 croissant, cupcake, octave, pablo, sapphire, kyanite, cronos, rook, bishop,
-knight, and the seven [Vega](#vega) devices, galileo, hypnos, baklava,
-macaroon, electra, madeleine and persimmon.
+knight, athena, theia, and the seven [Vega](#vega) devices, galileo, hypnos,
+baklava, macaroon, electra, madeleine and persimmon.
 
 `firebreak survey OTA` prints, from one OTA and nothing else, what its
 row in a Builds table and its rows in a partition hash CSV say: the build
@@ -20,9 +20,11 @@ hashes: 5 of them on biscuit, radar, crown, sonar, checkers, cronos and rook, 6
 where an OTA names two TEE partitions as donut's, lidar's, laser's, cupcake's,
 octave's, pablo's, sapphire's and kyanite's do, 9 on crumpet, doebrite, pascal
 and croissant, which add four boot0 partitions, 12 on brownie and ganache, and
-14 on cannoli, cheesecake and churro, which add `scp` and `mcupm`, and 4 on
+14 on cannoli, cheesecake and churro, which add `scp` and `mcupm`, 4 on
 bishop and knight, whose OTAs carry two `bootloader` images and none of the
-images the other lines are read from. A Vega `.swu` is not a zip at all, and
+images the other lines are read from, and 11 on athena and theia, which add
+`vendor`, `spmfw`, `sspm` and three `cam_vpu` images. A Vega `.swu` is not a
+zip at all, and
 has a row for each image its manifest names, 7 to 12 of them.
 The TEE it reports is the first of those, and it says so where the two differ.
 Only the fastbrick image comes from elsewhere, amonet's
@@ -44,6 +46,7 @@ not mark a move from Fire OS 5, and what it does mark is unread. No OTA says.
 
 | codename | device | `ro.product.model` |
 | --- | --- | --- |
+| [athena](#athena) | Echo Show 8 (2nd Generation) | `AEOAT` |
 | [baklava](#baklava) | Echo Spot (2nd Generation) | `<unknown>` |
 | [biscuit](#biscuit) | Echo Dot (2nd Generation) | `AEOBC` |
 | [bishop](#bishop) | Echo Show (2nd Generation) | `AEOBP` |
@@ -77,6 +80,7 @@ not mark a move from Fire OS 5, and what it does mark is unread. No OTA says.
 | [rook](#rook) | Echo Spot (1st Generation) | `AEORK` |
 | [sapphire](#sapphire) | Echo Link | `AEOSP` |
 | [sonar](#sonar) | Echo Plus (1st Generation) | `AEOSN` |
+| [theia](#theia) | Echo Show 10 (3rd Generation) | `AEOTA` |
 
 Each device's own section gives the rest. Where a row reads `<unknown>`,
 ftvdb's catalog still names a model: `AEOGL` galileo, `AEOHP` hypnos, `AEOBL`
@@ -881,9 +885,9 @@ their Builds tables carry.
   brownie's and ganache's open `BOOTLOADER!`, as crumpet's `brhgptpl` does, and
   cannoli's, cheesecake's and churro's open `NANDCFG!`.
 - `reserve_0` to `reserve_2`, on the five with `brhgptlk`, are 4096 bytes of
-  zeros. One hash covers every one of them, on every build of every device, so
-  it is the only image two devices here share besides biscuit's and radar's
-  TEE.
+  zeros. One hash covers every one of them, on every build of every device. It
+  is one of the three images two devices here share, with biscuit's and radar's
+  TEE and athena's and theia's `spmfw`.
 - **Six u-boots were built on one day**, 2024-07-25, between 07:01 and 09:27:
   brownie's, cannoli's, churro's, laser's, cheesecake's and ganache's, in that
   order. laser's, brownie's and ganache's TEEs are one batch too, on
@@ -1895,3 +1899,65 @@ route reaches it.
 
 [persimmon-partitions.csv](../firebreak/devices/persimmon-partitions.csv)
 has the sha256 of the 9 images each `.swu` carries, for all 6 builds.
+
+## athena
+
+The Echo Show 8 (2nd Generation) of 2021, `AEOAT` in ftvdb's catalog and
+`AEOAT` in its own OTAs. Read on 2026-11-24 from all 29 OTAs ftvdb lists, Fire
+OS 7.5.6.1 of build 3844 to Fire OS 7575.1 of 7809. It and theia are the only
+Fire OS 7 devices here, and the only ones whose `system` and `vendor` data is
+brotli compressed: reading either needs the `firebreak[brotli]` extra. No kit
+here unlocks it, and no route reaches it.
+
+- Its OTAs name 11 images: `boot`, `system`, `vendor`, `lk`, `spmfw`, `sspm`,
+  three `cam_vpu` images, `tee` and `preloader`. Only cannoli, cheesecake and
+  churro, at 14, and brownie, ganache and macaroon, at 12, have more rows a
+  build. There is no `boot0` and no `uboot`.
+- `/system` is 3254779904 bytes and `/vendor` 299892736 in every one of the 29
+  builds, and each build's own three are its own: 29 `boot`, 29 `system` and
+  29 `vendor` images, no two alike. 107 distinct images cover the 319 rows.
+- **A later build can carry an older LK.** Six LKs ship, and the order is not
+  the build order: 7.5.7.1 ships `d5c07cc`, built 2025-10-08, and the 7.5.7.2
+  and 7.5.7.3 builds after it go back to `bcfdde2`, built 2024-09-09, before
+  7.5.7.4 moves on to `f8089ae` of 2026-05-11.
+- One build names a version off the line the rest follow: 5256 says Fire OS
+  7.4.6.6 where the builds either side of it say 7.5.6.5 and 7.5.6.6.
+- Every build reports the same anti-rollback versions, TEE `0x0103` and LK
+  `0x5f56`, and none carries a preloader build description.
+- Its `spmfw` is 36880 bytes and never changes, and theia ships that same
+  image. Its `sspm` and three `cam_vpu` images are the sizes theia's are, but
+  no two of those are the same image.
+
+### Partition hashes
+
+[athena-partitions.csv](../firebreak/devices/athena-partitions.csv)
+has the sha256 of the 11 images each OTA writes, for all 29 builds.
+
+## theia
+
+The Echo Show 10 (3rd Generation) of 2021, `AEOTA` in ftvdb's catalog and in
+its own OTAs. Read on 2026-11-24 from all 7 OTAs ftvdb lists, two of Fire OS
+7.5.7.1 and five of Fire OS 7574.1 and 7575.1. It is read as athena is, down
+to the same 11 image names and the same brotli `system` and `vendor` data. No
+kit here unlocks it, and no route reaches it.
+
+- Its `/system` and `/vendor` are the sizes athena's are, 3254779904 and
+  299892736 bytes, and its `boot`, `system` and `vendor` differ in all 7
+  builds. 31 distinct images cover the 77 rows.
+- One TEE covers all 7 builds, where athena ships three across its 29, and two
+  LKs and two preloaders cover them.
+- **athena and theia share six build numbers**, and the version code with
+  them: 5148, 5162, 7080, 7081, 7082 and 7809 ship to both. They share one
+  image, `spmfw`. Everything else under those numbers is built per device.
+- Their LK commits are shared too, and built minutes apart: `d5c07cc` is
+  theia's of 2025-10-08 21:47:14 and athena's of 22:04:16, and `f8089ae` is
+  theia's of 2026-05-11 03:16:47 and athena's of 03:24:42. Neither pair is the
+  same image.
+- theia alone carries `images/mopac_full_ota.bin`, 38588559 bytes in the two
+  7.5.7.1 builds, 42857587 in the three 7574.1 and 42863305 in the two
+  7575.1. No row covers it, and no OTA here says what writes it.
+
+### Partition hashes
+
+[theia-partitions.csv](../firebreak/devices/theia-partitions.csv)
+has the sha256 of the 11 images each OTA writes, for all 7 builds.

@@ -32,18 +32,25 @@ CSV_LABEL = re.compile(r"Fire OS (\S+) \((?:\w+/)?(\d+)M?\)")
 CSV_ORDER = (
     "boot",
     "system",
+    "vendor",
     "bootloader",
     "bootloader_prod",
     "lk",
     "uboot",
     "scp",
     "mcupm",
+    "spmfw",
+    "sspm",
+    "cam_vpu1",
+    "cam_vpu2",
+    "cam_vpu3",
     "tee",
     "tee1",
     "tee2",
     "preloader",
 )
 DESCRIPTION = re.compile(rb"[0-9a-f]{7}-\d{8}_\d{6}")
+EXTRA_PARTS = ("vendor",)
 FIT_END_NODE = 2
 FIT_HEADER = struct.Struct(">10I")
 FIT_MAGIC = 0xD00DFEED
@@ -67,6 +74,7 @@ PL_UPDATE = b"[ANTI-ROLLBACK] Updating PL version"
 PROPERTIES = "META-INF/com/amazon/android/target.build.prop"
 SPARE = "reserve_"
 STRING = re.compile(rb"[\x20-\x7e]{6,}")
+SYSTEM_PROPERTIES = "system/build.prop"
 TEE_HEADER = b"EET KTM"
 TEE_VERSION = slice(0xF, 0x11)
 VEGA_MODEL = "<unknown>"
@@ -112,10 +120,11 @@ def build_description(*, data: bytes) -> str:
 
 
 def build_properties(*, archive: zipfile.ZipFile) -> dict[str, str]:
-    try:
-        text = archive.read(name=PROPERTIES).decode(errors="replace")
-    except KeyError:
+    names = frozenset(archive.namelist())
+    held = [name for name in (PROPERTIES, SYSTEM_PROPERTIES) if name in names]
+    if not held:
         return {}
+    text = archive.read(name=held[0]).decode(errors="replace")
     found = {}
     for line in text.splitlines():
         key, equals, value = line.partition("=")
@@ -144,7 +153,9 @@ def csv_label(*, name: str) -> str:
     if found is None:
         return name
     version, build = found.groups()
-    return f"Fire OS {version}" if version.startswith("5.") else f"Fire OS 6 {build}"
+    if version.startswith("5."):
+        return f"Fire OS {version}"
+    return f"Fire OS {version[0]} {build}"
 
 
 def csv_partitions(*, names: frozenset[str]) -> tuple[str, ...]:
@@ -219,26 +230,35 @@ def images(*, archive: zipfile.ZipFile) -> dict[str, Image]:
     }
     missing = sorted(
         [wanted[name][0] for name, member in members.items() if member is None]
+        + ["system.transfer.list"] * ("system.transfer.list" not in names)
         + [
-            name
-            for name in ("system.new.dat", "system.transfer.list")
-            if name not in names
+            f"{part}.new.dat"
+            for part in parts(names=names)
+            if not {f"{part}.new.dat", f"{part}.new.dat.br"} & names
         ]
     )
     if missing:
         raise FatalError(message="the OTA has no " + ", ".join(missing))
     found = {}
-    for name, member in members.items():
+    spare = {
+        name: ota.block_member(images=ota.OPTIONAL_IMAGES, name=name, names=names)
+        for name in ota.OPTIONAL_IMAGES
+    }
+    for name, member in {**members, **spare}.items():
+        if member is None:
+            continue
         data = archive.read(name=member)
         found[name] = Image(
             data=data, sha256=hashlib.sha256(data).hexdigest(), size=len(data)
         )
     with tempfile.TemporaryDirectory(dir=CACHE) as temporary:
-        path = pathlib.Path(temporary) / "system.img"
-        ota.write_system(archive=archive, path=path)
-        found["system"] = Image(
-            sha256=digest(kind="sha256", path=path), size=path.stat().st_size
-        )
+        for part in parts(names=names):
+            path = pathlib.Path(temporary) / f"{part}.img"
+            ota.write_part(archive=archive, name=part, path=path)
+            found[part] = Image(
+                sha256=digest(kind="sha256", path=path), size=path.stat().st_size
+            )
+            path.unlink()
     return found
 
 
@@ -257,6 +277,15 @@ def literal(*, at: int, data: bytes, register: int) -> int | None:
 def lk_version(*, data: bytes) -> int | None:
     at = data.rfind(b"LK", max(0, len(data) - LK_TRAILER))
     return None if at < 0 else int.from_bytes(data[at + 2 : at + 4], "big")
+
+
+def parts(*, names: frozenset[str]) -> tuple[str, ...]:
+    extra = (
+        part
+        for part in EXTRA_PARTS
+        if names & {f"{part}.transfer.list", f"{part}.new.dat", f"{part}.new.dat.br"}
+    )
+    return ("system", *extra)
 
 
 def payload_images(*, archive: zipfile.ZipFile) -> dict[str, Image]:

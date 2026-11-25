@@ -26,9 +26,12 @@ uvx --with tox-uv tox -e build,floor   # macOS only: pytest and coverage on Appl
 - Python 3.9 or later. There are three dependencies, each pinned exactly:
   pyserial, which the emOS probe and the bootrom step open a port with, pyusb,
   which a donut's bootrom is driven over because a serial port cannot reach it,
-  and update_checker, which tells a run that PyPI has a newer firebreak. Everything
-  else is the standard library. Users run it with `uvx firebreak@latest` from
-  PyPI.
+  and update_checker, which tells a run that PyPI has a newer firebreak. One
+  extra, `brotli`, is pinned the same way and installs only on request: it
+  reads the brotli `system` and `vendor` data athena's and theia's OTAs ship,
+  which no route needs. Everything else is the standard library. Users run it
+  with `uvx firebreak@latest` from PyPI, or
+  `uvx 'firebreak[brotli]@latest'` to survey those two.
 - A release is a `v` tag matching `__version__` in `firebreak/__init__.py`,
   which hatchling also reads for the package. `release.yml` publishes the
   wheel to PyPI by trusted publishing and attaches the sdist and wheel to a

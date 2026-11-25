@@ -248,6 +248,11 @@ other commands:
 Run `firebreak COMMAND --help` for what that command takes.
 ```
 
+`survey` reads most OTAs with the standard library alone. athena's and theia's
+hold their `system` and `vendor` data brotli compressed, so those two need an
+extra: run `uvx 'firebreak[brotli]@latest' survey OTA`. Every other command,
+and every unlock route, needs nothing beyond the three pinned dependencies.
+
 ### adb after an unlock
 
 An unlocked Echo answers root adb over USB and, on Fire OS 6, over Wi-Fi on

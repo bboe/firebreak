@@ -3,6 +3,7 @@ from __future__ import annotations
 import bz2
 import dataclasses
 import enum
+import io
 import lzma
 import struct
 import zipfile
@@ -13,22 +14,42 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import IO
 
+try:
+    import brotli
+except ImportError:
+    brotli = None
+
 from firebreak.cache import digest
 from firebreak.ui import FatalError, passed
 
 BLOCK_IMAGES = {
     "boot": ("boot.img",),
-    "lk": ("images/lk.bin",),
+    "lk": ("images/lk.bin", "images/lk.img"),
     "preloader": ("images/preloader.img", "images/preloader.bin"),
-    "tee": ("images/tz.img",),
+    "tee": ("images/tz.img", "images/tee.img"),
 }
 BOOTLOADER_IMAGES = {
     "boot": ("boot.img",),
     "bootloader": ("images/bootloader",),
     "bootloader_prod": ("images/bootloader_prod",),
 }
+BROTLI_CHUNK = 1 << 16
+BROTLI_DAMAGED = "the OTA's brotli data is damaged"
+BROTLI_MISSING = (
+    "the OTA is brotli-compressed, which needs a package firebreak does not "
+    "install by default: run it as uvx 'firebreak[brotli]@latest', or "
+    "pip install 'firebreak[brotli]'"
+)
+BROTLI_SHORT = "the OTA's brotli data ends early"
 IMAGES = ("preloader", "lk", "tee", "boot", "system")
 LABEL_WIDTH = max(map(len, IMAGES))
+OPTIONAL_IMAGES = {
+    "cam_vpu1": ("images/cam_vpu1.img",),
+    "cam_vpu2": ("images/cam_vpu2.img",),
+    "cam_vpu3": ("images/cam_vpu3.img",),
+    "spmfw": ("images/spmfw.img",),
+    "sspm": ("images/sspm.img",),
+}
 PAYLOAD_VERSION = 2
 TEE_NAMES = ("tee", "tee1", "tee2")
 TRANSFER_FIELDS = 2
@@ -39,6 +60,39 @@ VARINT_MORE = 0x80
 class BlockRange:
     end: int
     start: int
+
+
+class Brotli(io.RawIOBase):
+    @staticmethod
+    def readable() -> bool:
+        return True
+
+    def __init__(self, *, stream: IO[bytes]) -> None:
+        self.held = bytearray()
+        self.stream = stream
+        if brotli is None:
+            raise FatalError(message=BROTLI_MISSING)
+        self.state = brotli.Decompressor()
+
+    def close(self) -> None:
+        self.stream.close()
+        super().close()
+
+    def read(self, size: int = -1) -> bytes:
+        while size < 0 or len(self.held) < size:
+            chunk = self.stream.read(BROTLI_CHUNK)
+            if not chunk:
+                if not self.state.is_finished():
+                    raise FatalError(message=BROTLI_SHORT)
+                break
+            try:
+                self.held += self.state.process(chunk)
+            except brotli.error as error:
+                raise FatalError(message=f"{BROTLI_DAMAGED}: {error}") from error
+        end = len(self.held) if size < 0 else size
+        taken = bytes(self.held[:end])
+        del self.held[:end]
+        return taken
 
 
 class ExtentField(enum.IntEnum):
@@ -188,7 +242,7 @@ def extract_blocks(
         passed(message=f"{'system':>{LABEL_WIDTH}} kept from the last run")
         return
     part = work / "system.img.part"
-    write_system(archive=archive, path=part)
+    write_part(archive=archive, name="system", path=part)
     part.replace(target=path)
     sidecar.write_text(data=digest(kind="sha256", path=path))
     passed(message=f"{'system':>{LABEL_WIDTH}} built from the transfer list")
@@ -275,6 +329,16 @@ def named_partition(*, names: frozenset[str], wanted: str) -> str | None:
     if wanted not in TEE_NAMES:
         return None
     return next((name for name in TEE_NAMES if name in names), None)
+
+
+def new_data(*, archive: zipfile.ZipFile, name: str) -> tuple[IO[bytes], str]:
+    names = frozenset(archive.namelist())
+    plain, packed = f"{name}.new.dat", f"{name}.new.dat.br"
+    if plain in names:
+        return archive.open(name=plain), plain
+    if packed not in names:
+        raise FatalError(message=f"the OTA has no {plain}")
+    return Brotli(stream=archive.open(name=packed)), packed
 
 
 def number(*, value: int | bytes) -> int:
@@ -401,12 +465,10 @@ def varint(*, data: bytes, index: int) -> tuple[int, int]:
             return result, index
 
 
-def write_system(*, archive: zipfile.ZipFile, path: pathlib.Path) -> None:
-    transfers = transfer_list(text=archive.read(name="system.transfer.list").decode())
-    with (
-        path.open(mode="wb") as image,
-        archive.open(name="system.new.dat") as new_data,
-    ):
+def write_part(*, archive: zipfile.ZipFile, name: str, path: pathlib.Path) -> None:
+    transfers = transfer_list(text=archive.read(name=f"{name}.transfer.list").decode())
+    data, member = new_data(archive=archive, name=name)
+    with path.open(mode="wb") as image, data:
         image.truncate(transfers.size)
         for command in transfers.commands:
             if command.verb != "new":
@@ -415,11 +477,9 @@ def write_system(*, archive: zipfile.ZipFile, path: pathlib.Path) -> None:
                 image.seek(block_range.start)
                 for offset in range(block_range.start, block_range.end, 1 << 20):
                     length = min(1 << 20, block_range.end - offset)
-                    chunk = new_data.read(length)
+                    chunk = data.read(length)
                     if len(chunk) != length:
-                        raise FatalError(message="the OTA's system.new.dat is short")
+                        raise FatalError(message=f"the OTA's {member} is short")
                     image.write(chunk)
-        if new_data.read(1):
-            raise FatalError(
-                message="the OTA's system.new.dat outlasts its transfer list"
-            )
+        if data.read(1):
+            raise FatalError(message=f"the OTA's {member} outlasts its transfer list")

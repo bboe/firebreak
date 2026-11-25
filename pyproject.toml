@@ -12,6 +12,9 @@ name = "firebreak"
 readme = "README.md"
 requires-python = ">=3.9"
 
+[project.optional-dependencies]
+brotli = ["Brotli==1.1.0"]
+
 [project.scripts]
 firebreak = "firebreak.__main__:main"
 
@@ -96,6 +99,7 @@ commands = [
 ]
 depends = ["build"]
 deps = ["coverage==7.10.7", "pytest"]
+extras = ["brotli"]
 package = "wheel"
 
 [tool.tox.env.lint]
