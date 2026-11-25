@@ -1955,6 +1955,12 @@ moved the setup in 37 s.
   chain by then, so the next run needs `--factory-reset`. Amazon offers
   radar its own 4315, but the route was measured only on biscuit. radar
   runs amonet-radar's chain, and its 4315 and 5.5.5.4 were not read.
+- For these two stops, a run on a terminal asks first whether to erase the
+  Echo. A `yes` continues as `--factory-reset` from that point, so the
+  unlock chain is not written twice. Two users on Discord, who got only the
+  error, asked which command to run. `--force` does not answer the question,
+  because the erase loses the setup. Without a terminal, or on any other
+  answer, the run stops and prints the whole command with `--factory-reset`.
 - Each move is asked for first: `Type yes to continue`, or `--force`. It
   takes two more boots and the 4315 write, where `--factory-reset` takes
   neither.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import builtins
 import contextlib
 import gzip
 import hashlib
@@ -33,6 +34,11 @@ MAGISK_FILES = {
     b"data/adb/magisk/magisk": (0o100755, b"binary"),
 }
 RSA_OID = bytes.fromhex("06092a864886f70d010101")
+
+
+@pytest.fixture(autouse=True)
+def no_terminal(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(name="isatty", target=fireos.sys.stdin, value=lambda: False)
 
 
 @pytest.fixture
@@ -603,6 +609,58 @@ def test_fire_os_5_goes_in_and_the_dot_reboots(
     assert adb.asked[-1] == ["adb", "reboot"]
 
 
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_5_it_cannot_move_is_erased_when_the_prompt_says_yes(
+    *,
+    adb: FakeAdb,
+    monkeypatch: pytest.MonkeyPatch,
+    pushed: list[tuple[pathlib.Path, str]],
+) -> None:
+    monkeypatch.setattr(name="factory_reset", target=fireos.ARGUMENTS, value=False)
+    monkeypatch.setattr(name="isatty", target=fireos.sys.stdin, value=lambda: True)
+    monkeypatch.setattr(name="isatty", target=fireos.sys.stdout, value=lambda: True)
+    monkeypatch.setattr(name="input", target=builtins, value=lambda _: " Yes\n")
+    adb.answers["bcbtool get_active"] = [
+        f"0\n{slot}\nslot-ok" for slot in ("a", "a", "b", "b", "a")
+    ]
+    adb.answers["build-ok"] = [
+        "mount-ok\nro.build.version.name=Fire OS 5.5.0.2 (562219020)\nbuild-ok"
+    ]
+    fireos.stage_install_fireos6()
+    assert fireos.ARGUMENTS.factory_reset
+    assert len(adb.commands(holding="twrp wipe")) == 2
+    assert [remote for _, remote in pushed][:2] == ["/sdcard/update.zip"] * 2
+    assert fireos.PROGRESS.steps == 6
+
+
+@pytest.mark.parametrize(("tty", "answer"), [(False, ""), (True, "no"), (True, None)])
+def test_fire_os_5_it_cannot_move_stops_with_the_command_that_erases_it(
+    *,
+    answer: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+    tty: bool,
+) -> None:
+    def typed(_: str) -> str:
+        if answer is None:
+            raise EOFError
+        return answer
+
+    monkeypatch.setattr(name="factory_reset", target=fireos.ARGUMENTS, value=False)
+    monkeypatch.setattr(
+        name="target", target=fireos.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
+    )
+    monkeypatch.setattr(name="argv", target=fireos.sys, value=["firebreak", "unlock"])
+    monkeypatch.setattr(name="isatty", target=fireos.sys.stdin, value=lambda: tty)
+    monkeypatch.setattr(name="isatty", target=fireos.sys.stdout, value=lambda: tty)
+    monkeypatch.setattr(name="input", target=builtins, value=typed)
+    with pytest.raises(FatalError, match="only on the Echo Dot") as stopped:
+        fireos.check_fireos5(version="5.5.5.4")
+    assert stopped.value.message.endswith(
+        fireos.invocation(options=["unlock", "--factory-reset"])
+    )
+    assert not fireos.ARGUMENTS.factory_reset
+
+
 def test_fire_os_5_refuses_a_slot_it_does_not_know(
     *, adb: FakeAdb, fireos5: list[dict[str, object]]
 ) -> None:
@@ -631,7 +689,7 @@ def test_fire_os_5_stops_where_a_script_fails(
         (
             "build-ok",
             "mount-ok\nro.build.version.name=Fire OS 5.5.4.9 (672720020)\nbuild-ok",
-            "holds Fire OS 5.5.4.9. Only Fire OS 5.5.5.4",
+            "Fire OS 5.5.4.9 installed. Only Fire OS 5.5.5.4",
         ),
         ("queue-clear", "adb: device offline", "did not say whether"),
         ("queue-clear", "staged\nMapMigrationSuccess=1\nstaged-ok", "queued"),
@@ -935,6 +993,18 @@ def test_fire_os_6_counts_the_install_by_the_name_ps_prints(
     clock(monkeypatch=monkeypatch)
     fireos.stage_install_fireos6()
     assert "ps -A | grep -c update_engine;" in adb.commands(holding="get_active")[0]
+
+
+@pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_counts_the_steps_of_a_reset_the_route_did_not_plan(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="steps", target=fireos.PROGRESS, value=0)
+    adb.answers["bcbtool get_active"] = [
+        f"0\n{slot}\nslot-ok" for slot in ("a", "b", "b", "a")
+    ]
+    fireos.stage_install_fireos6()
+    assert fireos.PROGRESS.steps == fireos.PROGRESS.step
 
 
 @pytest.mark.usefixtures("fireos6")
@@ -1405,7 +1475,7 @@ def test_leaving_an_older_fire_os_5_stops_before_the_reboot(
         name="target", target=fireos.ARGUMENTS, value=TARGETS[BISCUIT]["fireos6"]
     )
     adb.answers["ro.build.version.name"] = ["Fire OS 5.5.0.3 (564196920)"]
-    with pytest.raises(FatalError, match=re.escape("holds Fire OS 5.5.0.3")):
+    with pytest.raises(FatalError, match=re.escape("has Fire OS 5.5.0.3 installed")):
         fireos.leave_fireos5(reboot=lambda: pytest.fail("rebooted"))
 
 
@@ -1436,6 +1506,28 @@ def test_leaving_fire_os_5_confirms_before_it_hides_or_clears_unless_reset(
     staged = adb.commands(holding="queue-clear")
     assert staged == ([] if reset else [staged[0]])
     assert all(command.startswith("su -c '") for command in staged)
+
+
+def test_leaving_fire_os_5_it_cannot_move_skips_the_move_when_erased(
+    *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(name="factory_reset", target=fireos.ARGUMENTS, value=False)
+    monkeypatch.setattr(
+        name="target", target=fireos.ARGUMENTS, value=TARGETS[RADAR]["fireos6"]
+    )
+    monkeypatch.setattr(
+        name="offer_factory_reset",
+        target=fireos,
+        value=lambda **_: setattr(fireos.ARGUMENTS, "factory_reset", True),
+    )
+    monkeypatch.setattr(
+        name="confirm", target=fireos, value=lambda **_: pytest.fail("confirmed")
+    )
+    adb.answers["ro.build.version.name"] = ["Fire OS 5.5.5.4 (680767620)"]
+    done: list[str] = []
+    fireos.leave_fireos5(reboot=lambda: done.append("reboot"))
+    assert done == ["reboot"]
+    assert adb.commands(holding="queue-clear") == []
 
 
 def test_leaving_fire_os_5_on_a_radar_stops_before_the_reboot(

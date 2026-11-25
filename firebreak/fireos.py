@@ -12,6 +12,7 @@ import shutil
 import sqlite3
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 import zipfile
@@ -346,20 +347,16 @@ def build_system(*, package: Download, target: pathlib.Path) -> None:
 
 def check_fireos5(*, version: str) -> None:
     if ARGUMENTS.target.device != biscuit.BISCUIT:
-        raise FatalError(
-            message=f"this {title()} holds Fire OS {version}. firebreak keeps a"
-            " setup through Amazon's move to Fire OS 6 only on the Echo Dot (2nd"
-            " Generation) so far, so Fire OS 6 was not written. Run"
-            " again with --factory-reset to erase it and install Fire OS 6"
-            f" {ARGUMENTS.target.installs.build}."
+        offer_factory_reset(
+            why=f"this {title()} has Fire OS {version} installed. firebreak moves"
+            " the Wi-Fi and Alexa registration to Fire OS 6 only on the Echo Dot"
+            " (2nd Generation) so far"
         )
-    if version != LAST_FIREOS5:
-        raise FatalError(
-            message=f"this {title()} holds Fire OS {version}. Only Fire OS"
-            f" {LAST_FIREOS5} carries Amazon's move to Fire OS 6 that keeps the"
-            " setup, so Fire OS 6 was not written. Run again with"
-            " --factory-reset to erase it and install Fire OS 6"
-            f" {ARGUMENTS.target.installs.build}."
+    elif version != LAST_FIREOS5:
+        offer_factory_reset(
+            why=f"this {title()} has Fire OS {version} installed. Only Fire OS"
+            f" {LAST_FIREOS5} can move the Wi-Fi and Alexa registration to Fire"
+            " OS 6"
         )
 
 
@@ -505,9 +502,14 @@ def install_and_root() -> None:
         raise FatalError(
             message="this TWRP runs on a boot moved partition table. " + again()
         )
-    build = "" if ARGUMENTS.factory_reset else installed_build(slot=active_slot())
+    reset = ARGUMENTS.factory_reset
+    build = "" if reset else installed_build(slot=active_slot())
     if "." in build:
-        write_bridge(fireos5=build)
+        check_fireos5(version=build)
+    if ARGUMENTS.factory_reset:
+        build = ""
+    elif "." in build:
+        write_bridge()
         build = MIGRATE_BUILD
     said = (
         setup_state()
@@ -521,7 +523,7 @@ def install_and_root() -> None:
         move_setup(moved="pending" not in said, zip_path=zip_path)
     wiped = not build
     upgraded = not wiped and outdated(build=build)
-    if not ARGUMENTS.factory_reset:
+    if not reset or not PROGRESS.steps:
         PROGRESS.steps = (
             PROGRESS.step
             + moving
@@ -654,6 +656,7 @@ def leave_fireos5(*, reboot: Callable[[], object]) -> None:
         check_fireos5(
             version=name.split()[2] if name.startswith("Fire OS 5.") else name
         )
+    if not ARGUMENTS.factory_reset:
         confirm_migration()
         hide_updater()
         wait_staged()
@@ -684,6 +687,30 @@ def move_setup(*, moved: bool, zip_path: pathlib.Path) -> None:
     finish_setup(since=since)
     restart_into_twrp(device=ARGUMENTS.target.device)
     wait_for_twrp()
+
+
+def offer_factory_reset(*, why: str) -> None:
+    build = ARGUMENTS.target.installs.build
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        PROGRESS.end()
+        warn(
+            text=f"{why}. firebreak can erase it now and install Fire OS 6 {build},"
+            " as --factory-reset does."
+        )
+        try:
+            answer = input("Type yes to continue: ")
+        except EOFError:
+            print()
+            answer = ""
+        if answer.strip().lower() == "yes":
+            print()
+            ARGUMENTS.factory_reset = True
+            return
+    command = invocation(options=[*sys.argv[1:], "--factory-reset"])
+    raise FatalError(
+        message=f"{why}, so Fire OS 6 was not written. To erase it and install"
+        f" Fire OS 6 {build}, run {command}"
+    )
 
 
 def outdated(*, build: str) -> bool:
@@ -1103,8 +1130,7 @@ def write_boot(*, data: bytes, target: str) -> str:
         )
 
 
-def write_bridge(*, fireos5: str) -> None:
-    check_fireos5(version=fireos5)
+def write_bridge() -> None:
     confirm_migration()
     check_staged(booted=False)
     PROGRESS.steps = PROGRESS.step + MIGRATE_STEPS + install_steps() - 1
