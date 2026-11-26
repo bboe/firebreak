@@ -13,6 +13,9 @@ This project adheres to [Semantic Versioning](https://semver.org).
   devices ship a rebuilt preloader that keeps its size, its description and
   its anti-rollback version, so only the CSV tells those builds apart. Each of
   the 17 partition CSVs carries the build's rows.
+- `stock 8888` writes Fire OS 6575.1 build 8888 to the Echo Dot (2nd
+  Generation). The build was restored to a Dot and unlocked from, so it ships
+  verified. The default build stays 8349.
 - `report` decodes the eMMC's EXT_CSD revision and its wear: the pre-EOL
   state and both life estimates, as a range of rated life used. On a card
   older than eMMC 5.0 it labels those bytes as reserved, because only eMMC 5.0

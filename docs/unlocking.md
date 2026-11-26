@@ -2052,7 +2052,8 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   docs or the changelog record. `stock` asks before it restores a
   build that is not, because its LK, its fastbrick or its images have not run
   on hardware, and `--force` answers for it. Verified: every biscuit, radar
-  and donut build. 42 of biscuit's were verified on 2026-11-06, 14 of radar's on
+  and donut build. 42 of biscuit's were verified on 2026-11-06 and its 8888 on
+  2026-11-26, 14 of radar's on
   2026-11-07 and 25 of donut's on 2026-11-07 and 11-08, each in one run of
   `stock BUILD` then `unlock`, which
   [measurements.md](measurements.md#whole-run-timings) records. For a Fire OS

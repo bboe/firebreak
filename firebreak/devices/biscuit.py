@@ -295,6 +295,11 @@ BUILDS = {
         sha256="7603f0333a1683e56528debec1658a50c2fe0151338052af9f161f244ae7b64b",
         verified=True,
     ),
+    "8888": cdn_ota(
+        path="2026/11/25/27d3ea77-29b7-49b2-8b46-be581c9af0c6/update-kindle-biscuit_puffin-NS65751_user_8888_0013759592580.bin",
+        sha256="9c6cda9fcad6dd5cc267bdcbf8fcb0b1db245fe34ef92b3f8b323a3f6cc44238",
+        verified=True,
+    ),
 }
 DEFAULT_BUILD = "8349"
 FASTBOOT_MODE = (
