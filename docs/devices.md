@@ -2103,3 +2103,37 @@ version codes are shared, not just the names:
 - 5256 names Fire OS 7.4.6.6 on both athena and cypress, the one build off
   the 7.5 line either device ships. Every other shared number names the same
   version on every device that takes it.
+
+## Fire OS 6575.1 build 8888
+
+Amazon began offering build 8888, `NS65751/8888`, version code
+0013759592580, on 2026-11-25. It reached 15% of the gauge serials by
+2026-11-26, and one build covers 17 of the Echoes here at once: biscuit,
+brownie, cannoli, cheesecake, churro, croissant, crumpet, cupcake, doebrite,
+donut, ganache, laser, lidar, octave, pablo, pascal and radar.
+
+All 17 OTAs were read on 2026-11-26 from Amazon's own CDN, which is where the
+update check led, before ftvdb listed any of them; the URLs went to ftvdb the
+same day. **Each device's partition CSV carries 8888's rows, but the per-device
+sections above do not cover it**: their read dates, build lists and tables
+describe the builds ftvdb lists, so 8888 is only in the CSVs and here.
+
+- **Only `boot` and `system` change.** Every LK, u-boot, TEE, `scp` and
+  `mcupm` image in 8888 is byte-identical to the one in the device's previous
+  build, and so every `lk_build_desc`, `uboot_build_time`, `tee_build_time`
+  and anti-rollback value in the tables above still describes it.
+- **Six devices ship a rebuilt preloader that declares nothing new.** biscuit's
+  and radar's `preloader`, and all four `brhgptpl_` copies on croissant,
+  crumpet, doebrite and pascal, have different hashes from the build before
+  while keeping the same size -- 1048576 bytes for the first two, 184320 for
+  the copies -- the same `pl_build_desc`, and the same anti-rollback version.
+  So the tables cannot tell 8888 from the build before it, and only the CSV
+  can. cupcake, donut, lidar, octave and pablo carry their previous preloader
+  unchanged.
+- No image is shared between devices in 8888 beyond the `reserve_` padding the
+  five u-boot devices with `brhgptlk` already share, and `tee1` and `tee2`
+  still hold one image on every device that names both.
+- **8888 unlocks.** A Dot that `stock 8888` locked reaches a rooted Fire OS 6
+  through the fastbrick, TWRP and boot-root, and the install keeps 8888 rather
+  than replacing it, so the rebuilt preloader chains as the build before it
+  does.

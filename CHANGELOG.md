@@ -6,6 +6,13 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `docs/devices.md` covers Fire OS 6575.1 build 8888, the one build Amazon
+  began offering on 2026-11-25 to 17 of the Echoes here at once, read from all
+  17 OTAs before ftvdb listed them. Only `boot` and `system` change: every LK,
+  u-boot, TEE, `scp` and `mcupm` image matches the build before, and six
+  devices ship a rebuilt preloader that keeps its size, its description and
+  its anti-rollback version, so only the CSV tells those builds apart. Each of
+  the 17 partition CSVs carries the build's rows.
 - `report` decodes the eMMC's EXT_CSD revision and its wear: the pre-EOL
   state and both life estimates, as a range of rated life used. On a card
   older than eMMC 5.0 it labels those bytes as reserved, because only eMMC 5.0
