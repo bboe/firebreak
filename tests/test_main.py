@@ -173,6 +173,20 @@ def test_a_failing_update_check_is_silent(
 
 
 @pytest.mark.parametrize(
+    ("name", "version"),
+    [
+        ("update-kindle-biscuit_puffin-NS6575_user_8349_0013323246980.bin", "6.5.7.5"),
+        ("update-kindle-biscuit_puffin-NS65751_user_8888_0013759592580.bin", "6575.1"),
+        ("update-kindle-biscuit_puffin-NS65741_user_8146_0013222531716.bin", "6574.1"),
+    ],
+)
+def test_a_fifth_codename_digit_names_a_patch_not_another_dot(
+    *, name: str, version: str
+) -> None:
+    assert main.fireos_version(build="ignored", name=name) == version
+
+
+@pytest.mark.parametrize(
     argnames=("arguments", "message"),
     argvalues=[
         (

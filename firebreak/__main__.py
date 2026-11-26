@@ -112,7 +112,7 @@ FACTORY_RESETS = {
     if isinstance(target.installs, FireOs6) and target.unlock
 }
 NO_WAIT = "--no-wait"
-NS_VERSION = re.compile(pattern=r"-NS(\d)(\d)(\d)(\d)(\d*)_")
+NS_VERSION = re.compile(pattern=r"-NS(\d{4})(\d*)_")
 REPORT = "report"
 RESTORE = "restore"
 SURVEY = "survey"
@@ -425,7 +425,10 @@ def fireos_version(*, build: str, name: str) -> str:
     found = NS_VERSION.search(name)
     if found is None:
         return build.partition("-")[0]
-    return ".".join(digit for digit in found.groups() if digit)
+    base, patch = found.groups()
+    # Amazon dots out a four-digit codename, NS6575 as 6.5.7.5, but names a
+    # fifth digit as a patch on the undotted base, NS65751 as 6575.1.
+    return f"{base}.{patch}" if patch else ".".join(base)
 
 
 def leave(*, status: object) -> None:

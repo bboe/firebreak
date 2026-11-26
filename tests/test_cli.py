@@ -33,7 +33,8 @@ def test_builds_lists_every_build_with_its_fire_os_version() -> None:
     assert sorted(build for build, _ in listed) == sorted(
         build for builds in BUILDS.values() for build in builds
     )
-    assert ("8138", "6.5.7.4.1") in listed
+    assert ("8138", "6574.1") in listed
+    assert ("8349", "6.5.7.5") in listed
     assert ("5.5.0.3-1973", "5.5.0.3") in listed
 
 

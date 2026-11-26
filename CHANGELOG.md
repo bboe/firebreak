@@ -31,6 +31,12 @@ This project adheres to [Semantic Versioning](https://semver.org).
 - `bootrom`'s prompt says that only amonet's payload can write a preloader
   back, so an eMMC that payload cannot reach keeps the Echo in its bootrom.
 
+### Fixed
+
+- `builds` gives a build whose codename carries a fifth digit the Fire OS
+  version the Echo itself reports: `NS65751` is 6575.1, not 6.5.7.5.1. A
+  four-digit codename still dots out, as `NS6575` to 6.5.7.5.
+
 ## 1.5.0 - 2026-11-25
 
 ### Added
