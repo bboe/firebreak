@@ -28,6 +28,7 @@ BOOT0_PRELOADER = 0x8000
 BUILD_TIME = re.compile(rb"\d{8}_\d{6}")
 BX_LR = 0x4770
 COMMIT = re.compile(rb"[0-9a-fA-F]{7}")
+CSV_HEADER = "device,model,build,partition,bytes,sha256"
 CSV_LABEL = re.compile(r"Fire OS (\S+) \((?:\w+/)?(\d+)M?\)")
 CSV_ORDER = (
     "boot",
@@ -474,7 +475,7 @@ def survey(*, update: pathlib.Path) -> None:
         )
         if any(found[name].sha256 != tee.sha256 for name in tees[1:]):
             warn(text=f"{', '.join(tees)} do not hold the same image")
-    show(text="\ndevice,model,build,partition,bytes,sha256")
+    show(text="\n" + CSV_HEADER)
     label = csv_label(name=name)
     for partition in csv_partitions(names=frozenset(found)):
         image = found[partition]
@@ -525,7 +526,7 @@ def vega_survey(*, update: pathlib.Path) -> None:
     show(text=labelled(label="build", value=build))
     show(text=labelled(label="build_time", value=when))
     show(text=labelled(label="device", value=manifest.device))
-    show(text="\ndevice,model,build,partition,bytes,sha256")
+    show(text="\n" + CSV_HEADER)
     for image in manifest.images:
         show(
             text=csv_row(
