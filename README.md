@@ -35,6 +35,11 @@ uvx firebreak@latest unlock
 On Windows, run `uvx --managed-python firebreak@latest unlock` instead, as
 [Windows](#windows) says. Follow any instructions that may appear.
 
+Run `unlock` first, whatever the Echo's Fire OS build or bootloader.
+firebreak reads the Echo's bootloader itself and picks the route for it
+([docs/devices.md](docs/devices.md) lists each build's bootloader). Open the
+Echo only if a command tells you to.
+
 ## Install
 
 firebreak needs `adb` and `fastboot` from Android platform-tools, and
