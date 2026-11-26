@@ -14,13 +14,36 @@ BOOT_LINE = 'dmesg | grep "MMC card at address" | head -1'
 BOOT_OK = "boot-ok"
 EMMC_BOOT_AREAS = ("boot0", "boot1")
 EMMC_FIELDS = ("name", "manfid", "oemid", "date", "prv", "life_time", "pre_eol_info")
+EXT_CSD = (
+    "{ d=/tmp/firebreak-debugfs; umount $d; mkdir -p $d"
+    " && mount -t debugfs debugfs $d && cat $d/mmc0/mmc0:*/ext_csd;"
+    " umount $d; rmdir $d; } 2>/dev/null"
+)
+EXT_CSD_HEX = re.compile(r"[0-9a-fA-F]{1024}")
+EXT_CSD_LIFE = {"A": 268, "B": 269}
+EXT_CSD_OK = "ext-csd-ok"
+EXT_CSD_PRE_EOL = 267
+EXT_CSD_REVISION = 192
+EXT_CSD_VERSIONS = {
+    0: "eMMC 4.0",
+    1: "eMMC 4.1",
+    2: "eMMC 4.2",
+    3: "eMMC 4.3",
+    4: "obsolete",
+    5: "eMMC 4.41",
+    6: "eMMC 4.5 or 4.51",
+    7: "eMMC 5.0 or 5.01",
+    8: "eMMC 5.1 or 5.1A",
+}
 GUID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
+LIFE_PAST = 11
 LISTING_OK = "listing-ok"
 LOG_OK = "log-ok"
 MMC_LOG = 'dmesg | grep -iE "mmc|msdc" | tail -60'
 MMC_LOG_REACHES_BOOT = "MMC card at address"
 PARTITIONS_OK = "partitions-ok"
 PARTITION_FIELDS = 4
+PRE_EOL = {0: "not defined", 1: "normal", 2: "warning", 3: "urgent"}
 PROPERTIES = (
     "ro.product.device",
     "ro.build.version.name",
@@ -30,6 +53,7 @@ PROPERTIES = (
     "ro.boot.lk_build_desc",
 )
 RECORD_FIELDS = 2
+WEAR_REVISION = 7
 
 
 def dot_details(*, asked: Callable[..., str]) -> list[str]:
@@ -53,10 +77,39 @@ def dot_details(*, asked: Callable[..., str]) -> list[str]:
                 value=asked(command=f"cat {where} 2>/dev/null || echo '<absent>'"),
             )
         )
+    said.extend(emmc_wear(asked=asked))
     window = asked(command="dmesg | head -1 | sed -e 's/^\\[ *//' -e 's/\\].*//'")
     held = asked(command="cut -d' ' -f1 /proc/uptime")
     said.append(labelled(label="uptime", value=f"{held} s, dmesg from {window} s"))
     return said
+
+
+def emmc_wear(*, asked: Callable[..., str]) -> list[str]:
+    read = asked(command=f"{EXT_CSD}; echo; echo {EXT_CSD_OK}")
+    held = (whole(marker=EXT_CSD_OK, said=read) or "").strip()
+    if not EXT_CSD_HEX.fullmatch(held):
+        return [labelled(label="eMMC EXT_CSD", value="<unread>")]
+    ext_csd = bytes.fromhex(held)
+    revision = ext_csd[EXT_CSD_REVISION]
+    version = EXT_CSD_VERSIONS.get(revision, "unknown")
+    unset = "" if revision >= WEAR_REVISION else ", a reserved byte before eMMC 5.0"
+    pre_eol = ext_csd[EXT_CSD_PRE_EOL]
+    rows = [
+        labelled(label="eMMC EXT_CSD rev", value=f"{revision} ({version})"),
+        labelled(
+            label="eMMC pre-EOL",
+            value=f"{pre_eol}: {PRE_EOL.get(pre_eol, 'reserved')}{unset}",
+        ),
+    ]
+    for kind, index in EXT_CSD_LIFE.items():
+        value = ext_csd[index]
+        rows.append(
+            labelled(
+                label=f"eMMC life type {kind}",
+                value=f"{value}: {life_used(value=value)}{unset}",
+            )
+        )
+    return rows
 
 
 def labelled(*, label: str, value: object) -> str:
@@ -65,6 +118,14 @@ def labelled(*, label: str, value: object) -> str:
 
 def left_in_recovery() -> str:
     return f"The {title()} stays in TWRP: adb reboot leaves TWRP for Fire OS."
+
+
+def life_used(*, value: int) -> str:
+    if value == 0:
+        return "not defined"
+    if value < LIFE_PAST:
+        return f"{(value - 1) * 10}-{value * 10}% of its rated life used"
+    return "past its rated life" if value == LIFE_PAST else "reserved"
 
 
 def masked(*, text: str) -> str:

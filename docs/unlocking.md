@@ -260,6 +260,22 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
 - The report shows only the first 4 characters of a serial number. Amazon's
   start with a prefix that may name the device type: `G090` on every biscuit
   seen here.
+- The report reads the eMMC's wear from its raw EXT_CSD in debugfs, at
+  `mmc0/mmc0:*/ext_csd`, because the biscuit's kernel has no `rev` in sysfs.
+  TWRP does not mount debugfs, though its kernel has it, so the report mounts
+  its own copy in `/tmp` for the read and takes it down after. It decodes
+  the revision, byte 192, and the wear fields, bytes 267 to 269, which eMMC
+  5.0, revision 7, defined. On an older card
+  those bytes are reserved, and the kernel's `life_time` shows `0x00 0x00`
+  whatever they hold, so the report labels them as such rather than as wear.
+  Measured on 2026-11-25 over network adb on eight Echoes, from Fire OS: the
+  read works on biscuit, radar and donut. Five Samsung cards are revision 7,
+  with pre-EOL 1 and life estimates from 1 to 3. Three Micron cards are
+  revision 6 and hold 1 there, then 4 and 2, 8 and 5, and 9 and 7; the
+  highest are on a test biscuit and a radar in daily use, which fits those bytes
+  being Micron's own counters, but no standard says so. The donut's SK Hynix
+  card is revision 6 and holds 0 in all three. None of these predicts a card
+  whose firmware locks it read-only.
 
 ## A Dot on emOS
 

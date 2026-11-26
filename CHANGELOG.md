@@ -4,6 +4,13 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- `report` decodes the eMMC's EXT_CSD revision and its wear: the pre-EOL
+  state and both life estimates, as a range of rated life used. On a card
+  older than eMMC 5.0 it labels those bytes as reserved, because only eMMC 5.0
+  defined them.
+
 ### Changed
 
 - A block read through amonet's payload, on a Dot or an Echo (2nd

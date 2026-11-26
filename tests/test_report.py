@@ -33,6 +33,12 @@ Number  Start (sector)    End (sector)  Size       Code  Name
 table-ok"""
 
 
+def ext_csd(*, life: tuple[int, int], pre_eol: int, revision: int) -> str:
+    held = bytearray(512)
+    held[192], held[267], held[268], held[269] = revision, pre_eol, *life
+    return f"{held.hex()}\n\n{report.EXT_CSD_OK}"
+
+
 def marked(*, boot: str = "", log: str) -> Callable[..., str]:
     def asked(*, command: str) -> str:
         if command.startswith(report.BOOT_LINE):
@@ -48,11 +54,55 @@ def test_dot_details_labels_each_answer() -> None:
 
     said = report.dot_details(asked=asked)
     fields = len(report.PROPERTIES) + len(report.EMMC_FIELDS)
-    assert len(said) == fields + len(report.EMMC_BOOT_AREAS) + 1
+    assert len(said) == fields + len(report.EMMC_BOOT_AREAS) + 2
     assert said[0] == report.labelled(label="ro.product.device", value="x")
     assert said[len(report.PROPERTIES)].startswith("eMMC name")
     assert said[fields] == report.labelled(label="eMMC boot0 sectors", value="x")
+    assert said[-2] == report.labelled(label="eMMC EXT_CSD", value="<unread>")
     assert said[-1] == report.labelled(label="uptime", value="uptime s, dmesg from x s")
+
+
+def test_emmc_wear_decodes_an_emmc_5_0_card() -> None:
+    said = report.emmc_wear(
+        asked=lambda **_: ext_csd(life=(1, 11), pre_eol=1, revision=7)
+    )
+    assert said == [
+        report.labelled(label="eMMC EXT_CSD rev", value="7 (eMMC 5.0 or 5.01)"),
+        report.labelled(label="eMMC pre-EOL", value="1: normal"),
+        report.labelled(
+            label="eMMC life type A", value="1: 0-10% of its rated life used"
+        ),
+        report.labelled(label="eMMC life type B", value="11: past its rated life"),
+    ]
+
+
+def test_emmc_wear_marks_an_older_card_s_bytes_as_reserved() -> None:
+    said = report.emmc_wear(
+        asked=lambda **_: ext_csd(life=(8, 12), pre_eol=4, revision=6)
+    )
+    unset = ", a reserved byte before eMMC 5.0"
+    assert said == [
+        report.labelled(label="eMMC EXT_CSD rev", value="6 (eMMC 4.5 or 4.51)"),
+        report.labelled(label="eMMC pre-EOL", value=f"4: reserved{unset}"),
+        report.labelled(
+            label="eMMC life type A",
+            value=f"8: 70-80% of its rated life used{unset}",
+        ),
+        report.labelled(label="eMMC life type B", value=f"12: reserved{unset}"),
+    ]
+
+
+def test_emmc_wear_says_nothing_from_a_cut_read() -> None:
+    whole = ext_csd(life=(0, 0), pre_eol=0, revision=9)
+    unread = [report.labelled(label="eMMC EXT_CSD", value="<unread>")]
+    for said in (whole[:600], whole.replace(report.EXT_CSD_OK, ""), "<nothing>"):
+        assert report.emmc_wear(asked=lambda _said=said, **_: _said) == unread
+    assert report.emmc_wear(asked=lambda **_: whole) == [
+        report.labelled(label="eMMC EXT_CSD rev", value="9 (unknown)"),
+        report.labelled(label="eMMC pre-EOL", value="0: not defined"),
+        report.labelled(label="eMMC life type A", value="0: not defined"),
+        report.labelled(label="eMMC life type B", value="0: not defined"),
+    ]
 
 
 def test_labelled_pads_the_label() -> None:
