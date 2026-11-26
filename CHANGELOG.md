@@ -12,7 +12,9 @@ This project adheres to [Semantic Versioning](https://semver.org).
   u-boot, TEE, `scp` and `mcupm` image matches the build before, and six
   devices ship a rebuilt preloader that keeps its size, its description and
   its anti-rollback version, so only the CSV tells those builds apart. Each of
-  the 17 partition CSVs carries the build's rows.
+  the 17 partition CSVs carries the build's rows, and each device's own section
+  covers 8888: its read date, its build list, the range its `Builds` table row
+  gives, and its image counts.
 - `stock 8888` writes Fire OS 6575.1 build 8888 to the Echo Dot (2nd
   Generation). The build was restored to a Dot and unlocked from, so it ships
   verified. The default build stays 8349.
