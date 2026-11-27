@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, NoReturn, TextIO
 if TYPE_CHECKING:
     from firebreak.plugin import Device
 
+ANSI_ESCAPE = re.compile(pattern=r"\033\[[0-9;]*[A-Za-z]")
 ARGUMENTS = argparse.Namespace(build="", factory_reset=False, target="", verbose=False)
 BOOT0_EMPTY = (
     "boot0 may hold no preloader until the last step, so an Echo that restarts"
@@ -28,6 +29,10 @@ MINUTE = 60
 MOST_RELIABLE = (
     "A USB 3 port on the computer itself, with nothing else on it, is the most"
     " reliable."
+)
+ON_CLIPBOARD = (
+    "Everything after the line that asks for help is on your clipboard. Paste"
+    " it in #firebreak-support with the output of the run that failed."
 )
 RELEASES = "https://github.com/bboe/firebreak/releases/latest"
 SPINNER = "\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f"
@@ -155,6 +160,7 @@ class Session:
     probing: bool = False
     raw_usb: bool = False
     read_flash: bool = False
+    record: list[str] | None = None
     short: bool = False
     shown: Kind | None = None
     system_lock: threading.Lock = dataclasses.field(default_factory=threading.Lock)
@@ -308,10 +314,15 @@ def say(*, text: str) -> None:
 
 
 def show(*, kind: Kind = Kind.INFO, text: str, **options: str | bool) -> None:
+    whole = SESSION.record is not None and options.get("end", "\n") == "\n"
     if SESSION.shown not in {None, kind}:
         print()
+        if whole:
+            SESSION.record.append("")
     SESSION.shown = kind
     print(text, **options)
+    if whole:
+        SESSION.record.append(ANSI_ESCAPE.sub(repl="", string=text))
 
 
 def since(*, start: float) -> str:

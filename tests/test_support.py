@@ -204,6 +204,55 @@ def test_a_report_answers_nothing_for_a_silent_read(
     assert shown
 
 
+def test_a_report_copies_what_follows_the_request_for_help(
+    *, monkeypatch: pytest.MonkeyPatch, shown: list[str]
+) -> None:
+    del shown
+    copies: list[str] = []
+    monkeypatch.setattr(name="show", target=support, value=ui.show)
+    monkeypatch.setattr(name="into_recovery", target=support, value=lambda **_: False)
+    monkeypatch.setattr(
+        name="copied",
+        target=support,
+        value=lambda *, text: copies.append(text) or True,
+    )
+    support.report()
+    (text,) = copies
+    assert support.SUPPORT not in text
+    assert text.startswith("firebreak ")
+    assert "\033[" not in text
+    assert text.endswith("The report stops with what is above.\n")
+    assert ui.SESSION.record is None
+    ui.SESSION.record = []
+    ui.SESSION.shown = None
+    ui.show(text="said")
+    ui.show(kind=ui.Kind.WARN, text="warned")
+    assert ui.SESSION.record == ["said", "", "warned"]
+
+
+def test_a_report_copies_what_it_read_before_it_failed(
+    *, monkeypatch: pytest.MonkeyPatch, shown: list[str]
+) -> None:
+    del shown
+    copies: list[str] = []
+
+    def failed(**_: object) -> bool:
+        raise ui.FatalError(message="gone")
+
+    monkeypatch.setattr(name="show", target=support, value=ui.show)
+    monkeypatch.setattr(name="into_recovery", target=support, value=failed)
+    monkeypatch.setattr(
+        name="copied",
+        target=support,
+        value=lambda *, text: copies.append(text) or False,
+    )
+    with pytest.raises(expected_exception=ui.FatalError):
+        support.report()
+    (text,) = copies
+    assert "firebreak version" in text
+    assert text.endswith("ERROR: gone\n")
+
+
 def test_a_report_names_the_device_it_found_in_what_follows(
     *, monkeypatch: pytest.MonkeyPatch, shown: list[str]
 ) -> None:
@@ -287,6 +336,87 @@ def test_a_report_reads_the_dot_s_recovery(
     else:
         assert "not built yet" in text
     assert shown[-1] == "\n" + support.left_in_recovery()
+
+
+def test_clipboard_tool_is_none_over_ssh(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(name="which", target=support.shutil, value=lambda **_: "/x")
+    assert support.clipboard_tool() is None
+
+
+@pytest.mark.parametrize(
+    ("platform", "displays", "found", "tool"),
+    [
+        ("darwin", ("", ""), {"pbcopy"}, ["pbcopy"]),
+        ("win32", ("", ""), {"clip"}, ["clip"]),
+        ("linux", (":0", "wayland-0"), {"wl-copy", "xclip"}, ["wl-copy"]),
+        ("linux", (":0", ""), {"xsel"}, ["xsel", "--clipboard", "--input"]),
+        ("linux", ("", ""), {"xclip"}, None),
+        ("darwin", ("", ""), set(), None),
+    ],
+)
+def test_clipboard_tool_picks_the_first_one_there(
+    *,
+    displays: tuple[str, str],
+    found: set[str],
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    tool: list[str] | None,
+) -> None:
+    monkeypatch.delenv(name="SSH_CONNECTION")
+    monkeypatch.setenv(name="DISPLAY", value=displays[0])
+    monkeypatch.setenv(name="WAYLAND_DISPLAY", value=displays[1])
+    monkeypatch.setattr(name="platform", target=support.sys, value=platform)
+    monkeypatch.setattr(
+        name="which",
+        target=support.shutil,
+        value=lambda *, cmd: f"/bin/{cmd}" if cmd in found else None,
+    )
+    assert support.clipboard_tool() == tool
+
+
+def test_copied_is_false_with_no_tool_or_a_failed_one(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert support.copied(text="r") is False
+
+    def failed(**_: object) -> None:
+        raise subprocess.TimeoutExpired(cmd="pbcopy", timeout=10)
+
+    monkeypatch.setattr(name="clipboard_tool", target=support, value=lambda: ["pbcopy"])
+    monkeypatch.setattr(name="run", target=support.subprocess, value=failed)
+    assert support.copied(text="r") is False
+
+
+def test_copied_sends_the_text_and_says_whether_it_took(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent: list[tuple[list[str], bytes]] = []
+    codes = [0, 1]
+
+    def ran(**options: object) -> types.SimpleNamespace:
+        sent.append((options["args"], options["input"]))
+        return types.SimpleNamespace(returncode=codes.pop(0))
+
+    monkeypatch.setattr(name="clipboard_tool", target=support, value=lambda: ["pbcopy"])
+    monkeypatch.setattr(name="platform", target=support.sys, value="darwin")
+    monkeypatch.setattr(name="run", target=support.subprocess, value=ran)
+    assert support.copied(text="report\n") is True
+    assert support.copied(text="report\n") is False
+    assert sent == [(["pbcopy"], b"report\n")] * 2
+
+
+def test_copied_sends_windows_utf_16(*, monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[object] = []
+
+    def ran(**options: object) -> types.SimpleNamespace:
+        sent.append(options["input"])
+        return types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(name="clipboard_tool", target=support, value=lambda: ["clip"])
+    monkeypatch.setattr(name="platform", target=support.sys, value="win32")
+    monkeypatch.setattr(name="run", target=support.subprocess, value=ran)
+    assert support.copied(text="r") is True
+    assert sent == ["r".encode(encoding="utf-16-le")]
 
 
 def test_into_recovery_asks_nothing_more_once_fastboot_is_gone(

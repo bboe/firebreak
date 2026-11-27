@@ -292,7 +292,8 @@ OS 5 that lets in the computer's key.
 When a run fails, run `uvx firebreak@latest report`. Then go to
 `#firebreak-support` in the
 [0x7E Labs Discord](https://discord.gg/huE5XhWbsz) and paste both the output of
-the run that failed and what `report` prints. `report` writes no partition.
+the run that failed and what `report` prints. `report` writes no partition,
+and it copies what it prints to the clipboard where it can.
 
 ## Credits
 

@@ -138,6 +138,7 @@ def no_real_cache(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) ->
                 monkeypatch.setattr(name=attribute, target=module, value=value)
     monkeypatch.setenv(name="HOME", value=str(tmp_path / "real-home"))
     monkeypatch.setenv(name="USERPROFILE", value=str(tmp_path / "real-home"))
+    monkeypatch.setenv(name="SSH_CONNECTION", value="no real clipboard")
     monkeypatch.setattr(name="get", target=cache.webbrowser, value=real_browser)
 
 

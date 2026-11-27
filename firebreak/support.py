@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import pathlib
 import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -42,12 +43,14 @@ from firebreak.states import State
 from firebreak.targets import FIREOS5
 from firebreak.twrp import DISK, TABLE_OK, detect_dd
 from firebreak.ui import (
+    ON_CLIPBOARD,
     PROGRESS,
     SESSION,
     SUPPORT,
     WAIT,
     FatalError,
     amonet_has_no_fastboot,
+    explained,
     filled,
     invocation,
     program,
@@ -77,6 +80,47 @@ def about_host() -> None:
     line("python", sys.version.split()[0])
     line("adb", tool_version(arguments=["adb", "version"]))
     line("fastboot", tool_version(arguments=["fastboot", "--version"]))
+
+
+def clipboard_tool() -> list[str] | None:
+    if os.environ.get("SSH_CONNECTION"):
+        return None
+    if sys.platform == "darwin":
+        tools = [["pbcopy"]]
+    elif sys.platform == "win32":
+        tools = [["clip"]]
+    else:
+        tools = [
+            *([["wl-copy"]] if os.environ.get("WAYLAND_DISPLAY") else []),
+            *(
+                [
+                    ["xclip", "-selection", "clipboard"],
+                    ["xsel", "--clipboard", "--input"],
+                ]
+                if os.environ.get("DISPLAY")
+                else []
+            ),
+        ]
+    return next((tool for tool in tools if shutil.which(cmd=tool[0])), None)
+
+
+def copied(*, text: str) -> bool:
+    tool = clipboard_tool()
+    if tool is None:
+        return False
+    encoding = "utf-16-le" if sys.platform == "win32" else "utf-8"
+    try:
+        result = subprocess.run(
+            args=tool,
+            check=False,
+            input=text.encode(encoding=encoding),
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
 
 
 def end_status(*, waiting: str) -> None:
@@ -217,6 +261,21 @@ def reachable() -> State | None:
 
 
 def report() -> None:
+    PROGRESS.steps = None
+    show(text=SUPPORT + "\n")
+    SESSION.record = []
+    try:
+        reported()
+    except FatalError as error:
+        SESSION.record.append(explained(error=error))
+        raise
+    finally:
+        record, SESSION.record = SESSION.record, None
+        if record and copied(text="\n".join(record) + "\n"):
+            show(text="\n" + ON_CLIPBOARD)
+
+
+def reported() -> None:
     def asked(*, command: str, timeout: float = 60) -> str:
         try:
             said = adb_shell(command=command, timeout=timeout)
@@ -224,8 +283,6 @@ def report() -> None:
             return TIMED_OUT
         return masked(text=said) or "<nothing>"
 
-    PROGRESS.steps = None
-    show(text=SUPPORT + "\n")
     about_host()
     line("state", probed())
     show(text="\n".join(identity_lines()))

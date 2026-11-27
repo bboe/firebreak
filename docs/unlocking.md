@@ -257,6 +257,16 @@ others, and [Back to stock](#back-to-stock-the-stock-target) the `stock` target.
   device, and the run has to say that before any bootrom answers.
 - In fastboot, the report also prints `antirback_pl_version`,
   `antirback_tee_version` and `antirback_lk_version`.
+- The report copies what follows its request for help to the clipboard,
+  where the computer has one: `pbcopy` on macOS, `clip` on Windows, and on
+  Linux `wl-copy` under Wayland or `xclip` or `xsel` under X. `clip` takes
+  UTF-16LE with no byte order mark; the others take UTF-8. Measured on
+  Windows 11 by reading the clipboard back: with a mark, `clip` keeps it as a
+  character at the start, and UTF-8 garbles any character past ASCII. Over
+  ssh it copies nothing, because the tools there fill the remote computer's
+  clipboard, not the user's. A failed copy says nothing: the report is on
+  screen either way. The copy cannot hold the output of the run that failed,
+  which came from another command, so the report asks for that as well.
 - The report shows only the first 4 characters of a serial number. Amazon's
   start with a prefix that may name the device type: `G090` on every biscuit
   seen here.

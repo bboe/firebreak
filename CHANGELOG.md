@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Added
 
+- `report` copies what it prints after its request for help to the
+  clipboard, through `pbcopy`, `clip`, `wl-copy`, `xclip` or `xsel`, and says
+  so. Over ssh, or with none of those, it copies nothing.
 - `docs/devices.md` covers Fire OS 6575.1 build 8888, the one build Amazon
   began offering on 2026-11-25 to 17 of the Echoes here at once, read from all
   17 OTAs before ftvdb listed them. Only `boot` and `system` change: every LK,
