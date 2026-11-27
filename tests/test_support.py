@@ -262,7 +262,7 @@ def test_a_report_names_the_device_it_found_in_what_follows(
     assert shown
     assert ui.SESSION.named == RADAR.title
     assert support.left_in_recovery() == (
-        f"The {RADAR.title} stays in TWRP: adb reboot leaves TWRP for Fire OS."
+        f"The {RADAR.title} stays in TWRP: `adb reboot` leaves TWRP for Fire OS."
     )
 
 

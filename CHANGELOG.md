@@ -33,6 +33,10 @@ This project adheres to [Semantic Versioning](https://semver.org).
   missing when Windows lists an Echo in fastboot and `fastboot devices` does
   not. Before, only the main wait said so: the first timed out with "did not
   come back in amonet's fastboot" and the second waited with no word.
+- Every command firebreak tells you to run, and each command it names in a
+  message, is set in backticks, so it stands apart from the sentence around
+  it. The twelve messages that said "run this again" or "run it again" name
+  the exact command instead, as the others already did.
 - `report` prints the kernel's `life_time` and `pre_eol_info` only when it
   cannot read the EXT_CSD, whose decoded rows say the same, and its kernel log
   leaves out each filesystem's `mounted filesystem with` and

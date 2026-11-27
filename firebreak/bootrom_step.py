@@ -103,7 +103,7 @@ def await_amonet_fastboot(*, little_kernel: str) -> None:
         if watch.confirmed():
             command = invocation(options=sys.argv[1:])
             raise FatalError(
-                message=f"{DRIVER_MISSING} After that, run `{command}` again."
+                message=f"{DRIVER_MISSING} After that, run {command} again."
             )
         try:
             if in_fastboot() and (
@@ -274,7 +274,7 @@ def check_bootloaders(*, entries: bytes, live: Emmc, unlock: Unlock) -> None:
         raise FatalError(
             message=f"the {title()}'s bootloader names its product {', '.join(other)},"
             f" not {want}, so it is not an {unlock.device.title}."
-            f" {unwritten()} Unplug it, then run firebreak again: it reads which"
+            f" {unwritten()} Unplug it, then run `firebreak` again: it reads which"
             " Echo this is from the Echo itself."
         )
     if want not in named:

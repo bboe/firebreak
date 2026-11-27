@@ -78,6 +78,7 @@ from firebreak.ui import (
     passed,
     say,
     show,
+    this_command,
     title,
     warn,
 )
@@ -386,7 +387,8 @@ def nothing_to_restore(*, device: Device) -> str:
         )
     return (
         f"{lead} However, if you unlocked it with amonet v2, hold its + button"
-        " while you plug it in. That starts its TWRP. Then run this again."
+        " while you plug it in. That starts its TWRP. Then run"
+        f" {this_command()} again."
     )
 
 

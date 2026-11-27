@@ -56,6 +56,7 @@ from firebreak.ui import (
     program,
     show,
     status,
+    this_command,
     title,
     warn,
 )
@@ -160,8 +161,8 @@ def into_recovery(*, line: Callable[[str, object], None]) -> bool:  # ruff: igno
                 warn(
                     text=f"This {title()}'s fastboot did not say whether it is"
                     " unlocked, so this stops rather than guess. Check the cable,"
-                    " and that no"
-                    f" other program holds the {title()}, then run it again."
+                    f" and that no other program holds the {title()}, then run"
+                    f" {this_command()} again."
                 )
                 return False
             if unlocked.lower() != "true":
@@ -325,7 +326,7 @@ def restart_in_recovery(*, line: Callable[[str, object], None]) -> bool:
         " this cannot reach the recovery from here."
         f"\n\nAn {title()} unlocked with amonet answers the + button instead:"
         " unplug it, hold + while you plug it back in, which starts its TWRP, then"
-        " run this again."
+        f" run {this_command()} again."
     )
     return False
 

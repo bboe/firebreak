@@ -5,7 +5,7 @@ import re
 from typing import TYPE_CHECKING
 
 from firebreak.twrp import DISK, TABLE_FIELDS, TABLE_OK
-from firebreak.ui import title
+from firebreak.ui import this_command, title
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -119,7 +119,7 @@ def labelled(*, label: str, value: object) -> str:
 
 
 def left_in_recovery() -> str:
-    return f"The {title()} stays in TWRP: adb reboot leaves TWRP for Fire OS."
+    return f"The {title()} stays in TWRP: `adb reboot` leaves TWRP for Fire OS."
 
 
 def life_used(*, value: int) -> str:
@@ -154,7 +154,7 @@ def mmc_said(*, asked: Callable[..., str]) -> list[str]:
         "\nThat log no longer reaches the boot, so the card's own lines are gone."
         " They come back from a restart into this recovery, which is safe only"
         " when a run is not part-way through writing. Restart it yourself and"
-        " run this again if they are wanted."
+        f" run {this_command()} again if they are wanted."
     )
     return [logged, gone]
 

@@ -162,7 +162,7 @@ def test_check_python_refuses_a_store_python(
     )
     if refused:
         with pytest.raises(
-            expected_exception=FatalError, match="Run uvx --managed-python"
+            expected_exception=FatalError, match="Run `uvx --managed-python"
         ):
             host.check_python()
     else:

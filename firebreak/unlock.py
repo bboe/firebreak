@@ -125,7 +125,7 @@ def erase_by_fastboot() -> str:
         return f"fastboot erase boot0 failed:\n{erased.stdout}"
     rebooted = run(arguments=["fastboot", "reboot"], timeout=60)
     if rebooted.returncode != 0:
-        return f"fastboot reboot failed:\n{rebooted.stdout}"
+        return f"`fastboot reboot` failed:\n{rebooted.stdout}"
     return ""
 
 

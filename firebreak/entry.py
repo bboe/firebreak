@@ -39,6 +39,7 @@ from firebreak.ui import (
     confirm,
     passed,
     say,
+    this_command,
     title,
 )
 from firebreak.unlock import (
@@ -271,8 +272,8 @@ def chainable() -> Device:
             message="this Echo is in a state that names which device it is, a"
             " fastboot or a recovery, and it named none, so this run cannot"
             " tell whether a chain exists to write a preloader back through its"
-            f" bootrom. {unwritten()} Power cycle it and run this again: a read"
-            " of the name can be cut. " + asked_for()
+            f" bootrom. {unwritten()} Power cycle it and run {this_command()} again:"
+            " a read of the name can be cut. " + asked_for()
         )
     if device not in BOOTROM_UNLOCKS:
         raise FatalError(
@@ -345,7 +346,7 @@ def held_payload(*, client: Bootrom) -> pathlib.Path:
         raise FatalError(
             message=f"the {known()} waits in its bootrom for amonet's payload,"
             f" which this run could not ready: {why.rstrip('.')}. {unwritten()} Unplug"
-            f" the {known()} and run this again."
+            f" the {known()} and run {this_command()} again."
         ) from error
 
 

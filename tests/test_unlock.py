@@ -610,7 +610,7 @@ def test_erasing_boot0_that_fails_leaves_no_marker(
     assert unlock.erase_by_fastboot().startswith("fastboot erase boot0 failed")
     assert unlock.SESSION.boot0_erased is False
     unlock.SESSION.boot0_erased = True
-    assert unlock.erase_by_fastboot().startswith("fastboot reboot failed")
+    assert unlock.erase_by_fastboot().startswith("`fastboot reboot` failed")
     assert unlock.SESSION.boot0_erased is True
 
 

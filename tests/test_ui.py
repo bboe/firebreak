@@ -75,8 +75,8 @@ def test_a_write_with_no_terminal_to_ask_at_names_force(
 @pytest.mark.parametrize(
     argnames=("program_path", "want"),
     argvalues=[
-        ("/src/firebreak/__main__.py", "Run python3 -m firebreak stock again."),
-        ("/home/me/.local/bin/firebreak", "Run firebreak stock again."),
+        ("/src/firebreak/__main__.py", "Run `python3 -m firebreak stock` again."),
+        ("/home/me/.local/bin/firebreak", "Run `firebreak stock` again."),
     ],
 )
 def test_again(
@@ -93,9 +93,9 @@ def test_asked_for_names_the_report_as_this_run_was_started(
     monkeypatch.setattr(name="argv", target=sys, value=["/src/firebreak/__main__.py"])
     monkeypatch.setattr(name="executable", target=sys, value="/usr/bin/python3")
     said = ui.asked_for()
-    assert "run python3 -m firebreak report and paste both this run's output" in said
+    assert "run `python3 -m firebreak report` and paste both this run's output" in said
     assert "#firebreak-support in the 0x7E Labs Discord" in said
-    assert "python3 -m firebreak write-test then tells" in said
+    assert "`python3 -m firebreak write-test` then tells" in said
 
 
 def test_clock() -> None:
@@ -187,7 +187,7 @@ def test_explained_says_to_replug_into_another_port_while_boot0_is_empty(
     note = " ".join(
         ui.explained(error=ui.FatalError(message="stopped", prefix="")).split()
     )
-    assert f"unplug the {ui.title()}, run firebreak stock again, then plug" in note
+    assert f"unplug the {ui.title()}, run `firebreak stock` again, then plug" in note
     assert "into another USB port. A USB 3 port on the computer itself" in note
 
 
@@ -197,7 +197,7 @@ def test_invocation_names_uvx_for_a_uvx_run(*, monkeypatch: pytest.MonkeyPatch) 
     )
     monkeypatch.setattr(name="prefix", target=sys, value="/c/uv/archive-v0/x")
     monkeypatch.setattr(name="base_prefix", target=sys, value="/usr")
-    assert ui.invocation(options=["report"]) == "uvx firebreak@latest report"
+    assert ui.invocation(options=["report"]) == "`uvx firebreak@latest report`"
     monkeypatch.setattr(
         name="base_prefix",
         target=sys,
@@ -205,10 +205,10 @@ def test_invocation_names_uvx_for_a_uvx_run(*, monkeypatch: pytest.MonkeyPatch) 
     )
     assert (
         ui.invocation(options=["report"])
-        == "uvx --managed-python firebreak@latest report"
+        == "`uvx --managed-python firebreak@latest report`"
     )
     monkeypatch.setattr(name="prefix", target=sys, value="/home/me/.venv")
-    assert ui.invocation(options=["report"]) == "firebreak report"
+    assert ui.invocation(options=["report"]) == "`firebreak report`"
 
 
 def test_mark_falls_back_to_ascii(*, monkeypatch: pytest.MonkeyPatch) -> None:

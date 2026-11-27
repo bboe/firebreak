@@ -61,6 +61,7 @@ from firebreak.ui import (
     again,
     confirm,
     invocation,
+    this_command,
     title,
     warn,
 )
@@ -457,9 +458,10 @@ def from_fireos5_twrp(*, install: Callable[[], object]) -> object:
             " setup moves to Fire OS 6 only after a check made from Fire OS 5"
             " itself, because the next write leaves Fire OS 5 unable to start,"
             f" so nothing was written. Start it with {invocation(options=['reboot'])},"
-            " wait for it to finish starting, then run this again. If Fire OS 5"
-            " refuses this computer's adb key, or to erase it instead, run again"
-            " with --factory-reset, which installs Fire OS 6"
+            f" wait for it to finish starting, then run {this_command()} again. If"
+            " Fire OS 5 refuses this computer's adb key, or to erase it instead,"
+            f" run {invocation(options=[*sys.argv[1:], '--factory-reset'])}, which"
+            " installs Fire OS 6"
             f" {ARGUMENTS.target.installs.build}."
         )
     return install()
@@ -731,7 +733,7 @@ def reboot_rooted() -> None:
         if run(arguments=["adb", "reboot"], timeout=60).returncode == 0:
             return
     raise FatalError(
-        message=f"the {title()} did not take adb reboot. boot-root.zip is installed,"
+        message=f"the {title()} did not take `adb reboot`. boot-root.zip is installed,"
         f" so unplug the {title()}'s power and plug it back in to start rooted"
         " Fire OS 6."
     )

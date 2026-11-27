@@ -110,7 +110,7 @@ def check_python() -> None:
     if "windowsapps" in (part.lower() for part in base.parts):
         raise FatalError(
             message=STORE_PYTHON
-            + "Run uvx --managed-python firebreak@latest, which uses uv's"
+            + "Run `uvx --managed-python firebreak@latest`, which uses uv's"
             " own Python, or install Python from python.org"
         )
 

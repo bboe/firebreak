@@ -172,7 +172,7 @@ SESSION = Session()
 
 
 def again() -> str:
-    return f"Run {invocation(options=sys.argv[1:])} again."
+    return f"Run {this_command()} again."
 
 
 def amonet_has_no_fastboot() -> str:
@@ -262,7 +262,7 @@ def invocation(*, options: list[str]) -> str:
         part.startswith("archive-v") for part in pathlib.Path(sys.prefix).parts
     ):
         command = uvx()
-    return shlex.join(split_command=[*command, *options])
+    return f"`{shlex.join(split_command=[*command, *options])}`"
 
 
 def mark(*, failed: bool = False) -> str:
@@ -297,7 +297,7 @@ def program() -> list[str]:
 
 def replug() -> str:
     return (
-        f"unplug the {title()}, run {invocation(options=sys.argv[1:])} again,"
+        f"unplug the {title()}, run {this_command()} again,"
         f" then plug the {title()} into another USB port. {MOST_RELIABLE}"
     )
 
@@ -349,6 +349,10 @@ def stop(*, error: FatalError) -> NoReturn:
     if error.prefix and color(stream=sys.stderr):
         text = f"\033[{ANSIColor.RED.value}m{text}\033[0m"
     raise SystemExit(text)
+
+
+def this_command() -> str:
+    return invocation(options=sys.argv[1:])
 
 
 def title() -> str:

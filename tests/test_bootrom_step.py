@@ -421,7 +421,7 @@ def test_a_dot_whose_bootloaders_name_no_product_stops_the_run(*, rig: Rig) -> N
     bootrom_step.SESSION.short = True
     with pytest.raises(FatalError, match="neither lk_a nor lk_b") as caught:
         step(rig=rig)
-    assert "firebreak report and paste" in " ".join(
+    assert "firebreak report` and paste" in " ".join(
         explained(error=caught.value).split()
     )
     assert rig.written == []

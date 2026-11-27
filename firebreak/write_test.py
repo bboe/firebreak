@@ -10,7 +10,7 @@ from firebreak.cache import CACHE
 from firebreak.host import DOT_TEMPORARY_DIRECTORY, last_line, run
 from firebreak.report import masked
 from firebreak.twrp import no_truncate
-from firebreak.ui import PROGRESS, SESSION, title
+from firebreak.ui import PROGRESS, SESSION, this_command, title
 
 if TYPE_CHECKING:
     import pathlib
@@ -104,8 +104,8 @@ def emmc_leg(
             "the test did not finish",
             f"no answer in {TIMEOUT} s. dd may still be writing {EMMC_TARGET},"
             " so it is left as it is: its own filesystem ends before the pattern"
-            " starts. Wait a few minutes, then run this again, which formats it"
-            " first.",
+            f" starts. Wait a few minutes, then run {this_command()} again, which"
+            " formats it first.",
         )
         return
     answer = last_line(said=said.strip())
@@ -143,8 +143,8 @@ def emmc_leg(
         "yes"
         if last_line(said=formatted.strip()) == "formatted"
         else f"NO: {masked(text=formatted) or '<nothing>'}. One whose"
-        f" {EMMC_TARGET} holds no filesystem does not finish booting, so run this"
-        " again before restarting it: it formats cache first.",
+        f" {EMMC_TARGET} holds no filesystem does not finish booting, so run"
+        f" {this_command()} again before restarting it: it formats cache first.",
     )
 
 

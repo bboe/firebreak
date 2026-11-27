@@ -16,7 +16,15 @@ from firebreak.host import (
     child_path,
     rerun,
 )
-from firebreak.ui import ARGUMENTS, PROGRESS, FatalError, clock, show
+from firebreak.ui import (
+    ARGUMENTS,
+    PROGRESS,
+    FatalError,
+    again,
+    clock,
+    show,
+    this_command,
+)
 
 EMOS_DEVICE_ID = (0x1949, 0x2007)
 
@@ -84,21 +92,20 @@ def emos_recovery() -> None:
         raise FatalError(
             message="emOS's console asks for a password. Type /init recovery at"
             " the console, or clear the console password in EchoMuse's"
-            " dashboard, then run this again."
+            f" dashboard, then run {this_command()} again."
         )
     if answer == "busy" or (
         answer == "denied" and not sys.platform.startswith("linux")
     ):
         raise FatalError(
             message="Another program holds emOS's serial console, such as a"
-            " browser tab with EchoMuse's wizard. Close it, then run this again."
+            " browser tab with EchoMuse's wizard. Close it, then run"
+            f" {this_command()} again."
         )
     if answer == "denied":
         raise FatalError(message=NO_ACCESS + rerun())
     if answer != "recovery":
-        raise FatalError(
-            message="emOS's serial console did not answer. Run this again."
-        )
+        raise FatalError(message="emOS's serial console did not answer. " + again())
 
 
 def stage_emos() -> None:
