@@ -1,0 +1,36 @@
+name: Support a new Echo or bootloader
+description: Ask for an Echo, or a bootloader of one, that firebreak does not unlock.
+labels: [enhancement]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Echo
+      description: The model name and number, and the codename if you know it.
+      placeholder: Echo Dot (4th Generation), B7W64E, brownie
+    validations:
+      required: true
+  - type: textarea
+    id: getvar
+    attributes:
+      label: What `fastboot getvar all` prints
+      description: >-
+        Leave it empty if the Echo has no fastboot. Replace its serial with
+        SERIAL.
+      render: text
+  - type: input
+    id: build
+    attributes:
+      label: Software version
+      description: >-
+        The software version the Alexa app shows for the Echo, or the Fire OS
+        build if you know it.
+  - type: textarea
+    id: unlock
+    attributes:
+      label: A public unlock
+      description: >-
+        A link to any unlock or exploit for this Echo, such as an XDA thread or
+        a repository. Say so if you know of none.
+    validations:
+      required: true

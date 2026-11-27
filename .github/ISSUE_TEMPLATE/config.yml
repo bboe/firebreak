@@ -1,0 +1,7 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A run failed, or you need help
+    url: https://discord.gg/huE5XhWbsz
+    about: >-
+      Ask in #firebreak-support in the 0x7E Labs Discord, with the run's
+      output and what `uvx firebreak@latest report` prints.

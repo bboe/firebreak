@@ -1,0 +1,57 @@
+name: A bug in firebreak
+description: >-
+  firebreak, or the unlock it runs, does the wrong thing. For a run that
+  failed on your Echo, ask in Discord first.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Most failed runs come from the Echo, the cable, the USB port or a
+        driver, not from firebreak. Ask in #firebreak-support in the
+        [0x7E Labs Discord](https://discord.gg/huE5XhWbsz) first, or use the
+        "Help without Discord" form, and open
+        this issue only when you are sure the fault is in firebreak or in the
+        unlock it runs. `report` hides your Echo's serial number. Replace it
+        with SERIAL anywhere else you paste it.
+  - type: dropdown
+    id: device
+    attributes:
+      label: Echo
+      options:
+        - Echo (2nd Generation), XC56PY, radar
+        - Echo Dot (2nd Generation), RS03QR, biscuit
+        - Echo Dot (3rd Generation), D9N29T, donut
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: other
+    attributes:
+      label: Other Echo
+      description: If you chose Other, the model name and number, and the codename if you know it.
+  - type: textarea
+    id: bug
+    attributes:
+      label: The bug
+      description: >-
+        What firebreak or the unlock does wrong, and why you are sure the
+        fault is not in the Echo or the computer.
+    validations:
+      required: true
+  - type: textarea
+    id: run
+    attributes:
+      label: The run that shows it
+      description: The command you ran and everything it printed.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: What `uvx firebreak@latest report` prints
+      description: Run it after the failure. It writes no partition.
+      render: text
+    validations:
+      required: true

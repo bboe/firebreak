@@ -1,0 +1,65 @@
+name: Help without Discord
+description: >-
+  Ask for help with a failed run here only if you refuse to use Discord.
+labels: [support]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Help is faster in #firebreak-support in the
+        [0x7E Labs Discord](https://discord.gg/huE5XhWbsz). Use this form only
+        if you refuse to use Discord. `report` hides your Echo's serial number.
+        Replace it with SERIAL anywhere else you paste it.
+  - type: checkboxes
+    id: discord
+    attributes:
+      label: Discord
+      options:
+        - label: I refuse to use Discord, and I accept slower help here.
+          required: true
+  - type: input
+    id: reason
+    attributes:
+      label: Why not Discord
+      description: One short reason.
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Echo
+      options:
+        - Echo (2nd Generation), XC56PY, radar
+        - Echo Dot (2nd Generation), RS03QR, biscuit
+        - Echo Dot (3rd Generation), D9N29T, donut
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: other
+    attributes:
+      label: Other Echo
+      description: >-
+        If you chose Other, the model name and number, and the codename if you
+        know it.
+  - type: textarea
+    id: run
+    attributes:
+      label: The run that failed
+      description: The command you ran and everything it printed.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: What `uvx firebreak@latest report` prints
+      description: Run it after the failure. It writes no partition.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: What the Echo's light ring showed, and what you tried.
