@@ -30,12 +30,20 @@ if TYPE_CHECKING:
 
     from firebreak.plugin import Device, Target
 
+DRIVER_CHECK = 10
+DRIVER_MISSES = 2
+DRIVER_MISSING = (
+    "Windows sees an Echo in fastboot mode, but fastboot does not, so its driver"
+    " is missing. Install the drivers from"
+    " https://github.com/bboe/firebreak#windows in an administrator PowerShell."
+)
 ECHO_IDS = frozenset({(0x0BB4, 0x0C01), (0x18D1, 0x4EE2), (0x18D1, 0xD001)})
 ECHO_VENDORS = frozenset({0x0E8D, 0x1949})
 FASTBOOT_ID = (0x0BB4, 0x0C01)
 INSTANCE_PARTS = 3
 NAMED = "device-named"
 NAME_POLLS = 30
+NO_FASTBOOT_DRIVER = DRIVER_MISSING + " The run continues when fastboot sees the Echo."
 POLL = 2
 SERIAL_SHOWN = 4
 SYSFS_USB = pathlib.Path("/sys/bus/usb/devices")
@@ -51,6 +59,19 @@ Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue |
     $bus = Get-PnpDeviceProperty -InstanceId $id -KeyName $key -ErrorAction Ignore
     "{0}`t{1}" -f $id, $bus.Data
   }"""
+
+
+@dataclasses.dataclass
+class DriverWatch:
+    due: float = 0.0
+    misses: int = 0
+
+    def confirmed(self) -> bool:
+        if self.misses >= DRIVER_MISSES or time.monotonic() < self.due:
+            return False
+        self.due = time.monotonic() + DRIVER_CHECK
+        self.misses = self.misses + 1 if fastboot_driver_missing() else 0
+        return self.misses == DRIVER_MISSES
 
 
 @dataclasses.dataclass(frozen=True)
@@ -247,6 +268,7 @@ def named_device() -> Identity:
     identity = identify()
     polls = 0
     waiting = False
+    watch = DriverWatch()
     while identity.device is None and not (
         SESSION.short or downloading() == State.BOOTROM
     ):
@@ -264,6 +286,11 @@ def named_device() -> Identity:
                 " bootrom with `firebreak short` first, and the run after that"
                 " reads the name from its flash."
             )
+        if watch.confirmed():
+            if waiting:
+                print()
+                waiting = False
+            warn(text=NO_FASTBOOT_DRIVER)
         polls += 1
         time.sleep(POLL)
         identity = identify()

@@ -18,7 +18,7 @@ from firebreak.android.gpt import ENTRIES_SIZE, SECTOR_SIZE, gpt_intact, partiti
 from firebreak.devices import DEVICES
 from firebreak.emmc import EmmcArea
 from firebreak.host import getvar, in_fastboot, no_port_help
-from firebreak.identify import short_gesture
+from firebreak.identify import DRIVER_MISSING, DriverWatch, short_gesture
 from firebreak.mediatek import range_check
 from firebreak.mediatek.usbdl import (
     BAUD_RATE,
@@ -41,6 +41,7 @@ from firebreak.ui import (
     Kind,
     again,
     asked_for,
+    invocation,
     paint,
     show,
     status,
@@ -97,7 +98,13 @@ def ask_for_short() -> None:
 
 def await_amonet_fastboot(*, little_kernel: str) -> None:
     PROGRESS.begin(estimate=30, label="waiting for amonet's fastboot")
+    watch = DriverWatch()
     for _ in range(30):
+        if watch.confirmed():
+            command = invocation(options=sys.argv[1:])
+            raise FatalError(
+                message=f"{DRIVER_MISSING} After that, run `{command}` again."
+            )
         try:
             if in_fastboot() and (
                 not little_kernel or getvar(name="lk_build_desc") == little_kernel

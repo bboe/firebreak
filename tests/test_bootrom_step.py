@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from firebreak import bootrom_step, ui
+from firebreak import bootrom_step, identify, ui
 from firebreak.amonet.payload import BLOCK_SIZE, PAYLOAD_MAGIC, Command
 from firebreak.android import gpt
 from firebreak.bootrom import USER_AREA_SIGNATURE
@@ -932,6 +932,33 @@ def test_a_torn_table_names_no_echo(
     assert "was not read: its partition table failed its checksums." in " ".join(
         capsys.readouterr().out.split()
     )
+
+
+def test_a_wait_for_amonet_s_fastboot_names_a_missing_driver(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = [0.0]
+    monkeypatch.setattr(name="monotonic", target=identify.time, value=lambda: clock[0])
+    monkeypatch.setattr(
+        name="fastboot_driver_missing",
+        target=identify,
+        value=lambda: True,
+    )
+    monkeypatch.setattr(name="in_fastboot", target=bootrom_step, value=lambda: False)
+    monkeypatch.setattr(
+        name="sleep",
+        target=bootrom_step.time,
+        value=lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+    )
+    monkeypatch.setattr(
+        name="argv", target=bootrom_step.sys, value=["firebreak", "unlock"]
+    )
+    with pytest.raises(
+        bootrom_step.FatalError, match="so its driver is missing"
+    ) as raised:
+        bootrom_step.await_amonet_fastboot(little_kernel=AMONET_V1_1_0_LK)
+    assert raised.value.message.endswith(" After that, run `firebreak unlock` again.")
+    assert clock[0] < 60
 
 
 def test_keep_trying_with_the_short_on_warns_and_waits_on(

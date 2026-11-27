@@ -48,7 +48,13 @@ from firebreak.fireos import (
     system_image,
 )
 from firebreak.host import adb_shell, run
-from firebreak.identify import check_target, fastboot_driver_missing
+from firebreak.identify import (
+    DRIVER_CHECK,
+    DRIVER_MISSES,
+    NO_FASTBOOT_DRIVER,
+    check_target,
+    fastboot_driver_missing,
+)
 from firebreak.kamakiri_step import authorized, kamakiri_step
 from firebreak.mediatek.libusb import ELEVATES
 from firebreak.plugin import FireOs5, FireOs6
@@ -97,8 +103,6 @@ if TYPE_CHECKING:
 AHEAD = {State.STOCK_BOOTED: State.STOCK_FASTBOOT}
 BOOTROMS = frozenset({State.BOOTROM, State.NONE})
 DOWNLOADS: list[Need] = []
-DRIVER_CHECK = 10
-DRIVER_MISSES = 2
 FIREOS5_ROOTED = {
     State.ROOTED,
     State.AMONET_FIREOS5_BBOE_BOOTED,
@@ -111,12 +115,6 @@ INSTALLED_FROM = {
     State.UNLOCKED_BOOTED: frozenset({State.UNLOCKED_TWRP}),
 }
 KAMAKIRI_REBOOTS = frozenset({State.UNLOCKED_BOOTED, State.BOOTED})
-NO_FASTBOOT_DRIVER = (
-    "Windows sees an Echo in fastboot mode, but fastboot does not, so its driver"
-    " is missing. Install the drivers from"
-    " https://github.com/bboe/firebreak#windows in an administrator PowerShell."
-    " The run continues when fastboot sees the Echo."
-)
 POWER_CYCLE = 60
 RESTARTS = 5
 STOCK_QUIET = 5 * MINUTE

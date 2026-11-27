@@ -28,6 +28,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
+- On Windows, the wait for amonet's fastboot after a bootrom write, and
+  the wait for an Echo to name its device, say that the fastboot driver is
+  missing when Windows lists an Echo in fastboot and `fastboot devices` does
+  not. Before, only the main wait said so: the first timed out with "did not
+  come back in amonet's fastboot" and the second waited with no word.
 - `report` prints the kernel's `life_time` and `pre_eol_info` only when it
   cannot read the EXT_CSD, whose decoded rows say the same, and its kernel log
   leaves out each filesystem's `mounted filesystem with` and

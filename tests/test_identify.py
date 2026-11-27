@@ -142,6 +142,22 @@ def test_a_dot_in_fastboot_is_named_by_its_product(
     )
 
 
+def test_a_driver_watch_confirms_two_misses_ten_seconds_apart(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = [0.0]
+    answers = iter([True, False, True, True])
+    monkeypatch.setattr(name="monotonic", target=identify.time, value=lambda: clock[0])
+    monkeypatch.setattr(
+        name="fastboot_driver_missing", target=identify, value=lambda: next(answers)
+    )
+    watch = identify.DriverWatch()
+    seen = []
+    for clock[0] in (0, 5, 10, 20, 30, 40, 50):
+        seen.append(watch.confirmed())
+    assert seen == [False, False, False, False, True, False, False]
+
+
 @pytest.mark.parametrize(
     argnames=("platform", "fastboot", "usb", "want"),
     argvalues=[
@@ -450,6 +466,29 @@ def test_a_usb_device_prints_only_the_start_of_its_serial() -> None:
             manufacturer="", product="", product_id=0, serial="", vendor_id=0
         )
     )
+
+
+def test_a_wait_for_a_device_name_names_a_missing_fastboot_driver_once(
+    *, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    connected(monkeypatch=monkeypatch)
+    monkeypatch.setattr(name="short", target=identify.SESSION, value=False)
+    clock = [0.0]
+    monkeypatch.setattr(name="monotonic", target=identify.time, value=lambda: clock[0])
+    monkeypatch.setattr(
+        name="fastboot_driver_missing", target=identify, value=lambda: True
+    )
+
+    def sleep(seconds: float) -> None:
+        clock[0] += seconds
+        if clock[0] >= 60:
+            connected(fastboot="RADAR", monkeypatch=monkeypatch)
+
+    monkeypatch.setattr(name="sleep", target=identify.time, value=sleep)
+    assert identify.named_device().device == RADAR
+    joined = " ".join(capsys.readouterr().out.split())
+    assert joined.count("so its driver is missing") == 1
+    assert "The run continues when fastboot sees the Echo." in joined
 
 
 def test_android_serial_matches_whatever_its_case(

@@ -2644,6 +2644,12 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   lists `0bb4:0c01` and `fastboot devices` does not, on two checks 10 s apart.
   Windows lists a new device before its driver binds, so one check is not
   enough. Each check starts PowerShell, so it runs at most every 10 s.
+  The wait for an Echo to name its device warns the same way, and the wait
+  for amonet's fastboot after a bootrom write stops with it rather than
+  saying the Echo did not come back. A user's Dot on Windows 11 sat in
+  amonet's fastboot, its ring a rainbow, through three such waits, with
+  `0bb4:0c01` listed and `fastboot devices` empty, and was taken back
+  through the bootrom each time.
 - Windows bound adb (`1949:0110` and Fire OS 6's `0e8d:201c`, by its interface
   class through its own `winusb.inf`) and v1.1.0's TWRP (`18d1:4ee2`) itself.
   TWRP 3.7.0_9-bboeN is untried on Windows. macOS and Linux need no driver.
