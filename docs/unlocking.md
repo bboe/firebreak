@@ -983,14 +983,20 @@ unlock's, not the stock bytes.
 - `system_a` is the reason it exists. Fire OS 5's image is 805,257,216 bytes
   against a 805,306,368-byte partition, so the write has 48 KiB of headroom
   and nothing checks it. Build 8149's report showed only a mismatched md5.
-- Wear comes from sysfs where a part reports it, and the erase count only
-  from the kernel log, which reaches back about 3,000 seconds, so uptime is
-  printed beside it. `cid` and `serial` are left unread, and GUIDs and the
-  Echo's serial are masked: the run sets `ANDROID_SERIAL` to the Echo it picks,
-  and the mask reads it.
+- Wear comes from the EXT_CSD, and from sysfs's `life_time` and
+  `pre_eol_info` only when that read fails: where both arrive they repeat the
+  same bytes, or show `0x00 0x00` beside an older card's reserved ones. The
+  erase count comes only from the kernel log, which reaches back about 3,000
+  seconds, so uptime is printed beside it. `cid` and `serial` are left
+  unread, and GUIDs and the Echo's serial are masked: the run sets
+  `ANDROID_SERIAL` to the Echo it picks, and the mask reads it.
 - The kernel log's mmc lines are its last 60, and the card's first line is
   read on its own, so a log that still reaches the boot says so even after
-  60 later lines.
+  60 later lines. A filesystem's `mounted filesystem with` line and its
+  `SELinux: initialized` line are left out: TWRP mounted `system_a` three
+  times in one biscuit's report, and those lines were 10 of its 28, enough on
+  a busier boot to push the card's errors past the 60. A mount that fails, or
+  a journal it replays, still shows.
 - Each answer the report parses into claims comes behind a marker of its own,
   because adb cuts the tail: `sgdisk`'s table, `/proc/partitions`, the `by-name`
   listing and the kernel log's two reads. One that does not arrive whole is

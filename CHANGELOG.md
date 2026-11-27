@@ -25,6 +25,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
+- `report` prints the kernel's `life_time` and `pre_eol_info` only when it
+  cannot read the EXT_CSD, whose decoded rows say the same, and its kernel log
+  leaves out each filesystem's `mounted filesystem with` and
+  `SELinux: initialized` lines, which could push the eMMC's own lines out of
+  the 60 it keeps.
 - A block read through amonet's payload, on a Dot or an Echo (2nd
   Generation), that gets back only the payload's own flush word says
   "amonet's payload answered, but the eMMC sent no data". A write that gets

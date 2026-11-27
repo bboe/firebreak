@@ -54,11 +54,13 @@ def test_dot_details_labels_each_answer() -> None:
 
     said = report.dot_details(asked=asked)
     fields = len(report.PROPERTIES) + len(report.EMMC_FIELDS)
-    assert len(said) == fields + len(report.EMMC_BOOT_AREAS) + 2
+    wear = 1 + len(report.EMMC_WEAR_FIELDS)
+    assert len(said) == fields + len(report.EMMC_BOOT_AREAS) + wear + 1
     assert said[0] == report.labelled(label="ro.product.device", value="x")
     assert said[len(report.PROPERTIES)].startswith("eMMC name")
     assert said[fields] == report.labelled(label="eMMC boot0 sectors", value="x")
-    assert said[-2] == report.labelled(label="eMMC EXT_CSD", value="<unread>")
+    assert said[-1 - wear] == report.labelled(label="eMMC EXT_CSD", value="<unread>")
+    assert said[-2] == report.labelled(label="eMMC pre_eol_info", value="x")
     assert said[-1] == report.labelled(label="uptime", value="uptime s, dmesg from x s")
 
 
@@ -94,9 +96,12 @@ def test_emmc_wear_marks_an_older_card_s_bytes_as_reserved() -> None:
 
 def test_emmc_wear_says_nothing_from_a_cut_read() -> None:
     whole = ext_csd(life=(0, 0), pre_eol=0, revision=9)
-    unread = [report.labelled(label="eMMC EXT_CSD", value="<unread>")]
     for said in (whole[:600], whole.replace(report.EXT_CSD_OK, ""), "<nothing>"):
-        assert report.emmc_wear(asked=lambda _said=said, **_: _said) == unread
+        assert report.emmc_wear(asked=lambda _said=said, **_: _said) == [
+            report.labelled(label="eMMC EXT_CSD", value="<unread>"),
+            report.labelled(label="eMMC life_time", value=said),
+            report.labelled(label="eMMC pre_eol_info", value=said),
+        ]
     assert report.emmc_wear(asked=lambda **_: whole) == [
         report.labelled(label="eMMC EXT_CSD rev", value="9 (unknown)"),
         report.labelled(label="eMMC pre-EOL", value="0: not defined"),
@@ -257,6 +262,30 @@ def test_the_dmesg_window_reads_any_uptime(*, tmp_path: pathlib.Path) -> None:
             text=True,
         ).stdout.strip()
         assert said == want
+
+
+def test_the_mmc_log_leaves_out_routine_mounts(*, tmp_path: pathlib.Path) -> None:
+    kept = (
+        "[    4.43] mmc0: new HS200 MMC card at address 0001",
+        "[    7.52] EXT4-fs (mmcblk0p9): VFS: Can't find ext4 filesystem",
+        "[    7.59] EXT4-fs (mmcblk0p15): recovery complete",
+    )
+    routine = (
+        "[    7.50] EXT4-fs (mmcblk0p13): mounted filesystem with ordered data mode",
+        "[    7.50] SELinux: initialized (dev mmcblk0p13, type ext4), uses xattr",
+    )
+    fake = tmp_path / "dmesg"
+    lines = "\n".join((*kept, *routine, "[    9.00] usb 1-1: new device"))
+    fake.write_text(f"#!/bin/sh\nprintf '%s\\n' \"{lines}\"\n")
+    fake.chmod(0o755)
+    said = subprocess.run(
+        args=["sh", "-c", report.MMC_LOG],
+        capture_output=True,
+        check=True,
+        env={"PATH": f"{tmp_path}:/usr/bin:/bin"},
+        text=True,
+    ).stdout.splitlines()
+    assert said == list(kept)
 
 
 def test_whole() -> None:

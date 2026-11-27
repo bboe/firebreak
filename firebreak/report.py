@@ -13,7 +13,8 @@ if TYPE_CHECKING:
 BOOT_LINE = 'dmesg | grep "MMC card at address" | head -1'
 BOOT_OK = "boot-ok"
 EMMC_BOOT_AREAS = ("boot0", "boot1")
-EMMC_FIELDS = ("name", "manfid", "oemid", "date", "prv", "life_time", "pre_eol_info")
+EMMC_FIELDS = ("name", "manfid", "oemid", "date", "prv")
+EMMC_WEAR_FIELDS = ("life_time", "pre_eol_info")
 EXT_CSD = (
     "{ d=/tmp/firebreak-debugfs; umount $d; mkdir -p $d"
     " && mount -t debugfs debugfs $d && cat $d/mmc0/mmc0:*/ext_csd;"
@@ -39,7 +40,10 @@ GUID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
 LIFE_PAST = 11
 LISTING_OK = "listing-ok"
 LOG_OK = "log-ok"
-MMC_LOG = 'dmesg | grep -iE "mmc|msdc" | tail -60'
+MMC_LOG = (
+    'dmesg | grep -iE "mmc|msdc"'
+    ' | grep -vE "mounted filesystem with|SELinux: initialized" | tail -60'
+)
 MMC_LOG_REACHES_BOOT = "MMC card at address"
 PARTITIONS_OK = "partitions-ok"
 PARTITION_FIELDS = 4
@@ -61,22 +65,14 @@ def dot_details(*, asked: Callable[..., str]) -> list[str]:
         labelled(label=name, value=asked(command=f"getprop {name}"))
         for name in PROPERTIES
     ]
-    for name in EMMC_FIELDS:
-        where = f"/sys/block/{node_held(target=DISK)}/device/{name}"
-        said.append(
-            labelled(
-                label=f"eMMC {name}",
-                value=asked(command=f"cat {where} 2>/dev/null || echo '<absent>'"),
-            )
-        )
-    for area in EMMC_BOOT_AREAS:
-        where = f"/sys/block/{node_held(target=DISK)}{area}/size"
-        said.append(
-            labelled(
-                label=f"eMMC {area} sectors",
-                value=asked(command=f"cat {where} 2>/dev/null || echo '<absent>'"),
-            )
-        )
+    said.extend(
+        sysfs_row(asked=asked, label=f"eMMC {name}", where=f"/device/{name}")
+        for name in EMMC_FIELDS
+    )
+    said.extend(
+        sysfs_row(asked=asked, label=f"eMMC {area} sectors", where=f"{area}/size")
+        for area in EMMC_BOOT_AREAS
+    )
     said.extend(emmc_wear(asked=asked))
     window = asked(command="dmesg | head -1 | sed -e 's/^\\[ *//' -e 's/\\].*//'")
     held = asked(command="cut -d' ' -f1 /proc/uptime")
@@ -88,7 +84,13 @@ def emmc_wear(*, asked: Callable[..., str]) -> list[str]:
     read = asked(command=f"{EXT_CSD}; echo; echo {EXT_CSD_OK}")
     held = (whole(marker=EXT_CSD_OK, said=read) or "").strip()
     if not EXT_CSD_HEX.fullmatch(held):
-        return [labelled(label="eMMC EXT_CSD", value="<unread>")]
+        return [
+            labelled(label="eMMC EXT_CSD", value="<unread>"),
+            *(
+                sysfs_row(asked=asked, label=f"eMMC {name}", where=f"/device/{name}")
+                for name in EMMC_WEAR_FIELDS
+            ),
+        ]
     ext_csd = bytes.fromhex(held)
     revision = ext_csd[EXT_CSD_REVISION]
     version = EXT_CSD_VERSIONS.get(revision, "unknown")
@@ -224,6 +226,14 @@ def partition_rows(*, names: dict[str, str] | None, printed: str) -> list[str]:
         alias = ", ".join(called) if called else "" if linked else "<no name>"
         rows.append(f"{row:<{width}}  {node:<10}  {alias}".rstrip())
     return rows + unreal_rows(held=held)
+
+
+def sysfs_row(*, asked: Callable[..., str], label: str, where: str) -> str:
+    path = f"/sys/block/{node_held(target=DISK)}{where}"
+    return labelled(
+        label=label,
+        value=asked(command=f"cat {path} 2>/dev/null || echo '<absent>'"),
+    )
 
 
 def system_a_rows(

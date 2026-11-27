@@ -390,7 +390,8 @@ Read as biscuit's are, and from `report` on 2026-10-28.
 - boot0 is 1 MiB on the `P1J94M` one and 4 MiB on the `FJ25AB` one, as on
   biscuit, and every stock `preloader.img` is 1 MiB, so the restore pads it
   with zeros to boot0's size.
-- `report` also reads `prv`, `pre_eol_info` and `life_time`. The `FJ25AB` one
+- `report` also read `prv`, `pre_eol_info` and `life_time`; it now reads the
+  last two only when the EXT_CSD read fails. The `FJ25AB` one
   read `0x2`, `01` and `0x01 0x01`, and the `P1J94M` one `00` and
   `0x00 0x00`. These say how worn the card is; neither is near its limit.
 - An Echo with an 8 GB eMMC has been seen, and nothing about its chip or its
