@@ -1,0 +1,105 @@
+concurrency:
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: simulator-${{ github.ref }}
+
+jobs:
+  full:
+    if: ${{ github.event_name != 'pull_request' }}
+    name: full (${{ matrix.run }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: simulator-${{ matrix.run }}-${{ hashFiles('firebreak/cache.py', 'firebreak/devices/*.py', 'firebreak/fireos.py') }}
+          path: ~/.cache/firebreak
+          restore-keys: simulator-${{ matrix.run }}-
+      - run: uv run --python 3.12 python simulator/fetch.py ${{ matrix.device }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          cache-from: type=gha,scope=simulator
+          cache-to: type=gha,mode=max,scope=simulator
+          context: simulator
+          load: true
+          tags: firebreak-sim
+      - run: sudo groupadd -f plugdev && sudo usermod -aG plugdev "$USER"
+      - run: >-
+          mkdir -p ~/.android && openssl genpkey -algorithm RSA
+          -pkeyopt rsa_keygen_bits:2048 -out ~/.android/adbkey
+      - run: >-
+          sg plugdev -c 'uvx --with tox-uv==1.36.1 tox@4.64.9 -e simulator --
+          -k "${{ matrix.select }}" -v --basetemp=simulator-logs'
+      - if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: simulator-${{ matrix.run }}
+          path: |
+            simulator-logs/
+            ~/.cache/firebreak-sim/*.log
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { device: biscuit, run: biscuit-entries, select: "test_an_entry and biscuit" }
+          - { device: biscuit, run: biscuit-factory-reset, select: biscuit-factory-reset }
+          - { device: biscuit, run: biscuit-fireos5-move, select: biscuit-fireos5-move }
+          - { device: donut, run: donut-entries, select: "test_an_entry and donut" }
+          - { device: donut, run: donut-stock, select: donut-stock }
+          - { device: radar, run: radar-backup-restore, select: radar_backup }
+          - { device: radar, run: radar-entries, select: "test_an_entry and radar" }
+  pr:
+    name: pr (${{ matrix.run }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: simulator-${{ matrix.run }}-${{ hashFiles('firebreak/cache.py', 'firebreak/devices/*.py', 'firebreak/fireos.py') }}
+          path: ~/.cache/firebreak
+          restore-keys: simulator-${{ matrix.run }}-
+      - run: uv run --python 3.12 python simulator/fetch.py ${{ matrix.device }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          cache-from: type=gha,scope=simulator
+          cache-to: type=gha,mode=max,scope=simulator
+          context: simulator
+          load: true
+          tags: firebreak-sim
+      - run: sudo groupadd -f plugdev && sudo usermod -aG plugdev "$USER"
+      - run: >-
+          mkdir -p ~/.android && openssl genpkey -algorithm RSA
+          -pkeyopt rsa_keygen_bits:2048 -out ~/.android/adbkey
+      - run: >-
+          sg plugdev -c 'uvx --with tox-uv==1.36.1 tox@4.64.9 -e simulator --
+          -k "${{ matrix.run }}" -v --basetemp=simulator-logs'
+      - if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: simulator-${{ matrix.run }}
+          path: |
+            simulator-logs/
+            ~/.cache/firebreak-sim/*.log
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { device: biscuit, run: biscuit-stock }
+          - { device: biscuit, run: biscuit-unlock }
+          - { device: donut, run: donut-unlock }
+          - { device: radar, run: radar-unlock }
+
+name: Simulator
+
+on:
+  pull_request:
+    paths: [".github/workflows/simulator.yml", "firebreak/**", "pyproject.toml", "simulator/**"]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read

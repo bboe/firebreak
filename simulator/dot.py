@@ -163,6 +163,10 @@ DEVICES = {
         "hardware": 0x8163,
         "kaeru": "bin/biscuit-kaeru.bin",
         "model": "AEOBC",
+        "payloads": {
+            "v1.1.0": "amonet-biscuit-v1.1.0.zip",
+            "v2.0.0": "amonet-biscuit-v2.0.0.zip",
+        },
         "sectors": 7651328,
         "stock": "Fire OS 6574.1 (NS65741/8146)",
         "stock_lk": "63cb91b-20221007_072309",
@@ -192,6 +196,7 @@ DEVICES = {
         "hardware": 0x8163,
         "kaeru": "bin/radar-kaeru.bin",
         "model": "AEORD",
+        "payloads": {"v2.0.0": "amonet-radar-v1.0.1.zip"},
         "sectors": 7651328,
         "stock": "Fire OS 6572.1 (NS6572/6436)",
         "stock_lk": "63cb91b-20221007_073612",

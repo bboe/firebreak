@@ -88,7 +88,6 @@ MAXIMUM_BLOCKS = 64
 MMIO_START = 0x10000000
 NANOSECONDS = 1_000_000_000
 PAYLOAD_ADDRESS = 0x201000
-PAYLOAD_VERSIONS = ("v1.1.0", "v2.0.0")
 RANGE_CHECK = 0x102868
 RANGE_CHECK_OFF = bytes(12) + b"\x80" + bytes(3)
 READY = b"\xb1\xb2\xb3\xb4"
@@ -743,10 +742,10 @@ def driven(*, bootrom: Bootrom, container: str) -> str:
     return "bootloader" if payload.fastboot else "system"
 
 
-def known_payloads(*, cache: str) -> dict[str, bytes]:
+def known_payloads(*, cache: str, spec: dict) -> dict[str, bytes]:
     found = {}
-    for version in PAYLOAD_VERSIONS:
-        with zipfile.ZipFile(f"{cache}/amonet-biscuit-{version}.zip") as archive:
+    for version, kit in spec.get("payloads", {}).items():
+        with zipfile.ZipFile(f"{cache}/{kit}") as archive:
             found[version] = dot.member(
                 archive=archive, suffix="brom-payload/build/payload.bin"
             )
@@ -777,7 +776,7 @@ def main() -> int:
         spec = dot.DEVICES[state["device"]]
         bootrom = Bootrom(
             hardware=spec["hardware"],
-            payloads=known_payloads(cache=state["cache"]),
+            payloads=known_payloads(cache=state["cache"], spec=spec),
             port=port,
             stages=known_stages(cache=state["cache"], spec=spec),
         )
