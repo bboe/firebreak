@@ -48,13 +48,7 @@ from firebreak.fireos import (
     system_image,
 )
 from firebreak.host import adb_shell, run
-from firebreak.identify import (
-    DRIVER_CHECK,
-    DRIVER_MISSES,
-    NO_FASTBOOT_DRIVER,
-    check_target,
-    fastboot_driver_missing,
-)
+from firebreak.identify import NO_FASTBOOT_DRIVER, DriverWatch, check_target
 from firebreak.kamakiri_step import authorized, kamakiri_step
 from firebreak.mediatek.libusb import ELEVATES
 from firebreak.plugin import FireOs5, FireOs6
@@ -504,8 +498,7 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
     printed = None
     awaiting = None
     deadline = None
-    driver_check = 0.0
-    driver_misses = 0
+    watch = DriverWatch()
     prompted = False
     restarts = 0
     since = 0.0
@@ -829,15 +822,8 @@ def root() -> None:  # ruff: ignore[complex-structure, too-many-branches, too-ma
                     f" {shown(current=current)} for"
                     f" {WAIT // 60} minutes. " + again()
                 )
-            if (
-                current == State.NONE
-                and driver_misses < DRIVER_MISSES
-                and time.monotonic() >= driver_check
-            ):
-                driver_check = time.monotonic() + DRIVER_CHECK
-                driver_misses = driver_misses + 1 if fastboot_driver_missing() else 0
-                if driver_misses == DRIVER_MISSES:
-                    warn(text=NO_FASTBOOT_DRIVER)
+            if current == State.NONE and watch.confirmed():
+                warn(text=NO_FASTBOOT_DRIVER)
             if (
                 current == State.NONE
                 and awaiting == State.UNLOCKED_BOOTED

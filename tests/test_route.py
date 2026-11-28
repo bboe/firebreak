@@ -6,7 +6,7 @@ import types
 
 import pytest
 
-from firebreak import route, stock, twrp, unlock
+from firebreak import identify, route, stock, twrp, unlock
 from firebreak.devices import BISCUIT, DONUT, RADAR, TARGETS, biscuit, radar
 from firebreak.devices.biscuit import BUILDS
 from firebreak.plugin import Author, ClearBoot0Header
@@ -882,7 +882,7 @@ def test_a_run_names_a_fastboot_driver_that_stays_missing(
         return asked[-1]
 
     monkeypatch.setattr(name="stages", target=route, value=dict)
-    monkeypatch.setattr(name="fastboot_driver_missing", target=route, value=check)
+    monkeypatch.setattr(name="fastboot_driver_missing", target=identify, value=check)
     run.states = [route.State.NONE] * 30
     with pytest.raises(RanOutError):
         route.root()
@@ -927,7 +927,7 @@ def test_a_run_says_a_port_cannot_power_twrp_only_while_twrp_is_what_is_next(
     }
     monkeypatch.setattr(name="stages", target=route, value=lambda: table)
     monkeypatch.setattr(
-        name="fastboot_driver_missing", target=route, value=lambda: False
+        name="fastboot_driver_missing", target=identify, value=lambda: False
     )
     run.states = [
         route.State.STOCK_FASTBOOT,
