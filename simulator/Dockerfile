@@ -6,12 +6,12 @@ RUN apt-get update \
 RUN curl -fsSL -o /busybox.tar.bz2 https://busybox.net/downloads/busybox-1.22.1.tar.bz2 \
     && curl -fsSL -o /pigz.tar.gz https://github.com/madler/pigz/archive/refs/tags/v2.2.5.tar.gz \
     && curl -fsSL -o /toybox.tar.gz https://landley.net/toybox/downloads/toybox-0.7.6.tar.gz \
-    && curl -fsSL -o /zlib.tar.gz https://zlib.net/fossils/zlib-1.2.8.tar.gz \
+    && curl -fsSL -o /zlib.tar.gz https://github.com/madler/zlib/archive/refs/tags/v1.2.8.tar.gz \
     && printf '%s\n' \
         'ae0b029d0a9e4dd71a077a790840e496dd838998e4571b87b60fed7462b6678b  /busybox.tar.bz2' \
         'c08ca41a00f9f1140a5cb9f90cb20189e81d219f63267f51f3fb1bca71e03abd  /pigz.tar.gz' \
         'e2c9643ebc2bcdec4d8f8db25d0b428dbe0928f7b730052dbbd25db47fb9db95  /toybox.tar.gz' \
-        '36658cb768a54c1d4dec43c3116c27ed893e88b02ecfcb44f2166f9c0b7f2a0d  /zlib.tar.gz' \
+        'e380bd1bdb6447508beaa50efc653fe45f4edc1dafe11a251ae093e0ee97db9a  /zlib.tar.gz' \
         | sha256sum -c \
     && tar -C / -xjf /busybox.tar.bz2 && tar -C / -xzf /pigz.tar.gz && tar -C / -xzf /toybox.tar.gz \
     && tar -C / -xzf /zlib.tar.gz

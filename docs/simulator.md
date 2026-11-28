@@ -18,10 +18,45 @@ FIREBREAK_SIM_ELEVATES=0 DEVICE=donut START=stock-booted simulator/run.sh OUT un
 DEVICE=donut START=twrp simulator/run.sh OUT stock 8349
 DEVICE=radar START=twrp simulator/run.sh OUT backup BACKUP
 DEVICE=radar simulator/run.sh OUT restore --force BACKUP
+uvx --with tox-uv tox -e simulator                # every simulator test
+uvx --with tox-uv tox -e simulator -- -m donut     # one device's
+uvx --with tox-uv tox -e simulator -- -m pr        # the runs each PR gets
 python3 simulator/trace.py OUT.jsonl             # one command per line, for diff
 python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per range
 ```
 
+- The `simulator` tox env runs `simulator/tests` with pytest. They run only
+  with `--simulator`, which the env passes, and pytest's `testpaths` leaves
+  them out of a plain `pytest` or `tox`, because each starts Docker and the
+  whole set took 18 minutes on a Mac. Each test is marked with its device, so
+  `-m` picks one device's. The four marked `pr` are the least that covers each
+  route's machinery once: `unlock` on each device from its simulated stock,
+  which writes Fire OS 6 over userdata on a biscuit and a radar and roots a
+  donut's 8349 in place, and a biscuit's `stock` of the default 8349. The rest
+  cover one route each: the Fire OS 5 move, `--factory-reset`, a donut's
+  `stock`, a radar backup and its restore, and the entry commands. Which build
+  a route starts from is the unit tests' concern, so no test repeats a route
+  per build. The entry tests run firebreak twice per case; the
+  route tests run `run.sh` once per route, a radar backup and its restore
+  included, and need firebreak's exit status 0 and its verdict. Each test's
+  logs are in its pytest temporary folder.
+- `.github/workflows/simulator.yml` runs them on GitHub's Ubuntu runners,
+  one job per route or per device's entry commands, all at once. A pull request
+  that touches `firebreak/`, `simulator/` or the workflow gets the four `pr`
+  runs; a push to main, or a run started by hand, gets every test. It is not a
+  required check, so a slow run never holds up a merge. Each job caches
+  `~/.cache/firebreak` under its own key, because a cache cannot change once
+  saved and the jobs fetch different OTAs. The jobs share the image's layers
+  in GitHub's cache, so the source downloads and the compile run again only
+  when `simulator/Dockerfile` changes; on 2026-11-28 busybox.net did not
+  answer one runner. `simulator/fetch.py` first downloads what `dot.py
+  create` reads for the device, through firebreak's own `fetch`, which tries
+  the mirror first; firebreak fetches the OTAs itself
+  during the run. A failed job uploads its pytest temporary folder, with every
+  run's log. The `pr` runs still start from each device's built-in stock in
+  `dot.py`: 8146 on a biscuit and 6436 on a radar, whose LKs take
+  `fastbrick-20221007.img`, where the default 8349's takes
+  `fastbrick-20260617.img`.
 - `run.sh` makes a new Dot, runs firebreak, and leaves `OUT.log`, the trace
   (`OUT.jsonl` and `OUT.txt`), a disk snapshot (`OUT.snapshot`) and the raw
   partition table (`OUT.table`: LBA 0 to 33, then the last 33 sectors).
@@ -32,8 +67,11 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
 - `run.sh` passes its pid to `create`. `create` refuses while the `run.sh`
   that the state names still runs.
 - It needs Docker, `uv`, `timeout` (coreutils, on macOS too), and the
-  downloads in `~/.cache/firebreak`. The image build downloads busybox, pigz
-  and toybox source and checks each by SHA-256.
+  downloads in `~/.cache/firebreak`. The image build downloads busybox, pigz,
+  toybox and zlib source and checks each by SHA-256. zlib 1.2.8 comes from
+  GitHub's archive of its tag, which holds the same files as zlib.net's
+  tarball and a `.gitignore`: on 2026-11-28 zlib.net's `fossils` folder
+  answered three of four GitHub runners with bytes that did not match.
 - firebreak's cache is `~/.cache/firebreak-sim-cache`. `dot.py create` copies
   each download into its `firebreak` folder, as an APFS clone on macOS and
   with `--reflink=auto` elsewhere. Where a clone fails, as off APFS, it copies
@@ -79,9 +117,9 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   bootrom and the fastbrick included, so it proves nothing about reaching
   TWRP. It is what makes `stock` reach the restore, which otherwise only a
   full unlock run would get to.
-- `simulator/entries.sh OUT` runs each entry command twice on a fresh Echo,
-  once to act and once to find the state it left, and checks what each run
-  says. It is the grid the entry commands are held to, 34 cases over the
+- `simulator/tests/test_entries.py` runs each entry command twice on a fresh
+  Echo, once to act and once to find the state it left, and checks what each
+  run says. It is the grid the entry commands are held to, 34 cases over the
   three devices: `fastboot` and `twrp` from an amonet TWRP, from stock
   fastboot and from a stock boot; `twrp` from an amonet fastboot; `twrp
   --force` from the
@@ -152,12 +190,12 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   through as a command. `write-test` takes the bootrom route where the Echo
   reads as a bootrom, so `short` first is the way here to reach the
   bootrom write test. Both commands return before a target is chosen.
-- `START=no-light` takes either device. `bootrom.py` reads its payloads from
-  the biscuit archives, and that is enough for a radar because every archive
-  ships the same one: `brom-payload/build/payload.bin` is 20060 bytes and byte
-  for byte the same in amonet-biscuit v2.0.0, v2.0.1 and amonet-radar v1.0.1.
-  A radar started this way needs `--device radar`, because a Dot with no light
-  answers neither adb nor fastboot, so nothing names it.
+- `START=no-light` takes either device. `bootrom.py` knows a payload by the
+  device's own kits, which `payloads` in `dot.py` names: amonet-biscuit v1.1.0
+  and v2.0.0 for a biscuit, amonet-radar v1.0.1 for a radar. A donut's bootrom
+  knows only kamakiri's stages. A radar started this way needs `--device
+  radar`, because a Dot with no light answers neither adb nor fastboot, so
+  nothing names it.
 - `run.sh` passes `--no-update-check`, so a run never asks PyPI for a newer
   firebreak. firebreak's stdin is `/dev/null`. Its stdout must be unbuffered: without
   `PYTHONUNBUFFERED=1`, the prompt reached the log only at exit, and the Dot
