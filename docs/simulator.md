@@ -618,7 +618,11 @@ The simulator accepts these, where a real Dot may not:
 ## The port
 
 - `dot.py create` makes a virtualenv in `~/.cache/firebreak-sim/venv` and
-  installs firebreak's pinned dependencies there with `uv`. Without pyserial
+  installs firebreak's pinned dependencies there with `uv`. It makes the
+  virtualenv with `uv venv --python 3.12` when there is none, or when its
+  Python is older than 3.12, firebreak's floor: `dot.py` runs under whatever
+  `python3` comes first, and on a Mac with nothing installed that is Apple's
+  3.9.6, which cannot import firebreak. A newer virtualenv stays. Without pyserial
   there, every run that reached a bootrom stopped with `No module named
   'serial'`, and only the runs that never left fastboot passed. A
   `.pth` file there imports `ports.py` at every start, so the children that a
@@ -791,11 +795,12 @@ summary line, and includes `create` and `snapshot`.
   not that it never started. It writes there only to complain. Reading it the
   other way round sent one hunt for the cause of a bootrom that never ran well
   past the three faults that stopped it.
-- `venv` leaves an existing `bin/python` alone, so a pruned or upgraded pyenv
-  version leaves the simulator's own symlink pointing at nothing. `make_venv`
-  passes `--clear` for that: without it, it ran the interpreter it had just
-  failed to find and `create` died with a bare `FileNotFoundError`, for every
-  scenario and not only the ones that reach the bootrom.
+- A virtualenv's `bin/python` links to the Python it was made from, so a
+  pruned or upgraded pyenv version left the simulator's link pointing at
+  nothing. `make_venv` rebuilds a virtualenv whose `bin/python` does not run,
+  and passes `--clear` for that: without it, Python's own `venv` kept the dead
+  link, and `create` died with a bare `FileNotFoundError`, for every scenario
+  and not only the ones that reach the bootrom.
 - `dd if=/dev/zero` onto a regular file with no `count` does not stop at the
   file's end. One filled Docker's disk. The container was gone, but its loop
   devices still held the deleted file, so the space came back only after a

@@ -1114,9 +1114,15 @@ def main() -> int:
 def make_venv() -> None:
     venv = WORK / "venv"
     python = venv / "bin" / "python"
-    if not python.exists():
+    if (
+        not python.exists()
+        or subprocess.run(
+            [str(python), "-c", "import sys; sys.exit(sys.version_info < (3, 12))"],
+            check=False,
+        ).returncode
+    ):
         subprocess.run(
-            [sys.executable, "-m", "venv", "--clear", "--without-pip", str(venv)],
+            ["uv", "venv", "--clear", "--python", "3.12", "--quiet", str(venv)],
             check=True,
         )
     subprocess.run(
