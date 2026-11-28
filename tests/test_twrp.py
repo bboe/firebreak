@@ -68,6 +68,10 @@ def bcb_table(*, name: str = twrp.BCB) -> bytes:
     return gpt.rebuilt_gpt(entries=entries, raw=b"M" * 512 + bytes(header)).primary
 
 
+def hashed(*, data: bytes) -> str:
+    return f"{md5(data=data)}  -\n{twrp.MD5_OK}"
+
+
 def md5(*, data: bytes) -> str:
     return hashlib.md5(data, usedforsecurity=False).hexdigest() + "  -"
 
@@ -117,7 +121,7 @@ def test_a_fastboot_request_keeps_the_rest_of_the_sector(*, adb: FakeAdb) -> Non
     held = b"\0" * twrp.BCB_COMMAND_SIZE + b"H" * (512 - twrp.BCB_COMMAND_SIZE)
     want = b"bootonce-bootloader".ljust(twrp.BCB_COMMAND_SIZE, b"\0") + held[32:]
     adb.raws = [bcb_table(), held]
-    adb.answers["md5sum"] = [md5(data=b"old"), md5(data=want)]
+    adb.answers["md5sum"] = [hashed(data=b"old"), hashed(data=want)]
     adb.answers["/start"] = [f"{BCB_FIRST} {twrp.START_OK}"]
     adb.answers["flushed"] = ["flushed"]
     twrp.ask_fastboot(command=b"bootonce-bootloader")
@@ -131,6 +135,25 @@ def test_a_fastboot_request_without_a_misc_partition_stops_it(*, adb: FakeAdb) -
     with pytest.raises(FatalError, match=f"table has no {twrp.BCB}"):
         twrp.ask_fastboot(command=b"bootonce-bootloader")
     assert [words for words in adb.asked if words[1] == "push"] == []
+
+
+def test_a_hash_waits_in_proportion_to_what_it_reads(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    waits: list[float] = []
+
+    def shell(*, command: str, timeout: float) -> str:
+        del command
+        waits.append(timeout)
+        return hashed(data=b"x")
+
+    monkeypatch.setattr(name="adb_shell", target=twrp, value=shell)
+    for size in (1 << 20, 4 << 30):
+        assert twrp.hashed(command="md5sum", size=size) == md5(data=b"x").split()[0]
+    assert waits == [
+        twrp.HASH_WAIT + (1 << 20) / twrp.HASH_RATE,
+        twrp.HASH_WAIT + (4 << 30) / twrp.HASH_RATE,
+    ]
 
 
 @pytest.mark.parametrize(
@@ -312,7 +335,7 @@ def test_a_slice_the_dot_says_nothing_about_is_a_failure(
 
 
 def test_a_staged_write_lands_through_dd(*, adb: FakeAdb, image: pathlib.Path) -> None:
-    adb.answers["md5sum"] = [md5(data=b"old"), md5(data=image.read_bytes())]
+    adb.answers["md5sum"] = [hashed(data=b"old"), hashed(data=image.read_bytes())]
     adb.answers["of=" + twrp.DISK] = ["written"]
     adb.answers["flushed"] = ["flushed"]
     twrp.write(estimate=5, label="table", path=image, sector=8)
@@ -323,10 +346,36 @@ def test_a_staged_write_lands_through_dd(*, adb: FakeAdb, image: pathlib.Path) -
     )
 
 
+def test_a_staged_write_pushes_again_after_a_lost_push(
+    *, adb: FakeAdb, image: pathlib.Path
+) -> None:
+    adb.answers["md5sum"] = [hashed(data=b"old"), hashed(data=image.read_bytes())]
+    adb.answers["of=" + twrp.DISK] = ["written"]
+    adb.answers[str(twrp.DOT_TEMPORARY_DIRECTORY / image.name)] = [
+        (1, "adb: error: failed to read copy response: EOF"),
+        (0, "1 file pushed"),
+    ]
+    adb.answers["flushed"] = ["flushed"]
+    twrp.write(estimate=5, label="table", path=image, sector=8)
+    assert len([words for words in adb.asked if words[1] == "push"]) == 2
+    assert len(adb.commands(holding="of=" + twrp.DISK)) == 1
+
+
+def test_a_staged_write_pushes_and_writes_again_after_a_lost_dd(
+    *, adb: FakeAdb, image: pathlib.Path
+) -> None:
+    adb.answers["md5sum"] = [hashed(data=b"old"), hashed(data=image.read_bytes())]
+    adb.answers["of=" + twrp.DISK] = ["error: device offline", "written"]
+    adb.answers["flushed"] = ["flushed"]
+    twrp.write(estimate=5, label="table", path=image, sector=8)
+    assert len([words for words in adb.asked if words[1] == "push"]) == 2
+    assert len(adb.commands(holding="of=" + twrp.DISK)) == 2
+
+
 def test_a_staged_write_that_dd_does_not_finish_stops_it(
     *, adb: FakeAdb, image: pathlib.Path
 ) -> None:
-    adb.answers["md5sum"] = [md5(data=b"old")]
+    adb.answers["md5sum"] = [hashed(data=b"old")]
     adb.answers["of=" + twrp.DISK] = ["dd: write error"]
     with pytest.raises(FatalError, match="table failed"):
         twrp.write(estimate=5, label="table", path=image, sector=1)
@@ -336,7 +385,7 @@ def test_a_staged_write_that_dd_does_not_finish_stops_it(
 def test_a_staged_write_that_does_not_reach_the_dot_stops_it(
     *, adb: FakeAdb, image: pathlib.Path
 ) -> None:
-    adb.answers["md5sum"] = [md5(data=b"old")]
+    adb.answers["md5sum"] = [hashed(data=b"old")]
     adb.answers[str(twrp.DOT_TEMPORARY_DIRECTORY / image.name)] = [(1, "no space")]
     with pytest.raises(
         FatalError, match=r"did not reach the Echo Dot \(2nd Generation\)"
@@ -467,7 +516,7 @@ def test_a_system_partition_left_mounted_stops_it(
 def test_a_write_already_in_place_is_skipped(
     *, adb: FakeAdb, image: pathlib.Path
 ) -> None:
-    adb.answers["md5sum"] = [md5(data=image.read_bytes())]
+    adb.answers["md5sum"] = [hashed(data=image.read_bytes())]
     twrp.write(estimate=5, label="table", number=7, path=image, sector=8)
     assert [words for words in adb.asked if words[1] == "push"] == []
     assert len(adb.commands(holding="md5sum")) == 1
@@ -476,7 +525,7 @@ def test_a_write_already_in_place_is_skipped(
 def test_a_write_by_partition_checks_where_it_starts(
     *, adb: FakeAdb, image: pathlib.Path
 ) -> None:
-    adb.answers["md5sum"] = [md5(data=b"old")]
+    adb.answers["md5sum"] = [hashed(data=b"old")]
     adb.answers["/start"] = [f"9 {twrp.START_OK}"]
     with pytest.raises(FatalError, match="starts at 9, not 8"):
         twrp.write(estimate=5, label="boot", number=7, path=image, sector=8)
@@ -486,7 +535,7 @@ def test_a_write_by_partition_checks_where_it_starts(
 def test_a_write_by_partition_is_pushed_to_its_node(
     *, adb: FakeAdb, image: pathlib.Path
 ) -> None:
-    adb.answers["md5sum"] = [md5(data=b"old"), md5(data=image.read_bytes())]
+    adb.answers["md5sum"] = [hashed(data=b"old"), hashed(data=image.read_bytes())]
     adb.answers["/start"] = [f"8 {twrp.START_OK}"]
     adb.answers["flushed"] = ["flushed"]
     twrp.write(estimate=5, label="boot", number=7, path=image, sector=8)
@@ -496,7 +545,7 @@ def test_a_write_by_partition_is_pushed_to_its_node(
 def test_a_write_by_partition_pushes_again_after_a_lost_reply(
     *, adb: FakeAdb, image: pathlib.Path
 ) -> None:
-    adb.answers["md5sum"] = [md5(data=b"old"), md5(data=image.read_bytes())]
+    adb.answers["md5sum"] = [hashed(data=b"old"), hashed(data=image.read_bytes())]
     adb.answers["/start"] = [f"8 {twrp.START_OK}"]
     adb.answers[f"{twrp.DISK}p7"] = [
         (1, "adb: error: failed to read copy response: EOF"),
@@ -512,7 +561,7 @@ def test_a_write_by_partition_pushes_again_after_a_lost_reply(
 def test_a_write_by_partition_reads_a_lost_start_again(
     *, adb: FakeAdb, image: pathlib.Path
 ) -> None:
-    adb.answers["md5sum"] = [md5(data=b"old"), md5(data=image.read_bytes())]
+    adb.answers["md5sum"] = [hashed(data=b"old"), hashed(data=image.read_bytes())]
     adb.answers["/start"] = ["adb.exe: device 'G090' not found", f"8 {twrp.START_OK}"]
     adb.answers["flushed"] = ["flushed"]
     twrp.write(estimate=5, label="boot", number=7, path=image, sector=8)
@@ -523,7 +572,7 @@ def test_a_write_by_partition_reads_a_lost_start_again(
 def test_a_write_by_partition_that_push_refuses_stops_it(
     *, adb: FakeAdb, image: pathlib.Path
 ) -> None:
-    adb.answers["md5sum"] = [md5(data=b"old")]
+    adb.answers["md5sum"] = [hashed(data=b"old")]
     adb.answers["/start"] = [f"8 {twrp.START_OK}"]
     adb.answers[f"{twrp.DISK}p7"] = [(1, "remote write failed")]
     with pytest.raises(FatalError, match=r"(?s)failed 3 times.*remote write failed"):
@@ -535,7 +584,7 @@ def test_a_write_by_partition_that_push_refuses_stops_it(
 def test_a_write_by_partition_whose_start_never_answers_stops_it(
     *, adb: FakeAdb, image: pathlib.Path
 ) -> None:
-    adb.answers["md5sum"] = [md5(data=b"old")]
+    adb.answers["md5sum"] = [hashed(data=b"old")]
     adb.answers["/start"] = ["adb.exe: device 'G090' not found"]
     with pytest.raises(FatalError) as stopped:
         twrp.write(estimate=5, label="boot", number=7, path=image, sector=8)
@@ -546,10 +595,48 @@ def test_a_write_by_partition_whose_start_never_answers_stops_it(
     assert [words for words in adb.asked if words[1] == "push"] == []
 
 
+def test_a_write_flushes_again_after_a_lost_answer(
+    *, adb: FakeAdb, image: pathlib.Path
+) -> None:
+    adb.answers["md5sum"] = [hashed(data=b"old"), hashed(data=image.read_bytes())]
+    adb.answers["of=" + twrp.DISK] = ["written"]
+    adb.answers["flushed"] = ["error: device offline", "flushed"]
+    twrp.write(estimate=5, label="table", path=image, sector=8)
+    assert len(adb.commands(holding="flushed")) == 2
+    assert len(adb.commands(holding="wait-for-recovery")) == 1
+
+
+def test_a_write_reads_a_lost_opening_hash_again(
+    *, adb: FakeAdb, image: pathlib.Path
+) -> None:
+    adb.answers["md5sum"] = [
+        "adb.exe: device 'G090' not found",
+        hashed(data=image.read_bytes()),
+    ]
+    twrp.write(estimate=5, label="table", path=image, sector=8)
+    assert len(adb.commands(holding="wait-for-recovery")) == 1
+    assert [words for words in adb.asked if words[1] == "push"] == []
+
+
+def test_a_write_reads_a_lost_read_back_again(
+    *, adb: FakeAdb, image: pathlib.Path
+) -> None:
+    adb.answers["md5sum"] = [
+        hashed(data=b"old"),
+        "adb.exe: device 'G090' not found",
+        hashed(data=image.read_bytes()),
+    ]
+    adb.answers["of=" + twrp.DISK] = ["written"]
+    adb.answers["flushed"] = ["flushed"]
+    twrp.write(estimate=5, label="table", path=image, sector=8)
+    assert len(adb.commands(holding="wait-for-recovery")) == 1
+    assert len(adb.commands(holding="of=" + twrp.DISK)) == 1
+
+
 def test_a_write_that_does_not_flush_stops_it(
     *, adb: FakeAdb, image: pathlib.Path
 ) -> None:
-    adb.answers["md5sum"] = [md5(data=b"old")]
+    adb.answers["md5sum"] = [hashed(data=b"old")]
     adb.answers["of=" + twrp.DISK] = ["written"]
     with pytest.raises(FatalError, match="could not be flushed"):
         twrp.write(estimate=5, label="table", path=image, sector=8)
@@ -559,7 +646,7 @@ def test_a_write_that_does_not_verify_stops_it(
     *, adb: FakeAdb, erased: None, image: pathlib.Path
 ) -> None:
     del erased
-    adb.answers["md5sum"] = [md5(data=b"old")]
+    adb.answers["md5sum"] = [hashed(data=b"old")]
     adb.answers["of=" + twrp.DISK] = ["written"]
     adb.answers["flushed"] = ["flushed"]
     with pytest.raises(FatalError, match="did not verify") as stopped:
@@ -569,12 +656,22 @@ def test_a_write_that_does_not_verify_stops_it(
     )
 
 
+def test_a_write_whose_read_back_never_answers_stops_it(
+    *, adb: FakeAdb, image: pathlib.Path
+) -> None:
+    adb.answers["md5sum"] = [hashed(data=b"old"), "error: closed"]
+    adb.answers["of=" + twrp.DISK] = ["written"]
+    adb.answers["flushed"] = ["flushed"]
+    with pytest.raises(FatalError, match="could not be read back after 3 tries"):
+        twrp.write(estimate=5, label="table", path=image, sector=8)
+
+
 def test_a_write_with_a_matching_head_still_checks_the_whole(
     *, adb: FakeAdb, image: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(name="HEAD_CHECK", target=twrp, value=4096)
-    head = md5(data=image.read_bytes()[:4096])
-    adb.answers["md5sum"] = [head, md5(data=b"old"), md5(data=image.read_bytes())]
+    head = hashed(data=image.read_bytes()[:4096])
+    adb.answers["md5sum"] = [head, hashed(data=b"old"), hashed(data=image.read_bytes())]
     adb.answers["of=" + twrp.DISK] = ["written"]
     adb.answers["flushed"] = ["flushed"]
     twrp.write(estimate=5, label="table", path=image, sector=8)
@@ -702,7 +799,7 @@ def test_toybox_writes_a_staged_image_without_truncating(
     *, adb: FakeAdb, image: pathlib.Path
 ) -> None:
     twrp.SESSION.dd = "toybox dd"
-    adb.answers["md5sum"] = [md5(data=b"old"), md5(data=image.read_bytes())]
+    adb.answers["md5sum"] = [hashed(data=b"old"), hashed(data=image.read_bytes())]
     adb.answers["of=" + twrp.DISK] = ["written"]
     adb.answers["flushed"] = ["flushed"]
     twrp.write(estimate=5, label="table", path=image, sector=8)

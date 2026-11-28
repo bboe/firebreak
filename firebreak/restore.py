@@ -17,9 +17,9 @@ from firebreak.devices import DEVICES
 from firebreak.entry import known_device, twrp_entry
 from firebreak.host import (
     DOT_TEMPORARY_DIRECTORY,
+    PUSH_TRIES,
     adb_shell,
     devices,
-    md5_mismatch,
     push_checked,
     run,
     usb_serial,
@@ -30,6 +30,7 @@ from firebreak.twrp import (
     DISK,
     clear_boot0,
     detect_dd,
+    hashed,
     unmount,
     wait_for_twrp_start,
     write,
@@ -341,13 +342,28 @@ def written(*, area: dict, path: pathlib.Path) -> None:
         )
         return
     PROGRESS.begin(estimate=estimate, label=label)
-    if not md5_mismatch(command=f"md5sum {node}", want=area["md5"]):
+    want = area["md5"]
+    if hashed(command=f"md5sum {node}", remote=node, size=area["size"]) == want:
         PROGRESS.end(skipped=True)
         return
     staged = DOT_TEMPORARY_DIRECTORY / path.name
     push_checked(advice="Do not reboot. ", local=path, remote=staged)
-    adb_shell(command=Shell.BOOT_AREA.value.format(area=area["name"], source=staged))
-    wrong = md5_mismatch(command=f"md5sum {node}", want=area["md5"])
-    if wrong:
-        raise FatalError(message=f"{area['name']} did not verify{wrong}; do not reboot")
+    got = ""
+    for _ in range(PUSH_TRIES):
+        adb_shell(
+            command=Shell.BOOT_AREA.value.format(area=area["name"], source=staged)
+        )
+        got = hashed(command=f"md5sum {node}", remote=node, size=area["size"])
+        if got in {want, ""}:
+            break
+    if not got:
+        raise FatalError(
+            message=f"{area['name']} could not be read back after {PUSH_TRIES}"
+            " tries; do not reboot"
+        )
+    if got != want:
+        raise FatalError(
+            message=f"{area['name']} did not verify: read {got}, expected {want};"
+            " do not reboot"
+        )
     PROGRESS.end()

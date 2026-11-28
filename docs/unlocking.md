@@ -2374,6 +2374,25 @@ locked fastboot gets the fastbrick, and in any TWRP the restore runs.
   same image cleanly. A push that fails part way leaves a partial image, which
   the next try overwrites from its start, and the md5 read-back after the
   last push decides.
+- The rest of the write retries the same way, up to 3 times with a wait for
+  the Echo to reconnect. Its md5 reads, of the head and of the whole, end with
+  a marker of their own, so a cut answer is read again rather than taken for
+  different bytes: before, a drop during the first read rewrote a partition
+  that already held the image, about 240 s for `system`, and one during the
+  read-back stopped the run with "did not verify" after a write that may have
+  been whole. The flush is asked again until it answers `flushed`. A write
+  through `/tmp` pushes and runs `dd` again together, because a `dd` whose
+  answer was lost after its `rm` has no file left to read. The same bytes
+  written twice to the same sectors do no harm, and the read-back decides.
+  `restore` writes boot0 and boot1 its own way, from a copy in `/tmp` that
+  the write leaves in place, so a read-back that answers with the wrong hash
+  writes that copy again, up to 3 times, before it stops with "did not
+  verify".
+- Each of those md5 reads waits 30 s plus its size at 5 MiB/s, well under the
+  18 MiB/s a read-back ran at on bryce. A fixed 300 s gave the 1 MiB head
+  minutes it never needs, and a multi-GiB `userdata` read-back too little: at
+  18 MiB/s, 4 GiB takes about 230 s. `md5sum` prints only at the end, so the
+  wait cannot watch the read's progress.
 - boot0 is the one write whose read-back names the node it wrote, so there a
   regular file would match itself and pass. Hence the check that it is a block
   device. For the same reason the cleared header is counted twice, bytes read

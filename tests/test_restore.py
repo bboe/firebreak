@@ -134,6 +134,10 @@ def made(*, cache: pathlib.Path, folder: pathlib.Path) -> dict:
     return manifest
 
 
+def marked(md5: str) -> str:
+    return f"{md5}  -\n{twrp.MD5_OK}"
+
+
 def test_attached_serial_reads_adb_then_fastboot(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -401,7 +405,7 @@ def test_restore_writes_every_area_with_the_tables_first_and_boot0_last(
     folder = tmp_path / "backup"
     made(cache=restore.CACHE, folder=folder)
     held = hashlib.md5(BOOT0, usedforsecurity=False).hexdigest()
-    adb.answers["md5sum /dev/block/mmcblk0boot0"] = ["0" * 32, held]
+    adb.answers["md5sum /dev/block/mmcblk0boot0"] = [marked("0" * 32), marked(held)]
     adb.answers["md5sum /tmp/boot0.img"] = [held]
     adb.answers["/proc/partitions"] = [f"179 3 2 mmcblk0p3\n{restore.READ_OK}"]
     contents = {}
@@ -434,10 +438,10 @@ def test_written_stops_on_a_boot_area_that_does_not_verify(
     held = area(
         extents=[], first=None, held=BOOT0, name="boot1", node=f"{twrp.DISK}boot1"
     )
-    adb.answers["md5sum /dev/block/mmcblk0boot1"] = [held["md5"]]
+    adb.answers["md5sum /dev/block/mmcblk0boot1"] = [marked(held["md5"])]
     restore.written(area=held, path=path)
     assert not adb.commands(holding="force_ro")
-    adb.answers["md5sum /dev/block/mmcblk0boot1"] = ["0" * 32]
+    adb.answers["md5sum /dev/block/mmcblk0boot1"] = [marked("0" * 32)]
     adb.answers["/tmp/boot1.img"] = [(1, "no room")]
     with pytest.raises(FatalError, match="did not arrive intact after 3 tries"):
         restore.written(area=held, path=path)
@@ -446,3 +450,39 @@ def test_written_stops_on_a_boot_area_that_does_not_verify(
     adb.answers["/tmp/boot1.img"] = [(0, "")]
     with pytest.raises(FatalError, match="boot1 did not verify"):
         restore.written(area=held, path=path)
+    assert len(adb.commands(holding="mmcblk0boot1/force_ro")) == twrp.PUSH_TRIES
+
+
+def test_written_stops_on_a_boot_area_that_never_answers(
+    *, adb: FakeAdb, tmp_path: pathlib.Path
+) -> None:
+    path = tmp_path / "boot1.img"
+    path.write_bytes(data=BOOT0)
+    held = area(
+        extents=[], first=None, held=BOOT0, name="boot1", node=f"{twrp.DISK}boot1"
+    )
+    adb.answers["md5sum /dev/block/mmcblk0boot1"] = [marked("0" * 32), "error: closed"]
+    adb.answers["md5sum /tmp/boot1.img"] = [held["md5"]]
+    with pytest.raises(FatalError, match="boot1 could not be read back after 3 tries"):
+        restore.written(area=held, path=path)
+    assert len(adb.commands(holding="mmcblk0boot1/force_ro")) == 1
+
+
+def test_written_writes_a_boot_area_again_when_its_read_back_differs(
+    *, adb: FakeAdb, tmp_path: pathlib.Path
+) -> None:
+    path = tmp_path / "boot1.img"
+    path.write_bytes(data=BOOT0)
+    held = area(
+        extents=[], first=None, held=BOOT0, name="boot1", node=f"{twrp.DISK}boot1"
+    )
+    adb.answers["md5sum /dev/block/mmcblk0boot1"] = [
+        marked("0" * 32),
+        "adb.exe: device 'G090' not found",
+        marked("1" * 32),
+        marked(held["md5"]),
+    ]
+    adb.answers["md5sum /tmp/boot1.img"] = [held["md5"]]
+    restore.written(area=held, path=path)
+    assert len(adb.commands(holding="mmcblk0boot1/force_ro")) == 2
+    assert len(adb.commands(holding="wait-for-recovery")) == 1

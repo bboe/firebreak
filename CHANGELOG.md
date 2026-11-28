@@ -6,6 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- A TWRP partition write that loses adb's answer at its md5 reads, its flush,
+  or its push and `dd` through `/tmp` waits for the Echo to reconnect and tries
+  again, up to 3 times, as its start-sector read and its push to a partition
+  already did. Before, a lost first read rewrote an image already in place,
+  and the others stopped the run with "do not reboot". `restore`'s boot0 and
+  boot1 retry their md5 reads the same way, and write the area again when its
+  read-back differs. Each of those reads waits 30 s plus its size at 5 MiB/s,
+  where every read waited 300 s.
 - An OTA's `system.transfer.list` command whose block count does not match
   its numbers, or is odd, stops the run with that reason. Before, a wrong
   count went unchecked, and an odd one left its last number out of the image.

@@ -53,8 +53,13 @@ CLEAR_BOOT0 = (
 )
 DISK = "/dev/block/mmcblk0"
 FLUSH = "sync && echo 3 > /proc/sys/vm/drop_caches && echo flushed"
+FLUSHED = "flushed"
 GUNZIP_FAILED = "gunzip-failed"
+HASH_RATE = 5 << 20
+HASH_WAIT = 30
 HEAD_CHECK = 1 << 20
+MD5_LENGTH = 32
+MD5_OK = "md5-ok"
 NODES = (
     "b=; for p in {pairs}; do n=${{p%:*}}; s=${{p#*:}};"
     ' g=$([ -b "$n" ] && blockdev --getsize64 "$n" || echo no);'
@@ -90,6 +95,23 @@ UNMOUNT = (
 )
 
 
+def answered(
+    *,
+    accept: Callable[[list[str]], bool],
+    command: str,
+    remote: str,
+    timeout: float = 60,
+) -> tuple[bool, list[str]]:
+    said: list[str] = []
+    for attempt in range(PUSH_TRIES):
+        said = adb_shell(command=command, timeout=timeout).split(sep="\n")
+        if accept(said):
+            return True, said
+        if attempt + 1 < PUSH_TRIES:
+            reconnect(read=True, remote=remote)
+    return False, said
+
+
 def ask_fastboot(*, command: bytes, what: str = "fastboot") -> None:
     raw = read_sectors(count=TABLE_SECTORS, start=0)
     partition = partition_map(entries=raw[2 * SECTOR_SIZE :][:ENTRIES_SIZE]).get(BCB)
@@ -118,17 +140,23 @@ def check_nodes(*, want: dict[str, int]) -> str:
     command = NODES.format(
         pairs=" ".join(f"{node}:{size}" for node, size in want.items())
     )
-    for attempt in range(PUSH_TRIES):
-        said = last_line(said=adb_shell(command=command, timeout=60))
-        if said.endswith("nodes-ok"):
-            read = [token.partition("=") for token in said[: -len("nodes-ok")].split()]
-            if all(node in want for node, _, _ in read):
-                return ", ".join(
-                    f"{node} reads {got}, not {want[node]} bytes"
-                    for node, _, got in read
-                )
-        if attempt + 1 < PUSH_TRIES:
-            reconnect(read=True, remote=DISK)
+
+    def read(lines: list[str]) -> list[tuple[str, str, str]] | None:
+        said = lines[-1]
+        if not said.endswith("nodes-ok"):
+            return None
+        found = [token.partition("=") for token in said[: -len("nodes-ok")].split()]
+        return found if all(node in want for node, _, _ in found) else None
+
+    ok, lines = answered(
+        accept=lambda lines: read(lines) is not None, command=command, remote=DISK
+    )
+    if ok:
+        return ", ".join(
+            f"{node} reads {got}, not {want[node]} bytes"
+            for node, _, got in read(lines) or []
+        )
+    said = lines[-1]
     raise FatalError(
         message=f"the {title()} did not answer which of its partitions are block"
         f" devices: {said!r}. " + again()
@@ -157,18 +185,36 @@ def detect_dd(*, asked: Callable[..., str]) -> None:
         SESSION.dd = TOYBOX_DD
 
 
+def hashed(*, command: str, remote: str = DISK, size: int) -> str:
+    ok, said = answered(
+        accept=lambda said: (
+            said[-1] == MD5_OK
+            and len(said) > 1
+            and len(said[-2].split(sep=" ")[0]) == MD5_LENGTH
+        ),
+        command=f"{command}; echo {MD5_OK}",
+        remote=remote,
+        timeout=HASH_WAIT + size / HASH_RATE,
+    )
+    return said[-2].split(sep=" ")[0] if ok else ""
+
+
 def no_truncate() -> str:
     return " conv=notrunc" if SESSION.dd == TOYBOX_DD else ""
 
 
 def partition_start(*, number: int) -> str:
     command = f'echo "$(cat /sys/class/block/mmcblk0p{number}/start) {START_OK}"'
-    for attempt in range(PUSH_TRIES):
-        said = last_line(said=adb_shell(command=command, timeout=60)).split()
-        if said[1:] == [START_OK] and said[0].isdecimal():
-            return said[0]
-        if attempt + 1 < PUSH_TRIES:
-            reconnect(read=True, remote=f"{DISK}p{number}")
+    ok, lines = answered(
+        accept=lambda lines: (
+            lines[-1].split()[1:] == [START_OK] and lines[-1].split()[0].isdecimal()
+        ),
+        command=command,
+        remote=f"{DISK}p{number}",
+    )
+    said = lines[-1].split()
+    if ok:
+        return said[0]
     raise FatalError(
         message=f"the {title()} did not answer where {DISK}p{number} starts:"
         f" {' '.join(said) or 'nothing'}. " + again()
@@ -176,13 +222,16 @@ def partition_start(*, number: int) -> str:
 
 
 def partition_table() -> str:
-    command = f"sgdisk --print {DISK}; echo {TABLE_OK}"
-    for attempt in range(PUSH_TRIES):
-        said = adb_shell(command=command, timeout=30).split(sep="\n")
-        if said[-1] == TABLE_OK and any(" userdata" in line for line in said):
-            return "\n".join(said[:-1])
-        if attempt + 1 < PUSH_TRIES:
-            reconnect(read=True, remote=DISK)
+    ok, said = answered(
+        accept=lambda said: (
+            said[-1] == TABLE_OK and any(" userdata" in line for line in said)
+        ),
+        command=f"sgdisk --print {DISK}; echo {TABLE_OK}",
+        remote=DISK,
+        timeout=30,
+    )
+    if ok:
+        return "\n".join(said[:-1])
     raise FatalError(
         message=f"sgdisk did not print the {title()}'s partition table:\n"
         + "\n".join(said)
@@ -275,6 +324,32 @@ def sliced_system(*, slices: list[pathlib.Path], system: str) -> str:
         if last_line(said=said) != SLICE_OK:
             return said or f"the {title()} said nothing about {piece.name}"
     return ""
+
+
+def staged_write(
+    *, block_size: int, label: str, offset: int, path: pathlib.Path
+) -> None:
+    staged = DOT_TEMPORARY_DIRECTORY / path.name
+    for attempt in range(PUSH_TRIES):
+        pushed = run(arguments=["adb", "push", path, staged], timeout=120)
+        done = (
+            adb_shell(
+                command=f"{SESSION.dd} if={staged} of={DISK} bs={block_size}"
+                f" seek={offset}{no_truncate()} && rm -f {staged} && echo written"
+            )
+            if pushed.returncode == 0
+            else ""
+        )
+        if last_line(said=done) == "written":
+            return
+        if attempt + 1 < PUSH_TRIES:
+            reconnect(remote=staged)
+    if pushed.returncode != 0:
+        raise FatalError(
+            message=f"{label} did not reach the {title()}; do not reboot:"
+            f"\n{pushed.stdout}"
+        )
+    raise FatalError(message=f"{label} failed; do not reboot:\n{done}")
 
 
 def stdin_carries() -> bool:
@@ -410,12 +485,12 @@ def write(
     want = digest(kind="md5", path=path)
     head = min(size, HEAD_CHECK)
     PROGRESS.begin(estimate=estimate, label=label)
-    same_head = head == size or not md5_mismatch(
+    same_head = head == size or hashed(
         command=f"{SESSION.dd} if={DISK} bs={block_size} skip={offset}"
         f" count={head // block_size} 2>/dev/null | md5sum",
-        want=digest(kind="md5", limit=head, path=path),
-    )
-    if same_head and not md5_mismatch(command=verify, want=want):
+        size=head,
+    ) == digest(kind="md5", limit=head, path=path)
+    if same_head and hashed(command=verify, size=size) == want:
         PROGRESS.end(skipped=True)
         return
     if number is not None:
@@ -427,24 +502,23 @@ def write(
             )
         push_to_node(label=label, node=f"{DISK}p{number}", path=path)
     else:
-        staged = DOT_TEMPORARY_DIRECTORY / path.name
-        pushed = run(arguments=["adb", "push", path, staged], timeout=120)
-        if pushed.returncode != 0:
-            raise FatalError(
-                message=f"{label} did not reach the {title()}; do not reboot:"
-                f"\n{pushed.stdout}"
-            )
-        done = adb_shell(
-            command=f"{SESSION.dd} if={staged} of={DISK} bs={block_size} seek={offset}"
-            f"{no_truncate()} && rm -f {staged} && echo written"
-        )
-        if last_line(said=done) != "written":
-            raise FatalError(message=f"{label} failed; do not reboot:\n{done}")
-    if last_line(said=adb_shell(command=FLUSH)) != "flushed":
+        staged_write(block_size=block_size, label=label, offset=offset, path=path)
+    flushed, _ = answered(
+        accept=lambda said: said[-1] == FLUSHED, command=FLUSH, remote=DISK
+    )
+    if not flushed:
         raise FatalError(message=label + " could not be flushed; do not reboot")
-    wrong = md5_mismatch(command=verify, want=want)
-    if wrong:
-        raise FatalError(message=f"{label} did not verify{wrong}; do not reboot")
+    got = hashed(command=verify, size=size)
+    if not got:
+        raise FatalError(
+            message=f"{label} could not be read back after {PUSH_TRIES} tries;"
+            " do not reboot"
+        )
+    if got != want:
+        raise FatalError(
+            message=f"{label} did not verify: read {got}, expected {want};"
+            " do not reboot"
+        )
     PROGRESS.end()
 
 
