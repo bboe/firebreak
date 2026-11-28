@@ -1318,6 +1318,27 @@ def test_fire_os_6_restarts_a_donut_into_twrp_through_fastboot(
 
 
 @pytest.mark.usefixtures("fireos6")
+def test_fire_os_6_roots_a_build_newer_than_the_target_in_place(
+    *,
+    adb: FakeAdb,
+    monkeypatch: pytest.MonkeyPatch,
+    pushed: list[tuple[pathlib.Path, str]],
+) -> None:
+    monkeypatch.setattr(name="factory_reset", target=fireos.ARGUMENTS, value=False)
+    adb.answers["bcbtool get_active"] = ["0\na\nslot-ok"]
+    adb.answers["build-ok"] = [
+        "mount-ok\nro.build.version.name=Fire OS 6575.1 (NS65751/8888)\nbuild-ok"
+    ]
+    fireos.stage_install_fireos6()
+    assert [remote for _, remote in pushed] == [
+        "/sdcard/boot-root.zip",
+        "/tmp/adbkey.pub",
+    ]
+    assert adb.commands(holding="twrp install /sdcard/update.zip") == []
+    assert adb.commands(holding="twrp wipe") == []
+
+
+@pytest.mark.usefixtures("fireos6")
 def test_fire_os_6_says_to_power_cycle_when_the_reboot_never_goes(
     *, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch
 ) -> None:

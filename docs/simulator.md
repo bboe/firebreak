@@ -18,10 +18,28 @@ FIREBREAK_SIM_ELEVATES=0 DEVICE=donut START=stock-booted simulator/run.sh OUT un
 DEVICE=donut START=twrp simulator/run.sh OUT stock 8349
 DEVICE=radar START=twrp simulator/run.sh OUT backup BACKUP
 DEVICE=radar simulator/run.sh OUT restore --force BACKUP
+uvx --with tox-uv tox -e simulator                # every simulator test
+uvx --with tox-uv tox -e simulator -- -m donut     # one device's
+uvx --with tox-uv tox -e simulator -- -m pr        # the runs each PR gets
 python3 simulator/trace.py OUT.jsonl             # one command per line, for diff
 python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per range
 ```
 
+- The `simulator` tox env runs `simulator/tests` with pytest. They run only
+  with `--simulator`, which the env passes, and pytest's `testpaths` leaves
+  them out of a plain `pytest` or `tox`, because each starts Docker and the
+  whole set took 18 minutes on a Mac. Each test is marked with its device, so
+  `-m` picks one device's. The four marked `pr` are the least that covers each
+  route's machinery once: `unlock` on each device from its simulated stock,
+  which writes Fire OS 6 over userdata on a biscuit and a radar and roots a
+  donut's 8349 in place, and a biscuit's `stock` of the default 8349. The rest
+  cover one route each: the Fire OS 5 move, `--factory-reset`, a donut's
+  `stock`, a radar backup and its restore, and the entry commands. Which build
+  a route starts from is the unit tests' concern, so no test repeats a route
+  per build. The entry tests run firebreak twice per case; the
+  route tests run `run.sh` once per route, a radar backup and its restore
+  included, and need firebreak's exit status 0 and its verdict. Each test's
+  logs are in its pytest temporary folder.
 - `run.sh` makes a new Dot, runs firebreak, and leaves `OUT.log`, the trace
   (`OUT.jsonl` and `OUT.txt`), a disk snapshot (`OUT.snapshot`) and the raw
   partition table (`OUT.table`: LBA 0 to 33, then the last 33 sectors).
@@ -79,9 +97,9 @@ python3 simulator/trace.py --commands OUT.jsonl  # with the payload commands per
   bootrom and the fastbrick included, so it proves nothing about reaching
   TWRP. It is what makes `stock` reach the restore, which otherwise only a
   full unlock run would get to.
-- `simulator/entries.sh OUT` runs each entry command twice on a fresh Echo,
-  once to act and once to find the state it left, and checks what each run
-  says. It is the grid the entry commands are held to, 34 cases over the
+- `simulator/tests/test_entries.py` runs each entry command twice on a fresh
+  Echo, once to act and once to find the state it left, and checks what each
+  run says. It is the grid the entry commands are held to, 34 cases over the
   three devices: `fastboot` and `twrp` from an amonet TWRP, from stock
   fastboot and from a stock boot; `twrp` from an amonet fastboot; `twrp
   --force` from the
