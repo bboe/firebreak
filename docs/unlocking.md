@@ -1111,11 +1111,14 @@ unlock's, not the stock bytes.
 
 ## The host
 
-- Python 3.9 or later, because stock macOS's `/usr/bin/python3` is 3.9.6. CI
-  runs its `--help` on that interpreter, and `tests/test_python_floor.py` checks
-  that the package uses no module, attribute or import 3.9.6 lacks.
-- The standard library only, so the script runs on stock macOS, Linux and
-  Windows. adb and fastboot are the only external tools.
+- Python 3.12 or later. Every documented way to run firebreak goes through
+  uvx, which downloads a Python where none that new is installed, on macOS,
+  Linux and Windows alike, so the floor costs a user one download at most.
+  3.9 and 3.10 are past their end of life, and 3.12 has security fixes until
+  October 2028. The floor was Apple's `/usr/bin/python3`, 3.9.6, before.
+- The standard library and three pinned dependencies, so one uvx command
+  runs it on macOS, Linux and Windows. adb and fastboot are the only external
+  tools.
 - A Python from the Microsoft Store writes under `%LOCALAPPDATA%` into its
   own `Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache`
   copy, and the processes it starts do not see that copy. Measured on Windows

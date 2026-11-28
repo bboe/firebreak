@@ -32,10 +32,8 @@ Run the checks that CI runs:
 uvx --with tox-uv tox
 ```
 
-- The code runs on Python 3.9.6, Apple's `/usr/bin/python3`, with the
-  standard library and three pinned dependencies. A test fails on most uses
-  of an API that 3.9.6 does not have, but it cannot see methods on objects.
-  Run the code on 3.9.6 to be sure.
+- The code runs on Python 3.12 or later, with the standard library and three
+  pinned dependencies.
 - Each module but `__main__.py` keeps 90% line coverage. The tests fake adb,
   pyserial and amonet, so they need no Echo.
 - Put no explanatory comments in the code. Write the why in

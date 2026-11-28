@@ -10,7 +10,7 @@ license = "BSD-2-Clause"
 license-files = ["LICENSE.txt"]
 name = "firebreak"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 
 [project.optional-dependencies]
 brotli = ["Brotli==1.1.0"]
@@ -75,7 +75,7 @@ spaces_indent_inline_array = 4
 trailing_comma_inline_array = true
 
 [tool.tox]
-env_list = ["lint", "build", "floor"]
+env_list = ["lint", "build", "test"]
 requires = ["tox>=4.21", "tox-uv"]
 
 [tool.tox.env.build]
@@ -83,8 +83,14 @@ allowlist_externals = ["rm", "uv"]
 commands = [["rm", "-rf", "build", "dist"], ["uv", "build", "--quiet"]]
 skip_install = true
 
-[tool.tox.env.floor]
-base_python = ["/usr/bin/python3"]
+[tool.tox.env.lint]
+commands = [["pre-commit", "run", "--all-files", "--show-diff-on-failure"]]
+deps = ["pre-commit==4.6.2"]
+set_env = { SKIP = "no-commit-to-branch" }
+skip_install = true
+
+[tool.tox.env.test]
+base_python = ["3.12"]
 commands = [
     ["coverage", "run", "-m", "pytest", { replace = "posargs", extend = true }],
     ["coverage", "combine", "--quiet"],
@@ -101,9 +107,3 @@ depends = ["build"]
 deps = ["coverage==7.10.7", "pytest"]
 extras = ["brotli"]
 package = "wheel"
-
-[tool.tox.env.lint]
-commands = [["pre-commit", "run", "--all-files", "--show-diff-on-failure"]]
-deps = ["pre-commit==4.6.2"]
-set_env = { SKIP = "no-commit-to-branch" }
-skip_install = true

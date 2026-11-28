@@ -15,35 +15,30 @@ covers the plugin API: devices, unlocks and their plans.
 ## Commands
 
 ```sh
-uvx --with tox-uv tox            # lint, build, then floor, as CI runs them
+uvx --with tox-uv tox            # lint, build, then test, as CI runs them
 uvx --with tox-uv tox -e lint    # pre-commit-hooks, CodeSorter, markdownlint, ruff, toml-sort
 uvx --with tox-uv tox -e build   # dist/: wheel and sdist
-uvx --with tox-uv tox -e build,floor   # macOS only: pytest and coverage on Apple's 3.9.6
+uvx --with tox-uv tox -e build,test    # pytest and coverage on Python 3.12
 ```
 
 ## Rules
 
-- Python 3.9 or later. There are three dependencies, each pinned exactly:
-  pyserial, which the emOS probe and the bootrom step open a port with, pyusb,
-  which a donut's bootrom is driven over because a serial port cannot reach it,
-  and update_checker, which tells a run that PyPI has a newer firebreak. One
-  extra, `brotli`, is pinned the same way and installs only on request: it
-  reads the brotli `system` and `vendor` data athena's and theia's OTAs ship,
-  which no route needs. Everything else is the standard library. Users run it
+- Python 3.12 or later, which uvx downloads where none is installed. There
+  are three dependencies, each pinned exactly: pyserial, which the emOS probe
+  and the bootrom step open a port with, pyusb, which a donut's bootrom is
+  driven over because a serial port cannot reach it, and update_checker,
+  which tells a run that PyPI has a newer firebreak. One extra, `brotli`, is
+  pinned the same way and installs only on request: it reads the brotli
+  `system` and `vendor` data athena's and theia's OTAs ship, which no route
+  needs. Everything else is the standard library. Users run it
   with `uvx firebreak@latest` from PyPI, or
   `uvx 'firebreak[brotli]@latest'` to survey those two.
 - A release is a `v` tag matching `__version__` in `firebreak/__init__.py`,
   which hatchling also reads for the package. `release.yml` publishes the
   wheel to PyPI by trusted publishing and attaches the sdist and wheel to a
   GitHub release. Each release adds its dated section to `CHANGELOG.md` first.
-- The floor is Apple's `/usr/bin/python3`, 3.9.6, not the newest 3.9. Later 3.9
-  releases added APIs it lacks. `tests/test_python_floor.py` fails on any
-  import, or any attribute reached through a module's name, that 3.9.6 lacks,
-  and on `filter=` to the extract calls. It cannot see methods on objects or
-  other keyword arguments. It runs on macOS, so a Windows-only name fails it
-  even behind a platform check. CI runs it on a macOS runner.
 - Every module but `__main__.py` keeps 90% line coverage, each on its own.
-  `floor` fails a module below that. CI puts the report in the job summary
+  `test` fails a module below that. CI puts the report in the job summary
   and the HTML in a `coverage` artifact. The tests build their own payloads, boot
   images and tables, and fake adb, pyserial and amonet; none needs a Dot or a
   download.

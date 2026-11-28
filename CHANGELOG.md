@@ -28,6 +28,9 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
+- firebreak needs Python 3.12 or later, where it needed 3.9. `uvx` downloads
+  one where none is installed, so the documented commands are unchanged.
+  Apple's `/usr/bin/python3`, 3.9.6, no longer runs it.
 - On Windows, the wait for amonet's fastboot after a bootrom write, and
   the wait for an Echo to name its device, say that the fastboot driver is
   missing when Windows lists an Echo in fastboot and `fastboot devices` does

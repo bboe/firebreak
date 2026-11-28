@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import dataclasses
 import sys
 from typing import TYPE_CHECKING
@@ -13,26 +12,6 @@ from firebreak.devices import BISCUIT, BUILDS, DEFAULTS, RADAR, TARGETS
 
 if TYPE_CHECKING:
     from firebreak.plugin import Device
-
-
-def parse_into_namespace(*, monkeypatch: pytest.MonkeyPatch) -> None:
-    subparsers = argparse._SubParsersAction  # ruff: ignore[private-member-access]
-
-    def call(
-        self: argparse._SubParsersAction,
-        parser: argparse.ArgumentParser,
-        namespace: argparse.Namespace,
-        values: list[str],
-        option_string: str | None = None,  # ruff: ignore[unused-function-argument]
-    ) -> None:
-        name, *rest = values
-        setattr(namespace, self.dest, name)
-        chosen = self._name_parser_map[name]
-        _, extras = chosen.parse_known_args(rest, namespace)
-        if extras:
-            parser.error(message="unrecognized arguments: " + " ".join(extras))
-
-    monkeypatch.setattr(name="__call__", target=subparsers, value=call)
 
 
 def ran(*, device: Device, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -352,15 +331,11 @@ def test_a_target_only_one_device_has_reads_no_bootrom(
         main.cli()
 
 
-@pytest.mark.parametrize("into_namespace", [False, True], ids=["3.9.6", "bpo-45235"])
 def test_an_option_before_a_command_that_does_not_take_it_is_refused(
     *,
     capsys: pytest.CaptureFixture[str],
-    into_namespace: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    if into_namespace:
-        parse_into_namespace(monkeypatch=monkeypatch)
     monkeypatch.setattr(
         name="argv", target=sys, value=["firebreak", "--force", "report"]
     )
@@ -405,16 +380,12 @@ def test_no_newer_release_says_nothing(
         (["report", "--verbose"], ("report", "", False, None, True)),
     ],
 )
-@pytest.mark.parametrize("into_namespace", [False, True], ids=["3.9.6", "bpo-45235"])
 def test_options_count_before_or_after_the_target_or_command(
     *,
     arguments: list[str],
-    into_namespace: bool,
     monkeypatch: pytest.MonkeyPatch,
     parsed: tuple[object, ...],
 ) -> None:
-    if into_namespace:
-        parse_into_namespace(monkeypatch=monkeypatch)
     monkeypatch.setattr(name="argv", target=sys, value=["firebreak", *arguments])
     options = main.parsed()
     assert (

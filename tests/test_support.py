@@ -112,7 +112,8 @@ class Dot:
 
 
 @pytest.fixture
-def legs(*, monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
+def legs(*, adb: FakeAdb, monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
+    del adb
     ran: list[dict[str, object]] = []
     monkeypatch.setattr(name="probed", target=support, value=lambda: "none")
     monkeypatch.setattr(name="into_recovery", target=support, value=lambda **_: True)
@@ -575,6 +576,7 @@ def test_the_write_test_cleans_up_after_a_failed_leg(
     assert adb.commands(holding="rm -f")
 
 
+@pytest.mark.usefixtures("adb")
 def test_the_write_test_leaves_a_stale_hold_for_a_booted_echo(
     *, monkeypatch: pytest.MonkeyPatch
 ) -> None:
