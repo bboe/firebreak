@@ -145,7 +145,7 @@ def boot() -> None:
             f" 179 {number:>8} {sectors * SECTOR // 1024:>10} mmcblk0p{number}"
         )
         starts[number] = (first, sectors)
-    for minor, side in zip((96, 64, 32), ("rpmb", "boot1", "boot0")):
+    for minor, side in zip((96, 64, 32), ("rpmb", "boot1", "boot0"), strict=True):
         path = DISK / f"{side}.img"
         node(minor=loop(path=path, protected=side in PROTECTED), name=f"mmcblk0{side}")
         partitions.append(

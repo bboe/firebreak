@@ -420,7 +420,7 @@ def transfer_command(*, words: list[str]) -> TransferCommand:
     bounds = [int(number) * 4096 for number in numbers[1:]]
     ranges = [
         BlockRange(end=end, start=start)
-        for start, end in zip(bounds[::2], bounds[1::2])
+        for start, end in zip(bounds[::2], bounds[1::2], strict=False)
     ]
     if any(block_range.start >= block_range.end for block_range in ranges):
         raise FatalError(

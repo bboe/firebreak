@@ -15,8 +15,7 @@ from firebreak.ui import FatalError
 
 if TYPE_CHECKING:
     import pathlib
-
-    from typing_extensions import Self
+    from typing import Self
 
 
 class FakeConsole:

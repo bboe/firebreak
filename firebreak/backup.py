@@ -105,7 +105,7 @@ def backup(*, directory: str, force: bool) -> None:
     device = known_device()
     detect_dd(asked=adb_shell)
     serial, cid = identity()
-    now = datetime.datetime.now(tz=datetime.timezone.utc).astimezone()
+    now = datetime.datetime.now(tz=datetime.UTC).astimezone()
     folder = pathlib.Path(
         directory
         or f"{device.name}-{serial or 'unknown'}-{now.strftime('%Y%m%d-%H%M%S')}"

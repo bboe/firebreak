@@ -130,7 +130,7 @@ def shuffled_gpt(
     userdata[40:48] = struct.pack("<Q", shrunk)
     shuffled = [
         renamed(entry=entry, name=f"{name}_x") if name in identifiers else entry
-        for entry, name in zip(used[:-1], names)
+        for entry, name in zip(used[:-1], names, strict=False)
     ]
     shuffled.append(bytes(userdata))
     start = shrunk + 1
@@ -188,7 +188,7 @@ def unshuffled_gpt(*, raw: bytes, targets: tuple[str, ...]) -> Table:
         renamed(entry=entry, name=name[: -len("_x")])
         if name in {f"{target}_x" for target in targets}
         else entry
-        for entry, name in zip(used[:kept], names)
+        for entry, name in zip(used[:kept], names, strict=False)
     ]
     restored.append(bytes(userdata))
     return rebuilt_gpt(entries=b"".join(restored).ljust(ENTRIES_SIZE, b"\0"), raw=raw)

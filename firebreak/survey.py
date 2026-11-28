@@ -392,7 +392,7 @@ def stamp_time(*, stamp: int | None) -> str:
     if stamp is None:
         return "<none>"
     try:
-        when = datetime.datetime.fromtimestamp(stamp, datetime.timezone.utc)
+        when = datetime.datetime.fromtimestamp(stamp, datetime.UTC)
     except (OSError, OverflowError, ValueError) as error:
         raise FatalError(message=f"has an unreadable build time: {error}") from error
     return when.strftime("%Y%m%d_%H%M%S")

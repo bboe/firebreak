@@ -38,7 +38,7 @@ path = "firebreak/__init__.py"
 
 [tool.ruff]
 preview = true
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.lint]
 ignore = [

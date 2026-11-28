@@ -88,7 +88,7 @@ def simple_strtoul(*, text: str) -> int | None:
 
 
 fuse.FUSE(
-    Sysfs(sizes=dict(zip(SIDES, map(int, sys.argv[2:4])))),
+    Sysfs(sizes=dict(zip(SIDES, map(int, sys.argv[2:4]), strict=True))),
     sys.argv[1],
     allow_other=True,
     default_permissions=True,

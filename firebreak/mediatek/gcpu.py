@@ -106,7 +106,7 @@ def vector_words(*, data: bytes, decryption: bytes) -> tuple[int, ...]:
     return tuple(
         target ^ mask
         for target, mask in zip(
-            struct.unpack(layout, data), struct.unpack(layout, decryption)
+            struct.unpack(layout, data), struct.unpack(layout, decryption), strict=True
         )
     )
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 import hashlib
 import struct
-from typing import TYPE_CHECKING, ClassVar, TypeVar
+from typing import TYPE_CHECKING, ClassVar
 
 from firebreak.emmc import RPMB_SIZE
 from firebreak.mediatek.usbdl import Connection, ProtocolMismatchError, verify
@@ -78,14 +78,13 @@ class Payload(Connection):
         self.port.write(data=data)
 
 
-Client = TypeVar("Client", bound=Payload)
-
-
 def framed(*, arguments: Sequence[int], command: int) -> bytes:
     return struct.pack(f">{2 + len(arguments)}I", PAYLOAD_MAGIC, command, *arguments)
 
 
-def start_payload(*, bootrom: Bootrom, client: type[Client], payload: bytes) -> Client:
+def start_payload[Client: Payload](
+    *, bootrom: Bootrom, client: type[Client], payload: bytes
+) -> Client:
     found = hashlib.sha256(payload).hexdigest()
     if found != client.SHA256:
         message = (

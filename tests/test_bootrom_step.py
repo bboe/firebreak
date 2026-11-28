@@ -31,8 +31,7 @@ from firebreak.ui import FatalError, explained
 
 if TYPE_CHECKING:
     import pathlib
-
-    from typing_extensions import Self
+    from typing import Self
 
 ACTIONS = (
     Action(data=b"h", kind="ClearBoot0Header", label="clear", length=1, offset=0),
@@ -1008,7 +1007,9 @@ def test_the_bootrom_unlock_downloads_nothing_and_keeps_every_step() -> None:
     ]
     assert len(unlock.plan) == len(whole)
     swapped = [
-        (before, after) for before, after in zip(whole, unlock.plan) if before != after
+        (before, after)
+        for before, after in zip(whole, unlock.plan, strict=True)
+        if before != after
     ]
     assert [after.image for _, after in swapped] == ["bin/twrp.img"]
     assert unlock.version == "1.1.0"

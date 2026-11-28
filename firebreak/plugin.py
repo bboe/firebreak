@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import hashlib
-from typing import TYPE_CHECKING, Protocol, Union
+from typing import TYPE_CHECKING, Protocol
 
 from firebreak.states import State
 
@@ -202,14 +202,14 @@ class ZeroRpmb:
     label: str = "zero the RPMB"
 
 
-Step = Union[
-    ClearBoot0Header,
-    FastbootFlash,
-    ForceFastboot,
-    PayloadCommand,
-    Reboot,
-    Repartition,
-    ResetBcb,
-    Write,
-    ZeroRpmb,
-]
+type Step = (
+    ClearBoot0Header
+    | FastbootFlash
+    | ForceFastboot
+    | PayloadCommand
+    | Reboot
+    | Repartition
+    | ResetBcb
+    | Write
+    | ZeroRpmb
+)
