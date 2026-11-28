@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import shutil
 import struct
 import subprocess
 import sys
@@ -35,6 +36,10 @@ ADB_KEY_E = 3
 ADB_KEY_P = (1 << 1024) - 1
 ADB_KEY_Q = (1 << 1024) - 5
 DEFINED = {(usbdl, "mediatek_ports")}
+NEEDS_SH = pytest.mark.skipif(
+    condition=sys.platform == "win32" or shutil.which("sh") is None,
+    reason="the device's shell snippets need a POSIX sh and its tools",
+)
 REAL_USB_DEVICES = identify.usb_devices
 
 
@@ -152,8 +157,7 @@ def no_real_cache(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) ->
         ):
             if hasattr(module, attribute) and (module, attribute) not in DEFINED:
                 monkeypatch.setattr(name=attribute, target=module, value=value)
-    monkeypatch.setenv(name="HOME", value=str(tmp_path / "real-home"))
-    monkeypatch.setenv(name="USERPROFILE", value=str(tmp_path / "real-home"))
+    home(monkeypatch=monkeypatch, value=str(tmp_path / "real-home"))
     monkeypatch.setenv(name="SSH_CONNECTION", value="no real clipboard")
     monkeypatch.setattr(name="get", target=cache.webbrowser, value=real_browser)
 
@@ -286,6 +290,11 @@ def function_replies(*, status: int) -> bytes:
             words=(gcpu.Interrupt.BOTH,),
         )
     )
+
+
+def home(*, monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv(name="HOME", value=value)
+    monkeypatch.setenv(name="USERPROFILE", value=value)
 
 
 def integer(*, value: int) -> bytes:

@@ -118,7 +118,8 @@ class Unconfigured(FakeDevice):
 
 
 @pytest.fixture(autouse=True)
-def fresh_backend() -> Iterator[None]:
+def fresh_backend(*, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    monkeypatch.setattr(name="USBDK", target=libusb, value=False)
     cached = libusb.backend
     cached.cache_clear()
     yield

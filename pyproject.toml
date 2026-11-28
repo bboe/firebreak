@@ -79,8 +79,8 @@ env_list = ["lint", "build", "test"]
 requires = ["tox>=4.21", "tox-uv"]
 
 [tool.tox.env.build]
-allowlist_externals = ["rm", "uv"]
-commands = [["rm", "-rf", "build", "dist"], ["uv", "build", "--quiet"]]
+allowlist_externals = ["uv"]
+commands = [["uv", "build", "--clear", "--quiet"]]
 skip_install = true
 
 [tool.tox.env.lint]

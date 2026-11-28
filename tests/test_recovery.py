@@ -8,6 +8,7 @@ import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
+from conftest import NEEDS_SH
 from test_gpt import OTHERS
 from test_gpt import raw as gpt_raw
 
@@ -275,6 +276,7 @@ def test_a_byte_patch_lands_inside_its_sector(*, dot: FakeDot) -> None:
     assert len(writes(dot)) == 1
 
 
+@NEEDS_SH
 def test_a_hash_needs_every_record(*, tmp_path: pathlib.Path) -> None:
     disk = tmp_path / "disk"
     disk.write_bytes(b"A" * 512 + b"B" * 1024 + b"C" * 512)
@@ -563,6 +565,7 @@ def test_a_table_whose_backup_copy_dd_cannot_reach_writes_nothing(
     assert recovery.SESSION.boot0_erased is False
 
 
+@NEEDS_SH
 @pytest.mark.parametrize(argnames="exit_status", argvalues=[0, 1])
 def test_a_write_needs_every_record_and_a_clean_exit(
     *, exit_status: int, tmp_path: pathlib.Path

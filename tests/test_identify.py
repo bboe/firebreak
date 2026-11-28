@@ -4,6 +4,7 @@ import dataclasses
 import plistlib
 import re
 import subprocess
+import sys
 import types
 from typing import TYPE_CHECKING
 
@@ -522,6 +523,9 @@ def test_each_platform_uses_its_own_reader(
     assert identify.usb_devices() == [AEOBC]
 
 
+@pytest.mark.skipif(
+    condition=sys.platform == "win32", reason="a Windows file name cannot hold a colon"
+)
 def test_linux_reads_sysfs(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:

@@ -66,8 +66,11 @@ def linux(
 ) -> None:
     group = types.SimpleNamespace(gr_gid=group_id, gr_mem=members)
     monkeypatch.setattr(name="platform", target=host.sys, value="linux")
-    monkeypatch.setattr(name="geteuid", target=os, value=lambda: 1000)
-    monkeypatch.setattr(name="getgroups", target=os, value=lambda: groups)
+    monkeypatch.setattr(name="geteuid", raising=False, target=os, value=lambda: 1000)
+    monkeypatch.setattr(
+        name="getgroups", raising=False, target=os, value=lambda: groups
+    )
+    monkeypatch.setattr(name="getuid", raising=False, target=os, value=lambda: 1000)
     grp = types.ModuleType("grp")
     grp.getgrnam = lambda *, name: group if name == "plugdev" else None
     pwd = types.ModuleType("pwd")
@@ -185,13 +188,14 @@ def test_check_user(*, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_check_user_elsewhere(*, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(name="geteuid", target=os, value=lambda: 1000)
+    monkeypatch.setattr(name="geteuid", raising=False, target=os, value=lambda: 1000)
     monkeypatch.setattr(name="platform", target=host.sys, value="darwin")
     host.check_user()
 
 
+@pytest.mark.skipif(condition=os.name == "nt", reason="Windows has no root")
 def test_check_user_refuses_root(*, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(name="geteuid", target=os, value=lambda: 0)
+    monkeypatch.setattr(name="geteuid", raising=False, target=os, value=lambda: 0)
     with pytest.raises(expected_exception=FatalError, match="not as root"):
         host.check_user()
 

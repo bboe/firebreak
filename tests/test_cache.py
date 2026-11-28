@@ -17,6 +17,7 @@ import zipfile
 from typing import TYPE_CHECKING
 
 import pytest
+from conftest import home
 
 from firebreak import cache
 from firebreak.ui import FatalError, explained
@@ -79,10 +80,13 @@ def quiet_browser() -> types.SimpleNamespace:
 
 
 def test_cache_dir(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
-    monkeypatch.setenv(name="XDG_CACHE_HOME", value=str(tmp_path))
+    posix = types.SimpleNamespace(
+        environ={"XDG_CACHE_HOME": str(tmp_path)}, name="posix"
+    )
+    monkeypatch.setattr(name="os", target=cache, value=posix)
     assert cache.cache_dir() == tmp_path / "firebreak"
-    monkeypatch.delenv(name="XDG_CACHE_HOME")
-    monkeypatch.setenv(name="HOME", value=str(tmp_path))
+    posix.environ = {}
+    home(monkeypatch=monkeypatch, value=str(tmp_path))
     assert cache.cache_dir() == tmp_path / ".cache" / "firebreak"
 
 
@@ -105,12 +109,13 @@ def test_cache_note(
     assert capsys.readouterr().out == ""
     cached.mkdir()
     (cached / "big").write_bytes(data=bytes(3_000_000))
-    monkeypatch.setenv(name="HOME", value=str(cached.parent))
+    home(monkeypatch=monkeypatch, value=str(cached.parent))
     cache.cache_note()
     said = capsys.readouterr().out
-    assert said.startswith("~/cache holds 3 MB of downloads")
+    shown = str(cached) if os.name == "nt" else "~/cache"
+    assert " ".join(said.split()).startswith(f"{shown} holds 3 MB of downloads")
     assert "It is safe to delete." in " ".join(said.split())
-    assert all(len(line) <= 79 for line in said.splitlines())
+    assert all(len(line) <= 79 or line == shown for line in said.splitlines())
 
 
 def test_cache_note_keeps_a_path_with_spaces_on_one_line(
@@ -122,7 +127,7 @@ def test_cache_note_keeps_a_path_with_spaces_on_one_line(
     spaced = tmp_path / ("a folder with spaces " * 3).strip()
     spaced.mkdir()
     monkeypatch.setattr(name="CACHE", target=cache, value=spaced)
-    monkeypatch.setenv(name="HOME", value="/nowhere")
+    home(monkeypatch=monkeypatch, value="/nowhere")
     cache.cache_note()
     assert str(spaced) in capsys.readouterr().out.splitlines()[0]
 
@@ -138,7 +143,7 @@ def test_copies_looks_in_the_trash_on_macos(
     tmp_path: pathlib.Path,
 ) -> None:
     monkeypatch.setattr(name="platform", target=sys, value=platform)
-    monkeypatch.setenv(name="HOME", value=str(tmp_path))
+    home(monkeypatch=monkeypatch, value=str(tmp_path))
     trash = tmp_path / ".Trash"
     trash.mkdir()
     (trash / "boot-root.zip 12-19-07-221.zip").write_bytes(data=BODY)
@@ -288,7 +293,7 @@ def test_downloaded_skips_what_it_cannot_read(
 def test_downloads_dir(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
-    monkeypatch.setenv(name="HOME", value=str(tmp_path))
+    home(monkeypatch=monkeypatch, value=str(tmp_path))
     assert cache.downloads_dir() == tmp_path / "Downloads"
 
 
@@ -360,7 +365,10 @@ def test_fetch_from_the_browser(
             (downloads / "284ee1de.tmp").write_bytes(data=BODY),
         ),
         lambda: (downloads / "boot-root(1).zip").write_bytes(data=BODY[:-1] + b"x"),
-        lambda: (downloads / "boot-root(1).zip").write_bytes(data=BODY),
+        lambda: (
+            (downloads / "boot-root(1).zip").write_bytes(data=BODY),
+            os.utime(downloads / "boot-root(1).zip", times=(1, 1)),
+        ),
     ))
     monkeypatch.setattr(
         name="sleep", target=cache.time, value=lambda _: next(arrivals)()
@@ -518,7 +526,7 @@ def test_fetch_from_the_browser_keeps_directories_unless_it_came_from_the_trash(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
     monkeypatch.setattr(name="platform", target=sys, value="darwin")
-    monkeypatch.setenv(name="HOME", value=str(tmp_path))
+    home(monkeypatch=monkeypatch, value=str(tmp_path))
     downloads = tmp_path / "Downloads"
     downloads.mkdir()
     archive = archived(path=tmp_path / "source.zip")
@@ -608,14 +616,15 @@ def test_fetch_from_the_browser_needs_it_to_open(
 
 
 @pytest.mark.skipif(
-    condition=os.geteuid() == 0, reason="root reads what its modes forbid"
+    condition=sys.platform == "win32" or os.geteuid() == 0,
+    reason="Windows and root read what the modes forbid",
 )
 @pytest.mark.usefixtures("cached")
 def test_fetch_from_the_browser_points_at_a_trash_it_cannot_read(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
     monkeypatch.setattr(name="platform", target=sys, value="darwin")
-    monkeypatch.setenv(name="HOME", value=str(tmp_path))
+    home(monkeypatch=monkeypatch, value=str(tmp_path))
     (tmp_path / "Downloads").mkdir()
     trash = tmp_path / ".Trash"
     trash.mkdir()
@@ -699,7 +708,7 @@ def test_fetch_from_the_browser_removes_what_safari_unpacked(
     tmp_path: pathlib.Path,
 ) -> None:
     monkeypatch.setattr(name="platform", target=sys, value="darwin")
-    monkeypatch.setenv(name="HOME", value=str(tmp_path))
+    home(monkeypatch=monkeypatch, value=str(tmp_path))
     downloads, trash = tmp_path / "Downloads", tmp_path / ".Trash"
     downloads.mkdir()
     trash.mkdir()
@@ -810,7 +819,7 @@ def test_fetch_keeps_directories_when_the_trash_already_held_it(
     *, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> None:
     monkeypatch.setattr(name="platform", target=sys, value="darwin")
-    monkeypatch.setenv(name="HOME", value=str(tmp_path))
+    home(monkeypatch=monkeypatch, value=str(tmp_path))
     downloads, trash = tmp_path / "Downloads", tmp_path / ".Trash"
     trash.mkdir()
     archive = archived(path=trash / "boot-root.zip")
@@ -968,7 +977,8 @@ def test_holds_only(
 
 
 @pytest.mark.skipif(
-    condition=os.geteuid() == 0, reason="root reads what its modes forbid"
+    condition=sys.platform == "win32" or os.geteuid() == 0,
+    reason="Windows and root read what the modes forbid",
 )
 @pytest.mark.parametrize(
     argnames="change",

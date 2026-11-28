@@ -3,6 +3,8 @@ from __future__ import annotations
 import subprocess
 from typing import TYPE_CHECKING
 
+from conftest import NEEDS_SH
+
 from firebreak import report
 
 if TYPE_CHECKING:
@@ -243,6 +245,7 @@ def test_system_record() -> None:
     assert report.system_record(text="want two") == ("", 0)
 
 
+@NEEDS_SH
 def test_the_dmesg_window_reads_any_uptime(*, tmp_path: pathlib.Path) -> None:
     sent: list[str] = []
     report.dot_details(asked=lambda *, command: sent.append(command) or "")
@@ -264,6 +267,7 @@ def test_the_dmesg_window_reads_any_uptime(*, tmp_path: pathlib.Path) -> None:
         assert said == want
 
 
+@NEEDS_SH
 def test_the_mmc_log_leaves_out_routine_mounts(*, tmp_path: pathlib.Path) -> None:
     kept = (
         "[    4.43] mmc0: new HS200 MMC card at address 0001",
