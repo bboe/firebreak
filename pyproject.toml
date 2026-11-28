@@ -90,7 +90,7 @@ set_env = { SKIP = "no-commit-to-branch" }
 skip_install = true
 
 [tool.tox.env.test]
-base_python = ["3.12"]
+base_python = [{ default = "3.12", name = "TEST_PYTHON", replace = "env" }]
 commands = [
     ["coverage", "run", "-m", "pytest", { replace = "posargs", extend = true }],
     ["coverage", "combine", "--quiet"],

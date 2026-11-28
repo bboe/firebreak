@@ -18,7 +18,7 @@ covers the plugin API: devices, unlocks and their plans.
 uvx --with tox-uv tox            # lint, build, then test, as CI runs them
 uvx --with tox-uv tox -e lint    # pre-commit-hooks, CodeSorter, markdownlint, ruff, toml-sort
 uvx --with tox-uv tox -e build   # dist/: wheel and sdist
-uvx --with tox-uv tox -e build,test    # pytest and coverage on Python 3.12
+uvx --with tox-uv tox -e build,test    # pytest and coverage on Python 3.12, or on $TEST_PYTHON
 ```
 
 ## Rules
