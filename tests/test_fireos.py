@@ -376,7 +376,8 @@ def test_a_migration_that_never_ends_stops_after_ten_minutes(
 
 
 @pytest.mark.parametrize(
-    ("content", "message"), [(None, "cannot be read"), (b"\n", "is empty")]
+    ("content", "message"),
+    [(None, "cannot be read"), (b"\n", "does not hold the 2048-bit RSA key")],
 )
 def test_a_missing_or_empty_adb_key_stops_before_any_write(
     *,
@@ -388,10 +389,10 @@ def test_a_missing_or_empty_adb_key_stops_before_any_write(
 ) -> None:
     folder = tmp_path / "other"
     folder.mkdir()
-    monkeypatch.setattr(name="HOST_KEY", target=fireos, value=folder / "adbkey.pub")
+    monkeypatch.setattr(name="HOST_KEY", target=fireos, value=folder / "adbkey")
     if content is not None:
-        (folder / "adbkey.pub").write_bytes(content)
-    with pytest.raises(FatalError, match=f"adbkey.pub {message}.*nothing was written"):
+        (folder / "adbkey").write_bytes(content)
+    with pytest.raises(FatalError, match=f"adbkey {message}.*nothing was written"):
         fireos.adb_key()
     assert (["adb", "start-server"] in adb.asked) == (content is None)
 
@@ -1636,7 +1637,10 @@ def test_staging_waits_for_this_boot_s_copy_to_end(
     assert slept == [5, 5, 5]
 
 
-def test_the_adb_key_is_the_one_in_the_home_folder() -> None:
+def test_the_adb_key_is_derived_from_the_private_key_in_the_home_folder(
+    *, tmp_path: pathlib.Path
+) -> None:
+    (tmp_path / "adbkey.pub").write_bytes(data=b"QAAAAstale firebreak@host\n")
     assert fireos.adb_key() == ADB_KEY
 
 

@@ -52,6 +52,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- `unlock` locks adb to the public half of `~/.android/adbkey`, derived from
+  that private key, and no longer reads `adbkey.pub`. adb 28.0.3, which Touch
+  Portal ships, writes no `adbkey.pub`, so the run stopped with "cannot be
+  read", and an `adbkey.pub` that came from another computer would have
+  locked the Echo to a key adb does not sign with.
 - The move from Fire OS 5 writes Fire OS 6 4315's boot and system to both
   slots, not only the active one. `boot-root.zip` patches both, and on a Dot
   whose other slot still held Fire OS 5 it stopped with

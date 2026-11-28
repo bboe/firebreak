@@ -19,6 +19,7 @@ import zipfile
 from typing import IO, TYPE_CHECKING
 
 from firebreak import updates
+from firebreak.android.adbkey import public_key
 from firebreak.android.bootimg import boot_image, cpio, magisk_db, magisk_files
 from firebreak.android.ota import transfer_list
 from firebreak.cache import (
@@ -86,7 +87,7 @@ BUILD_OK = "build-ok"
 ERASED_OK = "erased-ok"
 FASTBOOT_WAIT = 120
 HIDE_WAIT = 60
-HOST_KEY = pathlib.Path.home() / ".android" / "adbkey.pub"
+HOST_KEY = pathlib.Path.home() / ".android" / "adbkey"
 INSTALL_STEPS = 5
 KEY_TYPES = {
     bytes.fromhex("2a8648ce3d0201"): "ECDSA",
@@ -258,16 +259,17 @@ def adb_key() -> bytes:
     if not path.is_file():
         run(arguments=["adb", "start-server"], timeout=30)
     try:
-        key = path.read_bytes()
+        key = public_key(pem=path.read_bytes())
     except OSError as error:
         raise FatalError(
             message=f"{path} cannot be read. The unlock lets only the adb key in"
             f" it into the {title()}, so nothing was written."
         ) from error
-    if not key.strip():
+    if not key:
         raise FatalError(
-            message=f"{path} is empty. The unlock lets only the adb key in it into"
-            f" the {title()}, so nothing was written."
+            message=f"{path} does not hold the 2048-bit RSA key adb makes. The"
+            f" unlock lets only the adb key in it into the {title()}, so nothing"
+            " was written."
         )
     return key
 

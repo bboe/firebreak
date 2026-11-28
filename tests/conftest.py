@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import struct
 import subprocess
 import sys
@@ -17,7 +18,22 @@ if TYPE_CHECKING:
     import pathlib
     from collections.abc import Callable, Iterator
 
-ADB_KEY = b"QAAAAtest firebreak@host\n"
+ADB_KEY = (
+    b"QAAAADMzMzMFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPr/////////////////////////////////"
+    b"////////////////////////////////////////////////////////////////////////"
+    b"////////////////////////////////////////////////////////////////Zf//////"
+    b"////////////////////////////////////////////////////////////////////////"
+    b"////////////////////////////////////////////////////////////////////////"
+    b"//////////////////+bAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAA="
+    b"\n"
+)
+ADB_KEY_E = 3
+ADB_KEY_P = (1 << 1024) - 1
+ADB_KEY_Q = (1 << 1024) - 5
 DEFINED = {(usbdl, "mediatek_ports")}
 REAL_USB_DEVICES = identify.usb_devices
 
@@ -103,8 +119,8 @@ class FakePort:
 
 @pytest.fixture(autouse=True)
 def adb_home(*, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
-    key = tmp_path / "adbkey.pub"
-    key.write_bytes(data=ADB_KEY)
+    key = tmp_path / "adbkey"
+    key.write_bytes(data=adb_private_key())
     monkeypatch.setattr(name="HOST_KEY", target=fireos, value=key)
 
 
@@ -169,6 +185,29 @@ def acquire_replies() -> bytes:
     )
 
 
+def adb_private_key() -> bytes:
+    p, q, e = ADB_KEY_P, ADB_KEY_Q, ADB_KEY_E
+    d = pow(e, -1, (p - 1) * (q - 1))
+    rsa = der(
+        body=b"".join(
+            integer(value=value)
+            for value in (0, p * q, e, d, p, q, d % (p - 1), d % (q - 1), pow(q, -1, p))
+        ),
+        tag=0x30,
+    )
+    info = der(
+        body=integer(value=0)
+        + der(body=bytes.fromhex("06092a864886f70d0101010500"), tag=0x30)
+        + der(body=rsa, tag=0x04),
+        tag=0x30,
+    )
+    return (
+        b"-----BEGIN PRIVATE KEY-----\n"
+        + base64.encodebytes(info)
+        + b"-----END PRIVATE KEY-----\n"
+    )
+
+
 def aes_replies(*, address: int, data: bytes, status: int = 1) -> bytes:
     return (
         clear_input_replies()
@@ -198,6 +237,14 @@ def clear_replies() -> bytes:
         )
         + clear_input_replies()
     )
+
+
+def der(*, body: bytes, tag: int) -> bytes:
+    size = len(body)
+    if size < 0x80:
+        return bytes([tag, size]) + body
+    count = (size.bit_length() + 7) // 8
+    return bytes([tag, 0x80 | count]) + size.to_bytes(count, "big") + body
 
 
 def function_replies(*, status: int) -> bytes:
@@ -239,6 +286,10 @@ def function_replies(*, status: int) -> bytes:
             words=(gcpu.Interrupt.BOTH,),
         )
     )
+
+
+def integer(*, value: int) -> bytes:
+    return der(body=value.to_bytes(value.bit_length() // 8 + 1, "big"), tag=0x02)
 
 
 def no_real_ports() -> dict[str, int | None]:

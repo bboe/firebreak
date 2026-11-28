@@ -262,7 +262,7 @@ and every unlock route, needs nothing beyond the three pinned dependencies.
 
 An unlocked Echo answers root adb over USB and, on Fire OS 6, over Wi-Fi on
 port 5555. `unlock` lets in only the computer that ran it: the key in that
-computer's `~/.android/adbkey.pub`. Any other computer sees the Echo as
+computer's `~/.android/adbkey`. Any other computer sees the Echo as
 `unauthorized`. From the computer that ran the unlock:
 
 ```sh

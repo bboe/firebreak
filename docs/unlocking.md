@@ -1762,9 +1762,20 @@ unlock's, not the stock bytes.
   `locked-` before the reboot. On 7.1.2, `/` is the slot's `system`, adbd
   reads `/adb_keys`, and `init.aosp.rc` restorecons it. Outside `/data`, the
   key survives `--factory-reset`.
-- The key is `~/.android/adbkey.pub`. adb 1.0.41 reads only `$HOME`, or the
-  Windows profile, not `ANDROID_USER_HOME` or `ANDROID_SDK_HOME`. With no key
-  yet, the run starts the adb server, which writes one.
+- The key is the public half of `~/.android/adbkey`, the private key the adb
+  server signs with. adb 1.0.41 reads only `$HOME`, or the Windows profile,
+  not `ANDROID_USER_HOME` or `ANDROID_SDK_HOME`. With no key yet, the run
+  starts the adb server, which writes one.
+- The run derives the public key from `adbkey` and does not read
+  `adbkey.pub`. adb 28.0.3, which Touch Portal ships, writes `adbkey` and no
+  `adbkey.pub`: measured on Windows 11, 2026-11-27, where adb 36.0.1 wrote
+  both. And an `adbkey.pub` left beside another computer's `adbkey` names a
+  key the server does not sign with, so a Dot locked to it would answer
+  `unauthorized`. The derived key is adb's own format: on a test key in the
+  PKCS#8 form adb writes, adb 28.0.3's as well, it matched `adb pubkey` byte
+  for byte. A key in any other form stops the run before it writes. Only the
+  base64 goes into `/adb_keys`; adbd reads a line up to its first space, so
+  `adb pubkey`'s `user@host` comment is left off.
 - TWRP's adbd is not locked, so another computer gets in through the gesture
   and TWRP, and its install replaces the key.
 - Measured on a donut, 2026-11-11, on 8349 and on 1895: `ro.adb.secure` 1,
