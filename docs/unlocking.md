@@ -2772,6 +2772,10 @@ either amonet v1.1.0 TWRP, and amonet v1.1.0's from v2.0.0's TWRP.
   unlocks and downgrades. The built image matched `system_a` after a
   `twrp install` in every MiB that the root's own edits and ext4's mount
   metadata leave alone.
+- Each command in the list gives a count of block numbers, then that many
+  numbers in start and end pairs. A count that does not match, or an odd one,
+  stops the build: an odd one would leave its last number out of the image.
+  All four cached OTAs with a transfer list pass the check.
 - It is built as 128 MiB slices, each its own gzip member, because a
   concatenation of members is one stream to any decompressor. So one cache
   serves both routes below.

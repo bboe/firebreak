@@ -2,6 +2,14 @@
 
 This project adheres to [Semantic Versioning](https://semver.org).
 
+## Unreleased
+
+### Fixed
+
+- An OTA's `system.transfer.list` command whose block count does not match
+  its numbers, or is odd, stops the run with that reason. Before, a wrong
+  count went unchecked, and an odd one left its last number out of the image.
+
 ## 1.6.0 - 2026-11-28
 
 ### Added
