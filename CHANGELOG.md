@@ -52,6 +52,11 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- The move from Fire OS 5 writes Fire OS 6 4315's boot and system to both
+  slots, not only the active one. `boot-root.zip` patches both, and on a Dot
+  whose other slot still held Fire OS 5 it stopped with
+  `boot cmdline has no veritykeyid`. A rerun on a Dot that stopped that way
+  writes 4315 to the other slot before the zip.
 - `builds` gives a build whose codename carries a fifth digit the Fire OS
   version the Echo itself reports: `NS65751` is 6575.1, not 6.5.7.5.1. A
   four-digit codename still dots out, as `NS6575` to 6.5.7.5.

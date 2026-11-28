@@ -505,12 +505,14 @@ def install_and_root() -> None:
             message="this TWRP runs on a boot moved partition table. " + again()
         )
     reset = ARGUMENTS.factory_reset
-    build = "" if reset else installed_build(slot=active_slot())
-    if "." in build:
+    active = "" if reset else active_slot()
+    build = "" if reset else installed_build(slot=active)
+    bridged = "." in build
+    if bridged:
         check_fireos5(version=build)
     if ARGUMENTS.factory_reset:
         build = ""
-    elif "." in build:
+    elif bridged:
         write_bridge()
         build = MIGRATE_BUILD
     said = (
@@ -522,6 +524,8 @@ def install_and_root() -> None:
     )
     moving = "moving" in said
     if moving and ("pending" in said or "verified" not in said):
+        if "pending" in said and not bridged:
+            write_bridge_to(slots=(other_slot(slot=active),))
         move_setup(moved="pending" not in said, zip_path=zip_path)
     wiped = not build
     upgraded = not wiped and outdated(build=build)
@@ -713,6 +717,10 @@ def offer_factory_reset(*, why: str) -> None:
         message=f"{why}, so Fire OS 6 was not written. To erase it and install"
         f" Fire OS 6 {build}, run {command}"
     )
+
+
+def other_slot(*, slot: str) -> str:
+    return "b" if slot == "a" else "a"
 
 
 def outdated(*, build: str) -> bool:
@@ -1136,19 +1144,32 @@ def write_bridge() -> None:
     confirm_migration()
     check_staged(booted=False)
     PROGRESS.steps = PROGRESS.step + MIGRATE_STEPS + install_steps() - 1
+    active = active_slot()
+    write_bridge_to(slots=(active, other_slot(slot=active)))
+
+
+def write_bridge_to(*, slots: tuple[str, ...]) -> None:
     package = BUILDS[ARGUMENTS.target.device][MIGRATE_BUILD]
-    slot = active_slot()
-    PROGRESS.begin(estimate=10, label=f"writing Fire OS 6 {MIGRATE_BUILD}'s boot image")
+    named = " and ".join(slots)
+    PROGRESS.begin(
+        estimate=10 * len(slots),
+        label=f"writing {MIGRATE_BUILD}'s boot to slot {named}",
+    )
     with zipfile.ZipFile(file=fetch(download=package)) as archive:
         data = archive.read(name="boot.img")
-    wrong = write_boot(data=data, target=f"{BY_NAME}/boot_{slot}")
-    if wrong:
-        raise FatalError(
-            message=f"Fire OS 6 {MIGRATE_BUILD}'s boot image did not verify on the"
-            f" {title()}{wrong}. " + again()
-        )
-    PROGRESS.begin(estimate=120, label=f"writing Fire OS 6 {MIGRATE_BUILD}'s /system")
-    slices, want, blocks = system_image(package=package)
-    write_system(
-        blocks=blocks, slices=slices, system=f"{BY_NAME}/system_{slot}", want=want
+    for slot in slots:
+        wrong = write_boot(data=data, target=f"{BY_NAME}/boot_{slot}")
+        if wrong:
+            raise FatalError(
+                message=f"Fire OS 6 {MIGRATE_BUILD}'s boot image did not verify in"
+                f" the {title()}'s slot {slot}{wrong}. " + again()
+            )
+    PROGRESS.begin(
+        estimate=120 * len(slots),
+        label=f"writing {MIGRATE_BUILD}'s /system to slot {named}",
     )
+    slices, want, blocks = system_image(package=package)
+    for slot in slots:
+        write_system(
+            blocks=blocks, slices=slices, system=f"{BY_NAME}/system_{slot}", want=want
+        )

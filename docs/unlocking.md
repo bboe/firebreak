@@ -1919,11 +1919,25 @@ moved the setup in 37 s.
   `MIGRATION_PUFFIN_FAIL`, and its rollback service switches to the other
   slot.
 - So without `--factory-reset`, a slot that holds Fire OS 5.5.5.4 takes that
-  path. firebreak writes 4315's boot and then its system to the active slot,
+  path. firebreak writes 4315's boot and then its system to both slots,
   installs `boot-root.zip` over them and blocks updates there, starts it, and
   waits up to 10 minutes for `MIGRATION_PUFFIN_FINISH` and a non-empty
   `map.db`. Then it restarts into TWRP and installs the target over userdata
   as for an older Fire OS 6.
+- Both slots get 4315, because `boot-root.zip` patches both, and it stops
+  with `boot cmdline has no veritykeyid` on a boot image without that
+  argument. Fire OS 5's boot has none. Measured on 2026-11-27 on a Dot that
+  had only ever run Fire OS 5: slot b still held Fire OS 5's boot, and the zip
+  stopped there. After slot a was copied to slot b, the
+  zip passed and the run finished. A slot that holds 4315 with the setup
+  still to move gets 4315 in its other slot too before the zip, since an
+  earlier run may have written the active slot alone. Both were run on that
+  Dot from its Fire OS 5 backup the same day: from a run that had stopped at
+  the zip, the rerun wrote slot b and finished in 8 min 24 s. A fresh run
+  wrote both slots in 3 min and finished in 12 min 51 s. The other slot's Fire
+  OS 5 is no loss:
+  Fire OS 5 does not start on amonet v2.0.1's chain, which the run has
+  already written.
 - 4315's LK, TEE and preloader are not written. They would replace amonet's
   chain, and 4315 runs rooted under amonet's LK: the 2026-11-06 restores
   rooted 4310 to 4315 in place.

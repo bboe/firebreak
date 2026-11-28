@@ -117,7 +117,7 @@ class Scan:
             self.maybe |= set(unlocking.payloads.values())
         elif function is unlock.kamakiri_chain:
             self.found.add(KAMAKIRI_UNLOCKS[route.ARGUMENTS.target.device].source)
-        elif function is fireos.write_bridge:
+        elif function is fireos.write_bridge_to:
             self.maybe.add(
                 BUILDS[route.ARGUMENTS.target.device].get(fireos.MIGRATE_BUILD)
             )

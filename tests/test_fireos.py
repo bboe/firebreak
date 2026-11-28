@@ -558,8 +558,10 @@ def test_fire_os_5_5_5_4_moves_its_setup_through_4315_then_installs_the_target(
     assert migration["system"] == [
         fireos.BUILDS[BISCUIT][fireos.MIGRATE_BUILD],
         f"{fireos.BY_NAME}/system_a",
+        f"{fireos.BY_NAME}/system_b",
     ]
     assert [remote for _, remote in pushed] == [
+        "/tmp/boot.img",
         "/tmp/boot.img",
         "/sdcard/boot-root.zip",
         "/tmp/adbkey.pub",
@@ -569,7 +571,9 @@ def test_fire_os_5_5_5_4_moves_its_setup_through_4315_then_installs_the_target(
         "/sdcard/boot-root.zip",
         "/tmp/adbkey.pub",
     ]
-    assert f"of={fireos.BY_NAME}/boot_a" in adb.commands(holding="of=")[0]
+    written = adb.commands(holding="of=")
+    assert f"of={fireos.BY_NAME}/boot_a" in written[0]
+    assert f"of={fireos.BY_NAME}/boot_b" in written[1]
     assert len(adb.commands(holding=f"> {fireos.MAP_DB}")) == 1
     assert adb.commands(holding="twrp wipe") == []
     assert len(adb.commands(holding="twrp install /sdcard/update.zip")) == 2
@@ -578,6 +582,25 @@ def test_fire_os_5_5_5_4_moves_its_setup_through_4315_then_installs_the_target(
     assert migration["waited"] == ["twrp", "twrp"]
     assert fireos.PROGRESS.steps == fireos.PROGRESS.step
     assert adb.asked[-1] == ["adb", "reboot"]
+
+
+def test_fire_os_5_5_5_4_stops_when_4315_s_boot_does_not_verify_in_the_other_slot(
+    *,
+    adb: FakeAdb,
+    migration: dict[str, list[object]],
+    pushed: list[tuple[pathlib.Path, str]],
+) -> None:
+    adb.answers["bs=4096 count=2"] = [
+        lambda: md5(data=pushed[-1][0].read_bytes()),
+        "",
+    ]
+    with pytest.raises(
+        FatalError,
+        match=r"boot image did not verify in the Echo Dot \(2nd Generation\)'s"
+        r" slot b: read nothing",
+    ):
+        fireos.stage_install_fireos6()
+    assert migration["system"] == []
 
 
 def test_fire_os_5_before_the_preloader_takes_its_slot_and_does_not_reboot(
@@ -938,7 +961,6 @@ def test_fire_os_6_4315_that_never_finishes_its_setup_stops_after_five_minutes(
 def test_fire_os_6_4315_with_a_moved_setup_still_to_finish_finishes_it_first(
     *, adb: FakeAdb, migration: dict[str, list[object]]
 ) -> None:
-    del migration
     adb.answers["build-ok"] = [
         "mount-ok\nro.build.version.name=Fire OS 6.5.5.5 (NS6555/4315)\nbuild-ok"
     ]
@@ -947,13 +969,14 @@ def test_fire_os_6_4315_with_a_moved_setup_still_to_finish_finishes_it_first(
         f"0\n{slot}\nslot-ok" for slot in ("a", "a", "a", "b", "b", "a", "a")
     ]
     fireos.stage_install_fireos6()
+    assert migration["system"] == []
     assert adb.commands(holding="migrated-ok") == []
     assert len(adb.commands(holding="start otad")) == 1
     assert len(adb.commands(holding="stop otad")) == 1
     assert len(adb.commands(holding="twrp install /sdcard/update.zip")) == 2
 
 
-def test_fire_os_6_4315_with_a_setup_still_to_move_starts_before_the_upgrade(
+def test_fire_os_6_4315_with_a_setup_still_to_move_writes_the_other_slot_first(
     *, adb: FakeAdb, migration: dict[str, list[object]]
 ) -> None:
     adb.answers["build-ok"] = [
@@ -964,7 +987,11 @@ def test_fire_os_6_4315_with_a_setup_still_to_move_starts_before_the_upgrade(
     ]
     fireos.stage_install_fireos6()
     assert migration["confirm"] == []
-    assert migration["system"] == []
+    assert migration["system"] == [
+        fireos.BUILDS[BISCUIT][fireos.MIGRATE_BUILD],
+        f"{fireos.BY_NAME}/system_b",
+    ]
+    assert f"of={fireos.BY_NAME}/boot_b" in adb.commands(holding="of=")[0]
     assert len(adb.commands(holding="migrated-ok")) == 1
     assert len(adb.commands(holding="twrp install /sdcard/update.zip")) == 2
 
