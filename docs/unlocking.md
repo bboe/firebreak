@@ -1379,6 +1379,12 @@ unlock's, not the stock bytes.
   whose shell predates that gets `adb kill-server` and the `sg` line. The `sg`
   line repeats the command as run, interpreter, path and flags included,
   because a bare relative path is wrong from another directory.
+- The process has `plugdev` when it is among its supplementary groups or is
+  its effective group. `sg plugdev` sets the effective group and leaves the
+  supplementary ones as they were, so a check of the supplementary groups
+  alone refused the very `sg` line it had printed. Found on 2026-11-28 by the
+  simulator's tests on GitHub's Ubuntu runners, which ran them under `sg
+  plugdev` after adding the runner user to the group.
 - Without the rules adb lists the Echo as `no permissions`. When that lasts 5
   seconds and nothing else listed is usable, the run stops and prints
   the same rules and commands. A shorter spell is udev still setting

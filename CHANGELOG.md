@@ -6,6 +6,10 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- On Linux, a run under `sg plugdev -c`, the command firebreak itself prints
+  when a shell predates its user joining `plugdev`, no longer stops with that
+  same message. `sg` makes `plugdev` the effective group, which the check now
+  counts.
 - A TWRP partition write that loses adb's answer at its md5 reads, its flush,
   or its push and `dd` through `/tmp` waits for the Echo to reconnect and tries
   again, up to 3 times, as its start-sector read and its push to a partition

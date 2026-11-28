@@ -59,6 +59,7 @@ def completed(
 
 def linux(
     *,
+    effective: int = 1000,
     group_id: int,
     groups: list[int],
     members: list[str],
@@ -71,6 +72,9 @@ def linux(
         name="getgroups", raising=False, target=os, value=lambda: groups
     )
     monkeypatch.setattr(name="getuid", raising=False, target=os, value=lambda: 1000)
+    monkeypatch.setattr(
+        name="getegid", raising=False, target=os, value=lambda: effective
+    )
     grp = types.ModuleType("grp")
     grp.getgrnam = lambda *, name: group if name == "plugdev" else None
     pwd = types.ModuleType("pwd")
@@ -198,6 +202,13 @@ def test_check_user_refuses_root(*, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(name="geteuid", raising=False, target=os, value=lambda: 0)
     with pytest.raises(expected_exception=FatalError, match="not as root"):
         host.check_user()
+
+
+def test_check_user_takes_plugdev_as_the_effective_group_sg_gives(
+    *, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    linux(effective=46, group_id=46, groups=[], members=["me"], monkeypatch=monkeypatch)
+    host.check_user()
 
 
 def test_check_user_without_plugdev(*, monkeypatch: pytest.MonkeyPatch) -> None:

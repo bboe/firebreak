@@ -131,7 +131,7 @@ def check_user() -> None:
         plugdev = grp.getgrnam(name="plugdev")
     except KeyError:
         raise FatalError(message=NO_ACCESS + rerun()) from None
-    if plugdev.gr_gid in os.getgroups():
+    if plugdev.gr_gid in {*os.getgroups(), os.getegid()}:
         return
     if pwd.getpwuid(os.getuid()).pw_name in plugdev.gr_mem:
         raise FatalError(message=NEW_GROUP + rerun())
